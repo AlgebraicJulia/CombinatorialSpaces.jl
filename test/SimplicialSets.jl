@@ -7,12 +7,8 @@ using CombinatorialSpaces.SimplicialSets
 """ Check that the semi-simplicial identities hold in dimension `n`.
 """
 function is_semi_simplicial(s::AbstractACSet, n::Int)
-  @assert n >= 2
-  ∂, ∂′ = (∂₁, ∂₂)[[n, n-1]]
-  for i in 1:n, j in (i+1):n
-    ∂′(s, i, ∂(s, j)) == ∂′(s, j-1, ∂(s, i)) || return false
-  end
-  return true
+  all(∂(n-1, i, s, ∂(n, j, s)) == ∂(n-1, j-1, s, ∂(n, i, s))
+      for i in 1:n for j in (i+1):n)
 end
 
 # 1D simplicial sets
@@ -24,8 +20,8 @@ add_sorted_edge!(s, 2, 1)
 add_sorted_edges!(s, [2,4], [3,3])
 @test src(s) == [1,2,3]
 @test tgt(s) == [2,3,4]
-@test ∂₁(s, 0) == [2,3,4]
-@test ∂₁(s, 1) == [1,2,3]
+@test ∂₁(0, s) == [2,3,4]
+@test ∂₁(1, s) == [1,2,3]
 
 # 2D simplicial sets
 ####################
@@ -35,7 +31,7 @@ add_vertices!(s, 3)
 glue_triangle!(s, 1, 2, 3)
 @test is_semi_simplicial(s, 2)
 @test ntriangles(s) == 1
-@test map(i -> ∂₂(s, i, 1), (0,1,2)) == (2,3,1)
+@test map(i -> ∂₂(i, s, 1), (0,1,2)) == (2,3,1)
 @test map(i -> triangle_vertex(s, i, 1), (0,1,2)) == (1,2,3)
 
 s′ = SemiSimplicialSet2D()

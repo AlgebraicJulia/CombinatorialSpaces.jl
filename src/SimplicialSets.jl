@@ -19,7 +19,7 @@ automatically sort their inputs to ensure that the ordering condition is
 satisfied.
 """
 module SimplicialSets
-export AbstractSemiSimplicialSet1D, SemiSimplicialSet1D,
+export ∂, AbstractSemiSimplicialSet1D, SemiSimplicialSet1D,
   ∂₁, src, tgt, nv, ne, vertices, edges, has_vertex, has_edge,
   add_vertex!, add_vertices!, add_edge!, add_edges!,
   add_sorted_edge!, add_sorted_edges!,
@@ -52,11 +52,11 @@ const SemiSimplicialSet1D = Graph
 
 """ Boundary operator on edges or 1-chains in simplicial set.
 """
-@inline ∂₁(s::AbstractACSet, i::Int, args...) =
-  ∂₁(s::AbstractACSet, Val{i}, args...)
+@inline ∂₁(i::Int, s::AbstractACSet, args...) =
+  ∂₁(Val{i}, s::AbstractACSet, args...)
 
-∂₁(s::AbstractACSet, ::Type{Val{0}}, args...) = s[args..., :tgt]
-∂₁(s::AbstractACSet, ::Type{Val{1}}, args...) = s[args..., :src]
+∂₁(::Type{Val{0}}, s::AbstractACSet, args...) = s[args..., :tgt]
+∂₁(::Type{Val{1}}, s::AbstractACSet, args...) = s[args..., :src]
 
 """ Add edge to simplicial set, respecting the order of the vertex IDs.
 """
@@ -110,12 +110,12 @@ const SemiSimplicialSet2D = CSetType(SemiSimplexCategory2D,
 
 """ Boundary operator on triangles or 2-chains in simplicial set.
 """
-@inline ∂₂(s::AbstractACSet, i::Int, args...) =
-  ∂₂(s::AbstractACSet, Val{i}, args...)
+@inline ∂₂(i::Int, s::AbstractACSet, args...) =
+  ∂₂(Val{i}, s::AbstractACSet, args...)
 
-∂₂(s::AbstractACSet, ::Type{Val{0}}, args...) = s[args..., :src2_last]
-∂₂(s::AbstractACSet, ::Type{Val{1}}, args...) = s[args..., :tgt2]
-∂₂(s::AbstractACSet, ::Type{Val{2}}, args...) = s[args..., :src2_first]
+∂₂(::Type{Val{0}}, s::AbstractACSet, args...) = s[args..., :src2_last]
+∂₂(::Type{Val{1}}, s::AbstractACSet, args...) = s[args..., :tgt2]
+∂₂(::Type{Val{2}}, s::AbstractACSet, args...) = s[args..., :src2_first]
 
 triangles(s::AbstractACSet) = parts(s, :Tri)
 ntriangles(s::AbstractACSet) = nparts(s, :Tri)
@@ -167,5 +167,16 @@ function glue_sorted_triangle!(s::AbstractACSet, v₀::Int, v₁::Int, v₂::Int
   v₀, v₁, v₂ = sort(SVector(v₀, v₁, v₂))
   glue_triangle!(s, v₀, v₁, v₂; kw...)
 end
+
+# General operators
+###################
+
+""" Boundary operator on simplices and chains in simplicial sets.
+"""
+@inline ∂(n::Int, i::Int, s::AbstractACSet, args...) =
+  ∂(Val{n}, i, s::AbstractACSet, args...)
+
+∂(::Type{Val{1}}, i::Int, s::AbstractACSet, args...) = ∂₁(i, s, args...)
+∂(::Type{Val{2}}, i::Int, s::AbstractACSet, args...) = ∂₂(i, s, args...)
 
 end
