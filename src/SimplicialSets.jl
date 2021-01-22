@@ -1,12 +1,30 @@
 """ Simplicial sets in one, two, and three dimensions.
+
+For the time being, this module provides data structures only for
+*semi*-simplicial sets, which include the face maps but not the degeneracy maps.
+In the future we may add support for simplicial sets having both face and
+degeneracy maps. The analogy to keep in mind is that graphs are to
+semi-simpicial sets as reflexive graphs are to simplicial sets.
+
+Simplicial sets are inherently ordered structures. The "unordered" version of
+simplicial sets are symmetric simplicial sets, sometimes called just "symmetric
+sets." In one dimension, symmetric semi-simplicial sets are symmetric graphs.
+
+This module does not *directly* implement symmetric simplicial sets. However,
+they can be simulated with simplicial sets by enforcing that the ordering of the
+vertices of each face matches the ordering of the integer vertex IDs. The
+simplicial set then "presents" a symmetric simplicial set in a canonical way.
+The functions [`add_sorted_edge!`](@ref) and [`glue_sorted_triangle!`](@ref)
+automatically sort their inputs to ensure that the ordering condition is
+satisfied.
 """
 module SimplicialSets
 export AbstractSemiSimplicialSet1D, SemiSimplicialSet1D,
-  ∂₁, nv, ne, vertices, edges, src, tgt,
+  ∂₁, src, tgt, nv, ne, vertices, edges, has_vertex, has_edge,
   add_vertex!, add_vertices!, add_edge!, add_edges!,
   add_sorted_edge!, add_sorted_edges!,
   AbstractSemiSimplicialSet2D, SemiSimplicialSet2D,
-  ∂₂, ntriangles, triangles, triangle_vertex,
+  ∂₂, triangle_vertex, ntriangles, triangles,
   add_triangle!, glue_triangle!, glue_sorted_triangle!
 
 using StaticArrays: SVector
@@ -127,14 +145,16 @@ function glue_triangle!(s::AbstractACSet, v₀::Int, v₁::Int, v₂::Int; kw...
                 get_edge!(s, v₀, v₂); kw...)
 end
 
-function glue_sorted_triangle!(s::AbstractACSet, v₀::Int, v₁::Int, v₂::Int; kw...)
-  v₀, v₁, v₂ = sort(SVector(v₀, v₁, v₂))
-  glue_triangle!(s, v₀, v₁, v₂; kw...)
-end
-
 function get_edge!(s::AbstractACSet, src::Int, tgt::Int)
   es = edges(s, src, tgt)
   isempty(es) ? add_edge!(s, src, tgt) : first(es)
+end
+
+""" Glue a triangle onto a simplicial set, respecting the order of the vertices.
+"""
+function glue_sorted_triangle!(s::AbstractACSet, v₀::Int, v₁::Int, v₂::Int; kw...)
+  v₀, v₁, v₂ = sort(SVector(v₀, v₁, v₂))
+  glue_triangle!(s, v₀, v₁, v₂; kw...)
 end
 
 end
