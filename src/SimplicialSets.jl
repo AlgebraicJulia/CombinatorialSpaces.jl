@@ -42,10 +42,10 @@ const SimplexCategory1D = TheoryReflexiveGraph
 """
 const AbstractSemiSimplicialSet1D = AbstractGraph
 
-""" A 1D semi-simplicial set.
+""" A one-dimensional semi-simplicial set.
 
-One-dimensional semi-simplicial sets are the same as graphs, and this type is
-just an alias for `Graph`. The boundary operator [`∂₁`](@ref) translates the
+Semi-simplicial sets in 1D are the same as graphs, and this type is just an
+alias for `Graph`. The boundary operator [`∂₁`](@ref) translates the
 graph-theoretic terminology into simplicial terminology.
 """
 const SemiSimplicialSet1D = Graph
@@ -93,6 +93,17 @@ end
 const AbstractSemiSimplicialSet2D = AbstractACSetType(SemiSimplexCategory2D)
 
 """ A 2D semi-simplicial set.
+
+The triangles in a simpicial set can be interpreted in several ways.
+Geometrically, they are triangles (2-simplices) whose three edges are directed
+according to a specific pattern, determined by the ordering of the vertices or
+equivalently by the simplicial identities. This geometric perspective is encoded
+by the boundary map `[∂₂](@ref)`. Alternatively, the triangle can be seen as a
+higher-dimensional link or morphism, going from two edges in sequence (here
+called `src2_first` and `src2_last`) to a transitive edge (`tgt2`). Not
+coincidentally, this is the shape of the binary composition operation in a
+category. The categorical interpretation is the one used in the definition of
+the schema.
 """
 const SemiSimplicialSet2D = CSetType(SemiSimplexCategory2D,
   index=[:src, :tgt, :src2_first, :src2_last, :tgt2])
