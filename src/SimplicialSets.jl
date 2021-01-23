@@ -19,18 +19,21 @@ automatically sort their inputs to ensure that the ordering condition is
 satisfied.
 """
 module SimplicialSets
-export ∂, AbstractSemiSimplicialSet1D, SemiSimplicialSet1D,
-  ∂₁, src, tgt, nv, ne, vertices, edges, has_vertex, has_edge,
+export ∂, boundary,
+  AbstractSemiSimplicialSet1D, SemiSimplicialSet1D, OrientedSimplicialSet1D,
+  ∂₁, src, tgt, edge_sign, nv, ne, vertices, edges, has_vertex, has_edge,
   add_vertex!, add_vertices!, add_edge!, add_edges!,
   add_sorted_edge!, add_sorted_edges!,
-  AbstractSemiSimplicialSet2D, SemiSimplicialSet2D,
-  ∂₂, triangle_vertex, ntriangles, triangles,
+  AbstractSemiSimplicialSet2D, SemiSimplicialSet2D, OrientedSimplicialSet2D,
+  ∂₂, triangle_vertex, triangle_sign, ntriangles, triangles,
   add_triangle!, glue_triangle!, glue_sorted_triangle!
 
+using SparseArrays
 using StaticArrays: SVector
 
 using Catlab, Catlab.CategoricalAlgebra.CSets, Catlab.Graphs
 using Catlab.Graphs.BasicGraphs: TheoryGraph, TheoryReflexiveGraph
+using ..ArrayUtils
 
 # 1D simplicial sets
 ####################
@@ -68,6 +71,47 @@ add_sorted_edge!(s::AbstractACSet, v₀::Int, v₁::Int; kw...) =
 function add_sorted_edges!(s::AbstractACSet, vs₀::AbstractVector{Int},
                            vs₁::AbstractVector{Int}; kw...)
   add_edges!(s, min.(vs₀, vs₁), max.(vs₀, vs₁); kw...)
+end
+
+# Oriented 1D simplicial sets
+#----------------------------
+
+@present OrientedSimplexSchema1D <: SemiSimplexCategory1D begin
+  Orientation::Data
+  edge_orientation::Attr(E,Orientation)
+end
+
+""" A one-dimensional oriented simplicial set.
+
+TODO
+"""
+const OrientedSimplicialSet1D = ACSetType(OrientedSimplexSchema1D,
+                                          index=[:src,:tgt])
+
+""" Sign (±1) associated with edge orientation.
+"""
+edge_sign(s::AbstractACSet, args...) = @. 2 * s[args..., :edge_orientation] - 1
+
+∂₁(s::AbstractACSet, e::Int) = ∂₁(SparseVector{Int}, s, e)
+
+function ∂₁(::Type{V}, s::AbstractACSet, e::Int) where V <: AbstractVector
+  sgn = edge_sign(s,e)
+  vec = ArrayUtils.zeros(V, nv(s))
+  vec[∂₁(0,s,e)] = sgn
+  vec[∂₁(1,s,e)] = -sgn
+  vec
+end
+
+function ∂₁(s::AbstractACSet, echain::V) where V <: AbstractVector
+  vec = ArrayUtils.zeros(V, nv(s))
+  for (e, n) in enumeratenz(echain)
+    sgn = edge_sign(s,e)
+    if n != 0
+      vec[∂₁(0,s,e)] += sgn*n
+      vec[∂₁(1,s,e)] += -sgn*n
+    end
+  end
+  vec
 end
 
 # 2D simplicial sets
@@ -168,15 +212,35 @@ function glue_sorted_triangle!(s::AbstractACSet, v₀::Int, v₁::Int, v₂::Int
   glue_triangle!(s, v₀, v₁, v₂; kw...)
 end
 
+# Oriented 2D simplicial sets
+#----------------------------
+
+@present OrientedSimplexSchema2D <: SemiSimplexCategory2D begin
+  Orientation::Data
+  edge_orientation::Attr(E,Orientation)
+  tri_orientation::Attr(Tri,Orientation)
+end
+
+""" A two-dimensional oriented simplicial set.
+"""
+const OrientedSimplicialSet2D = ACSetType(OrientedSimplexSchema2D,
+  index=[:src, :tgt, :src2_first, :src2_last, :tgt2])
+
 # General operators
 ###################
 
 """ Boundary operator on simplices and chains in simplicial sets.
 """
 @inline ∂(n::Int, i::Int, s::AbstractACSet, args...) =
-  ∂(Val{n}, i, s::AbstractACSet, args...)
+  ∂(Val{n}, Val{i}, s::AbstractACSet, args...)
 
-∂(::Type{Val{1}}, i::Int, s::AbstractACSet, args...) = ∂₁(i, s, args...)
-∂(::Type{Val{2}}, i::Int, s::AbstractACSet, args...) = ∂₂(i, s, args...)
+∂(::Type{Val{1}}, i::Type, s::AbstractACSet, args...) = ∂₁(i, s, args...)
+∂(::Type{Val{2}}, i::Type, s::AbstractACSet, args...) = ∂₂(i, s, args...)
+
+@inline ∂(n::Int, s::AbstractACSet, args...; kw...) =
+  ∂(Val{n}, s::AbstractACSet, args...; kw...)
+
+∂(::Type{Val{1}}, s::AbstractACSet, args...; kw...) = ∂₁(s, args...; kw...)
+∂(::Type{Val{2}}, s::AbstractACSet, args...; kw...) = ∂₂(s, args...; kw...)
 
 end

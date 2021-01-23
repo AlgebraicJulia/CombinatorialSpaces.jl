@@ -1,6 +1,8 @@
 module TestSimplicialSets
 using Test
 
+using SparseArrays: issparse
+
 using Catlab.CategoricalAlgebra.CSets
 using CombinatorialSpaces.SimplicialSets
 
@@ -22,6 +24,18 @@ add_sorted_edges!(s, [2,4], [3,3])
 @test tgt(s) == [2,3,4]
 @test ∂₁(0, s) == [2,3,4]
 @test ∂₁(1, s) == [1,2,3]
+
+# Oriented 1D simplicial sets
+#----------------------------
+
+s = OrientedSimplicialSet1D{Bool}()
+add_vertices!(s, 4)
+add_edges!(s, [1,2,3], [2,3,4], edge_orientation=[true,false,true])
+@test issparse(∂₁(s, 1))
+@test ∂₁(s, 1) == [-1,1,0,0]
+@test ∂₁(s, 2) == [0,1,-1,0]
+@test !issparse(∂₁(s, [1,-1,1]))
+@test ∂₁(s, [1,-1,1]) == [-1,0,0,1]
 
 # 2D simplicial sets
 ####################
