@@ -1,5 +1,7 @@
+""" Utitilies for working with dense and sparse arrays uniformly.
+"""
 module ArrayUtils
-export enumeratenz, fromnz, nzbuilder, add!, take
+export enumeratenz, applynz, fromnz
 
 using SparseArrays
 
@@ -37,6 +39,19 @@ nzbuilder(::Type{SparseVector{Tv}}, n::Integer) where Tv =
 """
 enumeratenz(v::AbstractVector) = enumerate(v)
 enumeratenz(v::SparseVector) = zip(findnz(v)...)
+
+""" Apply linear map defined in terms of structural nonzero values.
+"""
+function applynz(f, u::Vec, n::Integer) where Vec <: AbstractVector
+  vec = nzbuilder(Vec, n)
+  for (i, c) in enumeratenz(u)
+    if !iszero(c)
+      j, x = f(i)
+      add!(vec, j, c*x)
+    end
+  end
+  take(vec)
+end
 
 """ Construct array, not necessarily sparse, from structural nonzero values.
 """

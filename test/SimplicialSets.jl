@@ -31,13 +31,21 @@ add_sorted_edges!(s, [2,4], [3,3])
 s = OrientedSimplicialSet1D{Bool}()
 add_vertices!(s, 4)
 add_edges!(s, [1,2,3], [2,3,4], edge_orientation=[true,false,true])
-@test issparse(∂₁(s, 1))
 @test ∂₁(s, 1) == [-1,1,0,0]
 @test ∂₁(s, 2) == [0,1,-1,0]
 
+# Boundary operator, dense vectors.
+vvec = ∂₁(s, 1, Vector{Int})
+@test !issparse(vvec)
+@test vvec == [-1,1,0,0]
 vvec = ∂₁(s, [1,-1,1])
 @test !issparse(vvec)
 @test vvec == [-1,0,0,1]
+
+# Boundary operator, sparse vectors.
+vvec = ∂₁(s, 1, SparseVector{Int})
+@test issparse(vvec)
+@test vvec == [-1,1,0,0]
 vvec = ∂₁(s, sparsevec([1,-1,1]))
 @test issparse(vvec)
 @test vvec == [-1,0,0,1]
@@ -71,6 +79,13 @@ glue_triangle!(s, 1, 4, 3)
 # 2D oriented simplicial sets
 #----------------------------
 
+# Triangle with matching edge orientations.
+s = OrientedSimplicialSet2D{Bool}()
+add_vertices!(s, 3)
+add_sorted_edges!(s, [1,2,3], [2,3,1], edge_orientation=[true,true,false])
+glue_triangle!(s, 1, 2, 3, tri_orientation=true)
+@test ∂₂(s, 1) == [1,1,1]
+
 # Triangulated square with consistent orientation.
 s = OrientedSimplicialSet2D{Bool}()
 add_vertices!(s, 4)
@@ -79,7 +94,6 @@ glue_triangle!(s, 1, 3, 4)
 s[:edge_orientation] = true
 s[:tri_orientation] = true
 @test ∂₂(s, 1) == [1,1,-1,0,0]
-# 2-chain around perimeter in positive orientation.
-@test ∂₂(s, [1,1]) == [1,1,0,1,-1]
+@test ∂₂(s, [1,1]) == [1,1,0,1,-1] # 2-chain around perimeter.
 
 end

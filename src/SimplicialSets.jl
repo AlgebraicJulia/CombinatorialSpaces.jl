@@ -29,7 +29,7 @@ export ∂, boundary,
   add_triangle!, glue_triangle!, glue_sorted_triangle!
 
 using SparseArrays
-using StaticArrays: SVector
+using StaticArrays: @SVector, SVector
 
 using Catlab, Catlab.CategoricalAlgebra.CSets, Catlab.Graphs
 using Catlab.Graphs.BasicGraphs: TheoryGraph, TheoryReflexiveGraph
@@ -94,21 +94,13 @@ const OrientedSimplicialSet1D = ACSetType(OrientedSimplexSchema1D,
 edge_sign(s::AbstractACSet, args...) = @. 2 * s[args..., :edge_orientation] - 1
 
 ∂₁(s::AbstractACSet, e::Int) = ∂₁(s, e, SparseVector{Int})
+∂₁(s::AbstractACSet, e::Int, ::Type{Vec}) where Vec <: AbstractVector =
+  fromnz(Vec, ∂₁nz(s,e)..., nv(s))
+∂₁(s::AbstractACSet, echain::AbstractVector) =
+  applynz(echain, nv(s)) do e; ∂₁nz(s,e) end
 
-function ∂₁(s::AbstractACSet, e::Int, ::Type{Vec}) where Vec <: AbstractVector
-  fromnz(Vec, SVector(∂₁(0,s,e), ∂₁(1,s,e)),
-         edge_sign(s,e) * SVector(1,-1), nv(s))
-end
-
-function ∂₁(s::AbstractACSet, echain::Vec) where Vec <: AbstractVector
-  vec = nzbuilder(Vec, nv(s))
-  for (e, n) in enumeratenz(echain)
-    if n != 0
-      add!(vec, SVector(∂₁(0,s,e), ∂₁(1,s,e)),
-           n * edge_sign(s,e) * SVector(1,-1))
-    end
-  end
-  take(vec)
+function ∂₁nz(s::AbstractACSet, e::Int)
+  (SVector(∂₁(0,s,e), ∂₁(1,s,e)), edge_sign(s,e) * @SVector([1,-1]))
 end
 
 # 2D simplicial sets
@@ -232,21 +224,14 @@ const OrientedSimplicialSet2D = ACSetType(OrientedSimplexSchema2D,
 triangle_sign(s::AbstractACSet, args...) = @. 2 * s[args..., :tri_orientation] - 1
 
 ∂₂(s::AbstractACSet, t::Int) = ∂₂(s, t, SparseVector{Int})
+∂₂(s::AbstractACSet, t::Int, ::Type{Vec}) where Vec <: AbstractVector =
+  fromnz(Vec, ∂₂nz(s,t)..., ne(s))
+∂₂(s::AbstractACSet, tchain::AbstractVector) =
+  applynz(tchain, ne(s)) do t; ∂₂nz(s,t) end
 
-function ∂₂(s::AbstractACSet, t::Int, ::Type{Vec}) where Vec <: AbstractVector
-  fromnz(Vec, SVector(∂₂(0,s,t), ∂₂(1,s,t), ∂₂(2,s,t)),
-         triangle_sign(s,t) * SVector(1,-1,1), ne(s))
-end
-
-function ∂₂(s::AbstractACSet, tchain::Vec) where Vec <: AbstractVector
-  vec = nzbuilder(Vec, ne(s))
-  for (t, n) in enumeratenz(tchain)
-    if n != 0
-      add!(vec, SVector(∂₂(0,s,t), ∂₂(1,s,t), ∂₂(2,s,t)),
-           n * triangle_sign(s,t) * SVector(1,-1,1))
-    end
-  end
-  take(vec)
+function ∂₂nz(s::AbstractACSet, t::Int)
+  edges = SVector(∂₂(0,s,t), ∂₂(1,s,t), ∂₂(2,s,t))
+  (edges, triangle_sign(s,t) * edge_sign(s,edges) .* @SVector([1,-1,1]))
 end
 
 # General operators
