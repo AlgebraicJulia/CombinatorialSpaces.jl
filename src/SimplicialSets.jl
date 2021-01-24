@@ -73,7 +73,7 @@ function add_sorted_edges!(s::AbstractACSet, vs₀::AbstractVector{Int},
   add_edges!(s, min.(vs₀, vs₁), max.(vs₀, vs₁); kw...)
 end
 
-# Oriented 1D simplicial sets
+# 1D oriented simplicial sets
 #----------------------------
 
 @present OrientedSimplexSchema1D <: SemiSimplexCategory1D begin
@@ -83,7 +83,8 @@ end
 
 """ A one-dimensional oriented simplicial set.
 
-TODO
+Edges are oriented from source to target when `edge_orientation` is
+true/positive and from target to source when it is false/negative.
 """
 const OrientedSimplicialSet1D = ACSetType(OrientedSimplexSchema1D,
                                           index=[:src,:tgt])
@@ -92,26 +93,22 @@ const OrientedSimplicialSet1D = ACSetType(OrientedSimplexSchema1D,
 """
 edge_sign(s::AbstractACSet, args...) = @. 2 * s[args..., :edge_orientation] - 1
 
-∂₁(s::AbstractACSet, e::Int) = ∂₁(SparseVector{Int}, s, e)
+∂₁(s::AbstractACSet, e::Int) = ∂₁(s, e, SparseVector{Int})
 
-function ∂₁(::Type{V}, s::AbstractACSet, e::Int) where V <: AbstractVector
-  sgn = edge_sign(s,e)
-  vec = ArrayUtils.zeros(V, nv(s))
-  vec[∂₁(0,s,e)] = sgn
-  vec[∂₁(1,s,e)] = -sgn
-  vec
+function ∂₁(s::AbstractACSet, e::Int, ::Type{Vec}) where Vec <: AbstractVector
+  fromnz(Vec, SVector(∂₁(0,s,e), ∂₁(1,s,e)),
+         edge_sign(s,e) * SVector(1,-1), nv(s))
 end
 
-function ∂₁(s::AbstractACSet, echain::V) where V <: AbstractVector
-  vec = ArrayUtils.zeros(V, nv(s))
+function ∂₁(s::AbstractACSet, echain::Vec) where Vec <: AbstractVector
+  vec = nzbuilder(Vec, nv(s))
   for (e, n) in enumeratenz(echain)
-    sgn = edge_sign(s,e)
     if n != 0
-      vec[∂₁(0,s,e)] += sgn*n
-      vec[∂₁(1,s,e)] += -sgn*n
+      add!(vec, SVector(∂₁(0,s,e), ∂₁(1,s,e)),
+           n * edge_sign(s,e) * SVector(1,-1))
     end
   end
-  vec
+  take(vec)
 end
 
 # 2D simplicial sets
@@ -212,7 +209,7 @@ function glue_sorted_triangle!(s::AbstractACSet, v₀::Int, v₁::Int, v₂::Int
   glue_triangle!(s, v₀, v₁, v₂; kw...)
 end
 
-# Oriented 2D simplicial sets
+# 2D oriented simplicial sets
 #----------------------------
 
 @present OrientedSimplexSchema2D <: SemiSimplexCategory2D begin
@@ -222,9 +219,35 @@ end
 end
 
 """ A two-dimensional oriented simplicial set.
+
+Triangles are ordered in the cyclic order ``(0,1,2)`` (with numbers defined by
+[`triangle_vertex`](@ref)) when `tri_orientation` is true/positive and in the
+reverse order when it is false/negative.
 """
 const OrientedSimplicialSet2D = ACSetType(OrientedSimplexSchema2D,
   index=[:src, :tgt, :src2_first, :src2_last, :tgt2])
+
+""" Sign (±1) associated with triangle orientation.
+"""
+triangle_sign(s::AbstractACSet, args...) = @. 2 * s[args..., :tri_orientation] - 1
+
+∂₂(s::AbstractACSet, t::Int) = ∂₂(s, t, SparseVector{Int})
+
+function ∂₂(s::AbstractACSet, t::Int, ::Type{Vec}) where Vec <: AbstractVector
+  fromnz(Vec, SVector(∂₂(0,s,t), ∂₂(1,s,t), ∂₂(2,s,t)),
+         triangle_sign(s,t) * SVector(1,-1,1), ne(s))
+end
+
+function ∂₂(s::AbstractACSet, tchain::Vec) where Vec <: AbstractVector
+  vec = nzbuilder(Vec, ne(s))
+  for (t, n) in enumeratenz(tchain)
+    if n != 0
+      add!(vec, SVector(∂₂(0,s,t), ∂₂(1,s,t), ∂₂(2,s,t)),
+           n * triangle_sign(s,t) * SVector(1,-1,1))
+    end
+  end
+  take(vec)
+end
 
 # General operators
 ###################
