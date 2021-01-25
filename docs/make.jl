@@ -10,5 +10,6 @@ makedocs(
 deploydocs(
   target = "build",
   repo = "github.com/AlgebraicJulia/CombinatorialSpaces.jl.git",
-  branch = "gh-pages"
+  branch = "gh-pages",
+  devbranch = "main"
 )
