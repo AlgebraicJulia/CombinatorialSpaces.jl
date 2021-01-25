@@ -19,18 +19,21 @@ automatically sort their inputs to ensure that the ordering condition is
 satisfied.
 """
 module SimplicialSets
-export ∂, AbstractSemiSimplicialSet1D, SemiSimplicialSet1D,
-  ∂₁, src, tgt, nv, ne, vertices, edges, has_vertex, has_edge,
+export ∂, boundary,
+  AbstractSemiSimplicialSet1D, SemiSimplicialSet1D, OrientedSimplicialSet1D,
+  ∂₁, src, tgt, edge_sign, nv, ne, vertices, edges, has_vertex, has_edge,
   add_vertex!, add_vertices!, add_edge!, add_edges!,
   add_sorted_edge!, add_sorted_edges!,
-  AbstractSemiSimplicialSet2D, SemiSimplicialSet2D,
-  ∂₂, triangle_vertex, ntriangles, triangles,
+  AbstractSemiSimplicialSet2D, SemiSimplicialSet2D, OrientedSimplicialSet2D,
+  ∂₂, triangle_vertex, triangle_sign, ntriangles, triangles,
   add_triangle!, glue_triangle!, glue_sorted_triangle!
 
-using StaticArrays: SVector
+using SparseArrays
+using StaticArrays: @SVector, SVector
 
 using Catlab, Catlab.CategoricalAlgebra.CSets, Catlab.Graphs
 using Catlab.Graphs.BasicGraphs: TheoryGraph, TheoryReflexiveGraph
+using ..ArrayUtils
 
 # 1D simplicial sets
 ####################
@@ -68,6 +71,36 @@ add_sorted_edge!(s::AbstractACSet, v₀::Int, v₁::Int; kw...) =
 function add_sorted_edges!(s::AbstractACSet, vs₀::AbstractVector{Int},
                            vs₁::AbstractVector{Int}; kw...)
   add_edges!(s, min.(vs₀, vs₁), max.(vs₀, vs₁); kw...)
+end
+
+# 1D oriented simplicial sets
+#----------------------------
+
+@present OrientedSimplexSchema1D <: SemiSimplexCategory1D begin
+  Orientation::Data
+  edge_orientation::Attr(E,Orientation)
+end
+
+""" A one-dimensional oriented simplicial set.
+
+Edges are oriented from source to target when `edge_orientation` is
+true/positive and from target to source when it is false/negative.
+"""
+const OrientedSimplicialSet1D = ACSetType(OrientedSimplexSchema1D,
+                                          index=[:src,:tgt])
+
+""" Sign (±1) associated with edge orientation.
+"""
+edge_sign(s::AbstractACSet, args...) = @. 2 * s[args..., :edge_orientation] - 1
+
+∂₁(s::AbstractACSet, e::Int) = ∂₁(s, e, SparseVector{Int})
+∂₁(s::AbstractACSet, e::Int, ::Type{Vec}) where Vec <: AbstractVector =
+  fromnz(Vec, ∂₁nz(s,e)..., nv(s))
+∂₁(s::AbstractACSet, echain::AbstractVector) =
+  applynz(echain, nv(s)) do e; ∂₁nz(s,e) end
+
+function ∂₁nz(s::AbstractACSet, e::Int)
+  (SVector(∂₁(0,s,e), ∂₁(1,s,e)), edge_sign(s,e) * @SVector([1,-1]))
 end
 
 # 2D simplicial sets
@@ -168,15 +201,70 @@ function glue_sorted_triangle!(s::AbstractACSet, v₀::Int, v₁::Int, v₂::Int
   glue_triangle!(s, v₀, v₁, v₂; kw...)
 end
 
+# 2D oriented simplicial sets
+#----------------------------
+
+@present OrientedSimplexSchema2D <: SemiSimplexCategory2D begin
+  Orientation::Data
+  edge_orientation::Attr(E,Orientation)
+  tri_orientation::Attr(Tri,Orientation)
+end
+
+""" A two-dimensional oriented simplicial set.
+
+Triangles are ordered in the cyclic order ``(0,1,2)`` (with numbers defined by
+[`triangle_vertex`](@ref)) when `tri_orientation` is true/positive and in the
+reverse order when it is false/negative.
+"""
+const OrientedSimplicialSet2D = ACSetType(OrientedSimplexSchema2D,
+  index=[:src, :tgt, :src2_first, :src2_last, :tgt2])
+
+""" Sign (±1) associated with triangle orientation.
+"""
+triangle_sign(s::AbstractACSet, args...) = @. 2 * s[args..., :tri_orientation] - 1
+
+∂₂(s::AbstractACSet, t::Int) = ∂₂(s, t, SparseVector{Int})
+∂₂(s::AbstractACSet, t::Int, ::Type{Vec}) where Vec <: AbstractVector =
+  fromnz(Vec, ∂₂nz(s,t)..., ne(s))
+∂₂(s::AbstractACSet, tchain::AbstractVector) =
+  applynz(tchain, ne(s)) do t; ∂₂nz(s,t) end
+
+function ∂₂nz(s::AbstractACSet, t::Int)
+  edges = SVector(∂₂(0,s,t), ∂₂(1,s,t), ∂₂(2,s,t))
+  (edges, triangle_sign(s,t) * edge_sign(s,edges) .* @SVector([1,-1,1]))
+end
+
 # General operators
 ###################
 
-""" Boundary operator on simplices and chains in simplicial sets.
+""" Face map and boundary operator on simplicial sets.
+
+Given numbers `n` and `0 <= i <= n` and a simplicial set of dimension at least
+`n`, the `i`th face map is implemented by the call
+
+```julia
+∂(n, i, s, ...)
+```
+
+The boundary operator on `n`-faces and `n`-chains is implemented by the call
+
+```julia
+∂(n, s, ...)
+```
+
+Note that the face map returns *simplices*, while the boundary operator returns
+*chains* (vectors in the free vector space spanned by oriented simplices).
 """
 @inline ∂(n::Int, i::Int, s::AbstractACSet, args...) =
-  ∂(Val{n}, i, s::AbstractACSet, args...)
+  ∂(Val{n}, Val{i}, s::AbstractACSet, args...)
 
-∂(::Type{Val{1}}, i::Int, s::AbstractACSet, args...) = ∂₁(i, s, args...)
-∂(::Type{Val{2}}, i::Int, s::AbstractACSet, args...) = ∂₂(i, s, args...)
+∂(::Type{Val{1}}, i::Type, s::AbstractACSet, args...) = ∂₁(i, s, args...)
+∂(::Type{Val{2}}, i::Type, s::AbstractACSet, args...) = ∂₂(i, s, args...)
+
+@inline ∂(n::Int, s::AbstractACSet, args...; kw...) =
+  ∂(Val{n}, s::AbstractACSet, args...; kw...)
+
+∂(::Type{Val{1}}, s::AbstractACSet, args...; kw...) = ∂₁(s, args...; kw...)
+∂(::Type{Val{2}}, s::AbstractACSet, args...; kw...) = ∂₂(s, args...; kw...)
 
 end
