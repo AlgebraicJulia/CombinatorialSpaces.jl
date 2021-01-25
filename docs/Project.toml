@@ -1,0 +1,3 @@
+[deps]
+CombinatorialSpaces = "b1c52339-7909-45ad-8b6a-6e388f7c67f2"
+Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
