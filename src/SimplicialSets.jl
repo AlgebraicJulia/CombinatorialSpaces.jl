@@ -237,7 +237,23 @@ end
 # General operators
 ###################
 
-""" Boundary operator on simplices and chains in simplicial sets.
+""" Face map and boundary operator on simplicial sets.
+
+Given numbers `n` and `0 <= i <= n` and a simplicial set of dimension at least
+`n`, the `i`th face map is implemented by the call
+
+```julia
+∂(n, i, s, ...)
+```
+
+The boundary operator on `n`-faces and `n`-chains is implemented by the call
+
+```julia
+∂(n, s, ...)
+```
+
+Note that the face map returns *simplices*, while the boundary operator returns
+*chains* (vectors in the free vector space spanned by oriented simplices).
 """
 @inline ∂(n::Int, i::Int, s::AbstractACSet, args...) =
   ∂(Val{n}, Val{i}, s::AbstractACSet, args...)
