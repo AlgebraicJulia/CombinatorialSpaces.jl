@@ -100,11 +100,12 @@ const OrientedSimplicialSet1D = ACSetType(OrientedSimplexSchema1D,
 """
 edge_sign(s::AbstractACSet, args...) = @. 2 * s[args..., :edge_orientation] - 1
 
-∂₁(s::AbstractACSet, e::Int) = ∂₁(s, e, SparseVector{Int})
-∂₁(s::AbstractACSet, e::Int, ::Type{Vec}) where Vec <: AbstractVector =
+∂₁(s::AbstractACSet, e::Int, Vec::Type=SparseVector{Int}) =
   fromnz(Vec, ∂₁nz(s,e)..., nv(s))
 ∂₁(s::AbstractACSet, echain::AbstractVector) =
-  applynz(echain, ne(s), nv(s)) do e; ∂₁nz(s,e) end
+  applynz(echain, nv(s), ne(s)) do e; ∂₁nz(s,e) end
+∂₁(s::AbstractACSet, Mat::Type=SparseMatrixCSC{Int}) =
+  fromnz(Mat, nv(s), ne(s)) do e; ∂₁nz(s,e) end
 
 function ∂₁nz(s::AbstractACSet, e::Int)
   (SVector(∂₁(0,s,e), ∂₁(1,s,e)), edge_sign(s,e) * @SVector([1,-1]))
@@ -113,7 +114,9 @@ end
 """ Coboundary operator on 0-forms.
 """
 δ₀(s::AbstractACSet, vform::AbstractVector) =
-  applynz(vform, nv(s), ne(s)) do v; δ₀nz(s,v) end
+  applynz(vform, ne(s), nv(s)) do v; δ₀nz(s,v) end
+δ₀(s::AbstractACSet, Mat::Type=SparseMatrixCSC{Int}) =
+  fromnz(Mat, ne(s), nv(s)) do v; δ₀nz(s,v) end
 
 function δ₀nz(s::AbstractACSet, v::Int)
   e₀, e₁ = ∂₁_inv(0,s,v), ∂₁_inv(1,s,v)
@@ -248,11 +251,12 @@ const OrientedSimplicialSet2D = ACSetType(OrientedSimplexSchema2D,
 """
 triangle_sign(s::AbstractACSet, args...) = @. 2 * s[args..., :tri_orientation] - 1
 
-∂₂(s::AbstractACSet, t::Int) = ∂₂(s, t, SparseVector{Int})
-∂₂(s::AbstractACSet, t::Int, ::Type{Vec}) where Vec <: AbstractVector =
+∂₂(s::AbstractACSet, t::Int, Vec::Type=SparseVector{Int}) =
   fromnz(Vec, ∂₂nz(s,t)..., ne(s))
 ∂₂(s::AbstractACSet, tchain::AbstractVector) =
-  applynz(tchain, ntriangles(s), ne(s)) do t; ∂₂nz(s,t) end
+  applynz(tchain, ne(s), ntriangles(s)) do t; ∂₂nz(s,t) end
+∂₂(s::AbstractACSet, Mat::Type=SparseMatrixCSC{Int}) =
+  fromnz(Mat, ne(s), ntriangles(s)) do t; ∂₂nz(s,t) end
 
 function ∂₂nz(s::AbstractACSet, t::Int)
   edges = SVector(∂₂(0,s,t), ∂₂(1,s,t), ∂₂(2,s,t))
@@ -262,7 +266,9 @@ end
 """ Coboundary operator on 1-forms.
 """
 δ₁(s::AbstractACSet, eform::AbstractVector) =
-  applynz(eform, ne(s), ntriangles(s)) do e; δ₁nz(s,e) end
+  applynz(eform, ntriangles(s), ne(s)) do e; δ₁nz(s,e) end
+δ₁(s::AbstractACSet, Mat::Type=SparseMatrixCSC{Int}) =
+  fromnz(Mat, ntriangles(s), ne(s)) do e; δ₁nz(s,e) end
 
 function δ₁nz(s::AbstractACSet, e::Int)
   sgn = edge_sign(s, e)

@@ -49,10 +49,14 @@ vvec = ∂₁(s, 1, SparseVector{Int})
 vvec = ∂₁(s, sparsevec([1,-1,1]))
 @test issparse(vvec)
 @test vvec == [-1,0,0,1]
+B = ∂(1, s)
+@test issparse(B)
+@test B*[1,-1,1] == [-1,0,0,1]
 
 # Exterior derivative.
 @test d(0, s, [1,1,1,4]) == [0,0,3]
 @test d(0, s, [4,1,0,0]) == [-3,1,0]
+@test d(0, s) == B'
 
 # 2D simplicial sets
 ####################
@@ -102,5 +106,6 @@ s[:tri_orientation] = true
 @test ∂(2, s, [1,1]) == [1,1,0,1,-1] # 2-chain around perimeter.
 @test d(1, s, [45,3,34,0,0]) == [14,34]  # == [45+3-34, 34]
 @test d(1, s, [45,3,34,17,5]) == [14,46] # == [45+3-34, 34+17-5]
+@test d(1, s) == ∂(2, s)'
 
 end
