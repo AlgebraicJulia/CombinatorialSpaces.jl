@@ -42,15 +42,17 @@ enumeratenz(v::SparseVector) = zip(findnz(v)...)
 
 """ Apply linear map defined in terms of structural nonzero values.
 """
-function applynz(f, u::Vec, n::Integer) where Vec <: AbstractVector
-  vec = nzbuilder(Vec, n)
-  for (i, c) in enumeratenz(u)
-    if !iszero(c)
-      j, x = f(i)
-      add!(vec, j, c*x)
+function applynz(f, x::Vec, m::Integer, n::Integer) where Vec <: AbstractVector
+  length(x) == m ||
+    error("Vector length does not match domain: $(length(x)) != $m")
+  y = nzbuilder(Vec, n)
+  for (i, a) in enumeratenz(x)
+    if !iszero(a)
+      j, b = f(i)
+      add!(y, j, a*b)
     end
   end
-  take(vec)
+  take(y)
 end
 
 """ Construct array, not necessarily sparse, from structural nonzero values.

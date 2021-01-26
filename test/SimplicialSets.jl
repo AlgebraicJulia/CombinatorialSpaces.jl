@@ -50,6 +50,10 @@ vvec = ∂₁(s, sparsevec([1,-1,1]))
 @test issparse(vvec)
 @test vvec == [-1,0,0,1]
 
+# Exterior derivative.
+@test d(0, s, [1,1,1,4]) == [0,0,3]
+@test d(0, s, [4,1,0,0]) == [-3,1,0]
+
 # 2D simplicial sets
 ####################
 
@@ -85,6 +89,7 @@ add_vertices!(s, 3)
 add_sorted_edges!(s, [1,2,3], [2,3,1], edge_orientation=[true,true,false])
 glue_triangle!(s, 1, 2, 3, tri_orientation=true)
 @test ∂(2, s, 1) == [1,1,1]
+@test d(1, s, [45,3,34]) == [82]
 
 # Triangulated square with consistent orientation.
 s = OrientedSimplicialSet2D{Bool}()
@@ -95,5 +100,7 @@ s[:edge_orientation] = true
 s[:tri_orientation] = true
 @test ∂(2, s, 1) == [1,1,-1,0,0]
 @test ∂(2, s, [1,1]) == [1,1,0,1,-1] # 2-chain around perimeter.
+@test d(1, s, [45,3,34,0,0]) == [14,34]  # == [45+3-34, 34]
+@test d(1, s, [45,3,34,17,5]) == [14,46] # == [45+3-34, 34+17-5]
 
 end

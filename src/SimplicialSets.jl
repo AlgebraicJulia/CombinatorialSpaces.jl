@@ -19,7 +19,7 @@ automatically sort their inputs to ensure that the ordering condition is
 satisfied.
 """
 module SimplicialSets
-export ∂, boundary,
+export ∂, boundary, d, coboundary, exterior_derivative,
   AbstractSemiSimplicialSet1D, SemiSimplicialSet1D, OrientedSimplicialSet1D,
   ∂₁, src, tgt, edge_sign, nv, ne, vertices, edges, has_vertex, has_edge,
   add_vertex!, add_vertices!, add_edge!, add_edges!,
@@ -28,6 +28,7 @@ export ∂, boundary,
   ∂₂, triangle_vertex, triangle_sign, ntriangles, triangles,
   add_triangle!, glue_triangle!, glue_sorted_triangle!
 
+using LazyArrays: ApplyArray
 using SparseArrays
 using StaticArrays: @SVector, SVector
 
@@ -53,13 +54,19 @@ graph-theoretic terminology into simplicial terminology.
 """
 const SemiSimplicialSet1D = Graph
 
-""" Boundary operator on edges or 1-chains in simplicial set.
+""" Face map on edges and boundary operator on 1-chains in simplicial set.
 """
 @inline ∂₁(i::Int, s::AbstractACSet, args...) =
   ∂₁(Val{i}, s::AbstractACSet, args...)
 
-∂₁(::Type{Val{0}}, s::AbstractACSet, args...) = s[args..., :tgt]
-∂₁(::Type{Val{1}}, s::AbstractACSet, args...) = s[args..., :src]
+∂₁(::Type{Val{0}}, s::AbstractACSet, args...) = subpart(s, args..., :tgt)
+∂₁(::Type{Val{1}}, s::AbstractACSet, args...) = subpart(s, args..., :src)
+
+@inline ∂₁_inv(i::Int, s::AbstractACSet, args...) =
+  ∂₁_inv(Val{i}, s::AbstractACSet, args...)
+
+∂₁_inv(::Type{Val{0}}, s::AbstractACSet, args...) = incident(s, args..., :tgt)
+∂₁_inv(::Type{Val{1}}, s::AbstractACSet, args...) = incident(s, args..., :src)
 
 """ Add edge to simplicial set, respecting the order of the vertex IDs.
 """
@@ -97,10 +104,21 @@ edge_sign(s::AbstractACSet, args...) = @. 2 * s[args..., :edge_orientation] - 1
 ∂₁(s::AbstractACSet, e::Int, ::Type{Vec}) where Vec <: AbstractVector =
   fromnz(Vec, ∂₁nz(s,e)..., nv(s))
 ∂₁(s::AbstractACSet, echain::AbstractVector) =
-  applynz(echain, nv(s)) do e; ∂₁nz(s,e) end
+  applynz(echain, ne(s), nv(s)) do e; ∂₁nz(s,e) end
 
 function ∂₁nz(s::AbstractACSet, e::Int)
   (SVector(∂₁(0,s,e), ∂₁(1,s,e)), edge_sign(s,e) * @SVector([1,-1]))
+end
+
+""" Coboundary operator on 0-forms.
+"""
+δ₀(s::AbstractACSet, vform::AbstractVector) =
+  applynz(vform, nv(s), ne(s)) do v; δ₀nz(s,v) end
+
+function δ₀nz(s::AbstractACSet, v::Int)
+  e₀, e₁ = ∂₁_inv(0,s,v), ∂₁_inv(1,s,v)
+  (ApplyArray(vcat, e₀, e₁),
+   ApplyArray(vcat, edge_sign(s,e₀), -edge_sign(s,e₁)))
 end
 
 # 2D simplicial sets
@@ -141,14 +159,21 @@ the schema.
 const SemiSimplicialSet2D = CSetType(SemiSimplexCategory2D,
   index=[:src, :tgt, :src2_first, :src2_last, :tgt2])
 
-""" Boundary operator on triangles or 2-chains in simplicial set.
+""" Face map on triangles and boundary operator on 2-chains in simplicial set.
 """
 @inline ∂₂(i::Int, s::AbstractACSet, args...) =
   ∂₂(Val{i}, s::AbstractACSet, args...)
 
-∂₂(::Type{Val{0}}, s::AbstractACSet, args...) = s[args..., :src2_last]
-∂₂(::Type{Val{1}}, s::AbstractACSet, args...) = s[args..., :tgt2]
-∂₂(::Type{Val{2}}, s::AbstractACSet, args...) = s[args..., :src2_first]
+∂₂(::Type{Val{0}}, s::AbstractACSet, args...) = subpart(s, args..., :src2_last)
+∂₂(::Type{Val{1}}, s::AbstractACSet, args...) = subpart(s, args..., :tgt2)
+∂₂(::Type{Val{2}}, s::AbstractACSet, args...) = subpart(s, args..., :src2_first)
+
+∂₂_inv(i::Int, s::AbstractACSet, args...) =
+  ∂₂_inv(Val{i}, s::AbstractACSet, args...)
+
+∂₂_inv(::Type{Val{0}}, s::AbstractACSet, args...) = incident(s, args..., :src2_last)
+∂₂_inv(::Type{Val{1}}, s::AbstractACSet, args...) = incident(s, args..., :tgt2)
+∂₂_inv(::Type{Val{2}}, s::AbstractACSet, args...) = incident(s, args..., :src2_first)
 
 triangles(s::AbstractACSet) = parts(s, :Tri)
 ntriangles(s::AbstractACSet) = nparts(s, :Tri)
@@ -227,11 +252,24 @@ triangle_sign(s::AbstractACSet, args...) = @. 2 * s[args..., :tri_orientation] -
 ∂₂(s::AbstractACSet, t::Int, ::Type{Vec}) where Vec <: AbstractVector =
   fromnz(Vec, ∂₂nz(s,t)..., ne(s))
 ∂₂(s::AbstractACSet, tchain::AbstractVector) =
-  applynz(tchain, ne(s)) do t; ∂₂nz(s,t) end
+  applynz(tchain, ntriangles(s), ne(s)) do t; ∂₂nz(s,t) end
 
 function ∂₂nz(s::AbstractACSet, t::Int)
   edges = SVector(∂₂(0,s,t), ∂₂(1,s,t), ∂₂(2,s,t))
   (edges, triangle_sign(s,t) * edge_sign(s,edges) .* @SVector([1,-1,1]))
+end
+
+""" Coboundary operator on 1-forms.
+"""
+δ₁(s::AbstractACSet, eform::AbstractVector) =
+  applynz(eform, ne(s), ntriangles(s)) do e; δ₁nz(s,e) end
+
+function δ₁nz(s::AbstractACSet, e::Int)
+  sgn = edge_sign(s, e)
+  t₀, t₁, t₂ = ∂₂_inv(0,s,e), ∂₂_inv(1,s,e), ∂₂_inv(2,s,e)
+  (ApplyArray(vcat, t₀, t₁, t₂),
+   ApplyArray(vcat, sgn*triangle_sign(s,t₀), -sgn*triangle_sign(s,t₁),
+              sgn*triangle_sign(s,t₂)))
 end
 
 # General operators
@@ -261,10 +299,30 @@ Note that the face map returns *simplices*, while the boundary operator returns
 ∂(::Type{Val{1}}, i::Type, s::AbstractACSet, args...) = ∂₁(i, s, args...)
 ∂(::Type{Val{2}}, i::Type, s::AbstractACSet, args...) = ∂₂(i, s, args...)
 
-@inline ∂(n::Int, s::AbstractACSet, args...; kw...) =
-  ∂(Val{n}, s::AbstractACSet, args...; kw...)
+@inline ∂(n::Int, s::AbstractACSet, args...) =
+  ∂(Val{n}, s::AbstractACSet, args...)
 
-∂(::Type{Val{1}}, s::AbstractACSet, args...; kw...) = ∂₁(s, args...; kw...)
-∂(::Type{Val{2}}, s::AbstractACSet, args...; kw...) = ∂₂(s, args...; kw...)
+∂(::Type{Val{1}}, s::AbstractACSet, args...) = ∂₁(s, args...)
+∂(::Type{Val{2}}, s::AbstractACSet, args...) = ∂₂(s, args...)
+
+""" Alias for the face map and boundary operator [`∂`](@ref).
+"""
+const boundary = ∂
+
+""" The discrete exterior derivative, aka the coboundary operator.
+"""
+@inline d(n::Int, s::AbstractACSet, args...) =
+  d(Val{n}, s::AbstractACSet, args...)
+
+d(::Type{Val{0}}, s::AbstractACSet, args...) = δ₀(s, args...)
+d(::Type{Val{1}}, s::AbstractACSet, args...) = δ₁(s, args...)
+
+""" Alias for the coboundary operator [`d`](@ref).
+"""
+const coboundary = d
+
+""" Alias for the discrete exterior derivative [`d`](@ref).
+"""
+const exterior_derivative = d
 
 end
