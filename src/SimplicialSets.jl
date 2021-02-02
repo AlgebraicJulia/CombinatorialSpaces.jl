@@ -20,11 +20,11 @@ satisfied.
 """
 module SimplicialSets
 export ∂, boundary, d, coboundary, exterior_derivative,
-  AbstractSemiSimplicialSet1D, SemiSimplicialSet1D, OrientedSimplicialSet1D,
+  AbstractSemiSimplicialSet1D, SemiSimplicialSet1D, OrientedSemiSimplicialSet1D,
   ∂₁, src, tgt, edge_sign, nv, ne, vertices, edges, has_vertex, has_edge,
   add_vertex!, add_vertices!, add_edge!, add_edges!,
   add_sorted_edge!, add_sorted_edges!,
-  AbstractSemiSimplicialSet2D, SemiSimplicialSet2D, OrientedSimplicialSet2D,
+  AbstractSemiSimplicialSet2D, SemiSimplicialSet2D, OrientedSemiSimplicialSet2D,
   ∂₂, triangle_vertex, triangle_sign, ntriangles, triangles,
   add_triangle!, glue_triangle!, glue_sorted_triangle!
 
@@ -83,18 +83,18 @@ end
 # 1D oriented simplicial sets
 #----------------------------
 
-@present OrientedSimplexSchema1D <: SemiSimplexCategory1D begin
+@present OrientedSemiSimplexSchema1D <: SemiSimplexCategory1D begin
   Orientation::Data
   edge_orientation::Attr(E,Orientation)
 end
 
-""" A one-dimensional oriented simplicial set.
+""" A one-dimensional oriented semi-simplicial set.
 
 Edges are oriented from source to target when `edge_orientation` is
 true/positive and from target to source when it is false/negative.
 """
-const OrientedSimplicialSet1D = ACSetType(OrientedSimplexSchema1D,
-                                          index=[:src,:tgt])
+const OrientedSemiSimplicialSet1D = ACSetType(OrientedSemiSimplexSchema1D,
+                                              index=[:src,:tgt])
 
 """ Sign (±1) associated with edge orientation.
 """
@@ -232,19 +232,19 @@ end
 # 2D oriented simplicial sets
 #----------------------------
 
-@present OrientedSimplexSchema2D <: SemiSimplexCategory2D begin
+@present OrientedSemiSimplexSchema2D <: SemiSimplexCategory2D begin
   Orientation::Data
   edge_orientation::Attr(E,Orientation)
   tri_orientation::Attr(Tri,Orientation)
 end
 
-""" A two-dimensional oriented simplicial set.
+""" A two-dimensional oriented semi-simplicial set.
 
 Triangles are ordered in the cyclic order ``(0,1,2)`` (with numbers defined by
 [`triangle_vertex`](@ref)) when `tri_orientation` is true/positive and in the
 reverse order when it is false/negative.
 """
-const OrientedSimplicialSet2D = ACSetType(OrientedSimplexSchema2D,
+const OrientedSemiSimplicialSet2D = ACSetType(OrientedSemiSimplexSchema2D,
   index=[:src, :tgt, :src2_first, :src2_last, :tgt2])
 
 """ Sign (±1) associated with triangle orientation.
