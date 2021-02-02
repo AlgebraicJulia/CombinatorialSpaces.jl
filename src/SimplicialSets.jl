@@ -1,30 +1,31 @@
 """ Simplicial sets in one, two, and three dimensions.
 
-For the time being, this module provides data structures only for
-*semi*-simplicial sets, which include the face maps but not the degeneracy maps.
-In the future we may add support for simplicial sets having both face and
-degeneracy maps. The analogy to keep in mind is that graphs are to
+For the time being, this module provides data structures only for [delta
+sets](https://en.wikipedia.org/wiki/Delta_set), also known as [semi-simplicial
+sets](https://ncatlab.org/nlab/show/semi-simplicial+set). These include the face
+maps but not the degeneracy maps of a simplicial set. In the future we may add
+support for simplicial sets. The analogy to keep in mind is that graphs are to
 semi-simpicial sets as reflexive graphs are to simplicial sets.
 
-Simplicial sets are inherently ordered structures. The "unordered" version of
+Simplicial sets are inherently ordered structures. The "unordered" analogue of
 simplicial sets are symmetric simplicial sets, sometimes called just "symmetric
 sets." In one dimension, symmetric semi-simplicial sets are symmetric graphs.
 
-This module does not *directly* implement symmetric simplicial sets. However,
-they can be simulated with simplicial sets by enforcing that the ordering of the
-vertices of each face matches the ordering of the integer vertex IDs. The
-simplicial set then "presents" a symmetric simplicial set in a canonical way.
-The functions [`add_sorted_edge!`](@ref) and [`glue_sorted_triangle!`](@ref)
+This module does not implement symmetric simplicial sets as such. However,
+symmetric sets can be simulated with simplicial sets by enforcing that the
+ordering of the vertices of each face matches the ordering of the integer vertex
+IDs. The simplicial set then "presents" a symmetric set in a canonical way. The
+functions [`add_sorted_edge!`](@ref) and [`glue_sorted_triangle!`](@ref)
 automatically sort their inputs to ensure that the ordering condition is
 satisfied.
 """
 module SimplicialSets
 export ∂, boundary, d, coboundary, exterior_derivative,
-  AbstractSemiSimplicialSet1D, SemiSimplicialSet1D, OrientedSemiSimplicialSet1D,
+  AbstractDeltaSet1D, DeltaSet1D, OrientedDeltaSet1D,
   ∂₁, src, tgt, edge_sign, nv, ne, vertices, edges, has_vertex, has_edge,
   add_vertex!, add_vertices!, add_edge!, add_edges!,
   add_sorted_edge!, add_sorted_edges!,
-  AbstractSemiSimplicialSet2D, SemiSimplicialSet2D, OrientedSemiSimplicialSet2D,
+  AbstractDeltaSet2D, DeltaSet2D, OrientedDeltaSet2D,
   ∂₂, triangle_vertex, triangle_sign, ntriangles, triangles,
   add_triangle!, glue_triangle!, glue_sorted_triangle!
 
@@ -39,20 +40,20 @@ using ..ArrayUtils
 # 1D simplicial sets
 ####################
 
-const SemiSimplexCategory1D = TheoryGraph
+const DeltaCategory1D = TheoryGraph
 const SimplexCategory1D = TheoryReflexiveGraph
 
-""" Abstract type for 1D semi-simplicial sets.
+""" Abstract type for 1D delta sets.
 """
-const AbstractSemiSimplicialSet1D = AbstractGraph
+const AbstractDeltaSet1D = AbstractGraph
 
-""" A one-dimensional semi-simplicial set.
+""" A one-dimensional delta set, aka semi-simplicial set.
 
-Semi-simplicial sets in 1D are the same as graphs, and this type is just an
-alias for `Graph`. The boundary operator [`∂₁`](@ref) translates the
-graph-theoretic terminology into simplicial terminology.
+Delta sets in 1D are the same as graphs, and this type is just an alias for
+`Graph`. The boundary operator [`∂₁`](@ref) translates the graph-theoretic
+terminology into simplicial terminology.
 """
-const SemiSimplicialSet1D = Graph
+const DeltaSet1D = Graph
 
 """ Face map on edges and boundary operator on 1-chains in simplicial set.
 """
@@ -83,18 +84,17 @@ end
 # 1D oriented simplicial sets
 #----------------------------
 
-@present OrientedSemiSimplexSchema1D <: SemiSimplexCategory1D begin
+@present OrientedDeltaSchema1D <: DeltaCategory1D begin
   Orientation::Data
   edge_orientation::Attr(E,Orientation)
 end
 
-""" A one-dimensional oriented semi-simplicial set.
+""" A one-dimensional oriented delta set.
 
 Edges are oriented from source to target when `edge_orientation` is
 true/positive and from target to source when it is false/negative.
 """
-const OrientedSemiSimplicialSet1D = ACSetType(OrientedSemiSimplexSchema1D,
-                                              index=[:src,:tgt])
+const OrientedDeltaSet1D = ACSetType(OrientedDeltaSchema1D, index=[:src,:tgt])
 
 """ Sign (±1) associated with edge orientation.
 """
@@ -127,7 +127,7 @@ end
 # 2D simplicial sets
 ####################
 
-@present SemiSimplexCategory2D <: SemiSimplexCategory1D begin
+@present DeltaCategory2D <: DeltaCategory1D begin
   Tri::Ob
   src2_first::Hom(Tri,E) # ∂₂(2)
   src2_last::Hom(Tri,E)  # ∂₂(0)
@@ -142,11 +142,11 @@ end
   compose(src2_last, tgt) == compose(tgt2, tgt) # == v₂
 end
 
-""" Abstract type for 2D semi-simplicial sets.
+""" Abstract type for 2D delta sets.
 """
-const AbstractSemiSimplicialSet2D = AbstractACSetType(SemiSimplexCategory2D)
+const AbstractDeltaSet2D = AbstractACSetType(DeltaCategory2D)
 
-""" A 2D semi-simplicial set.
+""" A 2D delta set, aka semi-simplicial set.
 
 The triangles in a simpicial set can be interpreted in several ways.
 Geometrically, they are triangles (2-simplices) whose three edges are directed
@@ -159,7 +159,7 @@ coincidentally, this is the shape of the binary composition operation in a
 category. The categorical interpretation is the one used in the definition of
 the schema.
 """
-const SemiSimplicialSet2D = CSetType(SemiSimplexCategory2D,
+const DeltaSet2D = CSetType(DeltaCategory2D,
   index=[:src, :tgt, :src2_first, :src2_last, :tgt2])
 
 """ Face map on triangles and boundary operator on 2-chains in simplicial set.
@@ -232,19 +232,19 @@ end
 # 2D oriented simplicial sets
 #----------------------------
 
-@present OrientedSemiSimplexSchema2D <: SemiSimplexCategory2D begin
+@present OrientedDeltaSchema2D <: DeltaCategory2D begin
   Orientation::Data
   edge_orientation::Attr(E,Orientation)
   tri_orientation::Attr(Tri,Orientation)
 end
 
-""" A two-dimensional oriented semi-simplicial set.
+""" A two-dimensional oriented delta set.
 
 Triangles are ordered in the cyclic order ``(0,1,2)`` (with numbers defined by
 [`triangle_vertex`](@ref)) when `tri_orientation` is true/positive and in the
 reverse order when it is false/negative.
 """
-const OrientedSemiSimplicialSet2D = ACSetType(OrientedSemiSimplexSchema2D,
+const OrientedDeltaSet2D = ACSetType(OrientedDeltaSchema2D,
   index=[:src, :tgt, :src2_first, :src2_last, :tgt2])
 
 """ Sign (±1) associated with triangle orientation.
