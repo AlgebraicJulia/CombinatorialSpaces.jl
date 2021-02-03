@@ -21,15 +21,14 @@ satisfied.
 """
 module SimplicialSets
 export ∂, boundary, d, coboundary, exterior_derivative,
-  AbstractDeltaSet1D, DeltaSet1D, OrientedDeltaSet1D,
+  AbstractDeltaSet1D, DeltaCategory1D, DeltaSet1D, OrientedDeltaSet1D,
   ∂₁, src, tgt, edge_sign, nv, ne, vertices, edges, has_vertex, has_edge,
   add_vertex!, add_vertices!, add_edge!, add_edges!,
   add_sorted_edge!, add_sorted_edges!,
-  AbstractDeltaSet2D, DeltaSet2D, OrientedDeltaSet2D,
+  AbstractDeltaSet2D, DeltaCategory2D, DeltaSet2D, OrientedDeltaSet2D,
   ∂₂, triangle_vertex, triangle_sign, ntriangles, triangles,
   add_triangle!, glue_triangle!, glue_sorted_triangle!
 
-using LazyArrays: ApplyArray
 using SparseArrays
 using StaticArrays: @SVector, SVector
 
@@ -120,8 +119,7 @@ end
 
 function δ₀nz(s::AbstractACSet, v::Int)
   e₀, e₁ = ∂₁_inv(0,s,v), ∂₁_inv(1,s,v)
-  (ApplyArray(vcat, e₀, e₁),
-   ApplyArray(vcat, edge_sign(s,e₀), -edge_sign(s,e₁)))
+  (lazy_vcat(e₀, e₁), lazy_vcat(edge_sign(s,e₀), -edge_sign(s,e₁)))
 end
 
 # 2D simplicial sets
@@ -270,9 +268,9 @@ end
 function δ₁nz(s::AbstractACSet, e::Int)
   sgn = edge_sign(s, e)
   t₀, t₁, t₂ = ∂₂_inv(0,s,e), ∂₂_inv(1,s,e), ∂₂_inv(2,s,e)
-  (ApplyArray(vcat, t₀, t₁, t₂),
-   ApplyArray(vcat, sgn*triangle_sign(s,t₀), -sgn*triangle_sign(s,t₁),
-              sgn*triangle_sign(s,t₂)))
+  (lazy_vcat(t₀, t₁, t₂),
+   lazy_vcat(sgn*triangle_sign(s,t₀), -sgn*triangle_sign(s,t₁),
+             sgn*triangle_sign(s,t₂)))
 end
 
 # General operators
