@@ -129,17 +129,12 @@ end
 
 @present DeltaCategory2D <: DeltaCategory1D begin
   Tri::Ob
-  src2_first::Hom(Tri,E) # ∂₂(2)
-  src2_last::Hom(Tri,E)  # ∂₂(0)
-  tgt2::Hom(Tri,E)       # ∂₂(1)
+  (∂e0, ∂e1, ∂e2)::Hom(Tri,E) # (∂₂(0), ∂₂(1), ∂₂(2))
 
   # Simplicial identities.
-  # ∂₂(1) ⋅ ∂₁(1) == ∂₂(2) ⋅ ∂₁(1)
-  compose(tgt2, src) == compose(src2_first, src) # == v₀
-  # ∂₂(0) ⋅ ∂₁(1) == ∂₂(2) ⋅ ∂₁(0)
-  compose(src2_last, src) == compose(src2_first, tgt) # == v₁
-  # ∂₂(0) ⋅ ∂₁(0) == ∂₂(1) ⋅ ∂₁(0)
-  compose(src2_last, tgt) == compose(tgt2, tgt) # == v₂
+  ∂e1 ⋅ src == ∂e2 ⋅ src # ∂₂(1) ⋅ ∂₁(1) == ∂₂(2) ⋅ ∂₁(1) == v₀
+  ∂e0 ⋅ src == ∂e2 ⋅ tgt # ∂₂(0) ⋅ ∂₁(1) == ∂₂(2) ⋅ ∂₁(0) == v₁
+  ∂e0 ⋅ tgt == ∂e1 ⋅ tgt # ∂₂(0) ⋅ ∂₁(0) == ∂₂(1) ⋅ ∂₁(0) == v₂
 end
 
 """ Abstract type for 2D delta sets.
@@ -148,35 +143,34 @@ const AbstractDeltaSet2D = AbstractACSetType(DeltaCategory2D)
 
 """ A 2D delta set, aka semi-simplicial set.
 
-The triangles in a simpicial set can be interpreted in several ways.
+The triangles in a semi-simpicial set can be interpreted in several ways.
 Geometrically, they are triangles (2-simplices) whose three edges are directed
 according to a specific pattern, determined by the ordering of the vertices or
-equivalently by the simplicial identities. This geometric perspective is encoded
-by the boundary map `[∂₂](@ref)`. Alternatively, the triangle can be seen as a
-higher-dimensional link or morphism, going from two edges in sequence (here
-called `src2_first` and `src2_last`) to a transitive edge (`tgt2`). Not
-coincidentally, this is the shape of the binary composition operation in a
-category. The categorical interpretation is the one used in the definition of
-the schema.
+equivalently by the simplicial identities. This geometric perspective is present
+through the subpart names `∂e0`, `∂e1`, and `∂e2` and through the boundary map
+`[∂₂](@ref)`. Alternatively, the triangle can be interpreted as a
+higher-dimensional link or morphism, going from two edges in sequence (which
+might be called `src2_first` and `src2_last`) to a transitive edge (say `tgt2`).
+This is the shape of the binary composition operation in a category.
 """
 const DeltaSet2D = CSetType(DeltaCategory2D,
-  index=[:src, :tgt, :src2_first, :src2_last, :tgt2])
+                            index=[:src, :tgt, :∂e0, :∂e1, :∂e2])
 
 """ Face map on triangles and boundary operator on 2-chains in simplicial set.
 """
 @inline ∂₂(i::Int, s::AbstractACSet, args...) =
   ∂₂(Val{i}, s::AbstractACSet, args...)
 
-∂₂(::Type{Val{0}}, s::AbstractACSet, args...) = subpart(s, args..., :src2_last)
-∂₂(::Type{Val{1}}, s::AbstractACSet, args...) = subpart(s, args..., :tgt2)
-∂₂(::Type{Val{2}}, s::AbstractACSet, args...) = subpart(s, args..., :src2_first)
+∂₂(::Type{Val{0}}, s::AbstractACSet, args...) = subpart(s, args..., :∂e0)
+∂₂(::Type{Val{1}}, s::AbstractACSet, args...) = subpart(s, args..., :∂e1)
+∂₂(::Type{Val{2}}, s::AbstractACSet, args...) = subpart(s, args..., :∂e2)
 
 ∂₂_inv(i::Int, s::AbstractACSet, args...) =
   ∂₂_inv(Val{i}, s::AbstractACSet, args...)
 
-∂₂_inv(::Type{Val{0}}, s::AbstractACSet, args...) = incident(s, args..., :src2_last)
-∂₂_inv(::Type{Val{1}}, s::AbstractACSet, args...) = incident(s, args..., :tgt2)
-∂₂_inv(::Type{Val{2}}, s::AbstractACSet, args...) = incident(s, args..., :src2_first)
+∂₂_inv(::Type{Val{0}}, s::AbstractACSet, args...) = incident(s, args..., :∂e0)
+∂₂_inv(::Type{Val{1}}, s::AbstractACSet, args...) = incident(s, args..., :∂e1)
+∂₂_inv(::Type{Val{2}}, s::AbstractACSet, args...) = incident(s, args..., :∂e2)
 
 triangles(s::AbstractACSet) = parts(s, :Tri)
 ntriangles(s::AbstractACSet) = nparts(s, :Tri)
@@ -189,23 +183,26 @@ This accessor assumes that the simplicial identities hold.
   triangle_vertex(s, Val{i}, args...)
 
 triangle_vertex(s::AbstractACSet, ::Type{Val{0}}, args...) =
-  s[s[args..., :tgt2], :src]
+  s[s[args..., :∂e1], :src]
 triangle_vertex(s::AbstractACSet, ::Type{Val{1}}, args...) =
-  s[s[args..., :src2_first], :tgt]
+  s[s[args..., :∂e2], :tgt]
 triangle_vertex(s::AbstractACSet, ::Type{Val{2}}, args...) =
-  s[s[args..., :tgt2], :tgt]
+  s[s[args..., :∂e1], :tgt]
 
 """ Add a triangle (2-simplex) to a simplicial set, given its boundary edges.
+
+In the arguments to this function, the boundary edges have the order ``0 → 1``,
+``1 → 2``, ``0 -> 2``.
 
 !!! warning
 
     This low-level function does not check the simplicial identities. It is your
     responsibility to ensure they are satisfied. By contrast, triangles added
     using the function [`glue_triangle!`](@ref) always satisfy the simplicial
-    identities, by the nature of the construction.
+    identities, by construction. Thus it is often easier to use this function.
 """
-add_triangle!(s::AbstractACSet, src2_1::Int, src2_2::Int, tgt2::Int; kw...) =
-  add_part!(s, :Tri; src2_first=src2_1, src2_last=src2_2, tgt2=tgt2, kw...)
+add_triangle!(s::AbstractACSet, src2_first::Int, src2_last::Int, tgt2::Int; kw...) =
+  add_part!(s, :Tri; ∂e0=src2_last, ∂e1=tgt2, ∂e2=src2_first, kw...)
 
 """ Glue a triangle onto a simplicial set, given its boundary vertices.
 
@@ -245,7 +242,7 @@ Triangles are ordered in the cyclic order ``(0,1,2)`` (with numbers defined by
 reverse order when it is false/negative.
 """
 const OrientedDeltaSet2D = ACSetType(OrientedDeltaSchema2D,
-  index=[:src, :tgt, :src2_first, :src2_last, :tgt2])
+                                     index=[:src, :tgt, :∂e0, :∂e1, :∂e2])
 
 """ Sign (±1) associated with triangle orientation.
 """
