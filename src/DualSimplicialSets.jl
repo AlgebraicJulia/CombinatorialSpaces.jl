@@ -1,4 +1,4 @@
-""" Duality for simplicial sets in one, two, and three dimensions.
+""" Dual complexes for simplicial sets in one, two, and three dimensions.
 """
 module DualSimplicialSets
 export AbstractDeltaDualComplex1D, DeltaDualComplex1D,
@@ -99,6 +99,11 @@ end
 Also makes the dual vertices. Note that although zero-dimensional duality is
 geometrically trivial (subdividing a vertex gives back the same vertex), the
 dual vertices are disjoint from the primal vertices.
+
+If the primal complex is oriented, an orientation is induced on the dual
+complex. Dual vertices have no orientation. Dual edges are oriented relative to
+the primal edges they subdivide (Hirani 2003, PhD thesis, Ch. 2, last sentence
+of Remark 2.5.1).
 """
 function make_dual_edges!(s::AbstractACSet)
   s[:vertex_center] = vcenters = add_parts!(s, :DualV, nv(s))
