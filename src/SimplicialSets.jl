@@ -21,11 +21,11 @@ satisfied.
 """
 module SimplicialSets
 export ∂, boundary, d, coboundary, exterior_derivative,
-  AbstractDeltaSet1D, DeltaCategory1D, DeltaSet1D, OrientedDeltaSet1D,
+  AbstractDeltaSet1D, DeltaSet1D, OrientedDeltaSet1D,
   ∂₁, src, tgt, edge_sign, nv, ne, vertices, edges, has_vertex, has_edge,
   add_vertex!, add_vertices!, add_edge!, add_edges!,
   add_sorted_edge!, add_sorted_edges!,
-  AbstractDeltaSet2D, DeltaCategory2D, DeltaSet2D, OrientedDeltaSet2D,
+  AbstractDeltaSet2D, DeltaSet2D, OrientedDeltaSet2D,
   ∂₂, triangle_vertex, triangle_sign, ntriangles, triangles,
   add_triangle!, glue_triangle!, glue_sorted_triangle!
 
@@ -97,7 +97,11 @@ const OrientedDeltaSet1D = ACSetType(OrientedDeltaSchema1D, index=[:src,:tgt])
 
 """ Sign (±1) associated with edge orientation.
 """
-edge_sign(s::AbstractACSet, args...) = @. 2 * s[args..., :edge_orientation] - 1
+edge_sign(s::AbstractACSet, args...) =
+  numeric_sign.(s[args..., :edge_orientation])
+
+numeric_sign(x) = sign(x)
+numeric_sign(x::Bool) = x ? +1 : -1
 
 ∂₁(s::AbstractACSet, e::Int, Vec::Type=SparseVector{Int}) =
   fromnz(Vec, ∂₁nz(s,e)..., nv(s))
@@ -244,7 +248,8 @@ const OrientedDeltaSet2D = ACSetType(OrientedDeltaSchema2D,
 
 """ Sign (±1) associated with triangle orientation.
 """
-triangle_sign(s::AbstractACSet, args...) = @. 2 * s[args..., :tri_orientation] - 1
+triangle_sign(s::AbstractACSet, args...) =
+  numeric_sign.(s[args..., :tri_orientation])
 
 ∂₂(s::AbstractACSet, t::Int, Vec::Type=SparseVector{Int}) =
   fromnz(Vec, ∂₂nz(s,t)..., ne(s))
