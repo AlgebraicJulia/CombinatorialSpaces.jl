@@ -6,4 +6,5 @@ end
 
 @testset "SimplicialSets" begin
   include("SimplicialSets.jl")
+  include("DualSimplicialSets.jl")
 end

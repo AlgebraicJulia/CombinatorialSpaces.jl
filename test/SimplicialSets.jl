@@ -16,7 +16,7 @@ end
 # 1D simplicial sets
 ####################
 
-s = SemiSimplicialSet1D()
+s = DeltaSet1D()
 add_vertices!(s, 4)
 add_sorted_edge!(s, 2, 1)
 add_sorted_edges!(s, [2,4], [3,3])
@@ -28,7 +28,7 @@ add_sorted_edges!(s, [2,4], [3,3])
 # 1D oriented simplicial sets
 #----------------------------
 
-s = OrientedSimplicialSet1D{Bool}()
+s = OrientedDeltaSet1D{Bool}()
 add_vertices!(s, 4)
 add_edges!(s, [1,2,3], [2,3,4], edge_orientation=[true,false,true])
 @test ∂(1, s, 1) == [-1,1,0,0]
@@ -61,7 +61,7 @@ B = ∂(1, s)
 # 2D simplicial sets
 ####################
 
-s = SemiSimplicialSet2D()
+s = DeltaSet2D()
 add_vertices!(s, 3)
 glue_triangle!(s, 1, 2, 3)
 @test is_semi_simplicial(s, 2)
@@ -69,13 +69,13 @@ glue_triangle!(s, 1, 2, 3)
 @test map(i -> ∂₂(i, s, 1), (0,1,2)) == (2,3,1)
 @test map(i -> triangle_vertex(s, i, 1), (0,1,2)) == (1,2,3)
 
-s′ = SemiSimplicialSet2D()
+s′ = DeltaSet2D()
 add_vertices!(s′, 3)
 glue_sorted_triangle!(s′, 2, 3, 1)
 @test s′ == s
 
 # Triangulated commutative square.
-s = SemiSimplicialSet2D()
+s = DeltaSet2D()
 add_vertices!(s, 4)
 glue_triangle!(s, 1, 2, 3)
 glue_triangle!(s, 1, 4, 3)
@@ -88,7 +88,7 @@ glue_triangle!(s, 1, 4, 3)
 #----------------------------
 
 # Triangle with matching edge orientations.
-s = OrientedSimplicialSet2D{Bool}()
+s = OrientedDeltaSet2D{Bool}()
 add_vertices!(s, 3)
 add_sorted_edges!(s, [1,2,3], [2,3,1], edge_orientation=[true,true,false])
 glue_triangle!(s, 1, 2, 3, tri_orientation=true)
@@ -96,7 +96,7 @@ glue_triangle!(s, 1, 2, 3, tri_orientation=true)
 @test d(1, s, [45,3,34]) == [82]
 
 # Triangulated square with consistent orientation.
-s = OrientedSimplicialSet2D{Bool}()
+s = OrientedDeltaSet2D{Bool}()
 add_vertices!(s, 4)
 glue_triangle!(s, 1, 2, 3)
 glue_triangle!(s, 1, 3, 4)

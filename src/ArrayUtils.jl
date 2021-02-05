@@ -1,8 +1,12 @@
-""" Utitilies for working with dense and sparse arrays uniformly.
+""" Array utilities.
+
+- Uniform interface for dense and sparse arrays
+- Lazy array operations
 """
 module ArrayUtils
-export enumeratenz, applynz, fromnz
+export enumeratenz, applynz, fromnz, lazy_vcat
 
+using LazyArrays: ApplyArray
 using SparseArrays
 
 # Data types
@@ -107,5 +111,9 @@ zeros(::Type{<:SparseVector{T}}, dims::Tuple{Vararg{Integer,1}}) where T =
   spzeros(T, dims...)
 zeros(::Type{<:SparseMatrixCSC{T}}, dims::Tuple{Vararg{Integer,2}}) where T =
   spzeros(T, dims...)
+
+""" Lazy version of `vcat`.
+"""
+lazy_vcat(args...) = ApplyArray(vcat, args...)
 
 end
