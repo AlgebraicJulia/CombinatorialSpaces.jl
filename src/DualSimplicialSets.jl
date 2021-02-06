@@ -7,7 +7,7 @@ export
   AbstractDeltaDualComplex2D, DeltaDualComplex2D, OrientedDeltaDualComplex2D,
   triangle_center
 
-using StaticArrays: SVector
+using StaticArrays: @SVector, SVector
 
 using Catlab, Catlab.CategoricalAlgebra.CSets
 using ..SimplicialSets
@@ -64,14 +64,6 @@ vertex_center(s::AbstractACSet, args...) = s[args..., :vertex_center]
 """ Dual vertex corresponding to center of primal edge.
 """
 edge_center(s::AbstractACSet, args...) = s[args..., :edge_center]
-
-""" List of elementary dual simplices for primal simplex in 1D dual complex.
-
-- elementary duals of primal vertices are dual edges
-- elementary duals of primal edges are (single) dual vertices
-"""
-@inline elementary_duals(n::Int, s::AbstractDeltaDualComplex1D, args...) =
-  elementary_duals(Val{n}, s, args...)
 
 elementary_duals(::Type{Val{0}}, s::AbstractDeltaDualComplex1D, v::Int) =
   incident(s, vertex_center(s,v), :D_∂v1)
@@ -165,6 +157,13 @@ const DeltaDualComplex2D = CSetType(SchemaDualComplex2D,
 """
 triangle_center(s::AbstractACSet, args...) = s[args..., :tri_center]
 
+elementary_duals(::Type{Val{0}}, s::AbstractDeltaDualComplex2D, v::Int) =
+  incident(s, vertex_center(s,v), @SVector [:D_∂e1, :D_∂v1])
+elementary_duals(::Type{Val{1}}, s::AbstractDeltaDualComplex2D, e::Int) =
+  incident(s, edge_center(s,e), :D_∂v1)
+elementary_duals(::Type{Val{2}}, s::AbstractDeltaDualComplex2D, t::Int) =
+  SVector(triangle_center(s,t))
+
 @present SchemaOrientedDualComplex2D <: SchemaDualComplex2D begin
   Orientation::Data
   edge_orientation::Attr(E, Orientation)
@@ -208,5 +207,26 @@ function make_dual_simplices_2d!(s::AbstractACSet)
   # TODO: Orientation.
   D_tris
 end
+
+# General operators
+###################
+
+""" List of elementary dual simplices corresponding to primal simplex.
+
+In general, in an ``n``-dimensional complex, the elementary duals of primal
+``k``-simplices are dual ``(n-k)``-simplices. Thus, in 1D dual complexes,
+elementary duals of...
+
+- primal vertices are dual edges
+- primal edges are (single) dual vertices
+
+In 2D dual complexes, elementary duals of...
+
+- primal vertices are dual triangles
+- primal edges are dual edges
+- primal triangles are (single) dual triangles
+"""
+@inline elementary_duals(n::Int, s::AbstractACSet, args...) =
+  elementary_duals(Val{n}, s, args...)
 
 end
