@@ -67,7 +67,7 @@ glue_triangle!(s, 1, 2, 3)
 @test is_semi_simplicial(s, 2)
 @test ntriangles(s) == 1
 @test map(i -> ∂₂(i, s, 1), (0,1,2)) == (2,3,1)
-@test map(i -> triangle_vertex(s, i, 1), (0,1,2)) == (1,2,3)
+@test map(i -> triangle_vertex(i, s, 1), (0,1,2)) == (1,2,3)
 
 s′ = DeltaSet2D()
 add_vertices!(s′, 3)

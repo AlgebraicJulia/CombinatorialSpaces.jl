@@ -32,4 +32,17 @@ s = OrientedDeltaDualComplex1D{Bool}(primal_s)
 @test s[only(elementary_duals(0,s,1)), :D_edge_orientation] == true
 @test s[only(elementary_duals(0,s,3)), :D_edge_orientation] == true
 
+# 2D dual complex
+#################
+
+# Triangulated square.
+primal_s = DeltaSet2D()
+add_vertices!(primal_s, 4)
+glue_triangle!(primal_s, 1, 2, 3)
+glue_triangle!(primal_s, 1, 3, 4)
+s = DeltaDualComplex2D(primal_s)
+@test nparts(s, :DualV) == nv(primal_s) + ne(primal_s) + ntriangles(primal_s)
+@test nparts(s, :DualE) == 2*ne(primal_s) + 6*ntriangles(primal_s)
+@test nparts(s, :DualTri) == 6*ntriangles(primal_s)
+
 end

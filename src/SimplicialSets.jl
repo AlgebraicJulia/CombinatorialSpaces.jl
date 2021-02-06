@@ -181,14 +181,14 @@ ntriangles(s::AbstractACSet) = nparts(s, :Tri)
 
 This accessor assumes that the simplicial identities hold.
 """
-@inline triangle_vertex(s::AbstractACSet, i::Int, args...) =
-  triangle_vertex(s, Val{i}, args...)
+@inline triangle_vertex(i::Int, s::AbstractACSet, args...) =
+  triangle_vertex(Val{i}, s, args...)
 
-triangle_vertex(s::AbstractACSet, ::Type{Val{0}}, args...) =
+triangle_vertex(::Type{Val{0}}, s::AbstractACSet, args...) =
   s[s[args..., :∂e1], :src]
-triangle_vertex(s::AbstractACSet, ::Type{Val{1}}, args...) =
+triangle_vertex(::Type{Val{1}}, s::AbstractACSet, args...) =
   s[s[args..., :∂e2], :tgt]
-triangle_vertex(s::AbstractACSet, ::Type{Val{2}}, args...) =
+triangle_vertex(::Type{Val{2}}, s::AbstractACSet, args...) =
   s[s[args..., :∂e1], :tgt]
 
 """ Add a triangle (2-simplex) to a simplicial set, given its boundary edges.
