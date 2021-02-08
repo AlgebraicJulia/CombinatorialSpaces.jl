@@ -53,13 +53,13 @@ s = DeltaDualComplex2D(primal_s)
 # Triangulated square with consistent orientation.
 primal_s = OrientedDeltaSet2D{Bool}()
 add_vertices!(primal_s, 4)
-glue_triangle!(primal_s, 1, 2, 3)
-glue_triangle!(primal_s, 1, 3, 4)
+glue_triangle!(primal_s, 1, 2, 3, tri_orientation=true)
+glue_triangle!(primal_s, 1, 3, 4, tri_orientation=true)
 primal_s[:edge_orientation] = true
-primal_s[:tri_orientation] = true
 s = OrientedDeltaDualComplex2D{Bool}(primal_s)
 @test sum(s[:D_tri_orientation]) == nparts(s, :DualTri) ÷ 2
 @test [sum(s[elementary_duals(0,s,i), :D_tri_orientation])
        for i in 1:4] == [2,1,2,1]
+@test sum(s[elementary_duals(1,s,3), :D_edge_orientation]) == 1
 
 end

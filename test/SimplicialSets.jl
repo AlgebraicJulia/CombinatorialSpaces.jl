@@ -98,10 +98,9 @@ glue_triangle!(s, 1, 2, 3, tri_orientation=true)
 # Triangulated square with consistent orientation.
 s = OrientedDeltaSet2D{Bool}()
 add_vertices!(s, 4)
-glue_triangle!(s, 1, 2, 3)
-glue_triangle!(s, 1, 3, 4)
+glue_triangle!(s, 1, 2, 3, tri_orientation=true)
+glue_triangle!(s, 1, 3, 4, tri_orientation=true)
 s[:edge_orientation] = true
-s[:tri_orientation] = true
 @test ∂(2, s, 1) == [1,1,-1,0,0]
 @test ∂(2, s, [1,1]) == [1,1,0,1,-1] # 2-chain around perimeter.
 @test d(1, s, [45,3,34,0,0]) == [14,34]  # == [45+3-34, 34]

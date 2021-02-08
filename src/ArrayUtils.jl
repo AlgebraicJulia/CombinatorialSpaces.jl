@@ -4,7 +4,7 @@
 - Lazy array operations
 """
 module ArrayUtils
-export enumeratenz, applynz, fromnz, lazy_vcat
+export enumeratenz, applynz, fromnz, lazy
 
 using LazyArrays: ApplyArray
 using SparseArrays
@@ -112,8 +112,8 @@ zeros(::Type{<:SparseVector{T}}, dims::Tuple{Vararg{Integer,1}}) where T =
 zeros(::Type{<:SparseMatrixCSC{T}}, dims::Tuple{Vararg{Integer,2}}) where T =
   spzeros(T, dims...)
 
-""" Lazy version of `vcat`.
+""" Lazy array operations.
 """
-lazy_vcat(args...) = ApplyArray(vcat, args...)
+lazy(::typeof(vcat), args...) = ApplyArray(vcat, args...)
 
 end

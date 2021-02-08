@@ -123,7 +123,7 @@ end
 
 function δ₀nz(s::AbstractACSet, v::Int)
   e₀, e₁ = ∂₁_inv(0,s,v), ∂₁_inv(1,s,v)
-  (lazy_vcat(e₀, e₁), lazy_vcat(edge_sign(s,e₀), -edge_sign(s,e₁)))
+  (lazy(vcat, e₀, e₁), lazy(vcat, edge_sign(s,e₀), -edge_sign(s,e₁)))
 end
 
 # 2D simplicial sets
@@ -273,9 +273,9 @@ end
 function δ₁nz(s::AbstractACSet, e::Int)
   sgn = edge_sign(s, e)
   t₀, t₁, t₂ = ∂₂_inv(0,s,e), ∂₂_inv(1,s,e), ∂₂_inv(2,s,e)
-  (lazy_vcat(t₀, t₁, t₂),
-   lazy_vcat(sgn*triangle_sign(s,t₀), -sgn*triangle_sign(s,t₁),
-             sgn*triangle_sign(s,t₂)))
+  (lazy(vcat, t₀, t₁, t₂),
+   lazy(vcat, sgn*triangle_sign(s,t₀),
+        -sgn*triangle_sign(s,t₁), sgn*triangle_sign(s,t₂)))
 end
 
 # General operators

@@ -10,6 +10,7 @@ export
 using StaticArrays: @SVector, SVector
 
 using Catlab, Catlab.CategoricalAlgebra.CSets
+using ..ArrayUtils
 using ..SimplicialSets
 using ..SimplicialSets: DeltaCategory1D, DeltaCategory2D
 
@@ -97,11 +98,8 @@ gives back the same vertex), we treat the dual vertices as disjoint from the
 primal vertices. Thus, a dual vertex is created for every primal vertex.
 
 If the primal complex is oriented, an orientation is induced on the dual
-complex:
-
-- dual vertices have no orientation
-- dual edges are oriented relative to the primal edges they subdivide (Hirani
-  2003, PhD thesis, Ch. 2, last sentence of Remark 2.5.1)
+complex. The dual edges are oriented relative to the primal edges they subdivide
+(Hirani 2003, PhD thesis, Ch. 2, last sentence of Remark 2.5.1).
 """
 function make_dual_simplices_1d!(s::AbstractACSet)
   # Make dual vertices and edges.
@@ -112,7 +110,7 @@ function make_dual_simplices_1d!(s::AbstractACSet)
                D_∂v0 = ecenters, D_∂v1 = view(vcenters, ∂₁(i,s)))
   end
 
-  # Orient elementary duals.
+  # Orient elementary dual edges.
   if has_subpart(s, :edge_orientation)
     edge_orient = s[:edge_orientation]
     s[D_edges[1], :D_edge_orientation] = negate.(edge_orient)
@@ -191,6 +189,11 @@ function (::Type{S})(t::AbstractDeltaSet2D) where S <: AbstractDeltaDualComplex2
 end
 
 """ Make dual simplices for dual complex of dimension ≧ 2.
+
+If the primal complex is oriented, an orientation is induced on the dual
+complex. The elementary dual edges are oriented following (Hirani, 2003, Example
+2.5.2) or (Desbrun et al, 2005, Table 1) and the dual triangles are oriented
+relative to the primal triangles they subdivide.
 """
 function make_dual_simplices_2d!(s::AbstractACSet)
   # Make dual vertices and edges.
@@ -214,17 +217,29 @@ function make_dual_simplices_2d!(s::AbstractACSet)
                D_∂e2=view(D_edges01[ev+1], ∂₂(e,s)))
   end
 
-  # Orient elementary duals.
   if has_subpart(s, :tri_orientation)
+    # Orient elementary dual triangles.
     tri_orient = s[:tri_orientation]
     rev_tri_orient = negate.(tri_orient)
     for (i, D_tris) in enumerate(D_triangles)
       s[D_tris, :D_tri_orientation] = isodd(i) ? rev_tri_orient : tri_orient
     end
+
+    # Orient elementary dual edges.
+    for e in (0,1,2)
+      s[D_edges12[e+1], :D_edge_orientation] = relative_sign.(
+        s[∂₂(e,s), :edge_orientation],
+        isodd(e) ? rev_tri_orient : tri_orient)
+    end
+    # Remaining dual edges are oriented arbitrarily.
+    s[lazy(vcat, D_edges02...), :D_edge_orientation] = one(eltype(tri_orient))
   end
 
   D_triangles
 end
+
+relative_sign(x, y) = sign(x*y)
+relative_sign(x::Bool, y::Bool) = (x && y) || (!x && !y)
 
 # General operators
 ###################
