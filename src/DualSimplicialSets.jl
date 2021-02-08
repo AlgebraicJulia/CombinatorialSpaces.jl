@@ -104,17 +104,21 @@ complex:
   2003, PhD thesis, Ch. 2, last sentence of Remark 2.5.1)
 """
 function make_dual_simplices_1d!(s::AbstractACSet)
+  # Make dual vertices and edges.
   s[:vertex_center] = vcenters = add_parts!(s, :DualV, nv(s))
   s[:edge_center] = ecenters = add_parts!(s, :DualV, ne(s))
   D_edges = map((0,1)) do i
     add_parts!(s, :DualE, ne(s);
                D_∂v0 = ecenters, D_∂v1 = view(vcenters, ∂₁(i,s)))
   end
+
+  # Orient elementary duals.
   if has_subpart(s, :edge_orientation)
-    o = s[:edge_orientation]
-    s[D_edges[1], :D_edge_orientation] = negate.(o)
-    s[D_edges[2], :D_edge_orientation] = o
+    edge_orient = s[:edge_orientation]
+    s[D_edges[1], :D_edge_orientation] = negate.(edge_orient)
+    s[D_edges[2], :D_edge_orientation] = edge_orient
   end
+
   D_edges
 end
 
@@ -189,23 +193,37 @@ end
 """ Make dual simplices for dual complex of dimension ≧ 2.
 """
 function make_dual_simplices_2d!(s::AbstractACSet)
+  # Make dual vertices and edges.
   D_edges01 = make_dual_simplices_1d!(s)
   s[:tri_center] = tri_centers = add_parts!(s, :DualV, ntriangles(s))
-  D_edges12 = map((0,1,2)) do i
+  D_edges12 = map((0,1,2)) do e
     add_parts!(s, :DualE, ntriangles(s);
-               D_∂v0=tri_centers, D_∂v1=edge_center(s, ∂₂(i,s)))
+               D_∂v0=tri_centers, D_∂v1=edge_center(s, ∂₂(e,s)))
   end
-  D_edges02 = map((0,1,2)) do i
+  D_edges02 = map((0,1,2)) do v
     add_parts!(s, :DualE, ntriangles(s);
-               D_∂v0=tri_centers, D_∂v1=vertex_center(s, triangle_vertex(i,s)))
+               D_∂v0=tri_centers, D_∂v1=vertex_center(s, triangle_vertex(v,s)))
   end
-  D_tris = map(((0,0),(0,1),(1,0),(1,1),(2,0),(2,1))) do (i, i_vertex)
+
+  # Make dual triangles.
+  # Counterclockwise order in drawing with vertices 0, 1, 2 from left to right.
+  D_triangle_schemas = ((0,1,1),(0,2,1),(1,2,0),(1,0,1),(2,0,0),(2,1,0))
+  D_triangles = map(D_triangle_schemas) do (v,e,ev)
     add_parts!(s, :DualTri, ntriangles(s);
-               D_∂e0=D_edges12[i+1], D_∂e1=D_edges02[i+1],
-               D_∂e2=view(D_edges01[i_vertex+1], ∂₂(i,s)))
+               D_∂e0=D_edges12[e+1], D_∂e1=D_edges02[v+1],
+               D_∂e2=view(D_edges01[ev+1], ∂₂(e,s)))
   end
-  # TODO: Orientation.
-  D_tris
+
+  # Orient elementary duals.
+  if has_subpart(s, :tri_orientation)
+    tri_orient = s[:tri_orientation]
+    rev_tri_orient = negate.(tri_orient)
+    for (i, D_tris) in enumerate(D_triangles)
+      s[D_tris, :D_tri_orientation] = isodd(i) ? rev_tri_orient : tri_orient
+    end
+  end
+
+  D_triangles
 end
 
 # General operators
