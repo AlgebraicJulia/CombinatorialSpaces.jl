@@ -123,7 +123,7 @@ end
 
 function δ₀nz(s::AbstractACSet, v::Int)
   e₀, e₁ = ∂₁_inv(0,s,v), ∂₁_inv(1,s,v)
-  (lazy_vcat(e₀, e₁), lazy_vcat(edge_sign(s,e₀), -edge_sign(s,e₁)))
+  (lazy(vcat, e₀, e₁), lazy(vcat, edge_sign(s,e₀), -edge_sign(s,e₁)))
 end
 
 # 2D simplicial sets
@@ -181,14 +181,14 @@ ntriangles(s::AbstractACSet) = nparts(s, :Tri)
 
 This accessor assumes that the simplicial identities hold.
 """
-@inline triangle_vertex(s::AbstractACSet, i::Int, args...) =
-  triangle_vertex(s, Val{i}, args...)
+@inline triangle_vertex(i::Int, s::AbstractACSet, args...) =
+  triangle_vertex(Val{i}, s, args...)
 
-triangle_vertex(s::AbstractACSet, ::Type{Val{0}}, args...) =
+triangle_vertex(::Type{Val{0}}, s::AbstractACSet, args...) =
   s[s[args..., :∂e1], :src]
-triangle_vertex(s::AbstractACSet, ::Type{Val{1}}, args...) =
+triangle_vertex(::Type{Val{1}}, s::AbstractACSet, args...) =
   s[s[args..., :∂e2], :tgt]
-triangle_vertex(s::AbstractACSet, ::Type{Val{2}}, args...) =
+triangle_vertex(::Type{Val{2}}, s::AbstractACSet, args...) =
   s[s[args..., :∂e1], :tgt]
 
 """ Add a triangle (2-simplex) to a simplicial set, given its boundary edges.
@@ -273,9 +273,9 @@ end
 function δ₁nz(s::AbstractACSet, e::Int)
   sgn = edge_sign(s, e)
   t₀, t₁, t₂ = ∂₂_inv(0,s,e), ∂₂_inv(1,s,e), ∂₂_inv(2,s,e)
-  (lazy_vcat(t₀, t₁, t₂),
-   lazy_vcat(sgn*triangle_sign(s,t₀), -sgn*triangle_sign(s,t₁),
-             sgn*triangle_sign(s,t₂)))
+  (lazy(vcat, t₀, t₁, t₂),
+   lazy(vcat, sgn*triangle_sign(s,t₀),
+        -sgn*triangle_sign(s,t₁), sgn*triangle_sign(s,t₂)))
 end
 
 # General operators

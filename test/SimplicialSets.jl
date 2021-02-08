@@ -67,7 +67,7 @@ glue_triangle!(s, 1, 2, 3)
 @test is_semi_simplicial(s, 2)
 @test ntriangles(s) == 1
 @test map(i -> ∂₂(i, s, 1), (0,1,2)) == (2,3,1)
-@test map(i -> triangle_vertex(s, i, 1), (0,1,2)) == (1,2,3)
+@test map(i -> triangle_vertex(i, s, 1), (0,1,2)) == (1,2,3)
 
 s′ = DeltaSet2D()
 add_vertices!(s′, 3)
@@ -98,10 +98,9 @@ glue_triangle!(s, 1, 2, 3, tri_orientation=true)
 # Triangulated square with consistent orientation.
 s = OrientedDeltaSet2D{Bool}()
 add_vertices!(s, 4)
-glue_triangle!(s, 1, 2, 3)
-glue_triangle!(s, 1, 3, 4)
+glue_triangle!(s, 1, 2, 3, tri_orientation=true)
+glue_triangle!(s, 1, 3, 4, tri_orientation=true)
 s[:edge_orientation] = true
-s[:tri_orientation] = true
 @test ∂(2, s, 1) == [1,1,-1,0,0]
 @test ∂(2, s, [1,1]) == [1,1,0,1,-1] # 2-chain around perimeter.
 @test d(1, s, [45,3,34,0,0]) == [14,34]  # == [45+3-34, 34]
