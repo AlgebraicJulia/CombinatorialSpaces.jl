@@ -1,11 +1,10 @@
 """ Dual complexes for simplicial sets in one, two, and three dimensions.
 """
 module DualSimplicialSets
-export
+export DualSimplex, DualV, DualE, DualTri, elementary_duals,
   AbstractDeltaDualComplex1D, DeltaDualComplex1D, OrientedDeltaDualComplex1D,
-  vertex_center, edge_center, elementary_duals,
   AbstractDeltaDualComplex2D, DeltaDualComplex2D, OrientedDeltaDualComplex2D,
-  triangle_center
+  vertex_center, edge_center, triangle_center
 
 using StaticArrays: @SVector, SVector
 
@@ -244,21 +243,43 @@ relative_sign(x::Bool, y::Bool) = (x && y) || (!x && !y)
 # General operators
 ###################
 
+""" Wrapper for dual simplex or simplices of dimension `D`.
+
+See also: [`DualV`](@ref), [`DualE`](@ref), [`DualTri`](@ref).
+"""
+@parts_array DualSimplex{D}
+
+""" Vertex in simplicial set: alias for `Simplex{0}`.
+"""
+const DualV = DualSimplex{0}
+
+""" Edge in simplicial set: alias for `Simplex{1}`.
+"""
+const DualE = DualSimplex{1}
+
+""" Triangle in simplicial set: alias for `Simplex{2}`.
+"""
+const DualTri = DualSimplex{2}
+
 """ List of elementary dual simplices corresponding to primal simplex.
 
 In general, in an ``n``-dimensional complex, the elementary duals of primal
-``k``-simplices are dual ``(n-k)``-simplices. Thus, in 1D dual complexes,
+``k``-simplices are dual ``(n-k)``-simplices. Thus, in 1D dual complexes, the
 elementary duals of...
 
 - primal vertices are dual edges
 - primal edges are (single) dual vertices
 
-In 2D dual complexes, elementary duals of...
+In 2D dual complexes, the elementary duals of...
 
 - primal vertices are dual triangles
 - primal edges are dual edges
 - primal triangles are (single) dual triangles
 """
+@inline elementary_duals(s::AbstractDeltaDualComplex1D, x::Simplex{n}) where n =
+  DualSimplex{1-n}(elementary_duals(Val{n}, s, x.data))
+@inline elementary_duals(s::AbstractDeltaDualComplex2D, x::Simplex{n}) where n =
+  DualSimplex{2-n}(elementary_duals(Val{n}, s, x.data))
 @inline elementary_duals(n::Int, s::AbstractACSet, args...) =
   elementary_duals(Val{n}, s, args...)
 
