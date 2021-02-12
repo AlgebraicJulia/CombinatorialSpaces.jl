@@ -1,16 +1,17 @@
 """ Array utilities.
 
-- Uniform interface for dense and sparse arrays
-- Lazy array operations
+- Dense and sparse arrays with a uniform interface
+- Lazy operations on arrays
+- Structs that wrap arrays for "typed" array computing
 """
 module ArrayUtils
-export enumeratenz, applynz, fromnz, lazy
+export @parts_array, enumeratenz, applynz, fromnz, lazy
 
 using LazyArrays: ApplyArray
 using SparseArrays
 
-# Data types
-############
+# Dense and sparse arrays
+#########################
 
 abstract type AbstractArrayBuilder{T,N} end
 
@@ -57,9 +58,6 @@ nzbuilder(::Type{<:SparseVector{Tv}}, n::Integer) where Tv =
   SparseVectorBuilder(n, Int[], Tv[])
 nzbuilder(::Type{<:SparseMatrixCSC{Tv}}, m::Integer, n::Integer) where {Tv,Ti} =
   SparseMatrixBuilder(m, n, Int[], Int[], Tv[])
-
-# Functions
-###########
 
 """ Enumerate structural nonzeros of vector.
 """
@@ -112,8 +110,53 @@ zeros(::Type{<:SparseVector{T}}, dims::Tuple{Vararg{Integer,1}}) where T =
 zeros(::Type{<:SparseMatrixCSC{T}}, dims::Tuple{Vararg{Integer,2}}) where T =
   spzeros(T, dims...)
 
-""" Lazy array operations.
+# Lazy arrays
+#############
+
+""" Perform operation lazily on arrays.
 """
 lazy(::typeof(vcat), args...) = ApplyArray(vcat, args...)
+
+# Wrapped arrays
+################
+
+""" Abstract type for array of C-set parts of a certain type.
+"""
+abstract type AbstractPartsArray{N} <: AbstractArray{Int,N} end
+
+""" Generate struct wrapping a C-set part or parts of a certain type.
+
+Useful mainly for dispatching on part type. Example usage:
+
+```julia
+@parts_struct V
+@parts_struct E
+
+E(1)     # Edge with ID 1 (a zero-dimensional array)
+V([1,4]) # Vertices with IDs 2 and 4 (a one-dimensional array)
+```
+"""
+macro parts_array(type_expr)
+  name, params = if type_expr isa Expr
+    type_expr.head == :curly || error("Invalid type expression: $type_expr")
+    (type_expr.args[1]::Symbol, collect(Symbol, type_expr.args[2:end]))
+  else
+    (type_expr::Symbol, Symbol[])
+  end
+  :N ∉ params || error("Type parameter `N` is reserved")
+  supername = GlobalRef(ArrayUtils, :AbstractPartsArray)
+  expr = quote
+    Core.@__doc__ struct $(name){$(params...),N,Data} <: $(supername){N}
+      data::Data
+      $(name){$(params...)}(x::Int) where {$(params...)} =
+        new{$(params...),0,Int}(x)
+      $(name){$(params...)}(xs::Arr) where {$(params...),N,Arr<:AbstractArray{Int,N}} =
+        new{$(params...),N,Arr}(xs)
+    end
+    Base.size(A::$name) = size(A.data)
+    Base.getindex(A::$name, args...) = getindex(A.data, args...)
+  end
+  esc(expr)
+end
 
 end

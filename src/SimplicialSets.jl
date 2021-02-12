@@ -20,7 +20,7 @@ automatically sort their inputs to ensure that the ordering condition is
 satisfied.
 """
 module SimplicialSets
-export ∂, boundary, d, coboundary, exterior_derivative,
+export Simplex, V, E, Tri, ∂, boundary, d, coboundary, exterior_derivative,
   AbstractDeltaSet1D, DeltaSet1D, OrientedDeltaSet1D,
   ∂₁, src, tgt, edge_sign, nv, ne, vertices, edges, has_vertex, has_edge,
   add_vertex!, add_vertices!, add_edge!, add_edges!,
@@ -281,6 +281,24 @@ end
 # General operators
 ###################
 
+""" Wrapper for simplex or simplices of dimension `D`.
+
+See also: [`V`](@ref), [`E`](@ref), [`Tri`](@ref).
+"""
+@parts_array Simplex{D}
+
+""" Vertex in simplicial set: alias for `Simplex{0}`.
+"""
+const V = Simplex{0}
+
+""" Edge in simplicial set: alias for `Simplex{1}`.
+"""
+const E = Simplex{1}
+
+""" Triangle in simplicial set: alias for `Simplex{2}`.
+"""
+const Tri = Simplex{2}
+
 """ Face map and boundary operator on simplicial sets.
 
 Given numbers `n` and `0 <= i <= n` and a simplicial set of dimension at least
@@ -299,6 +317,8 @@ The boundary operator on `n`-faces and `n`-chains is implemented by the call
 Note that the face map returns *simplices*, while the boundary operator returns
 *chains* (vectors in the free vector space spanned by oriented simplices).
 """
+@inline ∂(i::Int, s::AbstractACSet, x::Simplex{n}) where n =
+  Simplex{n-1}(∂(Val{n}, Val{i}, s::AbstractACSet, x.data))
 @inline ∂(n::Int, i::Int, s::AbstractACSet, args...) =
   ∂(Val{n}, Val{i}, s::AbstractACSet, args...)
 

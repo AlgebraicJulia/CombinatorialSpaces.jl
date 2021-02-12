@@ -24,6 +24,8 @@ add_sorted_edges!(s, [2,4], [3,3])
 @test tgt(s) == [2,3,4]
 @test ∂₁(0, s) == [2,3,4]
 @test ∂₁(1, s) == [1,2,3]
+@test ∂(0, s, E(1)) == V(2)
+@test ∂(1, s, E([1,3])) == V([1,3])
 
 # 1D oriented simplicial sets
 #----------------------------

@@ -14,10 +14,14 @@ s = DeltaDualComplex1D(primal_s)
 @test nparts(s, :DualV) == nv(primal_s) + ne(primal_s)
 @test nparts(s, :DualE) == 2 * ne(primal_s)
 
-@test elementary_duals(1,s,4) == [edge_center(s, 4)]
+dual_v = elementary_duals(1,s,4)
+@test dual_v == [edge_center(s, 4)]
+@test elementary_duals(s, E(4)) == DualV(dual_v)
+
 dual_es = elementary_duals(0,s,5)
 @test length(dual_es) == 4
 @test s[dual_es, :D_∂v0] == edge_center(s, 1:4)
+@test elementary_duals(s, V(5)) == DualE(dual_es)
 
 # 1D oriented dual complex
 #-------------------------
@@ -42,10 +46,12 @@ s = DeltaDualComplex2D(primal_s)
 @test nparts(s, :DualE) == 2*ne(primal_s) + 6*ntriangles(primal_s)
 @test nparts(s, :DualTri) == 6*ntriangles(primal_s)
 
-@test elementary_duals(2,s,2) == [triangle_center(s,2)]
+dual_vs = elementary_duals(2,s,2)
+@test dual_vs == [triangle_center(s,2)]
+@test elementary_duals(s, Tri(2)) == DualV(dual_vs)
 @test s[elementary_duals(1,s,2), :D_∂v1] == [edge_center(s,2)]
 @test s[elementary_duals(1,s,3), :D_∂v1] == repeat([edge_center(s,3)], 2)
-@test [length(elementary_duals(0,s,i)) for i in 1:4] == [4,2,4,2]
+@test [length(elementary_duals(s, V(i))) for i in 1:4] == [4,2,4,2]
 
 # 2D oriented dual complex
 #-------------------------
