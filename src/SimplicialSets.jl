@@ -20,7 +20,9 @@ automatically sort their inputs to ensure that the ordering condition is
 satisfied.
 """
 module SimplicialSets
-export Simplex, V, E, Tri, ∂, boundary, d, coboundary, exterior_derivative,
+export Simplex, V, E, Tri, SimplexChain, VChain, EChain, TriChain,
+  SimplexCochain, VCochain, ECochain, TriCochain,
+  ∂, boundary, d, coboundary, exterior_derivative,
   AbstractDeltaSet1D, DeltaSet1D, OrientedDeltaSet1D,
   ∂₁, src, tgt, edge_sign, nv, ne, vertices, edges, has_vertex, has_edge,
   add_vertex!, add_vertices!, add_edge!, add_edges!,
@@ -281,11 +283,11 @@ end
 # General operators
 ###################
 
-""" Wrapper for simplex or simplices of dimension `D`.
+""" Wrapper for simplex or simplices of dimension `n`.
 
 See also: [`V`](@ref), [`E`](@ref), [`Tri`](@ref).
 """
-@parts_array Simplex{D}
+@parts_array_struct Simplex{n}
 
 """ Vertex in simplicial set: alias for `Simplex{0}`.
 """
@@ -298,6 +300,22 @@ const E = Simplex{1}
 """ Triangle in simplicial set: alias for `Simplex{2}`.
 """
 const Tri = Simplex{2}
+
+""" Wrapper for chain of oriented simplices of dimension `n`.
+"""
+@vector_struct SimplexChain{n}
+
+const VChain = SimplexChain{0}
+const EChain = SimplexChain{1}
+const TriChain = SimplexChain{2}
+
+""" Wrapper for cochain in simplicial set.
+"""
+@vector_struct SimplexCochain{n}
+
+const VCochain = SimplexCochain{0}
+const ECochain = SimplexCochain{1}
+const TriCochain = SimplexCochain{2}
 
 """ Face map and boundary operator on simplicial sets.
 
@@ -325,6 +343,8 @@ Note that the face map returns *simplices*, while the boundary operator returns
 ∂(::Type{Val{1}}, i::Type, s::AbstractACSet, args...) = ∂₁(i, s, args...)
 ∂(::Type{Val{2}}, i::Type, s::AbstractACSet, args...) = ∂₂(i, s, args...)
 
+@inline ∂(s::AbstractACSet, x::SimplexChain{n}) where n =
+  SimplexChain{n-1}(∂(Val{n}, s, x.data))
 @inline ∂(n::Int, s::AbstractACSet, args...) =
   ∂(Val{n}, s::AbstractACSet, args...)
 
@@ -337,6 +357,8 @@ const boundary = ∂
 
 """ The discrete exterior derivative, aka the coboundary operator.
 """
+@inline d(s::AbstractACSet, x::SimplexCochain{n}) where n =
+  SimplexCochain{n+1}(d(Val{n}, s::AbstractACSet, x.data))
 @inline d(n::Int, s::AbstractACSet, args...) =
   d(Val{n}, s::AbstractACSet, args...)
 
