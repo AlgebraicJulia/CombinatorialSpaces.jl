@@ -22,17 +22,18 @@ satisfied.
 module SimplicialSets
 export Simplex, V, E, Tri, SimplexChain, VChain, EChain, TriChain,
   SimplexCochain, VCochain, ECochain, TriCochain,
-  ∂, boundary, d, coboundary, exterior_derivative,
-  AbstractDeltaSet1D, DeltaSet1D, OrientedDeltaSet1D,
-  ∂₁, src, tgt, edge_sign, nv, ne, vertices, edges, has_vertex, has_edge,
+  ∂, boundary, d, coboundary, exterior_derivative, volume,
+  AbstractDeltaSet1D, DeltaSet1D, OrientedDeltaSet1D, EmbeddedDeltaSet1D,
+  ∂₁, src, tgt, nv, ne, vertices, edges, has_vertex, has_edge, point, edge_sign,
   add_vertex!, add_vertices!, add_edge!, add_edges!,
   add_sorted_edge!, add_sorted_edges!,
-  AbstractDeltaSet2D, DeltaSet2D, OrientedDeltaSet2D,
+  AbstractDeltaSet2D, DeltaSet2D, OrientedDeltaSet2D, EmbeddedDeltaSet2D,
   ∂₂, triangle_vertex, triangle_sign, ntriangles, triangles,
   add_triangle!, glue_triangle!, glue_sorted_triangle!
 
+using LinearAlgebra: det
 using SparseArrays
-using StaticArrays: @SVector, SVector
+using StaticArrays: @SVector, SVector, SMatrix
 
 using Catlab, Catlab.CategoricalAlgebra.CSets, Catlab.Graphs
 using Catlab.Graphs.BasicGraphs: TheoryGraph, TheoryReflexiveGraph
@@ -128,6 +129,26 @@ function δ₀nz(s::AbstractACSet, v::Int)
   (lazy(vcat, e₀, e₁), lazy(vcat, edge_sign(s,e₀), -edge_sign(s,e₁)))
 end
 
+# 1D embedded simplicial sets
+#----------------------------
+
+@present EmbeddedDeltaSchema1D <: OrientedDeltaSchema1D begin
+  Point::Data
+  point::Attr(V, Point)
+end
+
+""" A one-dimensional, embedded, oriented delta set.
+"""
+const EmbeddedDeltaSet1D = ACSetType(EmbeddedDeltaSchema1D, index=[:src,:tgt])
+
+""" Point associated with vertex of complex.
+"""
+point(s::AbstractACSet, args...) = s[args..., :point]
+
+volume(::Type{Val{0}}, s::AbstractACSet, v::Int) = 0
+volume(::Type{Val{1}}, s::AbstractACSet, e::Int) =
+  volume(point(s, SVector(∂₁(0,s,e), ∂₁(1,s,e))))
+
 # 2D simplicial sets
 ####################
 
@@ -152,7 +173,7 @@ Geometrically, they are triangles (2-simplices) whose three edges are directed
 according to a specific pattern, determined by the ordering of the vertices or
 equivalently by the simplicial identities. This geometric perspective is present
 through the subpart names `∂e0`, `∂e1`, and `∂e2` and through the boundary map
-`[∂₂](@ref)`. Alternatively, the triangle can be interpreted as a
+[`∂₂`](@ref). Alternatively, the triangle can be interpreted as a
 higher-dimensional link or morphism, going from two edges in sequence (which
 might be called `src2_first` and `src2_last`) to a transitive edge (say `tgt2`).
 This is the shape of the binary composition operation in a category.
@@ -196,7 +217,7 @@ triangle_vertex(::Type{Val{2}}, s::AbstractACSet, args...) =
 """ Add a triangle (2-simplex) to a simplicial set, given its boundary edges.
 
 In the arguments to this function, the boundary edges have the order ``0 → 1``,
-``1 → 2``, ``0 -> 2``.
+``1 → 2``, ``0 → 2``.
 
 !!! warning
 
@@ -280,6 +301,23 @@ function δ₁nz(s::AbstractACSet, e::Int)
         -sgn*triangle_sign(s,t₁), sgn*triangle_sign(s,t₂)))
 end
 
+# 2D embedded simplicial sets
+#----------------------------
+
+@present EmbeddedDeltaSchema2D <: OrientedDeltaSchema2D begin
+  Point::Data
+  point::Attr(V, Point)
+end
+
+""" A two-dimensional, embedded, oriented delta set.
+"""
+const EmbeddedDeltaSet2D = ACSetType(EmbeddedDeltaSchema2D,
+                                     index=[:src, :tgt, :∂e0, :∂e1, :∂e2])
+
+volume(::Type{Val{2}}, s::AbstractACSet, t::Int) =
+  volume(point(s, SVector(triangle_vertex(0,s,t), triangle_vertex(1,s,t),
+                          triangle_vertex(2,s,t))))
+
 # General operators
 ###################
 
@@ -336,17 +374,16 @@ Note that the face map returns *simplices*, while the boundary operator returns
 *chains* (vectors in the free vector space spanned by oriented simplices).
 """
 @inline ∂(i::Int, s::AbstractACSet, x::Simplex{n}) where n =
-  Simplex{n-1}(∂(Val{n}, Val{i}, s::AbstractACSet, x.data))
+  Simplex{n-1}(∂(Val{n}, Val{i}, s, x.data))
 @inline ∂(n::Int, i::Int, s::AbstractACSet, args...) =
-  ∂(Val{n}, Val{i}, s::AbstractACSet, args...)
+  ∂(Val{n}, Val{i}, s, args...)
 
 ∂(::Type{Val{1}}, i::Type, s::AbstractACSet, args...) = ∂₁(i, s, args...)
 ∂(::Type{Val{2}}, i::Type, s::AbstractACSet, args...) = ∂₂(i, s, args...)
 
 @inline ∂(s::AbstractACSet, x::SimplexChain{n}) where n =
   SimplexChain{n-1}(∂(Val{n}, s, x.data))
-@inline ∂(n::Int, s::AbstractACSet, args...) =
-  ∂(Val{n}, s::AbstractACSet, args...)
+@inline ∂(n::Int, s::AbstractACSet, args...) = ∂(Val{n}, s, args...)
 
 ∂(::Type{Val{1}}, s::AbstractACSet, args...) = ∂₁(s, args...)
 ∂(::Type{Val{2}}, s::AbstractACSet, args...) = ∂₂(s, args...)
@@ -359,8 +396,7 @@ const boundary = ∂
 """
 @inline d(s::AbstractACSet, x::SimplexCochain{n}) where n =
   SimplexCochain{n+1}(d(Val{n}, s::AbstractACSet, x.data))
-@inline d(n::Int, s::AbstractACSet, args...) =
-  d(Val{n}, s::AbstractACSet, args...)
+@inline d(n::Int, s::AbstractACSet, args...) = d(Val{n}, s, args...)
 
 d(::Type{Val{0}}, s::AbstractACSet, args...) = δ₀(s, args...)
 d(::Type{Val{1}}, s::AbstractACSet, args...) = δ₁(s, args...)
@@ -372,5 +408,46 @@ const coboundary = d
 """ Alias for the discrete exterior derivative [`d`](@ref).
 """
 const exterior_derivative = d
+
+""" ``n``-dimensional volume of ``n``-simplex in an embedded simplicial set.
+"""
+@inline volume(s::AbstractACSet, x::Simplex{n}) where n =
+  volume(Val{n}, s, x.data)
+@inline volume(n::Int, s::AbstractACSet, args...) = volume(Val{n}, s, args...)
+
+# Euclidean geometry
+####################
+
+""" ``n``-dimensional volume of ``n``-simplex spanned by given ``n+1`` points.
+"""
+function volume(points)
+  A = cayley_menger(points...)
+  n = length(points) - 1
+  sqrt(abs(det(A)) / 2^n) / factorial(n)
+end
+
+""" Construct Cayley-Menger matrix for simplex spanned by given points.
+
+For an ``n`-simplex, this is the ``(n+2)×(n+2)`` matrix that appears in the
+[Cayley-Menger
+determinant](https://en.wikipedia.org/wiki/Cayley-Menger_determinant).
+"""
+function cayley_menger(p0::V, p1::V) where V <: AbstractVector
+  d01 = sqdistance(p0, p1)
+  SMatrix{3,3}(0,   d01, 1,
+               d01, 0,   1,
+               1,   1,   0)
+end
+function cayley_menger(p0::V, p1::V, p2::V) where V <: AbstractVector
+  d01, d12, d02 = sqdistance(p0, p1), sqdistance(p1, p2), sqdistance(p0, p2)
+  SMatrix{4,4}(0,   d01, d02, 1,
+               d01, 0,   d12, 1,
+               d02, d12, 0,   1,
+               1,   1,   1,   0)
+end
+
+""" Squared Euclidean distance between two points.
+"""
+sqdistance(x, y) = sum((x-y).^2)
 
 end

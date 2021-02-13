@@ -1,7 +1,7 @@
 module TestSimplicialSets
 using Test
 
-using SparseArrays
+using SparseArrays, StaticArrays
 
 using Catlab.CategoricalAlgebra.CSets
 using CombinatorialSpaces.SimplicialSets
@@ -62,6 +62,17 @@ B = ∂(1, s)
 @test d(s, VCochain([4,1,0,0])) == ECochain([-3,1,0])
 @test d(0, s) == B'
 
+# 1D embedded simplicial sets
+#----------------------------
+
+const Point2D = SVector{2,Float64}
+
+s = EmbeddedDeltaSet1D{Bool,Point2D}()
+add_vertices!(s, 2, point=[Point2D(-1, 0), Point2D(+1, 0)])
+add_edge!(s, 1, 2, edge_orientation=true)
+@test volume(1, s, 1) ≈ 2
+@test volume(s, E(1)) ≈ 2
+
 # 2D simplicial sets
 ####################
 
@@ -112,5 +123,16 @@ s[:edge_orientation] = true
 @test d(s, ECochain([45,3,34,17,5])) ==
   TriCochain([14, 46]) # == [45+3-34, 34+17-5]
 @test d(1, s) == ∂(2, s)'
+
+# 2D embedded simplicial sets
+#----------------------------
+
+const Point3D = SVector{3,Float64}
+
+# Standard 2-simplex in ℝ³.
+s = EmbeddedDeltaSet2D{Bool,Point3D}()
+add_vertices!(s, 3, point=[Point3D(1,0,0), Point3D(0,1,0), Point3D(0,0,1)])
+glue_triangle!(s, 1, 2, 3, tri_orientation=true)
+@test volume(s, Tri(1)) ≈ sqrt(3)/2
 
 end
