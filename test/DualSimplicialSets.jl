@@ -104,4 +104,7 @@ subdivide_duals!(s, Barycenter())
 subdivide_duals!(s, Circumcenter())
 @test dual_point(s, triangle_center(s, 1)) ≈ Point2D(1/2, 1/2)
 
+subdivide_duals!(s, Incenter())
+@test dual_point(s, triangle_center(s, 1)) ≈ Point2D(1/(2+√2), 1/(2+√2))
+
 end

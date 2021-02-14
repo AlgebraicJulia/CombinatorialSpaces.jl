@@ -8,11 +8,12 @@ export DualSimplex, DualV, DualE, DualTri,
   OrientedDeltaDualComplex2D, EmbeddedDeltaDualComplex2D,
   elementary_duals, vertex_center, edge_center, triangle_center,
   dual_point, dual_volume, subdivide_duals!,
-  SimplexCenter, Barycenter, Circumcenter, geometric_center
+  SimplexCenter, Barycenter, Circumcenter, Incenter, geometric_center
 
 using StaticArrays: @SVector, SVector
 
 using Catlab, Catlab.CategoricalAlgebra.CSets
+using Catlab.CategoricalAlgebra.FinSets: deleteat
 using ..ArrayUtils, ..SimplicialSets
 using ..SimplicialSets: DeltaCategory1D, DeltaCategory2D, CayleyMengerDet,
   cayley_menger
@@ -429,9 +430,20 @@ See also: [`geometric_center`](@ref).
 """
 abstract type SimplexCenter end
 
-""" Barycenter, aka centroid, a simplex.
+""" Calculate the center of simplex spanned by given points.
+
+The first argument is a list of points and the second specifies the notion of
+"center", via an instance of [`SimplexCenter`](@ref).
+"""
+function geometric_center end
+
+""" Barycenter, aka centroid, of a simplex.
 """
 struct Barycenter <: SimplexCenter end
+
+function geometric_center(points, ::Barycenter)
+  sum(points) / length(points)
+end
 
 """ Circumcenter, or center of circumscribed circle, of a simplex.
 
@@ -443,17 +455,20 @@ This method of calculation is also used in the package
 """
 struct Circumcenter <: SimplexCenter end
 
-""" Calculate the center of simplex spanned by given points.
-
-The first argument is a list of points and the second specifies the notion of
-"center", an instance of [`SimplexCenter`](@ref).
-"""
-function geometric_center(points, ::Barycenter)
-  sum(points) / length(points)
-end
 function geometric_center(points, ::Circumcenter)
   CM = cayley_menger(points...)
   barycentric_coords = inv(CM)[1,2:end]
+  mapreduce(*, +, barycentric_coords, points)
+end
+
+""" Incenter, or center of inscribed circle, of a simplex.
+"""
+struct Incenter <: SimplexCenter end
+
+function geometric_center(points, ::Incenter)
+  length(points) > 2 || return geometric_center(points, Barycenter())
+  face_volumes = map(i -> volume(deleteat(points, i)), eachindex(points))
+  barycentric_coords = face_volumes / sum(face_volumes)
   mapreduce(*, +, barycentric_coords, points)
 end
 
