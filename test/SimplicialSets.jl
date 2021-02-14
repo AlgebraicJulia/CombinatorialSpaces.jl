@@ -22,10 +22,10 @@ add_sorted_edge!(s, 2, 1)
 add_sorted_edges!(s, [2,4], [3,3])
 @test src(s) == [1,2,3]
 @test tgt(s) == [2,3,4]
-@test ∂₁(0, s) == [2,3,4]
-@test ∂₁(1, s) == [1,2,3]
-@test ∂(0, s, E(1)) == V(2)
-@test ∂(1, s, E([1,3])) == V([1,3])
+@test ∂(1, 0, s) == [2,3,4]
+@test ∂(1, 1, s) == [1,2,3]
+@test ∂(0, s, E(1))::V == V(2)
+@test ∂(1, s, E([1,3]))::V == V([1,3])
 
 # 1D oriented simplicial sets
 #----------------------------
@@ -43,6 +43,7 @@ vvec = ∂₁(s, 1, Vector{Int})
 vvec = ∂₁(s, [1,-1,1])
 @test !issparse(vvec)
 @test vvec == [-1,0,0,1]
+@test ∂(s, EChain([1,-1,1]))::VChain == VChain(vvec)
 
 # Boundary operator, sparse vectors.
 vvec = ∂₁(s, 1, SparseVector{Int})
@@ -51,13 +52,14 @@ vvec = ∂₁(s, 1, SparseVector{Int})
 vvec = ∂₁(s, sparsevec([1,-1,1]))
 @test issparse(vvec)
 @test vvec == [-1,0,0,1]
+@test ∂(s, EChain(sparsevec([1,-1,1]))) == VChain(vvec)
 B = ∂(1, s)
 @test issparse(B)
 @test B*[1,-1,1] == [-1,0,0,1]
 
 # Exterior derivative.
-@test d(0, s, [1,1,1,4]) == [0,0,3]
-@test d(0, s, [4,1,0,0]) == [-3,1,0]
+@test d(s, VCochain([1,1,1,4]))::ECochain == ECochain([0,0,3])
+@test d(s, VCochain([4,1,0,0])) == ECochain([-3,1,0])
 @test d(0, s) == B'
 
 # 2D simplicial sets
@@ -104,9 +106,11 @@ glue_triangle!(s, 1, 2, 3, tri_orientation=true)
 glue_triangle!(s, 1, 3, 4, tri_orientation=true)
 s[:edge_orientation] = true
 @test ∂(2, s, 1) == [1,1,-1,0,0]
-@test ∂(2, s, [1,1]) == [1,1,0,1,-1] # 2-chain around perimeter.
-@test d(1, s, [45,3,34,0,0]) == [14,34]  # == [45+3-34, 34]
-@test d(1, s, [45,3,34,17,5]) == [14,46] # == [45+3-34, 34+17-5]
+@test ∂(s, TriChain([1,1]))::EChain == EChain([1,1,0,1,-1])
+@test d(s, ECochain([45,3,34,0,0]))::TriCochain ==
+  TriCochain([14, 34]) # == [45+3-34, 34]
+@test d(s, ECochain([45,3,34,17,5])) ==
+  TriCochain([14, 46]) # == [45+3-34, 34+17-5]
 @test d(1, s) == ∂(2, s)'
 
 end

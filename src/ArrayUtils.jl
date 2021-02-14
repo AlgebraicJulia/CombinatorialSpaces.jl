@@ -2,10 +2,10 @@
 
 - Dense and sparse arrays with a uniform interface
 - Lazy operations on arrays
-- Structs that wrap arrays for "typed" array computing
+- Wapper structs for arrays to enable "typed" array computing
 """
 module ArrayUtils
-export @parts_array, enumeratenz, applynz, fromnz, lazy
+export @parts_array_struct, @vector_struct, enumeratenz, applynz, fromnz, lazy
 
 using LazyArrays: ApplyArray
 using SparseArrays
@@ -120,33 +120,43 @@ lazy(::typeof(vcat), args...) = ApplyArray(vcat, args...)
 # Wrapped arrays
 ################
 
-""" Abstract type for array of C-set parts of a certain type.
+""" Generate struct for a named vector struct.
 """
-abstract type AbstractPartsArray{N} <: AbstractArray{Int,N} end
+macro vector_struct(struct_sig)
+  name, params = parse_struct_signature(struct_sig)
+  :T ∉ params || error("Type parameter `T` is reserved")
+  expr = quote
+    Core.@__doc__ struct $(name){$(params...),T,V<:AbstractVector{T}} <: AbstractVector{T}
+      data::V
+    end
+    $(name){$(params...)}(v::V) where {$(params...),T,V<:AbstractVector{T}} =
+      $(name){$(params...),T,V}(v)
+    Base.size(v::$name) = size(v.data)
+    Base.getindex(v::$name, i::Int) = getindex(v.data, i)
+    Base.setindex!(v::$name, x, i::Int) = setindex!(v.data, x, i)
+    Base.IndexStyle(::Type{<:$name}) = IndexLinear()
+  end
+  esc(expr)
+end
 
-""" Generate struct wrapping a C-set part or parts of a certain type.
+""" Generate struct for C-set part or parts of a certain type.
 
-Useful mainly for dispatching on part type. Example usage:
+The struct wraps an array and is mainly useful for dispatching on part type.
+Example usage:
 
 ```julia
 @parts_struct V
 @parts_struct E
 
-E(1)     # Edge with ID 1 (a zero-dimensional array)
-V([1,4]) # Vertices with IDs 2 and 4 (a one-dimensional array)
+E(1)     # Edge #1 (zero-dimensional array)
+V([1,4]) # Vertices #2 and #4 (one-dimensional array)
 ```
 """
-macro parts_array(type_expr)
-  name, params = if type_expr isa Expr
-    type_expr.head == :curly || error("Invalid type expression: $type_expr")
-    (type_expr.args[1]::Symbol, collect(Symbol, type_expr.args[2:end]))
-  else
-    (type_expr::Symbol, Symbol[])
-  end
+macro parts_array_struct(struct_sig)
+  name, params = parse_struct_signature(struct_sig)
   :N ∉ params || error("Type parameter `N` is reserved")
-  supername = GlobalRef(ArrayUtils, :AbstractPartsArray)
   expr = quote
-    Core.@__doc__ struct $(name){$(params...),N,Data} <: $(supername){N}
+    Core.@__doc__ struct $(name){$(params...),N,Data} <: AbstractArray{Int,N}
       data::Data
       $(name){$(params...)}(x::Int) where {$(params...)} =
         new{$(params...),0,Int}(x)
@@ -157,6 +167,15 @@ macro parts_array(type_expr)
     Base.getindex(A::$name, args...) = getindex(A.data, args...)
   end
   esc(expr)
+end
+
+function parse_struct_signature(expr)
+  if expr isa Expr
+    expr.head == :curly || error("Invalid struct expression: $expr")
+    (expr.args[1]::Symbol, collect(Symbol, expr.args[2:end]))
+  else
+    (expr::Symbol, Symbol[])
+  end
 end
 
 end

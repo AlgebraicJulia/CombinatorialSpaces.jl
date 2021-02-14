@@ -247,7 +247,7 @@ relative_sign(x::Bool, y::Bool) = (x && y) || (!x && !y)
 
 See also: [`DualV`](@ref), [`DualE`](@ref), [`DualTri`](@ref).
 """
-@parts_array DualSimplex{D}
+@parts_array_struct DualSimplex{D}
 
 """ Vertex in simplicial set: alias for `Simplex{0}`.
 """
