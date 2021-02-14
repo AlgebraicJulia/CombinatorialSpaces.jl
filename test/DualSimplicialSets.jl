@@ -7,6 +7,7 @@ using Catlab.CategoricalAlgebra.CSets
 using CombinatorialSpaces
 
 const Point2D = SVector{2,Float64}
+const Point3D = SVector{3,Float64}
 
 # 1D dual complex
 #################
@@ -83,5 +84,24 @@ s = OrientedDeltaDualComplex2D{Bool}(primal_s)
 @test [sum(s[elementary_duals(0,s,i), :D_tri_orientation])
        for i in 1:4] == [2,1,2,1]
 @test sum(s[elementary_duals(1,s,3), :D_edge_orientation]) == 1
+
+# 2D embedded dual complex
+#-------------------------
+
+# Single triangle: numerical example from Gillett's notes on DEC, §2.13.
+primal_s = EmbeddedDeltaSet2D{Bool,Point2D}()
+add_vertices!(primal_s, 3, point=[Point2D(0,0), Point2D(1,0), Point2D(0,1)])
+glue_triangle!(primal_s, 1, 2, 3, tri_orientation=true)
+primal_s[:edge_orientation] = true
+s = EmbeddedDeltaDualComplex2D{Bool,Float64,Point2D}(primal_s)
+
+subdivide_duals!(s, Barycenter())
+@test dual_point(s, triangle_center(s, 1)) ≈ Point2D(1/3, 1/3)
+@test volume(s, Tri(1)) ≈ 1/2
+@test volume(s, elementary_duals(s, V(1))) ≈ [1/12, 1/12]
+@test [sum(volume(s, elementary_duals(s, V(i)))) for i in 1:3] ≈ [1/6, 1/6, 1/6]
+
+subdivide_duals!(s, Circumcenter())
+@test dual_point(s, triangle_center(s, 1)) ≈ Point2D(1/2, 1/2)
 
 end

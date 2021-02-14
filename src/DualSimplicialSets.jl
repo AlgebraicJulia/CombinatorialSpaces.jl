@@ -154,10 +154,10 @@ struct PrecomputedVol end
 
 volume(::Type{Val{n}}, s::EmbeddedDeltaDualComplex1D, x) where n =
   volume(Val{n}, s, x, PrecomputedVol())
-volume(::Type{Val{1}}, s::AbstractACSet, e, ::PrecomputedVol) = s[e, :length]
-
 dual_volume(::Type{Val{n}}, s::EmbeddedDeltaDualComplex1D, x) where n =
   dual_volume(Val{n}, s, x, PrecomputedVol())
+
+volume(::Type{Val{1}}, s::AbstractACSet, e, ::PrecomputedVol) = s[e, :length]
 dual_volume(::Type{Val{1}}, s::AbstractACSet, e, ::PrecomputedVol) =
   s[e, :dual_length]
 
@@ -170,8 +170,10 @@ Supports different methods of subdivision through the choice of geometric
 center, as defined by [`geometric_center`](@ref). In particular, barycentric
 subdivision and circumcentric subdivision are supported.
 """
-subdivide_duals!(s::EmbeddedDeltaDualComplex1D, args...) =
+function subdivide_duals!(s::EmbeddedDeltaDualComplex1D, args...)
   subdivide_duals_1d!(s, args...)
+  precompute_volumes_1d!(s)
+end
 
 function subdivide_duals_1d!(s::AbstractACSet, alg)
   for v in vertices(s)
@@ -180,10 +182,15 @@ function subdivide_duals_1d!(s::AbstractACSet, alg)
   for e in edges(s)
     s[edge_center(s,e), :dual_point] = geometric_center(
       point(s, edge_vertices(s, e)), alg)
-    s[e, :length] = volume(1, s, e, CayleyMengerDet())
+  end
+end
+
+function precompute_volumes_1d!(s::AbstractACSet)
+  for e in edges(s)
+    s[e, :length] = volume(1,s,e,CayleyMengerDet())
   end
   for e in parts(s, :DualE)
-    s[e, :dual_length] = dual_volume(1, s, e, CayleyMengerDet())
+    s[e, :dual_length] = dual_volume(1,s,e,CayleyMengerDet())
   end
 end
 
@@ -305,6 +312,66 @@ end
 relative_sign(x, y) = sign(x*y)
 relative_sign(x::Bool, y::Bool) = (x && y) || (!x && !y)
 
+# 2D embedded dual complex
+#-------------------------
+
+@present SchemaEmbeddedDualComplex2D <: SchemaOrientedDualComplex2D begin
+  (Real, Point)::Data
+  point::Attr(V, Point)
+  length::Attr(E, Real)
+  area::Attr(Tri, Real)
+  dual_point::Attr(DualV, Point)
+  dual_length::Attr(DualE, Real)
+  dual_area::Attr(DualTri, Real)
+end
+
+""" Embedded dual complex of an embedded 12 delta set.
+
+Although they are redundant information, the lengths and areas of the
+primal/dual edges and triangles are precomputed and stored.
+"""
+const EmbeddedDeltaDualComplex2D = ACSetType(SchemaEmbeddedDualComplex2D,
+  index=[:src, :tgt, :∂e0, :∂e1, :∂e2, :D_∂v0, :D_∂v1, :D_∂e0, :D_∂e1, :D_∂e2])
+
+volume(::Type{Val{n}}, s::EmbeddedDeltaDualComplex2D, x) where n =
+  volume(Val{n}, s, x, PrecomputedVol())
+dual_volume(::Type{Val{n}}, s::EmbeddedDeltaDualComplex2D, x) where n =
+  dual_volume(Val{n}, s, x, PrecomputedVol())
+
+volume(::Type{Val{2}}, s::AbstractACSet, t, ::PrecomputedVol) = s[t, :area]
+dual_volume(::Type{Val{2}}, s::AbstractACSet, t, ::PrecomputedVol) =
+  s[t, :dual_area]
+
+function dual_volume(::Type{Val{2}}, s::AbstractACSet, t::Int, ::CayleyMengerDet)
+  dual_vs = SVector(s[s[t, :D_∂e1], :D_∂v1],
+                    s[s[t, :D_∂e2], :D_∂v0],
+                    s[s[t, :D_∂e0], :D_∂v0])
+  volume(dual_point(s, dual_vs))
+end
+
+function subdivide_duals!(s::EmbeddedDeltaDualComplex2D, args...)
+  subdivide_duals_2d!(s, args...)
+  precompute_volumes_2d!(s)
+end
+
+function subdivide_duals_2d!(s::AbstractACSet, alg)
+  subdivide_duals_1d!(s, alg)
+  for t in triangles(s)
+    s[triangle_center(s,t), :dual_point] = geometric_center(
+      point(s, triangle_vertices(s, t)), alg)
+  end
+end
+
+function precompute_volumes_2d!(s::AbstractACSet)
+  precompute_volumes_1d!(s)
+  for t in triangles(s)
+    s[t, :area] = volume(2,s,t,CayleyMengerDet())
+  end
+  for t in parts(s, :DualTri)
+    s[t, :dual_area] = dual_volume(2,s,t,CayleyMengerDet())
+  end
+end
+
 # General operators
 ###################
 
@@ -385,7 +452,7 @@ function geometric_center(points, ::Barycenter)
   sum(points) / length(points)
 end
 function geometric_center(points, ::Circumcenter)
-  CM = cayley_menger(points)
+  CM = cayley_menger(points...)
   barycentric_coords = inv(CM)[1,2:end]
   mapreduce(*, +, barycentric_coords, points)
 end

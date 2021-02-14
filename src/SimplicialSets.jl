@@ -435,16 +435,16 @@ determinant](https://en.wikipedia.org/wiki/Cayley-Menger_determinant).
 """
 function cayley_menger(p0::V, p1::V) where V <: AbstractVector
   d01 = sqdistance(p0, p1)
-  SMatrix{3,3}(0,   d01, 1,
-               d01, 0,   1,
-               1,   1,   0)
+  SMatrix{3,3}(0,  1,   1,
+               1,  0,   d01,
+               1,  d01, 0)
 end
 function cayley_menger(p0::V, p1::V, p2::V) where V <: AbstractVector
   d01, d12, d02 = sqdistance(p0, p1), sqdistance(p1, p2), sqdistance(p0, p2)
-  SMatrix{4,4}(0,   d01, d02, 1,
-               d01, 0,   d12, 1,
-               d02, d12, 0,   1,
-               1,   1,   1,   0)
+  SMatrix{4,4}(0,  1,   1,   1,
+               1,  0,   d01, d02,
+               1,  d01, 0,   d12,
+               1,  d02, d12, 0)
 end
 
 """ Squared Euclidean distance between two points.
