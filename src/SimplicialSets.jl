@@ -22,13 +22,13 @@ satisfied.
 module SimplicialSets
 export Simplex, V, E, Tri, SimplexChain, VChain, EChain, TriChain,
   SimplexCochain, VCochain, ECochain, TriCochain,
-  ∂, boundary, d, coboundary, exterior_derivative, volume,
   AbstractDeltaSet1D, DeltaSet1D, OrientedDeltaSet1D, EmbeddedDeltaSet1D,
-  ∂₁, src, tgt, nv, ne, vertices, edges, has_vertex, has_edge, point, edge_sign,
-  add_vertex!, add_vertices!, add_edge!, add_edges!,
-  add_sorted_edge!, add_sorted_edges!,
   AbstractDeltaSet2D, DeltaSet2D, OrientedDeltaSet2D, EmbeddedDeltaSet2D,
-  ∂₂, triangle_vertex, triangle_sign, ntriangles, triangles,
+  ∂, boundary, d, coboundary, exterior_derivative, volume,
+  ∂₁, src, tgt, nv, ne, vertices, edges, has_vertex, has_edge, point,
+  edge_vertices, edge_sign, add_vertex!, add_vertices!, add_edge!, add_edges!,
+  add_sorted_edge!, add_sorted_edges!,
+  ∂₂, triangle_vertices, triangle_sign, ntriangles, triangles,
   add_triangle!, glue_triangle!, glue_sorted_triangle!
 
 using LinearAlgebra: det
@@ -70,6 +70,10 @@ const DeltaSet1D = Graph
 
 ∂₁_inv(::Type{Val{0}}, s::AbstractACSet, args...) = incident(s, args..., :tgt)
 ∂₁_inv(::Type{Val{1}}, s::AbstractACSet, args...) = incident(s, args..., :src)
+
+""" Boundary vertices of an edge.
+"""
+edge_vertices(s::AbstractACSet, e...) = SVector(∂₁(0,s,e...), ∂₁(1,s,e...))
 
 """ Add edge to simplicial set, respecting the order of the vertex IDs.
 """
@@ -114,7 +118,7 @@ numeric_sign(x::Bool) = x ? +1 : -1
   fromnz(Mat, nv(s), ne(s)) do e; ∂₁nz(s,e) end
 
 function ∂₁nz(s::AbstractACSet, e::Int)
-  (SVector(∂₁(0,s,e), ∂₁(1,s,e)), edge_sign(s,e) * @SVector([1,-1]))
+  (edge_vertices(s, e), edge_sign(s,e) * @SVector([1,-1]))
 end
 
 """ Coboundary operator on 0-forms.
@@ -145,9 +149,12 @@ const EmbeddedDeltaSet1D = ACSetType(EmbeddedDeltaSchema1D, index=[:src,:tgt])
 """
 point(s::AbstractACSet, args...) = s[args..., :point]
 
-volume(::Type{Val{0}}, s::AbstractACSet, v::Int) = 0
-volume(::Type{Val{1}}, s::AbstractACSet, e::Int) =
-  volume(point(s, SVector(∂₁(0,s,e), ∂₁(1,s,e))))
+struct CayleyMengerDet end
+
+volume(::Type{Val{n}}, s::EmbeddedDeltaSet1D, x) where n =
+  volume(Val{n}, s, x, CayleyMengerDet())
+volume(::Type{Val{1}}, s::AbstractACSet, e::Int, ::CayleyMengerDet) =
+  volume(point(s, edge_vertices(s, e)))
 
 # 2D simplicial sets
 ####################
@@ -181,6 +188,9 @@ This is the shape of the binary composition operation in a category.
 const DeltaSet2D = CSetType(DeltaCategory2D,
                             index=[:src, :tgt, :∂e0, :∂e1, :∂e2])
 
+triangles(s::AbstractACSet) = parts(s, :Tri)
+ntriangles(s::AbstractACSet) = nparts(s, :Tri)
+
 """ Face map on triangles and boundary operator on 2-chains in simplicial set.
 """
 @inline ∂₂(i::Int, s::AbstractACSet, args...) =
@@ -197,22 +207,13 @@ const DeltaSet2D = CSetType(DeltaCategory2D,
 ∂₂_inv(::Type{Val{1}}, s::AbstractACSet, args...) = incident(s, args..., :∂e1)
 ∂₂_inv(::Type{Val{2}}, s::AbstractACSet, args...) = incident(s, args..., :∂e2)
 
-triangles(s::AbstractACSet) = parts(s, :Tri)
-ntriangles(s::AbstractACSet) = nparts(s, :Tri)
-
-""" Boundary vertex of a triangle.
+""" Boundary vertices of a triangle.
 
 This accessor assumes that the simplicial identities hold.
 """
-@inline triangle_vertex(i::Int, s::AbstractACSet, args...) =
-  triangle_vertex(Val{i}, s, args...)
-
-triangle_vertex(::Type{Val{0}}, s::AbstractACSet, args...) =
-  s[s[args..., :∂e1], :src]
-triangle_vertex(::Type{Val{1}}, s::AbstractACSet, args...) =
-  s[s[args..., :∂e2], :tgt]
-triangle_vertex(::Type{Val{2}}, s::AbstractACSet, args...) =
-  s[s[args..., :∂e1], :tgt]
+function triangle_vertices(s::AbstractACSet, t...)
+  SVector(s[s[t..., :∂e1], :src], s[s[t..., :∂e2], :tgt], s[s[t..., :∂e1], :tgt])
+end
 
 """ Add a triangle (2-simplex) to a simplicial set, given its boundary edges.
 
@@ -262,9 +263,8 @@ end
 
 """ A two-dimensional oriented delta set.
 
-Triangles are ordered in the cyclic order ``(0,1,2)`` (with numbers defined by
-[`triangle_vertex`](@ref)) when `tri_orientation` is true/positive and in the
-reverse order when it is false/negative.
+Triangles are ordered in the cyclic order ``(0,1,2)`` when `tri_orientation` is
+true/positive and in the reverse order when it is false/negative.
 """
 const OrientedDeltaSet2D = ACSetType(OrientedDeltaSchema2D,
                                      index=[:src, :tgt, :∂e0, :∂e1, :∂e2])
@@ -314,9 +314,10 @@ end
 const EmbeddedDeltaSet2D = ACSetType(EmbeddedDeltaSchema2D,
                                      index=[:src, :tgt, :∂e0, :∂e1, :∂e2])
 
-volume(::Type{Val{2}}, s::AbstractACSet, t::Int) =
-  volume(point(s, SVector(triangle_vertex(0,s,t), triangle_vertex(1,s,t),
-                          triangle_vertex(2,s,t))))
+volume(::Type{Val{n}}, s::EmbeddedDeltaSet2D, x) where n =
+  volume(Val{n}, s, x, CayleyMengerDet())
+volume(::Type{Val{2}}, s::AbstractACSet, t::Int, ::CayleyMengerDet) =
+  volume(point(s, triangle_vertices(s,t)))
 
 # General operators
 ###################
@@ -411,8 +412,8 @@ const exterior_derivative = d
 
 """ ``n``-dimensional volume of ``n``-simplex in an embedded simplicial set.
 """
-@inline volume(s::AbstractACSet, x::Simplex{n}) where n =
-  volume(Val{n}, s, x.data)
+@inline volume(s::AbstractACSet, x::Simplex{n}, args...) where n =
+  volume(Val{n}, s, x.data, args...)
 @inline volume(n::Int, s::AbstractACSet, args...) = volume(Val{n}, s, args...)
 
 # Euclidean geometry
@@ -421,9 +422,9 @@ const exterior_derivative = d
 """ ``n``-dimensional volume of ``n``-simplex spanned by given ``n+1`` points.
 """
 function volume(points)
-  A = cayley_menger(points...)
+  CM = cayley_menger(points...)
   n = length(points) - 1
-  sqrt(abs(det(A)) / 2^n) / factorial(n)
+  sqrt(abs(det(CM)) / 2^n) / factorial(n)
 end
 
 """ Construct Cayley-Menger matrix for simplex spanned by given points.

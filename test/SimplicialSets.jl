@@ -13,6 +13,9 @@ function is_semi_simplicial(s::AbstractACSet, n::Int)
       for i in 1:n for j in (i+1):n)
 end
 
+const Point2D = SVector{2,Float64}
+const Point3D = SVector{3,Float64}
+
 # 1D simplicial sets
 ####################
 
@@ -65,8 +68,6 @@ B = ∂(1, s)
 # 1D embedded simplicial sets
 #----------------------------
 
-const Point2D = SVector{2,Float64}
-
 s = EmbeddedDeltaSet1D{Bool,Point2D}()
 add_vertices!(s, 2, point=[Point2D(-1, 0), Point2D(+1, 0)])
 add_edge!(s, 1, 2, edge_orientation=true)
@@ -82,7 +83,7 @@ glue_triangle!(s, 1, 2, 3)
 @test is_semi_simplicial(s, 2)
 @test ntriangles(s) == 1
 @test map(i -> ∂₂(i, s, 1), (0,1,2)) == (2,3,1)
-@test map(i -> triangle_vertex(i, s, 1), (0,1,2)) == (1,2,3)
+@test triangle_vertices(s, 1) == [1,2,3]
 
 s′ = DeltaSet2D()
 add_vertices!(s′, 3)
@@ -126,8 +127,6 @@ s[:edge_orientation] = true
 
 # 2D embedded simplicial sets
 #----------------------------
-
-const Point3D = SVector{3,Float64}
 
 # Standard 2-simplex in ℝ³.
 s = EmbeddedDeltaSet2D{Bool,Point3D}()

@@ -1,8 +1,12 @@
 module TestDualSimplicialSets
 using Test
 
+using StaticArrays
+
 using Catlab.CategoricalAlgebra.CSets
 using CombinatorialSpaces
+
+const Point2D = SVector{2,Float64}
 
 # 1D dual complex
 #################
@@ -32,6 +36,18 @@ add_edges!(primal_s, [1,2], [2,3], edge_orientation=[true,false])
 s = OrientedDeltaDualComplex1D{Bool}(primal_s)
 @test s[only(elementary_duals(0,s,1)), :D_edge_orientation] == true
 @test s[only(elementary_duals(0,s,3)), :D_edge_orientation] == true
+
+# 1D embedded dual complex
+#-------------------------
+
+primal_s = EmbeddedDeltaSet1D{Bool,Point2D}()
+add_vertices!(primal_s, 3, point=[Point2D(1,0), Point2D(0,0), Point2D(0,2)])
+add_edges!(primal_s, [1,2], [2,3], edge_orientation=true)
+s = EmbeddedDeltaDualComplex1D{Bool,Float64,Point2D}(primal_s)
+subdivide_duals!(s, Barycenter())
+@test dual_point(s, edge_center(s, [1,2])) ≈ [Point2D(0.5,0), Point2D(0,1)]
+@test volume(s, E(1:2)) ≈ [1.0, 2.0]
+@test volume(s, elementary_duals(s, V(2))) ≈ [0.5, 1.0]
 
 # 2D dual complex
 #################
