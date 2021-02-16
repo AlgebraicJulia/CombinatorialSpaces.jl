@@ -21,7 +21,7 @@ satisfied.
 """
 module SimplicialSets
 export Simplex, V, E, Tri, SimplexChain, VChain, EChain, TriChain,
-  SimplexCochain, VCochain, ECochain, TriCochain,
+  SimplexForm, VForm, EForm, TriForm,
   AbstractDeltaSet1D, DeltaSet1D, OrientedDeltaSet1D, EmbeddedDeltaSet1D,
   AbstractDeltaSet2D, DeltaSet2D, OrientedDeltaSet2D, EmbeddedDeltaSet2D,
   ∂, boundary, d, coboundary, exterior_derivative, volume,
@@ -348,13 +348,13 @@ const VChain = SimplexChain{0}
 const EChain = SimplexChain{1}
 const TriChain = SimplexChain{2}
 
-""" Wrapper for cochain in simplicial set.
+""" Wrapper for discrete form, aka cochain, in simplicial set.
 """
-@vector_struct SimplexCochain{n}
+@vector_struct SimplexForm{n}
 
-const VCochain = SimplexCochain{0}
-const ECochain = SimplexCochain{1}
-const TriCochain = SimplexCochain{2}
+const VForm = SimplexForm{0}
+const EForm = SimplexForm{1}
+const TriForm = SimplexForm{2}
 
 """ Face map and boundary operator on simplicial sets.
 
@@ -395,8 +395,8 @@ const boundary = ∂
 
 """ The discrete exterior derivative, aka the coboundary operator.
 """
-@inline d(s::AbstractACSet, x::SimplexCochain{n}) where n =
-  SimplexCochain{n+1}(d(Val{n}, s::AbstractACSet, x.data))
+@inline d(s::AbstractACSet, x::SimplexForm{n}) where n =
+  SimplexForm{n+1}(d(Val{n}, s::AbstractACSet, x.data))
 @inline d(n::Int, s::AbstractACSet, args...) = d(Val{n}, s, args...)
 
 d(::Type{Val{0}}, s::AbstractACSet, args...) = δ₀(s, args...)

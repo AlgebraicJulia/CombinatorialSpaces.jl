@@ -61,8 +61,8 @@ B = ∂(1, s)
 @test B*[1,-1,1] == [-1,0,0,1]
 
 # Exterior derivative.
-@test d(s, VCochain([1,1,1,4]))::ECochain == ECochain([0,0,3])
-@test d(s, VCochain([4,1,0,0])) == ECochain([-3,1,0])
+@test d(s, VForm([1,1,1,4]))::EForm == EForm([0,0,3])
+@test d(s, VForm([4,1,0,0])) == EForm([-3,1,0])
 @test d(0, s) == B'
 
 # 1D embedded simplicial sets
@@ -119,10 +119,8 @@ glue_triangle!(s, 1, 3, 4, tri_orientation=true)
 s[:edge_orientation] = true
 @test ∂(2, s, 1) == [1,1,-1,0,0]
 @test ∂(s, TriChain([1,1]))::EChain == EChain([1,1,0,1,-1])
-@test d(s, ECochain([45,3,34,0,0]))::TriCochain ==
-  TriCochain([14, 34]) # == [45+3-34, 34]
-@test d(s, ECochain([45,3,34,17,5])) ==
-  TriCochain([14, 46]) # == [45+3-34, 34+17-5]
+@test d(s, EForm([45,3,34,0,0]))::TriForm == TriForm([14, 34]) # == [45+3-34, 34]
+@test d(s, EForm([45,3,34,17,5])) == TriForm([14, 46]) # == [45+3-34, 34+17-5]
 @test d(1, s) == ∂(2, s)'
 
 # 2D embedded simplicial sets
