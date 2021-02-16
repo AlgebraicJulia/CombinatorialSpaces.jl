@@ -1,17 +1,23 @@
 """ Dual complexes for simplicial sets in one, two, and three dimensions.
 """
 module DualSimplicialSets
-export DualSimplex, DualV, DualE, DualTri, elementary_duals,
-  AbstractDeltaDualComplex1D, DeltaDualComplex1D, OrientedDeltaDualComplex1D,
-  AbstractDeltaDualComplex2D, DeltaDualComplex2D, OrientedDeltaDualComplex2D,
-  vertex_center, edge_center, triangle_center
+export DualSimplex, DualV, DualE, DualTri,
+  AbstractDeltaDualComplex1D, DeltaDualComplex1D,
+  OrientedDeltaDualComplex1D, EmbeddedDeltaDualComplex1D,
+  AbstractDeltaDualComplex2D, DeltaDualComplex2D,
+  OrientedDeltaDualComplex2D, EmbeddedDeltaDualComplex2D,
+  elementary_duals, vertex_center, edge_center, triangle_center,
+  dual_point, dual_volume, subdivide_duals!,
+  SimplexCenter, Barycenter, Circumcenter, Incenter, geometric_center
 
 using StaticArrays: @SVector, SVector
 
 using Catlab, Catlab.CategoricalAlgebra.CSets
-using ..ArrayUtils
-using ..SimplicialSets
-using ..SimplicialSets: DeltaCategory1D, DeltaCategory2D
+using Catlab.CategoricalAlgebra.FinSets: deleteat
+using ..ArrayUtils, ..SimplicialSets
+using ..SimplicialSets: DeltaCategory1D, DeltaCategory2D, CayleyMengerDet,
+  cayley_menger
+import ..SimplicialSets: volume
 
 # 1D dual complex
 #################
@@ -122,6 +128,73 @@ end
 negate(x) = -x
 negate(x::Bool) = !x
 
+# 1D embedded dual complex
+#-------------------------
+
+@present SchemaEmbeddedDualComplex1D <: SchemaOrientedDualComplex1D begin
+  (Real, Point)::Data
+  point::Attr(V, Point)
+  length::Attr(E, Real)
+  dual_point::Attr(DualV, Point)
+  dual_length::Attr(DualE, Real)
+end
+
+""" Embedded dual complex of an embedded 1D delta set.
+
+Although they are redundant information, the lengths of the primal and dual
+edges are precomputed and stored.
+"""
+const EmbeddedDeltaDualComplex1D = ACSetType(SchemaEmbeddedDualComplex1D,
+                                             index=[:src,:tgt,:D_∂v0,:D_∂v1])
+
+""" Point associated with dual vertex of complex.
+"""
+dual_point(s::AbstractACSet, args...) = s[args..., :dual_point]
+
+struct PrecomputedVol end
+
+volume(::Type{Val{n}}, s::EmbeddedDeltaDualComplex1D, x) where n =
+  volume(Val{n}, s, x, PrecomputedVol())
+dual_volume(::Type{Val{n}}, s::EmbeddedDeltaDualComplex1D, x) where n =
+  dual_volume(Val{n}, s, x, PrecomputedVol())
+
+volume(::Type{Val{1}}, s::AbstractACSet, e, ::PrecomputedVol) = s[e, :length]
+dual_volume(::Type{Val{1}}, s::AbstractACSet, e, ::PrecomputedVol) =
+  s[e, :dual_length]
+
+dual_volume(::Type{Val{1}}, s::AbstractACSet, e::Int, ::CayleyMengerDet) =
+  volume(dual_point(s, SVector(s[e,:D_∂v0], s[e,:D_∂v1])))
+
+""" Compute geometric subdivision for embedded dual complex.
+
+Supports different methods of subdivision through the choice of geometric
+center, as defined by [`geometric_center`](@ref). In particular, barycentric
+subdivision and circumcentric subdivision are supported.
+"""
+function subdivide_duals!(s::EmbeddedDeltaDualComplex1D, args...)
+  subdivide_duals_1d!(s, args...)
+  precompute_volumes_1d!(s)
+end
+
+function subdivide_duals_1d!(s::AbstractACSet, alg)
+  for v in vertices(s)
+    s[vertex_center(s,v), :dual_point] = point(s, v)
+  end
+  for e in edges(s)
+    s[edge_center(s,e), :dual_point] = geometric_center(
+      point(s, edge_vertices(s, e)), alg)
+  end
+end
+
+function precompute_volumes_1d!(s::AbstractACSet)
+  for e in edges(s)
+    s[e, :length] = volume(1,s,e,CayleyMengerDet())
+  end
+  for e in parts(s, :DualE)
+    s[e, :dual_length] = dual_volume(1,s,e,CayleyMengerDet())
+  end
+end
+
 # 2D dual complex
 #################
 
@@ -202,9 +275,9 @@ function make_dual_simplices_2d!(s::AbstractACSet)
     add_parts!(s, :DualE, ntriangles(s);
                D_∂v0=tri_centers, D_∂v1=edge_center(s, ∂₂(e,s)))
   end
-  D_edges02 = map((0,1,2)) do v
+  D_edges02 = map(triangle_vertices(s)) do vs
     add_parts!(s, :DualE, ntriangles(s);
-               D_∂v0=tri_centers, D_∂v1=vertex_center(s, triangle_vertex(v,s)))
+               D_∂v0=tri_centers, D_∂v1=vertex_center(s, vs))
   end
 
   # Make dual triangles.
@@ -240,6 +313,66 @@ end
 relative_sign(x, y) = sign(x*y)
 relative_sign(x::Bool, y::Bool) = (x && y) || (!x && !y)
 
+# 2D embedded dual complex
+#-------------------------
+
+@present SchemaEmbeddedDualComplex2D <: SchemaOrientedDualComplex2D begin
+  (Real, Point)::Data
+  point::Attr(V, Point)
+  length::Attr(E, Real)
+  area::Attr(Tri, Real)
+  dual_point::Attr(DualV, Point)
+  dual_length::Attr(DualE, Real)
+  dual_area::Attr(DualTri, Real)
+end
+
+""" Embedded dual complex of an embedded 12 delta set.
+
+Although they are redundant information, the lengths and areas of the
+primal/dual edges and triangles are precomputed and stored.
+"""
+const EmbeddedDeltaDualComplex2D = ACSetType(SchemaEmbeddedDualComplex2D,
+  index=[:src, :tgt, :∂e0, :∂e1, :∂e2, :D_∂v0, :D_∂v1, :D_∂e0, :D_∂e1, :D_∂e2])
+
+volume(::Type{Val{n}}, s::EmbeddedDeltaDualComplex2D, x) where n =
+  volume(Val{n}, s, x, PrecomputedVol())
+dual_volume(::Type{Val{n}}, s::EmbeddedDeltaDualComplex2D, x) where n =
+  dual_volume(Val{n}, s, x, PrecomputedVol())
+
+volume(::Type{Val{2}}, s::AbstractACSet, t, ::PrecomputedVol) = s[t, :area]
+dual_volume(::Type{Val{2}}, s::AbstractACSet, t, ::PrecomputedVol) =
+  s[t, :dual_area]
+
+function dual_volume(::Type{Val{2}}, s::AbstractACSet, t::Int, ::CayleyMengerDet)
+  dual_vs = SVector(s[s[t, :D_∂e1], :D_∂v1],
+                    s[s[t, :D_∂e2], :D_∂v0],
+                    s[s[t, :D_∂e0], :D_∂v0])
+  volume(dual_point(s, dual_vs))
+end
+
+function subdivide_duals!(s::EmbeddedDeltaDualComplex2D, args...)
+  subdivide_duals_2d!(s, args...)
+  precompute_volumes_2d!(s)
+end
+
+function subdivide_duals_2d!(s::AbstractACSet, alg)
+  subdivide_duals_1d!(s, alg)
+  for t in triangles(s)
+    s[triangle_center(s,t), :dual_point] = geometric_center(
+      point(s, triangle_vertices(s, t)), alg)
+  end
+end
+
+function precompute_volumes_2d!(s::AbstractACSet)
+  precompute_volumes_1d!(s)
+  for t in triangles(s)
+    s[t, :area] = volume(2,s,t,CayleyMengerDet())
+  end
+  for t in parts(s, :DualTri)
+    s[t, :dual_area] = dual_volume(2,s,t,CayleyMengerDet())
+  end
+end
+
 # General operators
 ###################
 
@@ -260,6 +393,11 @@ const DualE = DualSimplex{1}
 """ Triangle in simplicial set: alias for `Simplex{2}`.
 """
 const DualTri = DualSimplex{2}
+
+@inline volume(s::AbstractACSet, x::DualSimplex{n}, args...) where n =
+  dual_volume(Val{n}, s, x.data, args...)
+@inline dual_volume(n::Int, s::AbstractACSet, args...) =
+  dual_volume(Val{n}, s, args...)
 
 """ List of elementary dual simplices corresponding to primal simplex.
 
@@ -282,5 +420,56 @@ In 2D dual complexes, the elementary duals of...
   DualSimplex{2-n}(elementary_duals(Val{n}, s, x.data))
 @inline elementary_duals(n::Int, s::AbstractACSet, args...) =
   elementary_duals(Val{n}, s, args...)
+
+# Euclidean geometry
+####################
+
+""" A notion of "geometric center" of a simplex.
+
+See also: [`geometric_center`](@ref).
+"""
+abstract type SimplexCenter end
+
+""" Calculate the center of simplex spanned by given points.
+
+The first argument is a list of points and the second specifies the notion of
+"center", via an instance of [`SimplexCenter`](@ref).
+"""
+function geometric_center end
+
+""" Barycenter, aka centroid, of a simplex.
+"""
+struct Barycenter <: SimplexCenter end
+
+function geometric_center(points, ::Barycenter)
+  sum(points) / length(points)
+end
+
+""" Circumcenter, or center of circumscribed circle, of a simplex.
+
+The circumcenter is calculated by inverting the Cayley-Menger matrix, as
+explained by
+[Westdendorp](https://westy31.home.xs4all.nl/Circumsphere/ncircumsphere.htm).
+This method of calculation is also used in the package
+[AlphaShapes.jl](https://github.com/harveydevereux/AlphaShapes.jl).
+"""
+struct Circumcenter <: SimplexCenter end
+
+function geometric_center(points, ::Circumcenter)
+  CM = cayley_menger(points...)
+  barycentric_coords = inv(CM)[1,2:end]
+  mapreduce(*, +, barycentric_coords, points)
+end
+
+""" Incenter, or center of inscribed circle, of a simplex.
+"""
+struct Incenter <: SimplexCenter end
+
+function geometric_center(points, ::Incenter)
+  length(points) > 2 || return geometric_center(points, Barycenter())
+  face_volumes = map(i -> volume(deleteat(points, i)), eachindex(points))
+  barycentric_coords = face_volumes / sum(face_volumes)
+  mapreduce(*, +, barycentric_coords, points)
+end
 
 end
