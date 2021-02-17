@@ -112,7 +112,7 @@ function make_dual_simplices_1d!(s::AbstractACSet)
   s[:edge_center] = ecenters = add_parts!(s, :DualV, ne(s))
   D_edges = map((0,1)) do i
     add_parts!(s, :DualE, ne(s);
-               D_∂v0 = ecenters, D_∂v1 = view(vcenters, ∂₁(i,s)))
+               D_∂v0 = ecenters, D_∂v1 = view(vcenters, ∂(1,i,s)))
   end
 
   # Orient elementary dual edges.
@@ -273,7 +273,7 @@ function make_dual_simplices_2d!(s::AbstractACSet)
   s[:tri_center] = tri_centers = add_parts!(s, :DualV, ntriangles(s))
   D_edges12 = map((0,1,2)) do e
     add_parts!(s, :DualE, ntriangles(s);
-               D_∂v0=tri_centers, D_∂v1=edge_center(s, ∂₂(e,s)))
+               D_∂v0=tri_centers, D_∂v1=edge_center(s, ∂(2,e,s)))
   end
   D_edges02 = map(triangle_vertices(s)) do vs
     add_parts!(s, :DualE, ntriangles(s);
@@ -286,7 +286,7 @@ function make_dual_simplices_2d!(s::AbstractACSet)
   D_triangles = map(D_triangle_schemas) do (v,e,ev)
     add_parts!(s, :DualTri, ntriangles(s);
                D_∂e0=D_edges12[e+1], D_∂e1=D_edges02[v+1],
-               D_∂e2=view(D_edges01[ev+1], ∂₂(e,s)))
+               D_∂e2=view(D_edges01[ev+1], ∂(2,e,s)))
   end
 
   if has_subpart(s, :tri_orientation)
@@ -300,7 +300,7 @@ function make_dual_simplices_2d!(s::AbstractACSet)
     # Orient elementary dual edges.
     for e in (0,1,2)
       s[D_edges12[e+1], :D_edge_orientation] = relative_sign.(
-        s[∂₂(e,s), :edge_orientation],
+        s[∂(2,e,s), :edge_orientation],
         isodd(e) ? rev_tri_orient : tri_orient)
     end
     # Remaining dual edges are oriented arbitrarily.

@@ -40,19 +40,19 @@ add_edges!(s, [1,2,3], [2,3,4], edge_orientation=[true,false,true])
 @test ∂(1, s, 2) == [0,1,-1,0]
 
 # Boundary operator, dense vectors.
-vvec = ∂₁(s, 1, Vector{Int})
+vvec = ∂(1, s, 1, Vector{Int})
 @test !issparse(vvec)
 @test vvec == [-1,1,0,0]
-vvec = ∂₁(s, [1,-1,1])
+vvec = ∂(1, s, [1,-1,1])
 @test !issparse(vvec)
 @test vvec == [-1,0,0,1]
 @test ∂(s, EChain([1,-1,1]))::VChain == VChain(vvec)
 
 # Boundary operator, sparse vectors.
-vvec = ∂₁(s, 1, SparseVector{Int})
+vvec = ∂(1, s, 1, SparseVector{Int})
 @test issparse(vvec)
 @test vvec == [-1,1,0,0]
-vvec = ∂₁(s, sparsevec([1,-1,1]))
+vvec = ∂(1, s, sparsevec([1,-1,1]))
 @test issparse(vvec)
 @test vvec == [-1,0,0,1]
 @test ∂(s, EChain(sparsevec([1,-1,1]))) == VChain(vvec)
@@ -82,7 +82,7 @@ add_vertices!(s, 3)
 glue_triangle!(s, 1, 2, 3)
 @test is_semi_simplicial(s, 2)
 @test ntriangles(s) == 1
-@test map(i -> ∂₂(i, s, 1), (0,1,2)) == (2,3,1)
+@test map(i -> ∂(2, i, s, 1), (0,1,2)) == (2,3,1)
 @test triangle_vertices(s, 1) == [1,2,3]
 
 s′ = DeltaSet2D()
