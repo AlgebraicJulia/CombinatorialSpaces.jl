@@ -1,15 +1,17 @@
 """ Dual complexes for simplicial sets in one, two, and three dimensions.
 """
 module DualSimplicialSets
-export DualSimplex, DualV, DualE, DualTri,
+export DualSimplex, DualV, DualE, DualTri, DualChain, DualForm,
   AbstractDeltaDualComplex1D, DeltaDualComplex1D,
   OrientedDeltaDualComplex1D, EmbeddedDeltaDualComplex1D,
   AbstractDeltaDualComplex2D, DeltaDualComplex2D,
   OrientedDeltaDualComplex2D, EmbeddedDeltaDualComplex2D,
-  elementary_duals, vertex_center, edge_center, triangle_center,
-  dual_point, dual_volume, subdivide_duals!,
-  SimplexCenter, Barycenter, Circumcenter, Incenter, geometric_center
+  SimplexCenter, Barycenter, Circumcenter, Incenter, geometric_center,
+  elementary_duals, ⋆, hodge_star,
+  vertex_center, edge_center, triangle_center, dual_point, dual_volume,
+  subdivide_duals!
 
+using LinearAlgebra: Diagonal
 using StaticArrays: @SVector, SVector
 
 using Catlab, Catlab.CategoricalAlgebra.CSets
@@ -112,7 +114,7 @@ function make_dual_simplices_1d!(s::AbstractACSet)
   s[:edge_center] = ecenters = add_parts!(s, :DualV, ne(s))
   D_edges = map((0,1)) do i
     add_parts!(s, :DualE, ne(s);
-               D_∂v0 = ecenters, D_∂v1 = view(vcenters, ∂₁(i,s)))
+               D_∂v0 = ecenters, D_∂v1 = view(vcenters, ∂(1,i,s)))
   end
 
   # Orient elementary dual edges.
@@ -164,6 +166,11 @@ dual_volume(::Type{Val{1}}, s::AbstractACSet, e, ::PrecomputedVol) =
 
 dual_volume(::Type{Val{1}}, s::AbstractACSet, e::Int, ::CayleyMengerDet) =
   volume(dual_point(s, SVector(s[e,:D_∂v0], s[e,:D_∂v1])))
+
+hodge_diag(::Type{Val{0}}, s::AbstractDeltaDualComplex1D, v::Int) =
+  sum(dual_volume(Val{1}, s, elementary_duals(Val{0},s,v)))
+hodge_diag(::Type{Val{1}}, s::AbstractDeltaDualComplex1D, e::Int) =
+  1 / volume(Val{1},s,e)
 
 """ Compute geometric subdivision for embedded dual complex.
 
@@ -273,7 +280,7 @@ function make_dual_simplices_2d!(s::AbstractACSet)
   s[:tri_center] = tri_centers = add_parts!(s, :DualV, ntriangles(s))
   D_edges12 = map((0,1,2)) do e
     add_parts!(s, :DualE, ntriangles(s);
-               D_∂v0=tri_centers, D_∂v1=edge_center(s, ∂₂(e,s)))
+               D_∂v0=tri_centers, D_∂v1=edge_center(s, ∂(2,e,s)))
   end
   D_edges02 = map(triangle_vertices(s)) do vs
     add_parts!(s, :DualE, ntriangles(s);
@@ -286,7 +293,7 @@ function make_dual_simplices_2d!(s::AbstractACSet)
   D_triangles = map(D_triangle_schemas) do (v,e,ev)
     add_parts!(s, :DualTri, ntriangles(s);
                D_∂e0=D_edges12[e+1], D_∂e1=D_edges02[v+1],
-               D_∂e2=view(D_edges01[ev+1], ∂₂(e,s)))
+               D_∂e2=view(D_edges01[ev+1], ∂(2,e,s)))
   end
 
   if has_subpart(s, :tri_orientation)
@@ -300,7 +307,7 @@ function make_dual_simplices_2d!(s::AbstractACSet)
     # Orient elementary dual edges.
     for e in (0,1,2)
       s[D_edges12[e+1], :D_edge_orientation] = relative_sign.(
-        s[∂₂(e,s), :edge_orientation],
+        s[∂(2,e,s), :edge_orientation],
         isodd(e) ? rev_tri_orient : tri_orient)
     end
     # Remaining dual edges are oriented arbitrarily.
@@ -350,6 +357,13 @@ function dual_volume(::Type{Val{2}}, s::AbstractACSet, t::Int, ::CayleyMengerDet
   volume(dual_point(s, dual_vs))
 end
 
+hodge_diag(::Type{Val{0}}, s::AbstractDeltaDualComplex2D, v::Int) =
+  sum(dual_volume(Val{2}, s, elementary_duals(Val{0},s,v)))
+hodge_diag(::Type{Val{1}}, s::AbstractDeltaDualComplex2D, e::Int) =
+  sum(dual_volume(Val{1}, s, elementary_duals(Val{1},s,e))) / volume(Val{1},s,e)
+hodge_diag(::Type{Val{2}}, s::AbstractDeltaDualComplex2D, t::Int) =
+  1 / volume(Val{2},s,t)
+
 function subdivide_duals!(s::EmbeddedDeltaDualComplex2D, args...)
   subdivide_duals_2d!(s, args...)
   precompute_volumes_2d!(s)
@@ -394,6 +408,26 @@ const DualE = DualSimplex{1}
 """
 const DualTri = DualSimplex{2}
 
+""" Wrapper for chain of dual cells of dimension `n`.
+
+In an ``N``-dimensional complex, the elementary dual simplices of each
+``n``-simplex together comprise the dual ``(N-n)``-cell of the simplex. Using
+this correspondence, a basis for primal ``n``-chains defines the basis for dual
+``(N-n)``-chains.
+
+!!! note
+
+    In (Hirani 2003, Definition 3.4.1), the duality operator assigns a certain
+    sign to each elementary dual simplex. For us, all of these signs should be
+    regarded as positive because we have already incorporated them into the
+    orientation of the dual simplices.
+"""
+@vector_struct DualChain{n}
+
+""" Wrapper for form, aka cochain, on dual cells of dimension `n`.
+"""
+@vector_struct DualForm{n}
+
 @inline volume(s::AbstractACSet, x::DualSimplex{n}, args...) where n =
   dual_volume(Val{n}, s, x.data, args...)
 @inline dual_volume(n::Int, s::AbstractACSet, args...) =
@@ -420,6 +454,30 @@ In 2D dual complexes, the elementary duals of...
   DualSimplex{2-n}(elementary_duals(Val{n}, s, x.data))
 @inline elementary_duals(n::Int, s::AbstractACSet, args...) =
   elementary_duals(Val{n}, s, args...)
+
+""" Hodge star operator from primal ``n``-forms to dual ``N-n``-forms.
+
+!!! warning
+
+    Some authors, such as (Hirani 2003) and (Desbrun 2005), use the symbol ``⋆``
+    for the duality operator on chains and the symbol ``*`` for the Hodge star
+    operator on cochains. We do not explicitly define the duality operator and
+    we use the symbol ``⋆`` for the Hodge star.
+"""
+@inline ⋆(s::AbstractDeltaDualComplex1D, x::SimplexForm{n}) where n =
+  DualForm{1-n}(⋆(Val{n}, s, x.data))
+@inline ⋆(s::AbstractDeltaDualComplex2D, x::SimplexForm{n}) where n =
+  DualForm{2-n}(⋆(Val{n}, s, x.data))
+@inline ⋆(n::Int, s::AbstractACSet, args...) = ⋆(Val{n}, s, args...)
+
+⋆(::Type{Val{n}}, s::AbstractACSet, form::AbstractVector) where n =
+  applydiag(form) do x; hodge_diag(Val{n},s,x) end
+⋆(::Type{Val{n}}, s::AbstractACSet) where n =
+  Diagonal([ hodge_diag(Val{n},s,x) for x in simplices(n,s) ])
+
+""" Alias for the Hodge star operator [`⋆`](@ref).
+"""
+const hodge_star = ⋆
 
 # Euclidean geometry
 ####################

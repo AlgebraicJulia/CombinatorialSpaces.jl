@@ -5,7 +5,8 @@
 - Wapper structs for arrays to enable "typed" array computing
 """
 module ArrayUtils
-export @parts_array_struct, @vector_struct, enumeratenz, applynz, fromnz, lazy
+export @parts_array_struct, @vector_struct, applydiag, applynz, fromnz,
+  enumeratenz, lazy
 
 using LazyArrays: ApplyArray
 using SparseArrays
@@ -59,10 +60,14 @@ nzbuilder(::Type{<:SparseVector{Tv}}, n::Integer) where Tv =
 nzbuilder(::Type{<:SparseMatrixCSC{Tv}}, m::Integer, n::Integer) where {Tv,Ti} =
   SparseMatrixBuilder(m, n, Int[], Int[], Tv[])
 
-""" Enumerate structural nonzeros of vector.
+""" Apply diagonal operator to dense or sparse vector.
 """
-enumeratenz(v::AbstractVector) = enumerate(v)
-enumeratenz(v::SparseVector) = zip(findnz(v)...)
+applydiag(f, x::AbstractVector) = [ f(i)*a for (i,a) in enumerate(x) ]
+
+function applydiag(f, x::SparseVector)
+  I, V = findnz(x)
+  sparsevec(I, [ f(i)*a for (i,a) in zip(I, V) ], length(x))
+end
 
 """ Apply linear map defined in terms of structural nonzero values.
 """
@@ -99,6 +104,11 @@ function fromnz(::Type{Vec}, I::AbstractVector, V::AbstractVector,
 end
 fromnz(::Type{<:SparseVector}, I::AbstractVector,
        V::AbstractVector, n::Integer) = sparsevec(I, V, n)
+
+""" Enumerate structural nonzeros of vector.
+"""
+enumeratenz(v::AbstractVector) = enumerate(v)
+enumeratenz(v::SparseVector) = zip(findnz(v)...)
 
 """ Alternative to `Base.zeros` supporting dense and sparse arrays.
 """

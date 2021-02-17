@@ -40,19 +40,19 @@ add_edges!(s, [1,2,3], [2,3,4], edge_orientation=[true,false,true])
 @test ∂(1, s, 2) == [0,1,-1,0]
 
 # Boundary operator, dense vectors.
-vvec = ∂₁(s, 1, Vector{Int})
+vvec = ∂(1, s, 1, Vector{Int})
 @test !issparse(vvec)
 @test vvec == [-1,1,0,0]
-vvec = ∂₁(s, [1,-1,1])
+vvec = ∂(1, s, [1,-1,1])
 @test !issparse(vvec)
 @test vvec == [-1,0,0,1]
 @test ∂(s, EChain([1,-1,1]))::VChain == VChain(vvec)
 
 # Boundary operator, sparse vectors.
-vvec = ∂₁(s, 1, SparseVector{Int})
+vvec = ∂(1, s, 1, SparseVector{Int})
 @test issparse(vvec)
 @test vvec == [-1,1,0,0]
-vvec = ∂₁(s, sparsevec([1,-1,1]))
+vvec = ∂(1, s, sparsevec([1,-1,1]))
 @test issparse(vvec)
 @test vvec == [-1,0,0,1]
 @test ∂(s, EChain(sparsevec([1,-1,1]))) == VChain(vvec)
@@ -61,8 +61,8 @@ B = ∂(1, s)
 @test B*[1,-1,1] == [-1,0,0,1]
 
 # Exterior derivative.
-@test d(s, VCochain([1,1,1,4]))::ECochain == ECochain([0,0,3])
-@test d(s, VCochain([4,1,0,0])) == ECochain([-3,1,0])
+@test d(s, VForm([1,1,1,4]))::EForm == EForm([0,0,3])
+@test d(s, VForm([4,1,0,0])) == EForm([-3,1,0])
 @test d(0, s) == B'
 
 # 1D embedded simplicial sets
@@ -82,7 +82,7 @@ add_vertices!(s, 3)
 glue_triangle!(s, 1, 2, 3)
 @test is_semi_simplicial(s, 2)
 @test ntriangles(s) == 1
-@test map(i -> ∂₂(i, s, 1), (0,1,2)) == (2,3,1)
+@test map(i -> ∂(2, i, s, 1), (0,1,2)) == (2,3,1)
 @test triangle_vertices(s, 1) == [1,2,3]
 
 s′ = DeltaSet2D()
@@ -119,10 +119,8 @@ glue_triangle!(s, 1, 3, 4, tri_orientation=true)
 s[:edge_orientation] = true
 @test ∂(2, s, 1) == [1,1,-1,0,0]
 @test ∂(s, TriChain([1,1]))::EChain == EChain([1,1,0,1,-1])
-@test d(s, ECochain([45,3,34,0,0]))::TriCochain ==
-  TriCochain([14, 34]) # == [45+3-34, 34]
-@test d(s, ECochain([45,3,34,17,5])) ==
-  TriCochain([14, 46]) # == [45+3-34, 34+17-5]
+@test d(s, EForm([45,3,34,0,0]))::TriForm == TriForm([14, 34]) # == [45+3-34, 34]
+@test d(s, EForm([45,3,34,17,5])) == TriForm([14, 46]) # == [45+3-34, 34+17-5]
 @test d(1, s) == ∂(2, s)'
 
 # 2D embedded simplicial sets
