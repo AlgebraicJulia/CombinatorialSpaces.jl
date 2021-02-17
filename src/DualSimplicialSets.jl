@@ -1,15 +1,17 @@
 """ Dual complexes for simplicial sets in one, two, and three dimensions.
 """
 module DualSimplicialSets
-export DualSimplex, DualV, DualE, DualTri,
+export DualSimplex, DualV, DualE, DualTri, DualChain, DualForm,
   AbstractDeltaDualComplex1D, DeltaDualComplex1D,
   OrientedDeltaDualComplex1D, EmbeddedDeltaDualComplex1D,
   AbstractDeltaDualComplex2D, DeltaDualComplex2D,
   OrientedDeltaDualComplex2D, EmbeddedDeltaDualComplex2D,
-  elementary_duals, vertex_center, edge_center, triangle_center,
-  dual_point, dual_volume, subdivide_duals!,
-  SimplexCenter, Barycenter, Circumcenter, Incenter, geometric_center
+  SimplexCenter, Barycenter, Circumcenter, Incenter, geometric_center,
+  elementary_duals, ⋆, hodge_star,
+  vertex_center, edge_center, triangle_center, dual_point, dual_volume,
+  subdivide_duals!
 
+using LinearAlgebra: Diagonal
 using StaticArrays: @SVector, SVector
 
 using Catlab, Catlab.CategoricalAlgebra.CSets
@@ -164,6 +166,11 @@ dual_volume(::Type{Val{1}}, s::AbstractACSet, e, ::PrecomputedVol) =
 
 dual_volume(::Type{Val{1}}, s::AbstractACSet, e::Int, ::CayleyMengerDet) =
   volume(dual_point(s, SVector(s[e,:D_∂v0], s[e,:D_∂v1])))
+
+hodge_diag(::Type{Val{0}}, s::AbstractDeltaDualComplex1D, v::Int) =
+  sum(dual_volume(Val{1}, s, elementary_duals(Val{0},s,v)))
+hodge_diag(::Type{Val{1}}, s::AbstractDeltaDualComplex1D, e::Int) =
+  1 / volume(Val{1},s,e)
 
 """ Compute geometric subdivision for embedded dual complex.
 
@@ -350,6 +357,13 @@ function dual_volume(::Type{Val{2}}, s::AbstractACSet, t::Int, ::CayleyMengerDet
   volume(dual_point(s, dual_vs))
 end
 
+hodge_diag(::Type{Val{0}}, s::AbstractDeltaDualComplex2D, v::Int) =
+  sum(dual_volume(Val{2}, s, elementary_duals(Val{0},s,v)))
+hodge_diag(::Type{Val{1}}, s::AbstractDeltaDualComplex2D, e::Int) =
+  sum(dual_volume(Val{1}, s, elementary_duals(Val{1},s,e))) / volume(Val{1},s,e)
+hodge_diag(::Type{Val{2}}, s::AbstractDeltaDualComplex2D, t::Int) =
+  1 / volume(Val{2},s,t)
+
 function subdivide_duals!(s::EmbeddedDeltaDualComplex2D, args...)
   subdivide_duals_2d!(s, args...)
   precompute_volumes_2d!(s)
@@ -394,6 +408,26 @@ const DualE = DualSimplex{1}
 """
 const DualTri = DualSimplex{2}
 
+""" Wrapper for chain of dual cells of dimension `n`.
+
+In an ``N``-dimensional complex, the elementary dual simplices of each
+``n``-simplex together comprise the dual ``(N-n)``-cell of the simplex. Using
+this correspondence, a basis for primal ``n``-chains defines the basis for dual
+``(N-n)``-chains.
+
+!!! note
+
+    In (Hirani 2003, Definition 3.4.1), the duality operator assigns a certain
+    sign to each elementary dual simplex. For us, all of these signs should be
+    regarded as positive because we have already incorporated them into the
+    orientation of the dual simplices.
+"""
+@vector_struct DualChain{n}
+
+""" Wrapper for form, aka cochain, on dual cells of dimension `n`.
+"""
+@vector_struct DualForm{n}
+
 @inline volume(s::AbstractACSet, x::DualSimplex{n}, args...) where n =
   dual_volume(Val{n}, s, x.data, args...)
 @inline dual_volume(n::Int, s::AbstractACSet, args...) =
@@ -420,6 +454,30 @@ In 2D dual complexes, the elementary duals of...
   DualSimplex{2-n}(elementary_duals(Val{n}, s, x.data))
 @inline elementary_duals(n::Int, s::AbstractACSet, args...) =
   elementary_duals(Val{n}, s, args...)
+
+""" Hodge star operator from primal ``n``-forms to dual ``N-n``-forms.
+
+!!! warning
+
+    Some authors, such as (Hirani 2003) and (Desbrun 2005), use the symbol ``⋆``
+    for the duality operator on chains and the symbol ``*`` for the Hodge star
+    operator on cochains. We do not explicitly define the duality operator and
+    we use the symbol ``⋆`` for the Hodge star.
+"""
+@inline ⋆(s::AbstractDeltaDualComplex1D, x::SimplexForm{n}) where n =
+  DualForm{1-n}(⋆(Val{n}, s, x.data))
+@inline ⋆(s::AbstractDeltaDualComplex2D, x::SimplexForm{n}) where n =
+  DualForm{2-n}(⋆(Val{n}, s, x.data))
+@inline ⋆(n::Int, s::AbstractACSet, args...) = ⋆(Val{n}, s, args...)
+
+⋆(::Type{Val{n}}, s::AbstractACSet, form::AbstractVector) where n =
+  applydiag(form) do x; hodge_diag(Val{n},s,x) end
+⋆(::Type{Val{n}}, s::AbstractACSet) where n =
+  Diagonal([ hodge_diag(Val{n},s,x) for x in simplices(n,s) ])
+
+""" Alias for the Hodge star operator [`⋆`](@ref).
+"""
+const hodge_star = ⋆
 
 # Euclidean geometry
 ####################

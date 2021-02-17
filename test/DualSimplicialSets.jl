@@ -1,7 +1,8 @@
 module TestDualSimplicialSets
 using Test
 
-using StaticArrays
+using LinearAlgebra: Diagonal
+using SparseArrays, StaticArrays
 
 using Catlab.CategoricalAlgebra.CSets
 using CombinatorialSpaces
@@ -49,6 +50,10 @@ subdivide_duals!(s, Barycenter())
 @test dual_point(s, edge_center(s, [1,2])) ≈ [Point2D(0.5,0), Point2D(0,1)]
 @test volume(s, E(1:2)) ≈ [1.0, 2.0]
 @test volume(s, elementary_duals(s, V(2))) ≈ [0.5, 1.0]
+@test ⋆(0,s) ≈ Diagonal([0.5, 1.5, 1.0])
+@test ⋆(1,s) ≈ Diagonal([1, 0.5])
+@test ⋆(s, VForm(sparsevec([0,2,0])))::DualForm{1} ≈
+  DualForm{1}(sparsevec([0,3,0]))
 
 # 2D dual complex
 #################
@@ -100,11 +105,18 @@ subdivide_duals!(s, Barycenter())
 @test volume(s, Tri(1)) ≈ 1/2
 @test volume(s, elementary_duals(s, V(1))) ≈ [1/12, 1/12]
 @test [sum(volume(s, elementary_duals(s, V(i)))) for i in 1:3] ≈ [1/6, 1/6, 1/6]
+@test ⋆(0,s) ≈ Diagonal([1/6, 1/6, 1/6])
+@test ⋆(1,s) ≈ Diagonal([√5/6, 1/6, √5/6])
+@test ⋆(s, VForm([1,2,3]))::DualForm{2} ≈ DualForm{2}([1/6, 1/3, 1/2])
 
 subdivide_duals!(s, Circumcenter())
 @test dual_point(s, triangle_center(s, 1)) ≈ Point2D(1/2, 1/2)
+@test ⋆(0,s) ≈ Diagonal([1/4, 1/8, 1/8])
+@test ⋆(1,s) ≈ Diagonal([0.5, 0.0, 0.5])
 
 subdivide_duals!(s, Incenter())
 @test dual_point(s, triangle_center(s, 1)) ≈ Point2D(1/(2+√2), 1/(2+√2))
+@test isapprox(⋆(0,s), Diagonal([0.146, 0.177, 0.177]), atol=1e-3)
+@test isapprox(⋆(1,s), Diagonal([0.359, 0.207, 0.359]), atol=1e-3)
 
 end

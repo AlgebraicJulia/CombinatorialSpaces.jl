@@ -24,7 +24,7 @@ export Simplex, V, E, Tri, SimplexChain, VChain, EChain, TriChain,
   SimplexForm, VForm, EForm, TriForm,
   AbstractDeltaSet1D, DeltaSet1D, OrientedDeltaSet1D, EmbeddedDeltaSet1D,
   AbstractDeltaSet2D, DeltaSet2D, OrientedDeltaSet2D, EmbeddedDeltaSet2D,
-  nsimplices, ∂, boundary, d, coboundary, exterior_derivative, volume,
+  ∂, boundary, d, coboundary, exterior_derivative, simplices, nsimplices, volume,
   src, tgt, nv, ne, vertices, edges, has_vertex, has_edge, point,
   edge_vertices, edge_sign, add_vertex!, add_vertices!, add_edge!, add_edges!,
   add_sorted_edge!, add_sorted_edges!,
@@ -316,9 +316,13 @@ const VForm = SimplexForm{0}
 const EForm = SimplexForm{1}
 const TriForm = SimplexForm{2}
 
+""" Simplices of given dimension in a simplicial set.
+"""
+@inline simplices(n::Int, s::AbstractACSet) = 1:nsimplices(Val{n}, s)
+
 """ Number of simplices of given dimension in a simplicial set.
 """
-nsimplices(n::Int, s::AbstractACSet) = nsimplices(Val{n}, s)
+@inline nsimplices(n::Int, s::AbstractACSet) = nsimplices(Val{n}, s)
 
 """ Face map and boundary operator on simplicial sets.
 
