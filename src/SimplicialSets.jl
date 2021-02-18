@@ -109,7 +109,7 @@ function ∂_nz(::Type{Val{1}}, s::AbstractACSet, e::Int)
   (edge_vertices(s, e), edge_sign(s,e) * @SVector([1,-1]))
 end
 
-function δ_nz(::Type{Val{0}}, s::AbstractACSet, v::Int)
+function d_nz(::Type{Val{0}}, s::AbstractACSet, v::Int)
   e₀, e₁ = ∂_inv(1,0,s,v), ∂_inv(1,1,s,v)
   (lazy(vcat, e₀, e₁), lazy(vcat, edge_sign(s,e₀), -edge_sign(s,e₁)))
 end
@@ -253,7 +253,7 @@ function ∂_nz(::Type{Val{2}}, s::AbstractACSet, t::Int)
   (edges, triangle_sign(s,t) * edge_sign(s,edges) .* @SVector([1,-1,1]))
 end
 
-function δ_nz(::Type{Val{1}}, s::AbstractACSet, e::Int)
+function d_nz(::Type{Val{1}}, s::AbstractACSet, e::Int)
   sgn = edge_sign(s, e)
   t₀, t₁, t₂ = ∂_inv(2,0,s,e), ∂_inv(2,1,s,e), ∂_inv(2,2,s,e)
   (lazy(vcat, t₀, t₁, t₂),
@@ -366,13 +366,13 @@ const boundary = ∂
 """ The discrete exterior derivative, aka the coboundary operator.
 """
 @inline d(s::AbstractACSet, x::SimplexForm{n}) where n =
-  SimplexForm{n+1}(δ_op(Val{n}, s, x.data))
-@inline d(n::Int, s::AbstractACSet, args...) = δ_op(Val{n}, s, args...)
+  SimplexForm{n+1}(d_op(Val{n}, s, x.data))
+@inline d(n::Int, s::AbstractACSet, args...) = d_op(Val{n}, s, args...)
 
-δ_op(::Type{Val{n}}, s::AbstractACSet, form::AbstractVector) where n =
-  applynz(form, nsimplices(n+1,s), nsimplices(n,s)) do x; δ_nz(Val{n},s,x) end
-δ_op(::Type{Val{n}}, s::AbstractACSet, Mat::Type=SparseMatrixCSC{Int}) where n =
-  fromnz(Mat, nsimplices(n+1,s), nsimplices(n,s)) do x; δ_nz(Val{n},s,x) end
+d_op(::Type{Val{n}}, s::AbstractACSet, form::AbstractVector) where n =
+  applynz(form, nsimplices(n+1,s), nsimplices(n,s)) do x; d_nz(Val{n},s,x) end
+d_op(::Type{Val{n}}, s::AbstractACSet, Mat::Type=SparseMatrixCSC{Int}) where n =
+  fromnz(Mat, nsimplices(n+1,s), nsimplices(n,s)) do x; d_nz(Val{n},s,x) end
 
 """ Alias for the coboundary operator [`d`](@ref).
 """
