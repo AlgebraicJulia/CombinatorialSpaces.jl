@@ -39,6 +39,11 @@ s = OrientedDeltaDualComplex1D{Bool}(primal_s)
 @test s[only(elementary_duals(0,s,1)), :D_edge_orientation] == true
 @test s[only(elementary_duals(0,s,3)), :D_edge_orientation] == true
 
+@test ∂(s, DualChain{1}([1,0,1])) isa DualChain{0}
+@test d(s, DualForm{0}([1,1])) isa DualForm{1}
+@test dual_boundary(1,s) == ∂(1,s)'
+@test dual_derivative(0,s) == -d(0,s)'
+
 # 1D embedded dual complex
 #-------------------------
 
@@ -89,6 +94,14 @@ s = OrientedDeltaDualComplex2D{Bool}(primal_s)
 @test [sum(s[elementary_duals(0,s,i), :D_tri_orientation])
        for i in 1:4] == [2,1,2,1]
 @test sum(s[elementary_duals(1,s,3), :D_edge_orientation]) == 1
+
+for k in 0:1
+  @test dual_boundary(2-k,s) == (-1)^k * ∂(k+1,s)'
+end
+for k in 1:2
+  # Desbrun, Kanso, Tong 2008, Equation 4.2.
+  @test dual_derivative(2-k,s) == (-1)^k * d(k-1,s)'
+end
 
 # 2D embedded dual complex
 #-------------------------

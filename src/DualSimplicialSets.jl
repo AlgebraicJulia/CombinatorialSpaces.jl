@@ -7,7 +7,7 @@ export DualSimplex, DualV, DualE, DualTri, DualChain, DualForm,
   AbstractDeltaDualComplex2D, DeltaDualComplex2D,
   OrientedDeltaDualComplex2D, EmbeddedDeltaDualComplex2D,
   SimplexCenter, Barycenter, Circumcenter, Incenter, geometric_center,
-  elementary_duals, ⋆, hodge_star,
+  elementary_duals, dual_boundary, dual_derivative, ⋆, hodge_star,
   vertex_center, edge_center, triangle_center, dual_point, dual_volume,
   subdivide_duals!
 
@@ -19,7 +19,7 @@ using Catlab.CategoricalAlgebra.FinSets: deleteat
 using ..ArrayUtils, ..SimplicialSets
 using ..SimplicialSets: DeltaCategory1D, DeltaCategory2D, CayleyMengerDet,
   cayley_menger
-import ..SimplicialSets: volume
+import ..SimplicialSets: ∂, d, volume
 
 # 1D dual complex
 #################
@@ -78,6 +78,9 @@ elementary_duals(::Type{Val{0}}, s::AbstractDeltaDualComplex1D, v::Int) =
 elementary_duals(::Type{Val{1}}, s::AbstractDeltaDualComplex1D, e::Int) =
   SVector(edge_center(s,e))
 
+# 1D oriented dual complex
+#-------------------------
+
 @present SchemaOrientedDualComplex1D <: SchemaDualComplex1D begin
   Orientation::Data
   edge_orientation::Attr(E, Orientation)
@@ -88,6 +91,13 @@ end
 """
 const OrientedDeltaDualComplex1D = ACSetType(SchemaOrientedDualComplex1D,
                                              index=[:src,:tgt,:D_∂v0,:D_∂v1])
+
+dual_boundary(::Type{Val{1}}, s::AbstractDeltaDualComplex1D, args...) =
+  # Boundary vertices of dual 1-cell ↔
+  # Dual vertices for cofaces of (edges incident to) primal vertex.
+  d(Val{0}, s, args...)
+dual_derivative(::Type{Val{0}}, s::AbstractDeltaDualComplex1D, args...) =
+  -∂(Val{1}, s, args...)
 
 """ Construct 1D dual complex from 1D delta set.
 """
@@ -245,6 +255,9 @@ elementary_duals(::Type{Val{1}}, s::AbstractDeltaDualComplex2D, e::Int) =
 elementary_duals(::Type{Val{2}}, s::AbstractDeltaDualComplex2D, t::Int) =
   SVector(triangle_center(s,t))
 
+# 2D oriented dual complex
+#-------------------------
+
 @present SchemaOrientedDualComplex2D <: SchemaDualComplex2D begin
   Orientation::Data
   edge_orientation::Attr(E, Orientation)
@@ -257,6 +270,20 @@ end
 """
 const OrientedDeltaDualComplex2D = ACSetType(SchemaOrientedDualComplex2D,
   index=[:src, :tgt, :∂e0, :∂e1, :∂e2, :D_∂v0, :D_∂v1, :D_∂e0, :D_∂e1, :D_∂e2])
+
+dual_boundary(::Type{Val{1}}, s::AbstractDeltaDualComplex2D, args...) =
+  # Boundary vertices of dual 1-cell ↔
+  # Dual vertices for cofaces of (triangles incident to) primal edge.
+  -d(Val{1}, s, args...)
+dual_boundary(::Type{Val{2}}, s::AbstractDeltaDualComplex2D, args...) =
+  # Boundary edges of dual 2-cell ↔
+  # Dual edges for cofaces of (edges incident to) primal vertex.
+  d(Val{0}, s, args...)
+
+dual_derivative(::Type{Val{0}}, s::AbstractDeltaDualComplex2D, args...) =
+  ∂(Val{2}, s, args...)
+dual_derivative(::Type{Val{1}}, s::AbstractDeltaDualComplex2D, args...) =
+  -∂(Val{1}, s, args...)
 
 """ Construct 2D dual complex from 2D delta set.
 """
@@ -454,6 +481,25 @@ In 2D dual complexes, the elementary duals of...
   DualSimplex{2-n}(elementary_duals(Val{n}, s, x.data))
 @inline elementary_duals(n::Int, s::AbstractACSet, args...) =
   elementary_duals(Val{n}, s, args...)
+
+""" Boundary of chain of dual cells.
+
+Transpose of [`dual_derivative`](@ref).
+"""
+@inline dual_boundary(n::Int, s::AbstractACSet, args...) =
+  dual_boundary(Val{n}, s, args...)
+@inline ∂(s::AbstractACSet, x::DualChain{n}) where n =
+  DualChain{n-1}(dual_boundary(Val{n}, s, x.data))
+
+""" Discrete exterior derivative of dual form.
+
+Transpose of [`dual_boundary`](@ref). For more info, see (Desbrun, Kanso, Tong,
+2008: Discrete differential forms for computational modeling, §4.5).
+"""
+@inline dual_derivative(n::Int, s::AbstractACSet, args...) =
+  dual_derivative(Val{n}, s, args...)
+@inline d(s::AbstractACSet, x::DualForm{n}) where n =
+  DualForm{n+1}(dual_derivative(Val{n}, s, x.data))
 
 """ Hodge star operator from primal ``n``-forms to dual ``N-n``-forms.
 
