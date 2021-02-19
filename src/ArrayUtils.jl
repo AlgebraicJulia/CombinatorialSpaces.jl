@@ -1,12 +1,18 @@
-""" Utitilies for working with dense and sparse arrays uniformly.
+""" Array utilities.
+
+- Dense and sparse arrays with a uniform interface
+- Lazy operations on arrays
+- Wapper structs for arrays to enable "typed" array computing
 """
 module ArrayUtils
-export enumeratenz, applynz, fromnz
+export @parts_array_struct, @vector_struct, applydiag, applynz, fromnz,
+  enumeratenz, lazy
 
+using LazyArrays: ApplyArray
 using SparseArrays
 
-# Data types
-############
+# Dense and sparse arrays
+#########################
 
 abstract type AbstractArrayBuilder{T,N} end
 
@@ -54,13 +60,14 @@ nzbuilder(::Type{<:SparseVector{Tv}}, n::Integer) where Tv =
 nzbuilder(::Type{<:SparseMatrixCSC{Tv}}, m::Integer, n::Integer) where {Tv,Ti} =
   SparseMatrixBuilder(m, n, Int[], Int[], Tv[])
 
-# Functions
-###########
-
-""" Enumerate structural nonzeros of vector.
+""" Apply diagonal operator to dense or sparse vector.
 """
-enumeratenz(v::AbstractVector) = enumerate(v)
-enumeratenz(v::SparseVector) = zip(findnz(v)...)
+applydiag(f, x::AbstractVector) = [ f(i)*a for (i,a) in enumerate(x) ]
+
+function applydiag(f, x::SparseVector)
+  I, V = findnz(x)
+  sparsevec(I, [ f(i)*a for (i,a) in zip(I, V) ], length(x))
+end
 
 """ Apply linear map defined in terms of structural nonzero values.
 """
@@ -98,6 +105,11 @@ end
 fromnz(::Type{<:SparseVector}, I::AbstractVector,
        V::AbstractVector, n::Integer) = sparsevec(I, V, n)
 
+""" Enumerate structural nonzeros of vector.
+"""
+enumeratenz(v::AbstractVector) = enumerate(v)
+enumeratenz(v::SparseVector) = zip(findnz(v)...)
+
 """ Alternative to `Base.zeros` supporting dense and sparse arrays.
 """
 zeros(::Type{Arr}, dims::Integer...) where Arr = zeros(Arr, dims)
@@ -107,5 +119,73 @@ zeros(::Type{<:SparseVector{T}}, dims::Tuple{Vararg{Integer,1}}) where T =
   spzeros(T, dims...)
 zeros(::Type{<:SparseMatrixCSC{T}}, dims::Tuple{Vararg{Integer,2}}) where T =
   spzeros(T, dims...)
+
+# Lazy arrays
+#############
+
+""" Perform operation lazily on arrays.
+"""
+lazy(::typeof(vcat), args...) = ApplyArray(vcat, args...)
+
+# Wrapped arrays
+################
+
+""" Generate struct for a named vector struct.
+"""
+macro vector_struct(struct_sig)
+  name, params = parse_struct_signature(struct_sig)
+  :T ∉ params || error("Type parameter `T` is reserved")
+  expr = quote
+    Core.@__doc__ struct $(name){$(params...),T,V<:AbstractVector{T}} <: AbstractVector{T}
+      data::V
+    end
+    $(name){$(params...)}(v::V) where {$(params...),T,V<:AbstractVector{T}} =
+      $(name){$(params...),T,V}(v)
+    Base.size(v::$name) = size(v.data)
+    Base.getindex(v::$name, i::Int) = getindex(v.data, i)
+    Base.setindex!(v::$name, x, i::Int) = setindex!(v.data, x, i)
+    Base.IndexStyle(::Type{<:$name}) = IndexLinear()
+  end
+  esc(expr)
+end
+
+""" Generate struct for C-set part or parts of a certain type.
+
+The struct wraps an array and is mainly useful for dispatching on part type.
+Example usage:
+
+```julia
+@parts_struct V
+@parts_struct E
+
+E(1)     # Edge #1 (zero-dimensional array)
+V([1,4]) # Vertices #2 and #4 (one-dimensional array)
+```
+"""
+macro parts_array_struct(struct_sig)
+  name, params = parse_struct_signature(struct_sig)
+  :N ∉ params || error("Type parameter `N` is reserved")
+  expr = quote
+    Core.@__doc__ struct $(name){$(params...),N,Data} <: AbstractArray{Int,N}
+      data::Data
+      $(name){$(params...)}(x::Int) where {$(params...)} =
+        new{$(params...),0,Int}(x)
+      $(name){$(params...)}(xs::Arr) where {$(params...),N,Arr<:AbstractArray{Int,N}} =
+        new{$(params...),N,Arr}(xs)
+    end
+    Base.size(A::$name) = size(A.data)
+    Base.getindex(A::$name, args...) = getindex(A.data, args...)
+  end
+  esc(expr)
+end
+
+function parse_struct_signature(expr)
+  if expr isa Expr
+    expr.head == :curly || error("Invalid struct expression: $expr")
+    (expr.args[1]::Symbol, collect(Symbol, expr.args[2:end]))
+  else
+    (expr::Symbol, Symbol[])
+  end
+end
 
 end
