@@ -358,7 +358,7 @@ Note that the face map returns *simplices*, while the boundary operator returns
 @inline ∂(n::Int, s::AbstractACSet, args...) = ∂(Val{n}, s, args...)
 
 function ∂(::Type{Val{n}}, s::AbstractACSet, args...) where n
-  operator_nz(nsimplices(n-1,s), nsimplices(n,s), args...) do x
+  operator_nz(Int, nsimplices(n-1,s), nsimplices(n,s), args...) do x
     ∂_nz(Val{n}, s, x)
   end
 end
@@ -374,7 +374,7 @@ d(s::AbstractACSet, x::SimplexForm{n}) where n =
 @inline d(n::Int, s::AbstractACSet, args...) = d(Val{n}, s, args...)
 
 function d(::Type{Val{n}}, s::AbstractACSet, args...) where n
-  operator_nz(nsimplices(n+1,s), nsimplices(n,s), args...) do x
+  operator_nz(Int, nsimplices(n+1,s), nsimplices(n,s), args...) do x
     d_nz(Val{n}, s, x)
   end
 end
@@ -395,11 +395,12 @@ volume(s::AbstractACSet, x::Simplex{n}, args...) where n =
 
 """ Convenience function for linear operator based on structural nonzero values.
 """
-operator_nz(f, m::Int, n::Int, x::Int, Vec::Type=SparseVector{Int}) =
-  fromnz(Vec, f(x)..., m)
-operator_nz(f, m::Int, n::Int, vec::AbstractVector) = applynz(f, vec, m, n)
-operator_nz(f, m::Int, n::Int, Mat=Type=SparseMatrixCSC{Int}) =
-  fromnz(f, Mat, m, n)
+operator_nz(f, ::Type{T}, m::Int, n::Int,
+            x::Int, Vec::Type=SparseVector{T}) where T = fromnz(Vec, f(x)..., m)
+operator_nz(f, ::Type{T}, m::Int, n::Int,
+            vec::AbstractVector) where T = applynz(f, vec, m, n)
+operator_nz(f, ::Type{T}, m::Int, n::Int,
+            Mat::Type=SparseMatrixCSC{T}) where T = fromnz(f, Mat, m, n)
 
 # Euclidean geometry
 ####################

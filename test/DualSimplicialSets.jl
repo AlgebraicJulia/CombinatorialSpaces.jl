@@ -106,7 +106,11 @@ end
 # 2D embedded dual complex
 #-------------------------
 
-# Single triangle: numerical example from Gillett's notes on DEC, §2.13.
+# Single triangle: numerical example from Gillette's notes on DEC, §2.13.
+#
+# Compared with Gillette, edges #2 and #3 are swapped in the ordering, which
+# changes the discrete exterior derivative and other operators. The numerical
+# values remain the same, as we verify.
 primal_s = EmbeddedDeltaSet2D{Bool,Point2D}()
 add_vertices!(primal_s, 3, point=[Point2D(0,0), Point2D(1,0), Point2D(0,1)])
 glue_triangle!(primal_s, 1, 2, 3, tri_orientation=true)
@@ -121,15 +125,25 @@ subdivide_duals!(s, Barycenter())
 @test ⋆(0,s) ≈ Diagonal([1/6, 1/6, 1/6])
 @test ⋆(1,s) ≈ Diagonal([√5/6, 1/6, √5/6])
 @test ⋆(s, VForm([1,2,3]))::DualForm{2} ≈ DualForm{2}([1/6, 1/3, 1/2])
+@test isapprox(δ(1,s), [ 2.236 0      2.236;
+                        -1     1      0;
+                         0    -2.236 -2.236], atol=1e-3)
+@test δ(s, EForm([0.5,1.5,0.5])) isa VForm
 
 subdivide_duals!(s, Circumcenter())
 @test dual_point(s, triangle_center(s, 1)) ≈ Point2D(1/2, 1/2)
 @test ⋆(0,s) ≈ Diagonal([1/4, 1/8, 1/8])
 @test ⋆(1,s) ≈ Diagonal([0.5, 0.0, 0.5])
+@test δ(1,s) ≈ [2  0  2;
+                0  0  0;
+                0 -4 -4]
 
 subdivide_duals!(s, Incenter())
 @test dual_point(s, triangle_center(s, 1)) ≈ Point2D(1/(2+√2), 1/(2+√2))
 @test isapprox(⋆(0,s), Diagonal([0.146, 0.177, 0.177]), atol=1e-3)
 @test isapprox(⋆(1,s), Diagonal([0.359, 0.207, 0.359]), atol=1e-3)
+@test isapprox(δ(1,s), [ 2.449  0       2.449;
+                        -1.172  1.172   0;
+                         0      -2.029 -2.029], atol=1e-3)
 
 end

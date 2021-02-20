@@ -7,7 +7,8 @@ export DualSimplex, DualV, DualE, DualTri, DualChain, DualForm,
   AbstractDeltaDualComplex2D, DeltaDualComplex2D,
   OrientedDeltaDualComplex2D, EmbeddedDeltaDualComplex2D,
   SimplexCenter, Barycenter, Circumcenter, Incenter, geometric_center,
-  elementary_duals, dual_boundary, dual_derivative, ⋆, hodge_star,
+  elementary_duals, dual_boundary, dual_derivative,
+  ⋆, hodge_star, δ, codifferential,
   vertex_center, edge_center, triangle_center, dual_point, dual_volume,
   subdivide_duals!
 
@@ -97,6 +98,7 @@ dual_boundary_nz(::Type{Val{1}}, s::AbstractDeltaDualComplex1D, x::Int) =
   # Boundary vertices of dual 1-cell ↔
   # Dual vertices for cofaces of (edges incident to) primal vertex.
   d_nz(Val{0}, s, x)
+
 dual_derivative_nz(::Type{Val{0}}, s::AbstractDeltaDualComplex1D, x::Int) =
   negatenz(∂_nz(Val{1}, s, x))
 
@@ -140,7 +142,7 @@ end
 
 negate(x) = -x
 negate(x::Bool) = !x
-negatenz((indices, values)) = (indices, negate.(values))
+negatenz((I, V)) = (I, negate.(V))
 
 # 1D embedded dual complex
 #-------------------------
@@ -495,7 +497,8 @@ Transpose of [`dual_derivative`](@ref).
   DualChain{n-1}(dual_boundary(Val{n}, s, x.data))
 
 function dual_boundary(::Type{Val{n}}, s::AbstractACSet, args...) where n
-  operator_nz(nsimplices(ndims(s)-n+1,s), nsimplices(ndims(s)-n,s), args...) do x
+  operator_nz(Int, nsimplices(ndims(s)-n+1,s),
+              nsimplices(ndims(s)-n,s), args...) do x
     dual_boundary_nz(Val{n}, s, x)
   end
 end
@@ -511,7 +514,8 @@ d(s::AbstractACSet, x::DualForm{n}) where n =
   DualForm{n+1}(dual_derivative(Val{n}, s, x.data))
 
 function dual_derivative(::Type{Val{n}}, s::AbstractACSet, args...) where n
-  operator_nz(nsimplices(ndims(s)-n-1,s), nsimplices(ndims(s)-n,s), args...) do x
+  operator_nz(Int, nsimplices(ndims(s)-n-1,s),
+              nsimplices(ndims(s)-n,s), args...) do x
     dual_derivative_nz(Val{n}, s, x)
   end
 end
@@ -537,6 +541,28 @@ end
 """ Alias for the Hodge star operator [`⋆`](@ref).
 """
 const hodge_star = ⋆
+
+""" Codifferential operator from dual ``n`` forms to dual ``n-1``-forms.
+"""
+@inline δ(s::AbstractACSet, x::SimplexForm{n}) where n =
+  SimplexForm{n-1}(δ(Val{n}, s, x.data))
+@inline δ(n::Int, s::AbstractACSet, args...) = δ(Val{n}, s, args...)
+
+function δ(::Type{Val{n}}, s::AbstractACSet, args...) where n
+  # TODO: What is the right global sign?
+  # sgn = iseven((n-1)*(ndims(s)-n+1)) ? +1 : -1
+  operator_nz(Float64, nsimplices(n-1,s), nsimplices(n,s), args...) do x
+    I, V = dual_derivative_nz(Val{ndims(s)-n}, s, x)
+    V = map(I, V) do i, a
+      a * hodge_diag(Val{n}, s, i) / hodge_diag(Val{n-1}, s, i)
+    end
+    (I, V)
+  end
+end
+
+""" Alias for the codifferential operator [`δ`](@ref).
+"""
+const codifferential = δ
 
 # Euclidean geometry
 ####################
