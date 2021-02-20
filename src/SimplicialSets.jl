@@ -353,16 +353,15 @@ Note that the face map returns *simplices*, while the boundary operator returns
 @inline coface(n::Int, i::Int, s::AbstractACSet, args...) =
   coface(Val{(n,i)}, s, args...)
 
-@inline ∂(s::AbstractACSet, x::SimplexChain{n}) where n =
+∂(s::AbstractACSet, x::SimplexChain{n}) where n =
   SimplexChain{n-1}(∂(Val{n}, s, x.data))
 @inline ∂(n::Int, s::AbstractACSet, args...) = ∂(Val{n}, s, args...)
 
-∂(::Type{Val{n}}, s::AbstractACSet, x::Int, Vec::Type=SparseVector{Int}) where n =
-  fromnz(Vec, ∂_nz(Val{n},s,x)..., nsimplices(n-1,s))
-∂(::Type{Val{n}}, s::AbstractACSet, chain::AbstractVector) where n =
-  applynz(chain, nsimplices(n-1,s), nsimplices(n,s)) do x; ∂_nz(Val{n},s,x) end
-∂(::Type{Val{n}}, s::AbstractACSet, Mat::Type=SparseMatrixCSC{Int}) where n =
-  fromnz(Mat, nsimplices(n-1,s), nsimplices(n,s)) do x; ∂_nz(Val{n},s,x) end
+function ∂(::Type{Val{n}}, s::AbstractACSet, args...) where n
+  operator_nz(nsimplices(n-1,s), nsimplices(n,s), args...) do x
+    ∂_nz(Val{n}, s, x)
+  end
+end
 
 """ Alias for the face map and boundary operator [`∂`](@ref).
 """
@@ -370,14 +369,15 @@ const boundary = ∂
 
 """ The discrete exterior derivative, aka the coboundary operator.
 """
-@inline d(s::AbstractACSet, x::SimplexForm{n}) where n =
+d(s::AbstractACSet, x::SimplexForm{n}) where n =
   SimplexForm{n+1}(d(Val{n}, s, x.data))
 @inline d(n::Int, s::AbstractACSet, args...) = d(Val{n}, s, args...)
 
-d(::Type{Val{n}}, s::AbstractACSet, form::AbstractVector) where n =
-  applynz(form, nsimplices(n+1,s), nsimplices(n,s)) do x; d_nz(Val{n},s,x) end
-d(::Type{Val{n}}, s::AbstractACSet, Mat::Type=SparseMatrixCSC{Int}) where n =
-  fromnz(Mat, nsimplices(n+1,s), nsimplices(n,s)) do x; d_nz(Val{n},s,x) end
+function d(::Type{Val{n}}, s::AbstractACSet, args...) where n
+  operator_nz(nsimplices(n+1,s), nsimplices(n,s), args...) do x
+    d_nz(Val{n}, s, x)
+  end
+end
 
 """ Alias for the coboundary operator [`d`](@ref).
 """
@@ -389,9 +389,17 @@ const exterior_derivative = d
 
 """ ``n``-dimensional volume of ``n``-simplex in an embedded simplicial set.
 """
-@inline volume(s::AbstractACSet, x::Simplex{n}, args...) where n =
+volume(s::AbstractACSet, x::Simplex{n}, args...) where n =
   volume(Val{n}, s, x.data, args...)
 @inline volume(n::Int, s::AbstractACSet, args...) = volume(Val{n}, s, args...)
+
+""" Convenience function for linear operator based on structural nonzero values.
+"""
+operator_nz(f, m::Int, n::Int, x::Int, Vec::Type=SparseVector{Int}) =
+  fromnz(Vec, f(x)..., m)
+operator_nz(f, m::Int, n::Int, vec::AbstractVector) = applynz(f, vec, m, n)
+operator_nz(f, m::Int, n::Int, Mat=Type=SparseMatrixCSC{Int}) =
+  fromnz(f, Mat, m, n)
 
 # Euclidean geometry
 ####################
