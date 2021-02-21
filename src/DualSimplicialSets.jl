@@ -8,12 +8,13 @@ export DualSimplex, DualV, DualE, DualTri, DualChain, DualForm,
   OrientedDeltaDualComplex2D, EmbeddedDeltaDualComplex2D,
   SimplexCenter, Barycenter, Circumcenter, Incenter, geometric_center,
   elementary_duals, dual_boundary, dual_derivative,
-  ⋆, hodge_star, δ, codifferential,
+  ⋆, hodge_star, δ, codifferential, Δ, laplace_beltrami,
   vertex_center, edge_center, triangle_center, dual_point, dual_volume,
   subdivide_duals!
 
 import Base: ndims
 using LinearAlgebra: Diagonal
+using SparseArrays
 using StaticArrays: @SVector, SVector
 
 using Catlab, Catlab.CategoricalAlgebra.CSets
@@ -542,9 +543,9 @@ end
 """
 const hodge_star = ⋆
 
-""" Codifferential operator from dual ``n`` forms to dual ``n-1``-forms.
+""" Codifferential operator from primal ``n`` forms to primal ``n-1``-forms.
 """
-@inline δ(s::AbstractACSet, x::SimplexForm{n}) where n =
+δ(s::AbstractACSet, x::SimplexForm{n}) where n =
   SimplexForm{n-1}(δ(Val{n}, s, x.data))
 @inline δ(n::Int, s::AbstractACSet, args...) = δ(Val{n}, s, args...)
 
@@ -552,9 +553,10 @@ function δ(::Type{Val{n}}, s::AbstractACSet, args...) where n
   # TODO: What is the right global sign?
   # sgn = iseven((n-1)*(ndims(s)-n+1)) ? +1 : -1
   operator_nz(Float64, nsimplices(n-1,s), nsimplices(n,s), args...) do x
+    c = hodge_diag(Val{n}, s, x)
     I, V = dual_derivative_nz(Val{ndims(s)-n}, s, x)
     V = map(I, V) do i, a
-      a * hodge_diag(Val{n}, s, i) / hodge_diag(Val{n-1}, s, i)
+      c * a / hodge_diag(Val{n-1}, s, i)
     end
     (I, V)
   end
@@ -563,6 +565,24 @@ end
 """ Alias for the codifferential operator [`δ`](@ref).
 """
 const codifferential = δ
+
+""" Laplace-Beltrami operator on discrete forms.
+
+The linear operator on primal ``n``-forms defined by ``Δ f := δ d f``, where
+[`δ`](@ref) is the codifferential and [`d`](@ref) is the exterior derivative.
+"""
+Δ(s::AbstractACSet, x::SimplexForm{n}) where n =
+  SimplexForm{n}(Δ(Val{n}, s, x.data))
+@inline Δ(n::Int, s::AbstractACSet, args...) = Δ(Val{n}, s, args...)
+
+Δ(::Type{Val{n}}, s::AbstractACSet, form::AbstractVector) where n =
+  δ(Val{n+1}, s, d(Val{n}, s, form))
+Δ(::Type{Val{n}}, s::AbstractACSet, Mat::Type=SparseMatrixCSC{Float64}) where n =
+  δ(Val{n+1}, s, Mat) * d(Val{n}, s, Mat)
+
+""" Alias for the Laplace-Beltrami operator [`Δ`](@ref).
+"""
+const laplace_beltrami = Δ
 
 # Euclidean geometry
 ####################

@@ -47,6 +47,7 @@ s = OrientedDeltaDualComplex1D{Bool}(primal_s)
 # 1D embedded dual complex
 #-------------------------
 
+# Path graph on 3 vertices with irregular lengths.
 primal_s = EmbeddedDeltaSet1D{Bool,Point2D}()
 add_vertices!(primal_s, 3, point=[Point2D(1,0), Point2D(0,0), Point2D(0,2)])
 add_edges!(primal_s, [1,2], [2,3], edge_orientation=true)
@@ -57,8 +58,23 @@ subdivide_duals!(s, Barycenter())
 @test volume(s, elementary_duals(s, V(2))) ≈ [0.5, 1.0]
 @test ⋆(0,s) ≈ Diagonal([0.5, 1.5, 1.0])
 @test ⋆(1,s) ≈ Diagonal([1, 0.5])
-@test ⋆(s, VForm(sparsevec([0,2,0])))::DualForm{1} ≈
-  DualForm{1}(sparsevec([0,3,0]))
+@test ⋆(s, VForm([0,2,0]))::DualForm{1} ≈ DualForm{1}([0,3,0])
+
+# Path graph on 5 vertices with regular lengths.
+#
+# Equals the graph Laplacian of the underlying graph, except at the boundary.
+# Note that the DEC Laplace-Beltrami operator is *not* symmetric.
+primal_s = EmbeddedDeltaSet1D{Bool,Point2D}()
+add_vertices!(primal_s, 5, point=[Point2D(i,0) for i in -2:2])
+add_edges!(primal_s, 1:4, 2:5, edge_orientation=true)
+s = EmbeddedDeltaDualComplex1D{Bool,Float64,Point2D}(primal_s)
+subdivide_duals!(s, Barycenter())
+@test Δ(s, VForm([0,0,1,0,0])) ≈ VForm([0,1,-2,1,0])
+@test Δ(0,s) ≈ [-2  2  0  0  0;
+                 1 -2  1  0  0;
+                 0  1 -2  1  0;
+                 0  0  1 -2  1;
+                 0  0  0  2 -2]
 
 # 2D dual complex
 #################
@@ -125,25 +141,25 @@ subdivide_duals!(s, Barycenter())
 @test ⋆(0,s) ≈ Diagonal([1/6, 1/6, 1/6])
 @test ⋆(1,s) ≈ Diagonal([√5/6, 1/6, √5/6])
 @test ⋆(s, VForm([1,2,3]))::DualForm{2} ≈ DualForm{2}([1/6, 1/3, 1/2])
-@test isapprox(δ(1,s), [ 2.236 0      2.236;
-                        -1     1      0;
-                         0    -2.236 -2.236], atol=1e-3)
+@test isapprox(δ(1,s), [ 2.236  0  2.236;
+                        -2.236  1  0;
+                         0     -1 -2.236], atol=1e-3)
 @test δ(s, EForm([0.5,1.5,0.5])) isa VForm
 
 subdivide_duals!(s, Circumcenter())
 @test dual_point(s, triangle_center(s, 1)) ≈ Point2D(1/2, 1/2)
 @test ⋆(0,s) ≈ Diagonal([1/4, 1/8, 1/8])
 @test ⋆(1,s) ≈ Diagonal([0.5, 0.0, 0.5])
-@test δ(1,s) ≈ [2  0  2;
-                0  0  0;
-                0 -4 -4]
+@test δ(1,s) ≈ [ 2  0  2;
+                -4  0  0;
+                 0  0 -4]
 
 subdivide_duals!(s, Incenter())
 @test dual_point(s, triangle_center(s, 1)) ≈ Point2D(1/(2+√2), 1/(2+√2))
 @test isapprox(⋆(0,s), Diagonal([0.146, 0.177, 0.177]), atol=1e-3)
 @test isapprox(⋆(1,s), Diagonal([0.359, 0.207, 0.359]), atol=1e-3)
-@test isapprox(δ(1,s), [ 2.449  0       2.449;
-                        -1.172  1.172   0;
-                         0      -2.029 -2.029], atol=1e-3)
+@test isapprox(δ(1,s), [ 2.449  0      2.449;
+                        -2.029  1.172  0;
+                         0     -1.172 -2.029], atol=1e-3)
 
 end
