@@ -39,9 +39,15 @@ s = OrientedDeltaDualComplex1D{Bool}(primal_s)
 @test s[only(elementary_duals(0,s,1)), :D_edge_orientation] == true
 @test s[only(elementary_duals(0,s,3)), :D_edge_orientation] == true
 
+@test ∂(s, DualChain{1}([1,0,1])) isa DualChain{0}
+@test d(s, DualForm{0}([1,1])) isa DualForm{1}
+@test dual_boundary(1,s) == ∂(1,s)'
+@test dual_derivative(0,s) == -d(0,s)'
+
 # 1D embedded dual complex
 #-------------------------
 
+# Path graph on 3 vertices with irregular lengths.
 primal_s = EmbeddedDeltaSet1D{Bool,Point2D}()
 add_vertices!(primal_s, 3, point=[Point2D(1,0), Point2D(0,0), Point2D(0,2)])
 add_edges!(primal_s, [1,2], [2,3], edge_orientation=true)
@@ -52,8 +58,23 @@ subdivide_duals!(s, Barycenter())
 @test volume(s, elementary_duals(s, V(2))) ≈ [0.5, 1.0]
 @test ⋆(0,s) ≈ Diagonal([0.5, 1.5, 1.0])
 @test ⋆(1,s) ≈ Diagonal([1, 0.5])
-@test ⋆(s, VForm(sparsevec([0,2,0])))::DualForm{1} ≈
-  DualForm{1}(sparsevec([0,3,0]))
+@test ⋆(s, VForm([0,2,0]))::DualForm{1} ≈ DualForm{1}([0,3,0])
+
+# Path graph on 5 vertices with regular lengths.
+#
+# Equals the graph Laplacian of the underlying graph, except at the boundary.
+# Note that the DEC Laplace-Beltrami operator is *not* symmetric.
+primal_s = EmbeddedDeltaSet1D{Bool,Point2D}()
+add_vertices!(primal_s, 5, point=[Point2D(i,0) for i in -2:2])
+add_edges!(primal_s, 1:4, 2:5, edge_orientation=true)
+s = EmbeddedDeltaDualComplex1D{Bool,Float64,Point2D}(primal_s)
+subdivide_duals!(s, Barycenter())
+@test Δ(s, VForm([0,0,1,0,0])) ≈ VForm([0,1,-2,1,0])
+@test Δ(0,s) ≈ [-2  2  0  0  0;
+                 1 -2  1  0  0;
+                 0  1 -2  1  0;
+                 0  0  1 -2  1;
+                 0  0  0  2 -2]
 
 # 2D dual complex
 #################
@@ -90,10 +111,22 @@ s = OrientedDeltaDualComplex2D{Bool}(primal_s)
        for i in 1:4] == [2,1,2,1]
 @test sum(s[elementary_duals(1,s,3), :D_edge_orientation]) == 1
 
+for k in 0:1
+  @test dual_boundary(2-k,s) == (-1)^k * ∂(k+1,s)'
+end
+for k in 1:2
+  # Desbrun, Kanso, Tong 2008, Equation 4.2.
+  @test dual_derivative(2-k,s) == (-1)^k * d(k-1,s)'
+end
+
 # 2D embedded dual complex
 #-------------------------
 
-# Single triangle: numerical example from Gillett's notes on DEC, §2.13.
+# Single triangle: numerical example from Gillette's notes on DEC, §2.13.
+#
+# Compared with Gillette, edges #2 and #3 are swapped in the ordering, which
+# changes the discrete exterior derivative and other operators. The numerical
+# values remain the same, as we verify.
 primal_s = EmbeddedDeltaSet2D{Bool,Point2D}()
 add_vertices!(primal_s, 3, point=[Point2D(0,0), Point2D(1,0), Point2D(0,1)])
 glue_triangle!(primal_s, 1, 2, 3, tri_orientation=true)
@@ -108,15 +141,25 @@ subdivide_duals!(s, Barycenter())
 @test ⋆(0,s) ≈ Diagonal([1/6, 1/6, 1/6])
 @test ⋆(1,s) ≈ Diagonal([√5/6, 1/6, √5/6])
 @test ⋆(s, VForm([1,2,3]))::DualForm{2} ≈ DualForm{2}([1/6, 1/3, 1/2])
+@test isapprox(δ(1,s), [ 2.236  0  2.236;
+                        -2.236  1  0;
+                         0     -1 -2.236], atol=1e-3)
+@test δ(s, EForm([0.5,1.5,0.5])) isa VForm
 
 subdivide_duals!(s, Circumcenter())
 @test dual_point(s, triangle_center(s, 1)) ≈ Point2D(1/2, 1/2)
 @test ⋆(0,s) ≈ Diagonal([1/4, 1/8, 1/8])
 @test ⋆(1,s) ≈ Diagonal([0.5, 0.0, 0.5])
+@test δ(1,s) ≈ [ 2  0  2;
+                -4  0  0;
+                 0  0 -4]
 
 subdivide_duals!(s, Incenter())
 @test dual_point(s, triangle_center(s, 1)) ≈ Point2D(1/(2+√2), 1/(2+√2))
 @test isapprox(⋆(0,s), Diagonal([0.146, 0.177, 0.177]), atol=1e-3)
 @test isapprox(⋆(1,s), Diagonal([0.359, 0.207, 0.359]), atol=1e-3)
+@test isapprox(δ(1,s), [ 2.449  0      2.449;
+                        -2.029  1.172  0;
+                         0     -1.172 -2.029], atol=1e-3)
 
 end

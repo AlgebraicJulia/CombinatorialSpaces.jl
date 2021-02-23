@@ -29,6 +29,7 @@ add_sorted_edges!(s, [2,4], [3,3])
 @test ∂(1, 1, s) == [1,2,3]
 @test ∂(0, s, E(1))::V == V(2)
 @test ∂(1, s, E([1,3]))::V == V([1,3])
+@test coface(0, s, V(4))::E == E([3])
 
 # 1D oriented simplicial sets
 #----------------------------
