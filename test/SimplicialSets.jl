@@ -10,7 +10,7 @@ using CombinatorialSpaces.SimplicialSets
 """
 function is_semi_simplicial(s::AbstractACSet, n::Int)
   all(∂(n-1, i, s, ∂(n, j, s)) == ∂(n-1, j-1, s, ∂(n, i, s))
-      for i in 1:n for j in (i+1):n)
+      for i in 0:n for j in (i+1):n)
 end
 
 const Point2D = SVector{2,Float64}
