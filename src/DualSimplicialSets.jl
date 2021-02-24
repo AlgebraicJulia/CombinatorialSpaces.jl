@@ -7,19 +7,22 @@ export DualSimplex, DualV, DualE, DualTri, DualChain, DualForm,
   AbstractDeltaDualComplex2D, DeltaDualComplex2D,
   OrientedDeltaDualComplex2D, EmbeddedDeltaDualComplex2D,
   SimplexCenter, Barycenter, Circumcenter, Incenter, geometric_center,
-  elementary_duals, ⋆, hodge_star,
+  elementary_duals, dual_boundary, dual_derivative,
+  ⋆, hodge_star, δ, codifferential, Δ, laplace_beltrami,
   vertex_center, edge_center, triangle_center, dual_point, dual_volume,
   subdivide_duals!
 
+import Base: ndims
 using LinearAlgebra: Diagonal
+using SparseArrays
 using StaticArrays: @SVector, SVector
 
 using Catlab, Catlab.CategoricalAlgebra.CSets
 using Catlab.CategoricalAlgebra.FinSets: deleteat
 using ..ArrayUtils, ..SimplicialSets
 using ..SimplicialSets: DeltaCategory1D, DeltaCategory2D, CayleyMengerDet,
-  cayley_menger
-import ..SimplicialSets: volume
+  operator_nz, ∂_nz, d_nz, cayley_menger
+import ..SimplicialSets: ∂, d, volume
 
 # 1D dual complex
 #################
@@ -78,6 +81,9 @@ elementary_duals(::Type{Val{0}}, s::AbstractDeltaDualComplex1D, v::Int) =
 elementary_duals(::Type{Val{1}}, s::AbstractDeltaDualComplex1D, e::Int) =
   SVector(edge_center(s,e))
 
+# 1D oriented dual complex
+#-------------------------
+
 @present SchemaOrientedDualComplex1D <: SchemaDualComplex1D begin
   Orientation::Data
   edge_orientation::Attr(E, Orientation)
@@ -88,6 +94,14 @@ end
 """
 const OrientedDeltaDualComplex1D = ACSetType(SchemaOrientedDualComplex1D,
                                              index=[:src,:tgt,:D_∂v0,:D_∂v1])
+
+dual_boundary_nz(::Type{Val{1}}, s::AbstractDeltaDualComplex1D, x::Int) =
+  # Boundary vertices of dual 1-cell ↔
+  # Dual vertices for cofaces of (edges incident to) primal vertex.
+  d_nz(Val{0}, s, x)
+
+dual_derivative_nz(::Type{Val{0}}, s::AbstractDeltaDualComplex1D, x::Int) =
+  negatenz(∂_nz(Val{1}, s, x))
 
 """ Construct 1D dual complex from 1D delta set.
 """
@@ -129,6 +143,7 @@ end
 
 negate(x) = -x
 negate(x::Bool) = !x
+negatenz((I, V)) = (I, negate.(V))
 
 # 1D embedded dual complex
 #-------------------------
@@ -245,6 +260,9 @@ elementary_duals(::Type{Val{1}}, s::AbstractDeltaDualComplex2D, e::Int) =
 elementary_duals(::Type{Val{2}}, s::AbstractDeltaDualComplex2D, t::Int) =
   SVector(triangle_center(s,t))
 
+# 2D oriented dual complex
+#-------------------------
+
 @present SchemaOrientedDualComplex2D <: SchemaDualComplex2D begin
   Orientation::Data
   edge_orientation::Attr(E, Orientation)
@@ -257,6 +275,20 @@ end
 """
 const OrientedDeltaDualComplex2D = ACSetType(SchemaOrientedDualComplex2D,
   index=[:src, :tgt, :∂e0, :∂e1, :∂e2, :D_∂v0, :D_∂v1, :D_∂e0, :D_∂e1, :D_∂e2])
+
+dual_boundary_nz(::Type{Val{1}}, s::AbstractDeltaDualComplex2D, x::Int) =
+  # Boundary vertices of dual 1-cell ↔
+  # Dual vertices for cofaces of (triangles incident to) primal edge.
+  negatenz(d_nz(Val{1}, s, x))
+dual_boundary_nz(::Type{Val{2}}, s::AbstractDeltaDualComplex2D, x::Int) =
+  # Boundary edges of dual 2-cell ↔
+  # Dual edges for cofaces of (edges incident to) primal vertex.
+  d_nz(Val{0}, s, x)
+
+dual_derivative_nz(::Type{Val{0}}, s::AbstractDeltaDualComplex2D, x::Int) =
+  ∂_nz(Val{2}, s, x)
+dual_derivative_nz(::Type{Val{1}}, s::AbstractDeltaDualComplex2D, x::Int) =
+  negatenz(∂_nz(Val{1}, s, x))
 
 """ Construct 2D dual complex from 2D delta set.
 """
@@ -428,7 +460,10 @@ this correspondence, a basis for primal ``n``-chains defines the basis for dual
 """
 @vector_struct DualForm{n}
 
-@inline volume(s::AbstractACSet, x::DualSimplex{n}, args...) where n =
+ndims(s::AbstractDeltaDualComplex1D) = 1
+ndims(s::AbstractDeltaDualComplex2D) = 2
+
+volume(s::AbstractACSet, x::DualSimplex{n}, args...) where n =
   dual_volume(Val{n}, s, x.data, args...)
 @inline dual_volume(n::Int, s::AbstractACSet, args...) =
   dual_volume(Val{n}, s, args...)
@@ -448,12 +483,43 @@ In 2D dual complexes, the elementary duals of...
 - primal edges are dual edges
 - primal triangles are (single) dual triangles
 """
-@inline elementary_duals(s::AbstractDeltaDualComplex1D, x::Simplex{n}) where n =
-  DualSimplex{1-n}(elementary_duals(Val{n}, s, x.data))
-@inline elementary_duals(s::AbstractDeltaDualComplex2D, x::Simplex{n}) where n =
-  DualSimplex{2-n}(elementary_duals(Val{n}, s, x.data))
+elementary_duals(s::AbstractACSet, x::Simplex{n}) where n =
+  DualSimplex{ndims(s)-n}(elementary_duals(Val{n}, s, x.data))
 @inline elementary_duals(n::Int, s::AbstractACSet, args...) =
   elementary_duals(Val{n}, s, args...)
+
+""" Boundary of chain of dual cells.
+
+Transpose of [`dual_derivative`](@ref).
+"""
+@inline dual_boundary(n::Int, s::AbstractACSet, args...) =
+  dual_boundary(Val{n}, s, args...)
+∂(s::AbstractACSet, x::DualChain{n}) where n =
+  DualChain{n-1}(dual_boundary(Val{n}, s, x.data))
+
+function dual_boundary(::Type{Val{n}}, s::AbstractACSet, args...) where n
+  operator_nz(Int, nsimplices(ndims(s)-n+1,s),
+              nsimplices(ndims(s)-n,s), args...) do x
+    dual_boundary_nz(Val{n}, s, x)
+  end
+end
+
+""" Discrete exterior derivative of dual form.
+
+Transpose of [`dual_boundary`](@ref). For more info, see (Desbrun, Kanso, Tong,
+2008: Discrete differential forms for computational modeling, §4.5).
+"""
+@inline dual_derivative(n::Int, s::AbstractACSet, args...) =
+  dual_derivative(Val{n}, s, args...)
+d(s::AbstractACSet, x::DualForm{n}) where n =
+  DualForm{n+1}(dual_derivative(Val{n}, s, x.data))
+
+function dual_derivative(::Type{Val{n}}, s::AbstractACSet, args...) where n
+  operator_nz(Int, nsimplices(ndims(s)-n-1,s),
+              nsimplices(ndims(s)-n,s), args...) do x
+    dual_derivative_nz(Val{n}, s, x)
+  end
+end
 
 """ Hodge star operator from primal ``n``-forms to dual ``N-n``-forms.
 
@@ -464,10 +530,8 @@ In 2D dual complexes, the elementary duals of...
     operator on cochains. We do not explicitly define the duality operator and
     we use the symbol ``⋆`` for the Hodge star.
 """
-@inline ⋆(s::AbstractDeltaDualComplex1D, x::SimplexForm{n}) where n =
-  DualForm{1-n}(⋆(Val{n}, s, x.data))
-@inline ⋆(s::AbstractDeltaDualComplex2D, x::SimplexForm{n}) where n =
-  DualForm{2-n}(⋆(Val{n}, s, x.data))
+⋆(s::AbstractACSet, x::SimplexForm{n}) where n =
+  DualForm{ndims(s)-n}(⋆(Val{n}, s, x.data))
 @inline ⋆(n::Int, s::AbstractACSet, args...) = ⋆(Val{n}, s, args...)
 
 ⋆(::Type{Val{n}}, s::AbstractACSet, form::AbstractVector) where n =
@@ -478,6 +542,47 @@ In 2D dual complexes, the elementary duals of...
 """ Alias for the Hodge star operator [`⋆`](@ref).
 """
 const hodge_star = ⋆
+
+""" Codifferential operator from primal ``n`` forms to primal ``n-1``-forms.
+"""
+δ(s::AbstractACSet, x::SimplexForm{n}) where n =
+  SimplexForm{n-1}(δ(Val{n}, s, x.data))
+@inline δ(n::Int, s::AbstractACSet, args...) = δ(Val{n}, s, args...)
+
+function δ(::Type{Val{n}}, s::AbstractACSet, args...) where n
+  # TODO: What is the right global sign?
+  # sgn = iseven((n-1)*(ndims(s)-n+1)) ? +1 : -1
+  operator_nz(Float64, nsimplices(n-1,s), nsimplices(n,s), args...) do x
+    c = hodge_diag(Val{n}, s, x)
+    I, V = dual_derivative_nz(Val{ndims(s)-n}, s, x)
+    V = map(I, V) do i, a
+      c * a / hodge_diag(Val{n-1}, s, i)
+    end
+    (I, V)
+  end
+end
+
+""" Alias for the codifferential operator [`δ`](@ref).
+"""
+const codifferential = δ
+
+""" Laplace-Beltrami operator on discrete forms.
+
+The linear operator on primal ``n``-forms defined by ``Δ f := δ d f``, where
+[`δ`](@ref) is the codifferential and [`d`](@ref) is the exterior derivative.
+"""
+Δ(s::AbstractACSet, x::SimplexForm{n}) where n =
+  SimplexForm{n}(Δ(Val{n}, s, x.data))
+@inline Δ(n::Int, s::AbstractACSet, args...) = Δ(Val{n}, s, args...)
+
+Δ(::Type{Val{n}}, s::AbstractACSet, form::AbstractVector) where n =
+  δ(Val{n+1}, s, d(Val{n}, s, form))
+Δ(::Type{Val{n}}, s::AbstractACSet, Mat::Type=SparseMatrixCSC{Float64}) where n =
+  δ(Val{n+1}, s, Mat) * d(Val{n}, s, Mat)
+
+""" Alias for the Laplace-Beltrami operator [`Δ`](@ref).
+"""
+const laplace_beltrami = Δ
 
 # Euclidean geometry
 ####################

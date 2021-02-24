@@ -10,7 +10,7 @@ using CombinatorialSpaces.SimplicialSets
 """
 function is_semi_simplicial(s::AbstractACSet, n::Int)
   all(∂(n-1, i, s, ∂(n, j, s)) == ∂(n-1, j-1, s, ∂(n, i, s))
-      for i in 1:n for j in (i+1):n)
+      for i in 0:n for j in (i+1):n)
 end
 
 const Point2D = SVector{2,Float64}
@@ -29,6 +29,7 @@ add_sorted_edges!(s, [2,4], [3,3])
 @test ∂(1, 1, s) == [1,2,3]
 @test ∂(0, s, E(1))::V == V(2)
 @test ∂(1, s, E([1,3]))::V == V([1,3])
+@test coface(0, s, V(4))::E == E([3])
 
 # 1D oriented simplicial sets
 #----------------------------

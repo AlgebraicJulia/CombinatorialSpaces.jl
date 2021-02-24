@@ -24,8 +24,9 @@ export Simplex, V, E, Tri, SimplexChain, VChain, EChain, TriChain,
   SimplexForm, VForm, EForm, TriForm,
   AbstractDeltaSet1D, DeltaSet1D, OrientedDeltaSet1D, EmbeddedDeltaSet1D,
   AbstractDeltaSet2D, DeltaSet2D, OrientedDeltaSet2D, EmbeddedDeltaSet2D,
-  ∂, boundary, d, coboundary, exterior_derivative, simplices, nsimplices, volume,
-  src, tgt, nv, ne, vertices, edges, has_vertex, has_edge, point,
+  ∂, boundary, coface, d, coboundary, exterior_derivative,
+  simplices, nsimplices, point, volume,
+  src, tgt, nv, ne, vertices, edges, has_vertex, has_edge,
   edge_vertices, edge_sign, add_vertex!, add_vertices!, add_edge!, add_edges!,
   add_sorted_edge!, add_sorted_edges!,
   triangle_vertices, triangle_sign, ntriangles, triangles,
@@ -60,11 +61,11 @@ const DeltaSet1D = Graph
 nsimplices(::Type{Val{0}}, s) = nv(s)
 nsimplices(::Type{Val{1}}, s) = ne(s)
 
-∂(::Type{Val{(1,0)}}, s::AbstractACSet, args...) = subpart(s, args..., :tgt)
-∂(::Type{Val{(1,1)}}, s::AbstractACSet, args...) = subpart(s, args..., :src)
+face(::Type{Val{(1,0)}}, s::AbstractACSet, args...) = subpart(s, args..., :tgt)
+face(::Type{Val{(1,1)}}, s::AbstractACSet, args...) = subpart(s, args..., :src)
 
-∂_inv(::Type{Val{(1,0)}}, s::AbstractACSet, args...) = incident(s, args..., :tgt)
-∂_inv(::Type{Val{(1,1)}}, s::AbstractACSet, args...) = incident(s, args..., :src)
+coface(::Type{Val{(1,0)}}, s::AbstractACSet, args...) = incident(s, args..., :tgt)
+coface(::Type{Val{(1,1)}}, s::AbstractACSet, args...) = incident(s, args..., :src)
 
 """ Boundary vertices of an edge.
 """
@@ -109,8 +110,8 @@ function ∂_nz(::Type{Val{1}}, s::AbstractACSet, e::Int)
   (edge_vertices(s, e), edge_sign(s,e) * @SVector([1,-1]))
 end
 
-function δ_nz(::Type{Val{0}}, s::AbstractACSet, v::Int)
-  e₀, e₁ = ∂_inv(1,0,s,v), ∂_inv(1,1,s,v)
+function d_nz(::Type{Val{0}}, s::AbstractACSet, v::Int)
+  e₀, e₁ = coface(1,0,s,v), coface(1,1,s,v)
   (lazy(vcat, e₀, e₁), lazy(vcat, edge_sign(s,e₀), -edge_sign(s,e₁)))
 end
 
@@ -173,13 +174,13 @@ triangles(s::AbstractACSet) = parts(s, :Tri)
 ntriangles(s::AbstractACSet) = nparts(s, :Tri)
 nsimplices(::Type{Val{2}}, s) = ntriangles(s)
 
-∂(::Type{Val{(2,0)}}, s::AbstractACSet, args...) = subpart(s, args..., :∂e0)
-∂(::Type{Val{(2,1)}}, s::AbstractACSet, args...) = subpart(s, args..., :∂e1)
-∂(::Type{Val{(2,2)}}, s::AbstractACSet, args...) = subpart(s, args..., :∂e2)
+face(::Type{Val{(2,0)}}, s::AbstractACSet, args...) = subpart(s, args..., :∂e0)
+face(::Type{Val{(2,1)}}, s::AbstractACSet, args...) = subpart(s, args..., :∂e1)
+face(::Type{Val{(2,2)}}, s::AbstractACSet, args...) = subpart(s, args..., :∂e2)
 
-∂_inv(::Type{Val{(2,0)}}, s::AbstractACSet, args...) = incident(s, args..., :∂e0)
-∂_inv(::Type{Val{(2,1)}}, s::AbstractACSet, args...) = incident(s, args..., :∂e1)
-∂_inv(::Type{Val{(2,2)}}, s::AbstractACSet, args...) = incident(s, args..., :∂e2)
+coface(::Type{Val{(2,0)}}, s::AbstractACSet, args...) = incident(s, args..., :∂e0)
+coface(::Type{Val{(2,1)}}, s::AbstractACSet, args...) = incident(s, args..., :∂e1)
+coface(::Type{Val{(2,2)}}, s::AbstractACSet, args...) = incident(s, args..., :∂e2)
 
 """ Boundary vertices of a triangle.
 
@@ -253,9 +254,9 @@ function ∂_nz(::Type{Val{2}}, s::AbstractACSet, t::Int)
   (edges, triangle_sign(s,t) * edge_sign(s,edges) .* @SVector([1,-1,1]))
 end
 
-function δ_nz(::Type{Val{1}}, s::AbstractACSet, e::Int)
+function d_nz(::Type{Val{1}}, s::AbstractACSet, e::Int)
   sgn = edge_sign(s, e)
-  t₀, t₁, t₂ = ∂_inv(2,0,s,e), ∂_inv(2,1,s,e), ∂_inv(2,2,s,e)
+  t₀, t₁, t₂ = coface(2,0,s,e), coface(2,1,s,e), coface(2,2,s,e)
   (lazy(vcat, t₀, t₁, t₂),
    lazy(vcat, sgn*triangle_sign(s,t₀),
         -sgn*triangle_sign(s,t₁), sgn*triangle_sign(s,t₂)))
@@ -343,21 +344,24 @@ Note that the face map returns *simplices*, while the boundary operator returns
 *chains* (vectors in the free vector space spanned by oriented simplices).
 """
 @inline ∂(i::Int, s::AbstractACSet, x::Simplex{n}) where n =
-  Simplex{n-1}(∂(Val{(n,i)}, s, x.data))
-@inline ∂(n::Int, i::Int, s::AbstractACSet, args...) = ∂(Val{(n,i)}, s, args...)
-@inline ∂_inv(n::Int, i::Int, s::AbstractACSet, args...) =
-  ∂_inv(Val{(n,i)}, s, args...)
+  Simplex{n-1}(face(Val{(n,i)}, s, x.data))
+@inline ∂(n::Int, i::Int, s::AbstractACSet, args...) =
+  face(Val{(n,i)}, s, args...)
 
-@inline ∂(s::AbstractACSet, x::SimplexChain{n}) where n =
-  SimplexChain{n-1}(∂_op(Val{n}, s, x.data))
-@inline ∂(n::Int, s::AbstractACSet, args...) = ∂_op(Val{n}, s, args...)
+@inline coface(i::Int, s::AbstractACSet, x::Simplex{n}) where n =
+  Simplex{n+1}(coface(Val{(n+1,i)}, s, x.data))
+@inline coface(n::Int, i::Int, s::AbstractACSet, args...) =
+  coface(Val{(n,i)}, s, args...)
 
-∂_op(::Type{Val{n}}, s::AbstractACSet, x::Int, Vec::Type=SparseVector{Int}) where n =
-  fromnz(Vec, ∂_nz(Val{n},s,x)..., nsimplices(n-1,s))
-∂_op(::Type{Val{n}}, s::AbstractACSet, chain::AbstractVector) where n =
-  applynz(chain, nsimplices(n-1,s), nsimplices(n,s)) do x; ∂_nz(Val{n},s,x) end
-∂_op(::Type{Val{n}}, s::AbstractACSet, Mat::Type=SparseMatrixCSC{Int}) where n =
-  fromnz(Mat, nsimplices(n-1,s), nsimplices(n,s)) do x; ∂_nz(Val{n},s,x) end
+∂(s::AbstractACSet, x::SimplexChain{n}) where n =
+  SimplexChain{n-1}(∂(Val{n}, s, x.data))
+@inline ∂(n::Int, s::AbstractACSet, args...) = ∂(Val{n}, s, args...)
+
+function ∂(::Type{Val{n}}, s::AbstractACSet, args...) where n
+  operator_nz(Int, nsimplices(n-1,s), nsimplices(n,s), args...) do x
+    ∂_nz(Val{n}, s, x)
+  end
+end
 
 """ Alias for the face map and boundary operator [`∂`](@ref).
 """
@@ -365,14 +369,15 @@ const boundary = ∂
 
 """ The discrete exterior derivative, aka the coboundary operator.
 """
-@inline d(s::AbstractACSet, x::SimplexForm{n}) where n =
-  SimplexForm{n+1}(δ_op(Val{n}, s, x.data))
-@inline d(n::Int, s::AbstractACSet, args...) = δ_op(Val{n}, s, args...)
+d(s::AbstractACSet, x::SimplexForm{n}) where n =
+  SimplexForm{n+1}(d(Val{n}, s, x.data))
+@inline d(n::Int, s::AbstractACSet, args...) = d(Val{n}, s, args...)
 
-δ_op(::Type{Val{n}}, s::AbstractACSet, form::AbstractVector) where n =
-  applynz(form, nsimplices(n+1,s), nsimplices(n,s)) do x; δ_nz(Val{n},s,x) end
-δ_op(::Type{Val{n}}, s::AbstractACSet, Mat::Type=SparseMatrixCSC{Int}) where n =
-  fromnz(Mat, nsimplices(n+1,s), nsimplices(n,s)) do x; δ_nz(Val{n},s,x) end
+function d(::Type{Val{n}}, s::AbstractACSet, args...) where n
+  operator_nz(Int, nsimplices(n+1,s), nsimplices(n,s), args...) do x
+    d_nz(Val{n}, s, x)
+  end
+end
 
 """ Alias for the coboundary operator [`d`](@ref).
 """
@@ -384,9 +389,18 @@ const exterior_derivative = d
 
 """ ``n``-dimensional volume of ``n``-simplex in an embedded simplicial set.
 """
-@inline volume(s::AbstractACSet, x::Simplex{n}, args...) where n =
+volume(s::AbstractACSet, x::Simplex{n}, args...) where n =
   volume(Val{n}, s, x.data, args...)
 @inline volume(n::Int, s::AbstractACSet, args...) = volume(Val{n}, s, args...)
+
+""" Convenience function for linear operator based on structural nonzero values.
+"""
+operator_nz(f, ::Type{T}, m::Int, n::Int,
+            x::Int, Vec::Type=SparseVector{T}) where T = fromnz(Vec, f(x)..., m)
+operator_nz(f, ::Type{T}, m::Int, n::Int,
+            vec::AbstractVector) where T = applynz(f, vec, m, n)
+operator_nz(f, ::Type{T}, m::Int, n::Int,
+            Mat::Type=SparseMatrixCSC{T}) where T = fromnz(f, Mat, m, n)
 
 # Euclidean geometry
 ####################
