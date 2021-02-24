@@ -1,9 +1,9 @@
-using AbstractPlotting
 using CombinatorialSpaces
 using StaticArrays: SVector
+using GLMakie
 const Point3D = SVector{3,Float64}
 
-AbstractPlotting.inline!(false)
+GLMakie.AbstractPlotting.inline!(false)
 
 cat = DeltaSet2D("cat.obj")
 

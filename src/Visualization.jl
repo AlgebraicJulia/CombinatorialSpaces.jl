@@ -4,7 +4,7 @@ import ..SimplicialSets: DeltaSet2D
 using ..SimplicialSets, ..DualSimplicialSets
 using Catlab.CategoricalAlgebra
 using GeometryBasics
-using GLMakie
+using AbstractPlotting
 using FileIO, MeshIO
 using StaticArrays
 
