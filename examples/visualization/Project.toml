@@ -1,0 +1,4 @@
+[deps]
+AbstractPlotting = "537997a7-5e4e-5d89-9595-2241ea00577e"
+CombinatorialSpaces = "b1c52339-7909-45ad-8b6a-6e388f7c67f2"
+StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
