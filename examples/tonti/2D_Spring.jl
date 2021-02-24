@@ -18,7 +18,7 @@ width = 30
 height = 30
 num_oscillators = width*height
 
-s = OrientedSimplicialSet2D{Bool}()
+s = OrientedDeltaSet2D{Bool}()
 add_vertices!(s, num_oscillators)
 
 ind(x,y) = x + (y-1)*(width)

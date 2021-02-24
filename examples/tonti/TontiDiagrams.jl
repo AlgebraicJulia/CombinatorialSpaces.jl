@@ -117,7 +117,7 @@ function addTempTransform!(td::AbstractTontiDiagram, dom::Symbol, func::Function
   return true
 end
 
-function addSpace!(td::AbstractTontiDiagram, complex::AbstractSemiSimplicialSet1D)
+function addSpace!(td::AbstractTontiDiagram, complex::AbstractDeltaSet1D)
   bound_1_0   = boundary(1,complex)
   cobound_0_1 = d(0,complex)
   addTopoTransform!(td, :IP, x->(cobound_0_1*x), :IL)
@@ -132,7 +132,7 @@ end
 
 
 
-function addSpace!(td::AbstractTontiDiagram, complex::AbstractSemiSimplicialSet2D)
+function addSpace!(td::AbstractTontiDiagram, complex::AbstractDeltaSet2D)
 
   bound_1_0   = boundary(1,complex)
   bound_2_1   = boundary(2,complex)
@@ -168,8 +168,8 @@ function addTime!(td::AbstractTontiDiagram; dt=1)
   end
 end
 
-function vectorfield(td::AbstractTontiDiagram, complex::Union{AbstractSemiSimplicialSet1D,
-                                                              AbstractSemiSimplicialSet2D})
+function vectorfield(td::AbstractTontiDiagram, complex::Union{AbstractDeltaSet1D,
+                                                              AbstractDeltaSet2D})
   # Define order of evaluation for transformations
   var_deps = [Set(filter!(t -> (td[td[t,:src], :t_type] != :temporal), incident(td, i, :out_var)))
               for i in 1:nparts(td, :Variable)] # deps per variable
@@ -277,7 +277,7 @@ function vectorfield(td::AbstractTontiDiagram, complex::Union{AbstractSemiSimpli
   system, [td[v, :v_label] => size(data[v2ind[v][1]])[2] for v in time_vars]
 end
 
-function initData(td::AbstractTontiDiagram, complex::AbstractSemiSimplicialSet1D)
+function initData(td::AbstractTontiDiagram, complex::AbstractDeltaSet1D)
   data = Array{Array{Float64, 2}, 1}()
   corner_to_len = Dict(:IP => nv(complex), :TP => nv(complex), :IL2 => nv(complex), :TL2 => nv(complex),
                        :IL => ne(complex), :TL => ne(complex), :IP2 => ne(complex), :TP2 => ne(complex))
@@ -291,7 +291,7 @@ function initData(td::AbstractTontiDiagram, complex::AbstractSemiSimplicialSet1D
   data, v2ind
 end
 
-function initData(td::AbstractTontiDiagram, complex::AbstractSemiSimplicialSet2D)
+function initData(td::AbstractTontiDiagram, complex::AbstractDeltaSet2D)
   data = Array{Array{Float64, 2}, 1}()
   c_nv = nv(complex)
   c_ne = ne(complex)
