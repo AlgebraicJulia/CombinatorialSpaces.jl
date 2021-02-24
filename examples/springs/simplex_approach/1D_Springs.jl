@@ -10,7 +10,7 @@ dx0 = 1.5
 m = range(1, stop=0.25, length=num_oscillators+1)
 
 
-s = OrientedSimplicialSet1D{Bool}()
+s = OrientedDeltaSet1D{Bool}()
 add_vertices!(s, num_oscillators+1)
 add_edges!(s, 1:(num_oscillators), 2:(num_oscillators+1), edge_orientation=true)
 add_edge!(s, 1, 2, edge_orientation=true)

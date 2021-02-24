@@ -15,7 +15,7 @@ visc = -0.1
 m = range(1, stop=1, length=num_oscillators)
 g = 0.1
 
-s = OrientedSimplicialSet2D{Bool}()
+s = OrientedDeltaSet2D{Bool}()
 add_vertices!(s, num_oscillators)
 
 ind(x,y) = x + (y-1)*(width)
