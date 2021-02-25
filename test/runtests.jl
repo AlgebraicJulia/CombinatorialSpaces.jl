@@ -8,3 +8,7 @@ end
   include("SimplicialSets.jl")
   include("DualSimplicialSets.jl")
 end
+
+@testset "Visualization" begin
+  include("Visualization.jl")
+end
