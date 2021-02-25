@@ -80,7 +80,7 @@ end
 # Import Tooling
 ################
 
-convert(Int64, a::OffsetInteger) = Int64(a.i)+1
+convert(Int64, a::OffsetInteger) = GeometryBasics.value(a)
 
 """ Constructor for EmbeddedDeltaSet2D from GeometryBasics.Mesh object
 

@@ -5,6 +5,7 @@ using CombinatorialSpaces
 using CombinatorialSpaces.Visualization
 using StaticArrays
 using CairoMakie
+using GeometryBasics
 const Point3D = SVector{3,Float64}
 
 CairoMakie.AbstractPlotting.inline!(true)
@@ -25,8 +26,10 @@ s_msh = EmbeddedDeltaSet2D(msh)
 @test point(s_msh) == point(s)
 @test triangle_vertices(s_msh) == triangle_vertices(s)
 
-#@test triangle_vertices(s) == triangle_vertices(s_msh)
-#@test point(s)
+for i in [-2,-1,0,1,2]
+  off_i = OffsetInteger{i, UInt32}(3)
+  @test CombinatorialSpaces.Visualization.convert(Int64, off_i) == 3
+end
 
 # Visualization
 ###############
