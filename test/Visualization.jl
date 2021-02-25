@@ -1,10 +1,10 @@
 module TestVisualization
 using Test
 
+using CairoMakie
 using CombinatorialSpaces
 using CombinatorialSpaces.Visualization
 using StaticArrays
-using CairoMakie
 using GeometryBasics
 const Point3D = SVector{3,Float64}
 

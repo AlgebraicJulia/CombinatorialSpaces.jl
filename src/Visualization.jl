@@ -16,12 +16,12 @@ import ..SimplicialSets: EmbeddedDeltaSet2D
 using ..SimplicialSets, ..DualSimplicialSets
 using Catlab.CategoricalAlgebra
 using GeometryBasics
-import AbstractPlotting: wireframe, wireframe!, mesh, mesh!, scatter, scatter!
+import ...AbstractPlotting: wireframe, wireframe!, mesh, mesh!, scatter, scatter!
 import Base: convert
 using FileIO, MeshIO
 using StaticArrays
 
-export DeltaSet2D, wireframe, wireframe!, mesh, mesh!, scatter, scatter!
+export EmbeddedDeltaSet2D, wireframe, wireframe!, mesh, mesh!, scatter, scatter!
 
 # Helper Functions (should these be exposed?)
 ##################
