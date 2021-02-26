@@ -66,6 +66,16 @@ B = ∂(1, s)
 @test d(s, VForm([4,1,0,0])) == EForm([-3,1,0])
 @test d(0, s) == B'
 
+# Consistent orientation.
+s = OrientedDeltaSet1D{Bool}()
+add_vertices!(s, 10)
+add_edges!(s, 1:4, 2:5)
+add_edges!(s, 6:9, 7:10)
+@test orient_component!(s, 1, true)
+@test s[1:4, :edge_orientation] == trues(4)
+@test orient_component!(s, 8, true)
+@test s[:edge_orientation] == trues(8)
+
 # 1D embedded simplicial sets
 #----------------------------
 
@@ -115,9 +125,11 @@ glue_triangle!(s, 1, 2, 3, tri_orientation=true)
 # Triangulated square with consistent orientation.
 s = OrientedDeltaSet2D{Bool}()
 add_vertices!(s, 4)
-glue_triangle!(s, 1, 2, 3, tri_orientation=true)
-glue_triangle!(s, 1, 3, 4, tri_orientation=true)
+glue_triangle!(s, 1, 2, 3)
+glue_triangle!(s, 1, 3, 4)
 s[:edge_orientation] = true
+@test orient_component!(s, 1, true)
+@test s[:tri_orientation] == trues(2)
 @test ∂(2, s, 1) == [1,1,-1,0,0]
 @test ∂(s, TriChain([1,1]))::EChain == EChain([1,1,0,1,-1])
 @test d(s, EForm([45,3,34,0,0]))::TriForm == TriForm([14, 34]) # == [45+3-34, 34]
