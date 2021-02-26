@@ -12,7 +12,6 @@ using GeometryBasics
 using FileIO, MeshIO
 using ..SimplicialSets, ..DualSimplicialSets
 
-import Base: convert
 import ..SimplicialSets: EmbeddedDeltaSet2D
 
 export make_mesh, EmbeddedDeltaSet2D
@@ -38,8 +37,6 @@ end
 
 # Import Tooling
 ################
-
-convert(Int64, a::OffsetInteger) = GeometryBasics.value(a)
 
 """ Constructor for EmbeddedDeltaSet2D from GeometryBasics.Mesh object
 

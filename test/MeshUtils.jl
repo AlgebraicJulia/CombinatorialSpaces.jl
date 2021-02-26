@@ -23,9 +23,4 @@ msh = make_mesh(s)
 s_msh = EmbeddedDeltaSet2D(msh)
 @test point(s_msh) == point(s)
 @test triangle_vertices(s_msh) == triangle_vertices(s)
-
-for i in [-2,-1,0,1,2]
-  off_i = OffsetInteger{i, UInt32}(3)
-  @test MeshUtils.convert(Int64, off_i) == 3
-end
 end
