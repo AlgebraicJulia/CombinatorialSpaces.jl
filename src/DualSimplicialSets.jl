@@ -9,8 +9,8 @@ export DualSimplex, DualV, DualE, DualTri, DualChain, DualForm,
   SimplexCenter, Barycenter, Circumcenter, Incenter, geometric_center,
   elementary_duals, dual_boundary, dual_derivative,
   ⋆, hodge_star, δ, codifferential, Δ, laplace_beltrami,
-  vertex_center, edge_center, triangle_center, dual_point, dual_volume,
-  subdivide_duals!
+  vertex_center, edge_center, triangle_center, dual_triangle_vertices,
+  dual_point, dual_volume, subdivide_duals!
 
 import Base: ndims
 using LinearAlgebra: Diagonal
@@ -257,6 +257,14 @@ elementary_duals(::Type{Val{1}}, s::AbstractDeltaDualComplex2D, e::Int) =
   incident(s, edge_center(s,e), :D_∂v1)
 elementary_duals(::Type{Val{2}}, s::AbstractDeltaDualComplex2D, t::Int) =
   SVector(triangle_center(s,t))
+
+""" Boundary dual vertices of a  dual triangle
+
+This accessor assumes that the simplicial identities for the dual hold
+"""
+function dual_triangle_vertices(s::AbstractDeltaDualComplex2D,t...)
+  SVector(s[s[t..., :D_∂e1], :D_∂v1], s[s[t..., :D_∂e0], :D_∂v1], s[s[t..., :D_∂e0], :D_∂v0])
+end
 
 # 2D oriented dual complex
 #-------------------------
