@@ -53,8 +53,11 @@ function EmbeddedDeltaSet2D(m::GeometryBasics.Mesh)
   add_vertices!(s, length(coords), point=coords)
   for tri in tris
     tri = convert.(Int64, tri)
-    glue_sorted_triangle!(s, tri[1], tri[2], tri[3], tri_orientation = false)
+    glue_sorted_triangle!(s, tri[1], tri[2], tri[3])
   end
+  # Assign orientation to 1, then spread to neighbors
+  orient_component!(s, 1, true)
+
   s
 end
 
