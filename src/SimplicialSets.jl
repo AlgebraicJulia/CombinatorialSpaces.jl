@@ -25,7 +25,7 @@ export Simplex, V, E, Tri, SimplexChain, VChain, EChain, TriChain,
   AbstractDeltaSet1D, DeltaSet1D, OrientedDeltaSet1D, EmbeddedDeltaSet1D,
   AbstractDeltaSet2D, DeltaSet2D, OrientedDeltaSet2D, EmbeddedDeltaSet2D,
   ∂, boundary, coface, d, coboundary, exterior_derivative,
-  simplices, nsimplices, point, volume,
+  simplices, nsimplices, point, volume, orient_component!,
   src, tgt, nv, ne, vertices, edges, has_vertex, has_edge,
   edge_vertices, edge_sign, add_vertex!, add_vertices!, add_edge!, add_edges!,
   add_sorted_edge!, add_sorted_edges!,
@@ -97,6 +97,9 @@ Edges are oriented from source to target when `edge_orientation` is
 true/positive and from target to source when it is false/negative.
 """
 const OrientedDeltaSet1D = ACSetType(OrientedDeltaSchema1D, index=[:src,:tgt])
+
+set_orientation!(::Type{Val{1}}, s::AbstractACSet, e, orientation) =
+  (s[e, :edge_orientation] = orientation)
 
 """ Sign (±1) associated with edge orientation.
 """
@@ -243,6 +246,9 @@ true/positive and in the reverse order when it is false/negative.
 """
 const OrientedDeltaSet2D = ACSetType(OrientedDeltaSchema2D,
                                      index=[:src, :tgt, :∂e0, :∂e1, :∂e2])
+
+set_orientation!(::Type{Val{2}}, s::AbstractACSet, t, orientation) =
+  (s[t, :tri_orientation] = orientation)
 
 """ Sign (±1) associated with triangle orientation.
 """
@@ -401,6 +407,57 @@ operator_nz(f, ::Type{T}, m::Int, n::Int,
             vec::AbstractVector) where T = applynz(f, vec, m, n)
 operator_nz(f, ::Type{T}, m::Int, n::Int,
             Mat::Type=SparseMatrixCSC{T}) where T = fromnz(f, Mat, m, n)
+
+""" Consistently orient simplices in the same connected component, if possible.
+
+Two simplices with a common face are *consistently oriented* if they induce
+opposite orientations on the shared face. Given an ``n``-simplex and a choice of
+orientation for it, this function tries to consistently orient all
+``n``-simplices that may be reached from it by traversing ``(n-1)``-faces. The
+traversal is depth-first. If a consistent orientation is possible, the function
+returns `true` and the orientations are assigned; otherwise, it returns `false`
+and no orientations are changed.
+"""
+orient_component!(s::AbstractDeltaSet1D, e::Int, args...) =
+  orient_component!(s, E(e), args...)
+orient_component!(s::AbstractDeltaSet2D, t::Int, args...) =
+  orient_component!(s, Tri(t), args...)
+
+function orient_component!(s::AbstractACSet, x::Simplex{n},
+                           orientation::Orientation) where {n, Orientation}
+  orientations = repeat(Union{Orientation,Nothing}[nothing], nsimplices(n, s))
+
+  function orient_neighbors!(x, target)
+    current = orientations[x]
+    if isnothing(current)
+      # If not visited, set the orientation and recursively visit neighbors.
+      orientations[x] = target
+      for i in 0:n, j in 0:n
+        next = iseven(i+j) ? negate(target) : target
+        for y in coface(n, j, s, ∂(n, i, s, x))
+          y == x || orient_neighbors!(y, next) || return false
+        end
+      end
+      true
+    else
+      # If already visited, check that current and target orientations agree.
+      current == target
+    end
+  end
+
+  is_orientable = orient_neighbors!(x[], orientation)
+  if is_orientable
+    component = findall(!isnothing, orientations)
+    set_orientation!(n, s, component, orientations[component])
+  end
+  is_orientable
+end
+
+@inline set_orientation!(n::Int, s::AbstractACSet, args...) =
+  set_orientation!(Val{n}, s, args...)
+
+negate(x) = -x
+negate(x::Bool) = !x
 
 # Euclidean geometry
 ####################

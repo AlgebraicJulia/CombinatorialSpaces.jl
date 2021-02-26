@@ -21,7 +21,7 @@ using Catlab, Catlab.CategoricalAlgebra.CSets
 using Catlab.CategoricalAlgebra.FinSets: deleteat
 using ..ArrayUtils, ..SimplicialSets
 using ..SimplicialSets: DeltaCategory1D, DeltaCategory2D, CayleyMengerDet,
-  operator_nz, ∂_nz, d_nz, cayley_menger
+  operator_nz, ∂_nz, d_nz, cayley_menger, negate
 import ..SimplicialSets: ∂, d, volume
 
 # 1D dual complex
@@ -103,6 +103,8 @@ dual_boundary_nz(::Type{Val{1}}, s::AbstractDeltaDualComplex1D, x::Int) =
 dual_derivative_nz(::Type{Val{0}}, s::AbstractDeltaDualComplex1D, x::Int) =
   negatenz(∂_nz(Val{1}, s, x))
 
+negatenz((I, V)) = (I, negate.(V))
+
 """ Construct 1D dual complex from 1D delta set.
 """
 function (::Type{S})(t::AbstractDeltaSet1D) where S <: AbstractDeltaDualComplex1D
@@ -140,10 +142,6 @@ function make_dual_simplices_1d!(s::AbstractACSet)
 
   D_edges
 end
-
-negate(x) = -x
-negate(x::Bool) = !x
-negatenz((I, V)) = (I, negate.(V))
 
 # 1D embedded dual complex
 #-------------------------
