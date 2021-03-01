@@ -1,8 +1,8 @@
-module TestMeshUtils
+module TestMeshInterop
 using Test
 
 using CombinatorialSpaces
-using CombinatorialSpaces.MeshUtils
+using CombinatorialSpaces.MeshInterop
 
 using GeometryBasics
 using StaticArrays
@@ -19,7 +19,7 @@ sd = EmbeddedDeltaDualComplex2D{Bool, Float64, Point3D}(s)
 subdivide_duals!(sd, Barycenter())
 
 # Test consistency with conversion to/from mesh
-msh = make_mesh(s)
+msh = Mesh(s)
 s_msh = EmbeddedDeltaSet2D(msh)
 @test point(s_msh) == point(s)
 @test triangle_vertices(s_msh) == triangle_vertices(s)

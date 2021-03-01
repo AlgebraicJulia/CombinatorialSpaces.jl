@@ -9,10 +9,10 @@ backends (CairoMakie, GLMakie, or WGLMakie) in order for plotting to work
 correctly.
 """
 
-module Visualization
+module MeshGraphics
 
 using Catlab.CategoricalAlgebra
-using ..MeshUtils
+using ..MeshInterop
 import ...AbstractPlotting: wireframe, wireframe!, mesh, mesh!, scatter, scatter!
 
 export wireframe, wireframe!, mesh, mesh!, scatter, scatter!
@@ -22,34 +22,34 @@ export wireframe, wireframe!, mesh, mesh!, scatter, scatter!
 """ Wrapper function for AbstractPlotting.wireframe
 """
 function wireframe(ds::AbstractACSet; kw...)
-   wireframe(make_mesh(ds); kw...)
+   wireframe(Mesh(ds); kw...)
 end
 """ Wrapper function for AbstractPlotting.wireframe!
 """
 function wireframe!(ds::AbstractACSet; kw...)
-   wireframe!(make_mesh(ds); kw...)
+   wireframe!(Mesh(ds); kw...)
 end
 
 """ Wrapper function for AbstractPlotting.mesh!
 """
 function mesh(ds::AbstractACSet; kw...)
-   mesh(make_mesh(ds); kw...)
+   mesh(Mesh(ds); kw...)
 end
 """ Wrapper function for AbstractPlotting.mesh!
 """
 function mesh!(ds::AbstractACSet; kw...)
-   mesh!(make_mesh(ds); kw...)
+   mesh!(Mesh(ds); kw...)
 end
 
 """ Wrapper function for AbstractPlotting.scatter!
 """
 function scatter(ds::AbstractACSet; kw...)
-  scatter(make_mesh(ds); kw...)
+  scatter(Mesh(ds); kw...)
 end
 """ Wrapper function for AbstractPlotting.scatter!
 """
 function scatter!(ds::AbstractACSet; kw...)
-   scatter!(make_mesh(ds); kw...)
+   scatter!(Mesh(ds); kw...)
 end
 
 end

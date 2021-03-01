@@ -10,9 +10,9 @@ end
 end
 
 @testset "Utility Functions" begin
-  include("MeshUtils.jl")
+  include("MeshInterop.jl")
 end
 
-@testset "Visualization" begin
-  include("Visualization.jl")
+@testset "MeshGraphics" begin
+  include("MeshGraphics.jl")
 end

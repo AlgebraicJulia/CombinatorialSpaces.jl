@@ -1,4 +1,4 @@
-""" Mesh utilities
+""" Mesh Tools 
 This file includes tools for importing delta sets from mesh
 files supported by MeshIO and for converting delta sets to
 meshes (for the purposes of plotting.
@@ -6,22 +6,23 @@ meshes (for the purposes of plotting.
 Meshes here are stored in the GeometryBasics.Mesh object.
 """
 
-module MeshUtils
+module MeshInterop
 
 using GeometryBasics
 using FileIO, MeshIO
 using ..SimplicialSets, ..DualSimplicialSets
 
 import ..SimplicialSets: EmbeddedDeltaSet2D
+import GeometryBasics: Mesh
 
-export make_mesh, EmbeddedDeltaSet2D
+export Mesh, EmbeddedDeltaSet2D
 
 # Helper Functions (should these be exposed?)
 ##################
 
 """ Construct a GeometryBasics.Mesh object from an embedded delta set
 """
-function make_mesh(ds::EmbeddedDeltaSet2D)
+function Mesh(ds::EmbeddedDeltaSet2D)
   points = Point{3, Float64}[point(ds)...]
   tris = TriangleFace{Int}[zip(triangle_vertices(ds)...)...]
   GeometryBasics.Mesh(points, tris)
@@ -29,7 +30,7 @@ end
 
 """ Construct a GeometryBasics.Mesh object from a dual embedded delta set
 """
-function make_mesh(ds::EmbeddedDeltaDualComplex2D)
+function Mesh(ds::EmbeddedDeltaDualComplex2D)
   points = Point{3, Float64}[dual_point(ds)...]
   tris = TriangleFace{Int}[zip(dual_triangle_vertices(ds)...)...]
   GeometryBasics.Mesh(points, tris)
