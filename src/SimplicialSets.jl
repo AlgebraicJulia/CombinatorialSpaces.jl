@@ -25,11 +25,12 @@ export Simplex, V, E, Tri, SimplexChain, VChain, EChain, TriChain,
   AbstractDeltaSet1D, DeltaSet1D, OrientedDeltaSet1D, EmbeddedDeltaSet1D,
   AbstractDeltaSet2D, DeltaSet2D, OrientedDeltaSet2D, EmbeddedDeltaSet2D,
   ∂, boundary, coface, d, coboundary, exterior_derivative,
-  simplices, nsimplices, point, volume, orient!, orient_component!,
-  src, tgt, nv, ne, vertices, edges, has_vertex, has_edge,
-  edge_vertices, edge_sign, add_vertex!, add_vertices!, add_edge!, add_edges!,
+  simplices, nsimplices, point, volume,
+  orientation, set_orientation!, orient!, orient_component!,
+  src, tgt, nv, ne, vertices, edges, has_vertex, has_edge, edge_vertices,
+  add_vertex!, add_vertices!, add_edge!, add_edges!,
   add_sorted_edge!, add_sorted_edges!,
-  triangle_vertices, triangle_sign, ntriangles, triangles,
+  triangle_vertices, ntriangles, triangles,
   add_triangle!, glue_triangle!, glue_sorted_triangle!
 
 using LinearAlgebra: det
@@ -104,21 +105,13 @@ orientation(::Type{Val{1}}, s::AbstractACSet, args...) =
 set_orientation!(::Type{Val{1}}, s::AbstractACSet, e, orientation) =
   (s[e, :edge_orientation] = orientation)
 
-""" Sign (±1) associated with edge orientation.
-"""
-edge_sign(s::AbstractACSet, args...) =
-  numeric_sign.(s[args..., :edge_orientation])
-
-numeric_sign(x) = sign(x)
-numeric_sign(x::Bool) = x ? +1 : -1
-
 function ∂_nz(::Type{Val{1}}, s::AbstractACSet, e::Int)
-  (edge_vertices(s, e), edge_sign(s,e) * @SVector([1,-1]))
+  (edge_vertices(s, e), sign(1,s,e) * @SVector([1,-1]))
 end
 
 function d_nz(::Type{Val{0}}, s::AbstractACSet, v::Int)
   e₀, e₁ = coface(1,0,s,v), coface(1,1,s,v)
-  (lazy(vcat, e₀, e₁), lazy(vcat, edge_sign(s,e₀), -edge_sign(s,e₁)))
+  (lazy(vcat, e₀, e₁), lazy(vcat, sign(1,s,e₀), -sign(1,s,e₁)))
 end
 
 # 1D embedded simplicial sets
@@ -255,22 +248,16 @@ orientation(::Type{Val{2}}, s::AbstractACSet, args...) =
 set_orientation!(::Type{Val{2}}, s::AbstractACSet, t, orientation) =
   (s[t, :tri_orientation] = orientation)
 
-""" Sign (±1) associated with triangle orientation.
-"""
-triangle_sign(s::AbstractACSet, args...) =
-  numeric_sign.(s[args..., :tri_orientation])
-
 function ∂_nz(::Type{Val{2}}, s::AbstractACSet, t::Int)
   edges = SVector(∂(2,0,s,t), ∂(2,1,s,t), ∂(2,2,s,t))
-  (edges, triangle_sign(s,t) * edge_sign(s,edges) .* @SVector([1,-1,1]))
+  (edges, sign(2,s,t) * sign(1,s,edges) .* @SVector([1,-1,1]))
 end
 
 function d_nz(::Type{Val{1}}, s::AbstractACSet, e::Int)
-  sgn = edge_sign(s, e)
+  sgn = sign(1, s, e)
   t₀, t₁, t₂ = coface(2,0,s,e), coface(2,1,s,e), coface(2,2,s,e)
   (lazy(vcat, t₀, t₁, t₂),
-   lazy(vcat, sgn*triangle_sign(s,t₀),
-        -sgn*triangle_sign(s,t₁), sgn*triangle_sign(s,t₂)))
+   lazy(vcat, sgn*sign(2,s,t₀), -sgn*sign(2,s,t₁), sgn*sign(2,s,t₂)))
 end
 
 # 2D embedded simplicial sets
@@ -398,6 +385,25 @@ const coboundary = d
 """
 const exterior_derivative = d
 
+""" Orientation of simplex.
+"""
+orientation(s::AbstractACSet, x::Simplex{n}) where n =
+  orientation(Val{n}, s, x.data)
+@inline orientation(n::Int, s::AbstractACSet, args...) =
+  orientation(Val{n}, s, args...)
+
+@inline Base.sign(n::Int, s::AbstractACSet, args...) = sign(Val{n}, s, args...)
+Base.sign(::Type{Val{n}}, s::AbstractACSet, args...) where n =
+  numeric_sign.(orientation(Val{n}, s, args...))
+
+numeric_sign(x) = sign(x)
+numeric_sign(x::Bool) = x ? +1 : -1
+
+""" Set orientation of simplex.
+"""
+@inline set_orientation!(n::Int, s::AbstractACSet, args...) =
+  set_orientation!(Val{n}, s, args...)
+
 """ ``n``-dimensional volume of ``n``-simplex in an embedded simplicial set.
 """
 volume(s::AbstractACSet, x::Simplex{n}, args...) where n =
@@ -413,8 +419,8 @@ operator_nz(f, ::Type{T}, m::Int, n::Int,
 operator_nz(f, ::Type{T}, m::Int, n::Int,
             Mat::Type=SparseMatrixCSC{T}) where T = fromnz(f, Mat, m, n)
 
-# Orientation
-#############
+# Consistent orientation
+########################
 
 """ Consistently orient simplices in a simplicial set, if possible.
 
@@ -493,11 +499,6 @@ function orient_component!(s::AbstractACSet, x::Simplex{n},
   end
   is_orientable
 end
-
-@inline orientation(n::Int, s::AbstractACSet, args...) =
-  orientation(Val{n}, s, args...)
-@inline set_orientation!(n::Int, s::AbstractACSet, args...) =
-  set_orientation!(Val{n}, s, args...)
 
 negate(x) = -x
 negate(x::Bool) = !x
