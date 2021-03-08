@@ -5,10 +5,14 @@ simplicial sets and combinatorial maps. These "combinatorial spaces" are useful
 in computational physics, computer graphics, and other applications where
 geometry plays a large role. They are also potentially useful in non-geometric
 applications, since structures like simplicial sets generalize graphs from
-binary relations to higher-arity relations. Combinatorial spaces are typically
-*C*-sets (copresheaves) on some category *C* and are implemented here using the
-general machinery for *C*-sets offered by
-[Catlab.jl](https://github.com/AlgebraicJulia/Catlab.jl).
+binary relations to higher-arity relations.
+
+Combinatorial spaces, like graphs, are typically *C*-sets (copresheaves) on some
+category *C*. They are implemented here using the general data structures for
+*C*-sets offered by [Catlab.jl](https://github.com/AlgebraicJulia/Catlab.jl).
+Thus, this package complements and extends the family of graph data structures
+shipped with Catlab in the module
+[`Catlab.Graphs`](https://algebraicjulia.github.io/Catlab.jl/stable/apis/graphs/).
 
 Current features include:
 
