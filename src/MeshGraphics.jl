@@ -12,44 +12,38 @@ correctly.
 module MeshGraphics
 
 using Catlab.CategoricalAlgebra
+using ..SimplicialSets
 using ..MeshInterop
-import ...AbstractPlotting: wireframe, wireframe!, mesh, mesh!, scatter, scatter!
+#import ...AbstractPlotting: wireframe, wireframe!, mesh, mesh!, scatter, scatter!
+#
+#export wireframe, wireframe!, mesh, mesh!, scatter, scatter!
 
-export wireframe, wireframe!, mesh, mesh!, scatter, scatter!
+import ...AbstractPlotting
+import ...AbstractPlotting: convert_arguments
 
-# Plotting Wrapper Functions
-############################
-""" Wrapper function for AbstractPlotting.wireframe
+""" This extends the "Mesh" plotting recipe for embedded deltasets by converting
+an embedded deltaset into arguments that can be passed into AbstractPlotting.mesh
 """
-function wireframe(ds::AbstractACSet; kw...)
-   wireframe(Mesh(ds); kw...)
-end
-""" Wrapper function for AbstractPlotting.wireframe!
-"""
-function wireframe!(ds::AbstractACSet; kw...)
-   wireframe!(Mesh(ds); kw...)
-end
 
-""" Wrapper function for AbstractPlotting.mesh!
-"""
-function mesh(ds::AbstractACSet; kw...)
-   mesh(Mesh(ds); kw...)
-end
-""" Wrapper function for AbstractPlotting.mesh!
-"""
-function mesh!(ds::AbstractACSet; kw...)
-   mesh!(Mesh(ds); kw...)
+function convert_arguments(P::Union{Type{<:AbstractPlotting.Wireframe},
+                                    Type{<:AbstractPlotting.Mesh},
+                                    Type{<:AbstractPlotting.Scatter}},
+                           dset::AbstractACSet)
+  convert_arguments(P, Mesh(dset))
 end
 
-""" Wrapper function for AbstractPlotting.scatter!
+""" This extends the "LineSegments" plotting recipe for embedded deltasets by converting
+an embedded deltaset into arguments that can be passed into AbstractPlotting.linesegments
 """
-function scatter(ds::AbstractACSet; kw...)
-  scatter(Mesh(ds); kw...)
+function convert_arguments(P::Type{<:AbstractPlotting.LineSegments}, dset::EmbeddedDeltaSet2D)
+  edge_positions = zeros(ne(dset)*2,3)
+  for e in edges(dset)
+    edge_positions[2*e-1,:] = point(dset, dset[e,:src])
+    edge_positions[2*e,:] = point(dset, dset[e,:tgt])
+  end
+  convert_arguments(P, edge_positions)
 end
-""" Wrapper function for AbstractPlotting.scatter!
-"""
-function scatter!(ds::AbstractACSet; kw...)
-   scatter!(Mesh(ds); kw...)
-end
+
+plottype(::EmbeddedDeltaSet2D) = Mesh
 
 end
