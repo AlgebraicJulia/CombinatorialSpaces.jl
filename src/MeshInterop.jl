@@ -1,4 +1,4 @@
-""" Mesh Tools 
+""" Mesh Tools
 This file includes tools for importing delta sets from mesh
 files supported by MeshIO and for converting delta sets to
 meshes (for the purposes of plotting.
@@ -10,6 +10,7 @@ module MeshInterop
 
 using GeometryBasics
 using FileIO, MeshIO
+using Catlab.CategoricalAlgebra: copy_parts!
 using ..SimplicialSets, ..DualSimplicialSets
 
 import ..SimplicialSets: EmbeddedDeltaSet2D
@@ -30,10 +31,16 @@ end
 
 """ Construct a GeometryBasics.Mesh object from a dual embedded delta set
 """
-function Mesh(ds::EmbeddedDeltaDualComplex2D)
-  points = Point{3, Float64}[dual_point(ds)...]
-  tris = TriangleFace{Int}[zip(dual_triangle_vertices(ds)...)...]
-  GeometryBasics.Mesh(points, tris)
+function Mesh(ds::EmbeddedDeltaDualComplex2D{O,R,P}; primal=false) where {O,R,P}
+  if(primal)
+    ds′ = EmbeddedDeltaSet2D{O,P}()
+    copy_parts!(ds′, ds)
+    Mesh(ds′)
+  else
+    points = Point{3, Float64}[dual_point(ds)...]
+    tris = TriangleFace{Int}[zip(dual_triangle_vertices(ds)...)...]
+    GeometryBasics.Mesh(points, tris)
+  end
 end
 
 # Import Tooling
@@ -53,9 +60,8 @@ function EmbeddedDeltaSet2D(m::GeometryBasics.Mesh)
     tri = convert.(Int64, tri)
     glue_sorted_triangle!(s, tri...)
   end
-  # Assign orientation to 1, then spread to neighbors
-  orient_component!(s, 1, true)
-
+  # Properly orient the delta set
+  orient!(s)
   s
 end
 
