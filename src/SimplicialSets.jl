@@ -53,8 +53,8 @@ const AbstractDeltaSet1D = AbstractGraph
 """ A one-dimensional delta set, aka semi-simplicial set.
 
 Delta sets in 1D are the same as graphs, and this type is just an alias for
-`Graph`. The boundary operator [`∂₁`](@ref) translates the graph-theoretic
-terminology into simplicial terminology.
+`Graph`. The face maps [`∂`](@ref) translates the graph-theoretic terminology
+into simplicial terminology.
 """
 const DeltaSet1D = Graph
 
