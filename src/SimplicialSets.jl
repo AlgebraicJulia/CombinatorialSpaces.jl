@@ -25,7 +25,7 @@ export Simplex, V, E, Tri, SimplexChain, VChain, EChain, TriChain,
   AbstractDeltaSet1D, DeltaSet1D, OrientedDeltaSet1D, EmbeddedDeltaSet1D,
   AbstractDeltaSet2D, DeltaSet2D, OrientedDeltaSet2D, EmbeddedDeltaSet2D,
   ∂, boundary, coface, d, coboundary, exterior_derivative,
-  simplices, nsimplices, point, volume, orient_component!,
+  simplices, nsimplices, point, point_array, volume, orient_component!,
   src, tgt, nv, ne, vertices, edges, has_vertex, has_edge,
   edge_vertices, edge_sign, add_vertex!, add_vertices!, add_edge!, add_edges!,
   add_sorted_edge!, add_sorted_edges!,
@@ -133,6 +133,10 @@ const EmbeddedDeltaSet1D = ACSetType(EmbeddedDeltaSchema1D, index=[:src,:tgt])
 """ Point associated with vertex of complex.
 """
 point(s::AbstractACSet, args...) = s[args..., :point]
+
+""" Points in 2D array
+"""
+point_array(s::AbstractACSet, args...) = vcat([[p...]' for p in point(s,args...)]...)
 
 struct CayleyMengerDet end
 
