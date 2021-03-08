@@ -72,9 +72,13 @@ add_vertices!(s, 10)
 add_edges!(s, 1:4, 2:5)
 add_edges!(s, 6:9, 7:10)
 @test orient_component!(s, 1, true)
-@test s[1:4, :edge_orientation] == trues(4)
+@test orientation(s, E(1:4)) == trues(4)
 @test orient_component!(s, 8, true)
-@test s[:edge_orientation] == trues(8)
+@test orientation(s, E(1:8)) == trues(8)
+
+s[:edge_orientation] = rand(Bool, 8)
+@test orient!(s)
+@test orientation(s, E(1:8)) == trues(8)
 
 # 1D embedded simplicial sets
 #----------------------------
@@ -118,7 +122,9 @@ glue_triangle!(s, 1, 4, 3)
 s = OrientedDeltaSet2D{Bool}()
 add_vertices!(s, 3)
 add_sorted_edges!(s, [1,2,3], [2,3,1], edge_orientation=[true,true,false])
-glue_triangle!(s, 1, 2, 3, tri_orientation=true)
+glue_triangle!(s, 1, 2, 3)
+@test orient_component!(s, 1, true)
+@test orientation(s, Tri(1)) == true
 @test ∂(2, s, 1) == [1,1,1]
 @test d(1, s, [45,3,34]) == [82]
 
@@ -128,8 +134,8 @@ add_vertices!(s, 4)
 glue_triangle!(s, 1, 2, 3)
 glue_triangle!(s, 1, 3, 4)
 s[:edge_orientation] = true
-@test orient_component!(s, 1, true)
-@test s[:tri_orientation] == trues(2)
+@test orient!(s)
+@test orientation(s, Tri(1:2)) == trues(2)
 @test ∂(2, s, 1) == [1,1,-1,0,0]
 @test ∂(s, TriChain([1,1]))::EChain == EChain([1,1,0,1,-1])
 @test d(s, EForm([45,3,34,0,0]))::TriForm == TriForm([14, 34]) # == [45+3-34, 34]
