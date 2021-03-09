@@ -9,10 +9,7 @@ end
   include("DualSimplicialSets.jl")
 end
 
-@testset "Utility Functions" begin
+@testset "Meshes" begin
   include("MeshInterop.jl")
-end
-
-@testset "MeshGraphics" begin
   include("MeshGraphics.jl")
 end
