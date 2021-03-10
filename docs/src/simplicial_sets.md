@@ -67,21 +67,32 @@ simplicial stuff and graphs.
     graph (a directed multigraph), not a simple graph (an undirected graph
     with no self-loops or multiple edges).
 
-### Ordered structures in geometric applications
+### Ordered faces in geometric applications
 
-**TODO**: Clean up this subsection.
+That the faces of each simplex in a simplicial set are ordered is convenient for
+many purposes but may seem problematic for geometric applications, where the
+faces usually regarded as unordered.
 
-Simplicial sets are inherently ordered structures. The "unordered" analogue of
-simplicial sets are symmetric simplicial sets, sometimes called just "symmetric
-sets." In one dimension, symmetric semi-simplicial sets are symmetric graphs.
+One solution to this problem would be to use [symmetric simplicial
+sets](https://ncatlab.org/nlab/show/symmetric+set), which are simplicial sets
+$X$ equipped with an action of the symmetric group $S_{n+1}$ on the
+$n$-simplices $X_n$, for every $n$. This is computationally inconvenient because
+every "unordered $n$-simplex" is then really an equivalence class of $(n+1)!$
+different $n$-simplices, a number that grows rapidly with $n$. At this time,
+symmetric simplicial sets of dimension greater than 1 are not implemented in
+this package.
 
-This module does not implement symmetric simplicial sets as such. However,
-symmetric sets can be simulated with simplicial sets by enforcing that the
-ordering of the vertices of each face matches the ordering of the integer vertex
-IDs. The simplicial set then "presents" a symmetric set in a canonical way. The
-functions [`add_sorted_edge!`](@ref) and [`glue_sorted_triangle!`](@ref)
+To simulate unordered simplicial sets, we instead adopt the convention of a
+choosing the representative of the equivalence class that orders the vertices of
+the simplex according to the integer IDs of the vertices. The simplicial set
+then "presents" a symmetric simplicial set in a canonical way. Indeed, the
+[standard method](https://ncatlab.org/nlab/show/simplicial+complex#vsSSet) of
+converting an abstract simplicial complex to a simplicial set is to pick a total
+ordering of its vertices. When following this convention, use the functions
+[`add_sorted_edge!`](@ref) and [`glue_sorted_triangle!`](@ref), which
 automatically sort their inputs to ensure that the ordering condition is
-satisfied.
+satisfied, rather than the functions [`add_edge!`](@ref) and
+[`glue_triangle!`](@ref).
 
 ## Delta sets
 
@@ -101,11 +112,76 @@ that is opposite its $i$-th vertex. The semi-simplicial identities then ensure
 that the faces of each $n$-simplex fit together properly, for example, that the
 edges of a 2-simplex actually form a triangle.
 
-In CombinatorialSpaces, the generic function [`∂`](@ref) provides all the face
+In our implementation, the generic function [`∂`](@ref) supplies all the face
 maps of a delta set. Specifically, the function call `∂(i, n, x, k)` gives the
 `i`-th face of the `n`-simplex in the delta set `x` with index `k`, and the call
-`∂(i, n, x)` gives the `i`-faces of all the `n`-simplices in the delta set `x`,
+`∂(i, n, x)` gives the `i`-faces of all `n`-simplices in the delta set `x`,
 which is a vector of integers.
+
+A finite delta set—the only kind supported here—has no simplices above a certain
+dimension. For any fixed $N$, an *$N$-dimensional delta set* is a delta set $X$
+such that $X_n = \emptyset$ for $n > N$. CombinatorialSpaces provides dedicated
+data structures for delta sets of a given dimension.
+
+### 1D delta sets
+
+Since a one-dimensional delta set is the same thing as a graph, the type
+[`DeltaSet1D`](@ref) has the same methods as the type `Graph` in
+[`Catlab.Graphs`](https://algebraicjulia.github.io/Catlab.jl/stable/apis/graphs/),
+which should be consulted for further documentation.
+
+```@example deltaset1d
+using CombinatorialSpaces # hide
+
+dset = DeltaSet1D()
+add_vertices!(dset, 4)
+add_edges!(dset, [1,2,2], [2,3,4])
+dset
+```
+
+One potentially confusing point is that the face map $\partial_1^0$ gives the
+target vertex (the vertex of an edge opposite vertex 0), while the face map
+$\partial_1^1$ gives the source vertex (the vertex of an edge opposite vertex
+1).
+
+```@example deltaset1d
+@assert ∂(1,0,dset) == tgt(dset)
+@assert ∂(1,1,dset) == src(dset)
+```
+
+### 2D delta sets
+
+Two-dimensional delta sets, comprised of vertices, edges, and triangles, are
+supplied by the type [`DeltaSet2D`](@ref). There are two ways to add triangles
+to a delta set. If appropriately arranged edges have already been added, a
+triangle having those edges as boundary can be added using the
+[`add_triangle!`](@ref) function. However, it often more convenient to use the
+[`glue_triangle!`](@ref) function, which takes vertices rather than edges as
+arguments, creating any boundary edges that do not already exist.
+
+For example, the following 2D delta set has the shape of a triangulated
+commutative square.
+
+```@example deltaset2d
+using CombinatorialSpaces # hide
+
+dset = DeltaSet2D()
+add_vertices!(dset, 4)
+glue_triangle!(dset, 1, 2, 3)
+glue_triangle!(dset, 1, 4, 3)
+dset
+```
+
+As the table above illustrates, only the edges of each triangle are explicitly
+stored. The vertices of a triangle can be accessed using the function
+[`triangle_vertices`](@ref). The correctness of this function depends on the
+semi-simplicial identities.
+
+```@example deltaset2d
+map(triangles(dset)) do t
+  triangle_vertices(dset, t)
+end
+```
 
 ## API docs
 
