@@ -1,4 +1,4 @@
-""" Mesh utilities
+""" Mesh Tools
 This file includes tools for importing delta sets from mesh
 files supported by MeshIO and for converting delta sets to
 meshes (for the purposes of plotting.
@@ -6,22 +6,24 @@ meshes (for the purposes of plotting.
 Meshes here are stored in the GeometryBasics.Mesh object.
 """
 
-module MeshUtils
+module MeshInterop
 
 using GeometryBasics
 using FileIO, MeshIO
+using Catlab.CategoricalAlgebra: copy_parts!
 using ..SimplicialSets, ..DualSimplicialSets
 
 import ..SimplicialSets: EmbeddedDeltaSet2D
+import GeometryBasics: Mesh
 
-export make_mesh, EmbeddedDeltaSet2D
+export Mesh, EmbeddedDeltaSet2D
 
 # Helper Functions (should these be exposed?)
 ##################
 
 """ Construct a GeometryBasics.Mesh object from an embedded delta set
 """
-function make_mesh(ds::EmbeddedDeltaSet2D)
+function Mesh(ds::EmbeddedDeltaSet2D)
   points = Point{3, Float64}[point(ds)...]
   tris = TriangleFace{Int}[zip(triangle_vertices(ds)...)...]
   GeometryBasics.Mesh(points, tris)
@@ -29,10 +31,16 @@ end
 
 """ Construct a GeometryBasics.Mesh object from a dual embedded delta set
 """
-function make_mesh(ds::EmbeddedDeltaDualComplex2D)
-  points = Point{3, Float64}[dual_point(ds)...]
-  tris = TriangleFace{Int}[zip(dual_triangle_vertices(ds)...)...]
-  GeometryBasics.Mesh(points, tris)
+function Mesh(ds::EmbeddedDeltaDualComplex2D{O,R,P}; primal=false) where {O,R,P}
+  if(primal)
+    ds′ = EmbeddedDeltaSet2D{O,P}()
+    copy_parts!(ds′, ds)
+    Mesh(ds′)
+  else
+    points = Point{3, Float64}[dual_point(ds)...]
+    tris = TriangleFace{Int}[zip(dual_triangle_vertices(ds)...)...]
+    GeometryBasics.Mesh(points, tris)
+  end
 end
 
 # Import Tooling
@@ -50,11 +58,10 @@ function EmbeddedDeltaSet2D(m::GeometryBasics.Mesh)
   add_vertices!(s, length(coords), point=coords)
   for tri in tris
     tri = convert.(Int64, tri)
-    glue_sorted_triangle!(s, tri[1], tri[2], tri[3])
+    glue_sorted_triangle!(s, tri...)
   end
-  # Assign orientation to 1, then spread to neighbors
-  orient_component!(s, 1, true)
-
+  # Properly orient the delta set
+  orient!(s)
   s
 end
 

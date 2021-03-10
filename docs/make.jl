@@ -1,10 +1,18 @@
 using Documenter
 using CombinatorialSpaces
+using CombinatorialSpaces.MeshInterop
 
 makedocs(
-  sitename = "CombinatorialSpaces",
+  sitename = "CombinatorialSpaces.jl",
   format = Documenter.HTML(),
-  modules = [CombinatorialSpaces]
+  modules = [CombinatorialSpaces],
+  checkdocs = :exports,
+  pages = [
+    "simplicial_sets.md",
+    "dual_complexes.md",
+    "combinatorial_maps.md",
+    "meshes.md"
+  ]
 )
 
 deploydocs(
