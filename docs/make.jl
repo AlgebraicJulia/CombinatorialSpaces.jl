@@ -1,5 +1,6 @@
 using Documenter
 using CombinatorialSpaces
+using CombinatorialSpaces.MeshInterop
 
 makedocs(
   sitename = "CombinatorialSpaces.jl",
@@ -10,6 +11,7 @@ makedocs(
     "simplicial_sets.md",
     "dual_complexes.md",
     "combinatorial_maps.md",
+    "meshes.md"
   ]
 )
 

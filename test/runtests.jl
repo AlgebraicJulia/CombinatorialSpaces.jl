@@ -8,3 +8,8 @@ end
   include("SimplicialSets.jl")
   include("DualSimplicialSets.jl")
 end
+
+@testset "Meshes" begin
+  include("MeshInterop.jl")
+  include("MeshGraphics.jl")
+end

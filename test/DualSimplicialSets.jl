@@ -95,6 +95,8 @@ dual_vs = elementary_duals(2,s,2)
 @test s[elementary_duals(1,s,2), :D_∂v1] == [edge_center(s,2)]
 @test s[elementary_duals(1,s,3), :D_∂v1] == repeat([edge_center(s,3)], 2)
 @test [length(elementary_duals(s, V(i))) for i in 1:4] == [4,2,4,2]
+@test dual_triangle_vertices(s, 1) == [1,7,10]
+
 
 # 2D oriented dual complex
 #-------------------------
