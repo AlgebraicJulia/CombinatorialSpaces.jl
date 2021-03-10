@@ -1,6 +1,5 @@
 using Documenter
 using CombinatorialSpaces
-using CombinatorialSpaces.MeshInterop
 
 makedocs(
   sitename = "CombinatorialSpaces.jl",

@@ -91,8 +91,7 @@ converting an abstract simplicial complex to a simplicial set is to pick a total
 ordering of its vertices. When following this convention, use the functions
 [`add_sorted_edge!`](@ref) and [`glue_sorted_triangle!`](@ref), which
 automatically sort their inputs to ensure that the ordering condition is
-satisfied, rather than the functions [`add_edge!`](@ref) and
-[`glue_triangle!`](@ref).
+satisfied, rather than the functions `add_edge!` and [`glue_triangle!`](@ref).
 
 ## Delta sets
 

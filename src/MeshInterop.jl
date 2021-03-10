@@ -5,18 +5,15 @@ meshes (for the purposes of plotting.
 
 Meshes here are stored in the GeometryBasics.Mesh object.
 """
-
 module MeshInterop
+export EmbeddedDeltaSet2D, Mesh
 
-using GeometryBasics
-using FileIO, MeshIO
-using Catlab.CategoricalAlgebra: copy_parts!
-using ..SimplicialSets, ..DualSimplicialSets
-
-import ..SimplicialSets: EmbeddedDeltaSet2D
+using FileIO, MeshIO, GeometryBasics
 import GeometryBasics: Mesh
 
-export Mesh, EmbeddedDeltaSet2D
+using Catlab.CategoricalAlgebra: copy_parts!
+using ..SimplicialSets, ..DualSimplicialSets
+import ..SimplicialSets: EmbeddedDeltaSet2D
 
 # Helper Functions (should these be exposed?)
 ##################

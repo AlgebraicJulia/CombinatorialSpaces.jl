@@ -15,5 +15,6 @@ end
 
 @reexport using .SimplicialSets
 @reexport using .DualSimplicialSets
+@reexport using .MeshInterop
 
 end
