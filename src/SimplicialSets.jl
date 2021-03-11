@@ -6,18 +6,6 @@ sets](https://ncatlab.org/nlab/show/semi-simplicial+set). These include the face
 maps but not the degeneracy maps of a simplicial set. In the future we may add
 support for simplicial sets. The analogy to keep in mind is that graphs are to
 semi-simpicial sets as reflexive graphs are to simplicial sets.
-
-Simplicial sets are inherently ordered structures. The "unordered" analogue of
-simplicial sets are symmetric simplicial sets, sometimes called just "symmetric
-sets." In one dimension, symmetric semi-simplicial sets are symmetric graphs.
-
-This module does not implement symmetric simplicial sets as such. However,
-symmetric sets can be simulated with simplicial sets by enforcing that the
-ordering of the vertices of each face matches the ordering of the integer vertex
-IDs. The simplicial set then "presents" a symmetric set in a canonical way. The
-functions [`add_sorted_edge!`](@ref) and [`glue_sorted_triangle!`](@ref)
-automatically sort their inputs to ensure that the ordering condition is
-satisfied.
 """
 module SimplicialSets
 export Simplex, V, E, Tri, SimplexChain, VChain, EChain, TriChain,
@@ -25,18 +13,20 @@ export Simplex, V, E, Tri, SimplexChain, VChain, EChain, TriChain,
   AbstractDeltaSet1D, DeltaSet1D, OrientedDeltaSet1D, EmbeddedDeltaSet1D,
   AbstractDeltaSet2D, DeltaSet2D, OrientedDeltaSet2D, EmbeddedDeltaSet2D,
   ∂, boundary, coface, d, coboundary, exterior_derivative,
-  simplices, nsimplices, point, volume, orient_component!,
-  src, tgt, nv, ne, vertices, edges, has_vertex, has_edge,
-  edge_vertices, edge_sign, add_vertex!, add_vertices!, add_edge!, add_edges!,
+  simplices, nsimplices, point, volume,
+  orientation, set_orientation!, orient!, orient_component!,
+  src, tgt, nv, ne, vertices, edges, has_vertex, has_edge, edge_vertices,
+  add_vertex!, add_vertices!, add_edge!, add_edges!,
   add_sorted_edge!, add_sorted_edges!,
-  triangle_vertices, triangle_sign, ntriangles, triangles,
+  triangle_vertices, ntriangles, triangles,
   add_triangle!, glue_triangle!, glue_sorted_triangle!
 
 using LinearAlgebra: det
 using SparseArrays
 using StaticArrays: @SVector, SVector, SMatrix
 
-using Catlab, Catlab.CategoricalAlgebra.CSets, Catlab.Graphs
+using Catlab, Catlab.CategoricalAlgebra,
+  Catlab.CategoricalAlgebra.FinSets, Catlab.Graphs
 using Catlab.Graphs.BasicGraphs: TheoryGraph, TheoryReflexiveGraph
 using ..ArrayUtils
 
@@ -53,8 +43,8 @@ const AbstractDeltaSet1D = AbstractGraph
 """ A one-dimensional delta set, aka semi-simplicial set.
 
 Delta sets in 1D are the same as graphs, and this type is just an alias for
-`Graph`. The boundary operator [`∂₁`](@ref) translates the graph-theoretic
-terminology into simplicial terminology.
+`Graph`. The face maps [`∂`](@ref) translates the graph-theoretic terminology
+into simplicial terminology.
 """
 const DeltaSet1D = Graph
 
@@ -98,24 +88,18 @@ true/positive and from target to source when it is false/negative.
 """
 const OrientedDeltaSet1D = ACSetType(OrientedDeltaSchema1D, index=[:src,:tgt])
 
+orientation(::Type{Val{1}}, s::AbstractACSet, args...) =
+  s[args..., :edge_orientation]
 set_orientation!(::Type{Val{1}}, s::AbstractACSet, e, orientation) =
   (s[e, :edge_orientation] = orientation)
 
-""" Sign (±1) associated with edge orientation.
-"""
-edge_sign(s::AbstractACSet, args...) =
-  numeric_sign.(s[args..., :edge_orientation])
-
-numeric_sign(x) = sign(x)
-numeric_sign(x::Bool) = x ? +1 : -1
-
 function ∂_nz(::Type{Val{1}}, s::AbstractACSet, e::Int)
-  (edge_vertices(s, e), edge_sign(s,e) * @SVector([1,-1]))
+  (edge_vertices(s, e), sign(1,s,e) * @SVector([1,-1]))
 end
 
 function d_nz(::Type{Val{0}}, s::AbstractACSet, v::Int)
   e₀, e₁ = coface(1,0,s,v), coface(1,1,s,v)
-  (lazy(vcat, e₀, e₁), lazy(vcat, edge_sign(s,e₀), -edge_sign(s,e₁)))
+  (lazy(vcat, e₀, e₁), lazy(vcat, sign(1,s,e₀), -sign(1,s,e₁)))
 end
 
 # 1D embedded simplicial sets
@@ -247,25 +231,21 @@ true/positive and in the reverse order when it is false/negative.
 const OrientedDeltaSet2D = ACSetType(OrientedDeltaSchema2D,
                                      index=[:src, :tgt, :∂e0, :∂e1, :∂e2])
 
+orientation(::Type{Val{2}}, s::AbstractACSet, args...) =
+  s[args..., :tri_orientation]
 set_orientation!(::Type{Val{2}}, s::AbstractACSet, t, orientation) =
   (s[t, :tri_orientation] = orientation)
 
-""" Sign (±1) associated with triangle orientation.
-"""
-triangle_sign(s::AbstractACSet, args...) =
-  numeric_sign.(s[args..., :tri_orientation])
-
 function ∂_nz(::Type{Val{2}}, s::AbstractACSet, t::Int)
   edges = SVector(∂(2,0,s,t), ∂(2,1,s,t), ∂(2,2,s,t))
-  (edges, triangle_sign(s,t) * edge_sign(s,edges) .* @SVector([1,-1,1]))
+  (edges, sign(2,s,t) * sign(1,s,edges) .* @SVector([1,-1,1]))
 end
 
 function d_nz(::Type{Val{1}}, s::AbstractACSet, e::Int)
-  sgn = edge_sign(s, e)
+  sgn = sign(1, s, e)
   t₀, t₁, t₂ = coface(2,0,s,e), coface(2,1,s,e), coface(2,2,s,e)
   (lazy(vcat, t₀, t₁, t₂),
-   lazy(vcat, sgn*triangle_sign(s,t₀),
-        -sgn*triangle_sign(s,t₁), sgn*triangle_sign(s,t₂)))
+   lazy(vcat, sgn*sign(2,s,t₀), -sgn*sign(2,s,t₁), sgn*sign(2,s,t₂)))
 end
 
 # 2D embedded simplicial sets
@@ -393,6 +373,25 @@ const coboundary = d
 """
 const exterior_derivative = d
 
+""" Orientation of simplex.
+"""
+orientation(s::AbstractACSet, x::Simplex{n}) where n =
+  orientation(Val{n}, s, x.data)
+@inline orientation(n::Int, s::AbstractACSet, args...) =
+  orientation(Val{n}, s, args...)
+
+@inline Base.sign(n::Int, s::AbstractACSet, args...) = sign(Val{n}, s, args...)
+Base.sign(::Type{Val{n}}, s::AbstractACSet, args...) where n =
+  numeric_sign.(orientation(Val{n}, s, args...))
+
+numeric_sign(x) = sign(x)
+numeric_sign(x::Bool) = x ? +1 : -1
+
+""" Set orientation of simplex.
+"""
+@inline set_orientation!(n::Int, s::AbstractACSet, args...) =
+  set_orientation!(Val{n}, s, args...)
+
 """ ``n``-dimensional volume of ``n``-simplex in an embedded simplicial set.
 """
 volume(s::AbstractACSet, x::Simplex{n}, args...) where n =
@@ -408,15 +407,51 @@ operator_nz(f, ::Type{T}, m::Int, n::Int,
 operator_nz(f, ::Type{T}, m::Int, n::Int,
             Mat::Type=SparseMatrixCSC{T}) where T = fromnz(f, Mat, m, n)
 
-""" Consistently orient simplices in the same connected component, if possible.
+# Consistent orientation
+########################
+
+""" Consistently orient simplices in a simplicial set, if possible.
 
 Two simplices with a common face are *consistently oriented* if they induce
-opposite orientations on the shared face. Given an ``n``-simplex and a choice of
-orientation for it, this function tries to consistently orient all
-``n``-simplices that may be reached from it by traversing ``(n-1)``-faces. The
-traversal is depth-first. If a consistent orientation is possible, the function
-returns `true` and the orientations are assigned; otherwise, it returns `false`
-and no orientations are changed.
+opposite orientations on the shared face. This function attempts to consistently
+orient all simplices of a given dimension and returns whether this has been
+achieved. Each connected component is oriently independently using the helper
+function [`orient_component!`](@ref).
+"""
+orient!(s::AbstractDeltaSet1D) = orient!(s, E)
+orient!(s::AbstractDeltaSet2D) = orient!(s, Tri)
+
+function orient!(s::AbstractACSet, ::Type{Simplex{n}}) where n
+  # Compute connected components as coequalizer of face maps.
+  ndom, ncodom = nsimplices(n, s), nsimplices(n-1, s)
+  face_maps = SVector{n+1}([ FinFunction(x -> ∂(n,i,s,x), ndom, ncodom)
+                             for i in 0:n ])
+  π = only(coequalizer(face_maps))
+
+  # Choose an arbitrary representative of each component.
+  reps = zeros(Int, length(codom(π)))
+  for x in reverse(simplices(n, s))
+    reps[π(∂(n,0,s,x))] = x
+  end
+
+  # Orient each component, starting at the chosen representative.
+  init_orientation = one(eltype(orientation(n, s)))
+  for x in reps
+    orient_component!(s, Simplex{n}(x), init_orientation) || return false
+  end
+  true
+end
+
+""" Consistently orient simplices in the same connected component, if possible.
+
+Given an ``n``-simplex and a choice of orientation for it, this function
+attempts to consistently orient all ``n``-simplices that may be reached from it
+by traversing ``(n-1)``-faces. The traversal is depth-first. If a consistent
+orientation is possible, the function returns `true` and the orientations are
+assigned; otherwise, it returns `false` and no orientations are changed.
+
+If the simplicial set is not connected, the function [`orient!`](@ref) may be
+more convenient.
 """
 orient_component!(s::AbstractDeltaSet1D, e::Int, args...) =
   orient_component!(s, E(e), args...)
@@ -424,7 +459,7 @@ orient_component!(s::AbstractDeltaSet2D, t::Int, args...) =
   orient_component!(s, Tri(t), args...)
 
 function orient_component!(s::AbstractACSet, x::Simplex{n},
-                           orientation::Orientation) where {n, Orientation}
+                           x_orientation::Orientation) where {n, Orientation}
   orientations = repeat(Union{Orientation,Nothing}[nothing], nsimplices(n, s))
 
   function orient_neighbors!(x, target)
@@ -445,16 +480,13 @@ function orient_component!(s::AbstractACSet, x::Simplex{n},
     end
   end
 
-  is_orientable = orient_neighbors!(x[], orientation)
+  is_orientable = orient_neighbors!(x[], x_orientation)
   if is_orientable
     component = findall(!isnothing, orientations)
     set_orientation!(n, s, component, orientations[component])
   end
   is_orientable
 end
-
-@inline set_orientation!(n::Int, s::AbstractACSet, args...) =
-  set_orientation!(Val{n}, s, args...)
 
 negate(x) = -x
 negate(x::Bool) = !x
