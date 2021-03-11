@@ -113,7 +113,7 @@ function gen_star(dom::Int64, codom::Int64, td::AbstractTontiDiagram, star_arr)
     if "$(td[codom, :c_label])"[end] != '2'
       return 1
     end
-    star_arr[corner2ind["$(td[codom, :c_label])"[2]]+1]
+    star_arr[corner2ind["$(td[dom, :c_label])"[2]]+1]
   end
 end
 
@@ -225,15 +225,23 @@ function addSpace!(td::AbstractTontiDiagram, complex::EmbeddedDeltaSet2D)
   td
 end
 
-function addSpace!(td::AbstractTontiDiagram, complex::AbstractDeltaSet1D)
-  bound_1_0   = boundary(1,complex)
-  cobound_0_1 = d(0,complex)
-  addTopoTransform!(td, :IP, x->(cobound_0_1*x), :IL)
-  addTopoTransform!(td, :TP, x->(cobound_0_1*x), :TL)
+function addSpace!(td::AbstractTontiDiagram, complex::AbstractDeltaSet2D)
+  d_0_1 = d(0,complex)
+  d_1_2 = d(1,complex)
+
+  dd_0_1 = boundary(2, complex)
+  dd_1_2 = boundary(1, complex)
+
+  addTopoTransform!(td, :IP, x->(d_0_1*x), :IL)
+  addTopoTransform!(td, :TP, x->(d_0_1*x), :TL)
+  addTopoTransform!(td, :IL, x->(d_1_2*x), :IS)
+  addTopoTransform!(td, :TL, x->(d_1_2*x), :TS)
 
   # TODO: Add Hodge * operator instead of just swapping bound/cobound
-  addTopoTransform!(td, :IP2, x->(bound_1_0*x), :IL2)
-  addTopoTransform!(td, :TP2, x->(bound_1_0*x), :TL2)
+  addTopoTransform!(td, :IP2, x->(dd_0_1*x), :IL2)
+  addTopoTransform!(td, :TP2, x->(dd_0_1*x), :TL2)
+  addTopoTransform!(td, :IL2, x->(dd_1_2*x), :IS2)
+  addTopoTransform!(td, :TL2, x->(dd_1_2*x), :TS2)
 
   td
 end
@@ -257,7 +265,14 @@ end
 
 function vectorfield(td::AbstractTontiDiagram, complex::Union{AbstractDeltaSet1D,
                                                               AbstractDeltaSet2D})
-  dual = EmbeddedDeltaDualComplex2D(complex)
+  star_arr = Array{Union{Number,AbstractArray},1}(undef, 3)
+  if(has_part(complex, :Point))
+    dual = EmbeddedDeltaDualComplex2D(complex)
+    star_arr .= [⋆(i, dual) for i in 0:2]
+  else
+    star_arr .= ones(Int64,3)
+  end
+
   # Define order of evaluation for transformations
   var_deps = [Set(filter(t -> !(td[td[t,:src], :t_type] in [:temporal, :bc]), incident(td, i, :out_var)))
               for i in 1:nparts(td, :Variable)] # deps per variable
@@ -338,14 +353,13 @@ function vectorfield(td::AbstractTontiDiagram, complex::Union{AbstractDeltaSet1D
 
   transforms = Array{Pair{Array{Tuple{Int, Int},1},Array{Tuple{Int, Int},1}},1}()
   masks = Dict{Pair{Int, Int}, Array{Number}}()
-  star_arr = [⋆(i, dual) for i in 0:2]
-  star_op = Array{Union{Int64,AbstractArray},1}()
+  star_op = Array{Union{Number,AbstractArray},1}()
 
   for t in 1:nparts(td, :Transform)
     in_vars = [(x ∈ time_vars) ? timevar_to_ind[x] : v2ind[x]
                for x in td[incident(td, t, :tgt), :in_var]]
     out_vars = v2ind[td[incident(td, t, :src), :out_var]]
-    push!(star_op, gen_star(first(first(in_vars)), first(first(out_vars)), td, dual))
+    push!(star_op, gen_star(first(first(in_vars)), first(first(out_vars)), td, star_arr))
     push!(transforms, in_vars => out_vars)
   end
   function system(du, u, t, p)
