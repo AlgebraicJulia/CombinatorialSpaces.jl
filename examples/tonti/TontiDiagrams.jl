@@ -1,3 +1,11 @@
+""" Tonti Diagrams
+This file includes a framework for constructing and evaluating Tonti diagrams.
+Tonti diagrams are stored as ACSets, and have an imperative interface for
+describing physical variables and the relationships between them. This tooling
+also lets a Tonti diagram be converted to a vectorfield, allowing for
+simulation of physical systems through any traditional vectorfield solver.
+"""
+
 module Tonti
 using Catlab.Present
 using Catlab.Theories
@@ -11,17 +19,23 @@ import CombinatorialSpaces.DualSimplicialSets: EmbeddedDeltaDualComplex2D, ⋆
 export TontiDiagram, AbstractTontiDiagram, addTransform!, addSpace!,
        addTime!, vectorfield, disj_union, gen_form, addBC!
 
-
+# Helper Function for constructing dual complexes
 function EmbeddedDeltaDualComplex2D(d::EmbeddedDeltaSet2D{O, D}) where {O, D}
   sd = EmbeddedDeltaDualComplex2D{O, eltype(D), D}(d)
   subdivide_duals!(sd, Barycenter())
   sd
 end;
 
+""" Construct a 0-form based on a scalar function
+
+This operator accepts a scalar function and evaulates it at each point on the
+simplex, returning a 0-form.
+"""
 function gen_form(s::EmbeddedDeltaSet2D, f::Function)
   map(f, point(s))
 end
 
+# This defines the structure of the Tonti Diagram ACSet
 @present TheoryTontiDiagram(FreeSchema) begin
   Func::Data
   Label::Data
@@ -46,17 +60,30 @@ end
   v_label::Attr(Variable, Label)
 end
 
+# These functions are necessary for defining a TontiDiagram data structure from
+# the ACSet
 const AbstractTontiDiagram = AbstractACSetType(TheoryTontiDiagram)
 const TontiDiagram = ACSetType(TheoryTontiDiagram,index=[:src, :tgt, :corner,
                                                          :in_var, :out_var],
                                                  unique_index=[:v_label,
                                                                :c_label])
 
-const OpenTontiDiagramOb, OpenTontiDiagram = OpenACSetTypes(TontiDiagram,:Corner)
+# Define an interface for an OpenTontiDiagram which allows Tonti diagrams to
+# be composed over their corners
+const OpenTontiDiagramOb, OpenTontiDiagram = OpenACSetTypes(TontiDiagram,
+                                                            :Corner)
 Open(td::AbstractTontiDiagram) = begin
-  OpenTontiDiagram{Function, Symbol}(td, FinFunction(collect(1:nparts(td, :Corner)), nparts(td, :Corner)))
+  OpenTontiDiagram{Function, Symbol}(td,
+                                     FinFunction(collect(1:nparts(td, :Corner)),
+                                                 nparts(td, :Corner)))
 end
 
+""" Constructor for Tonti Diagram
+
+This constructor generates an empty Tonti diagram of a given dimension. The
+dimensionality determines which spatial elements will be included in the
+data structure.
+"""
 function TontiDiagram(dimension = 3)
   td = TontiDiagram{Function, Symbol}()
   corners = ['P', 'L', 'S', 'V']
@@ -71,6 +98,10 @@ function TontiDiagram(dimension = 3)
   td
 end
 
+""" Constructor for Tonti Diagram with variables
+
+This constructor accepts variables which are each associated with a corner.
+"""
 function TontiDiagram(dimension::Int, variables::Array{Pair{Symbol, Symbol}})
   td = TontiDiagram(dimension)
   add_parts!(td, :Variable, length(variables), v_label=first.(variables),
@@ -78,11 +109,20 @@ function TontiDiagram(dimension::Int, variables::Array{Pair{Symbol, Symbol}})
   td
 end
 
+# Helper functions for working on Tonti diagrams
 dimension(td::AbstractTontiDiagram) = nparts(td, :Corner) ÷ 4 - 1
-
 var_corner(td::AbstractTontiDiagram, label::Symbol) = td[incident(td, label, :v_label), :corner]
 get_var_ind(td::AbstractTontiDiagram, label::Symbol) = first(incident(td, label, :v_label))
 
+""" Generates the appropriate hodge star operator between given corners
+
+This operator will produce a scalar identity if the operator is between corners
+where a hodge star is no defined.
+
+TODO: This should throw an error instead of failing silently for invalid
+inputs. Currently fails silently because the hodge star is added between all
+transforms (this needs to be fixed in vectorfield before here)
+"""
 function gen_star(dom::Int64, codom::Int64, td::AbstractTontiDiagram, dual::EmbeddedDeltaDualComplex2D)
   corner2ind = Dict('P'=>0, 'L'=>1, 'S'=>2, 'V'=>3)
   # Check for which ⋆ operator to apply
@@ -101,6 +141,12 @@ function gen_star(dom::Int64, codom::Int64, td::AbstractTontiDiagram, dual::Embe
   end
 end
 
+""" Selects appropriate hodge star operator between given corners from a given
+pre-computed array
+
+TODO: This should also throw an error, but currently fails silently. See other
+gen_star for details.
+"""
 function gen_star(dom::Int64, codom::Int64, td::AbstractTontiDiagram, star_arr)
   corner2ind = Dict('P'=>0, 'L'=>1, 'S'=>2, 'V'=>3)
   # Check for which ⋆ operator to apply
@@ -117,7 +163,14 @@ function gen_star(dom::Int64, codom::Int64, td::AbstractTontiDiagram, star_arr)
   end
 end
 
-function addTransform!(td::AbstractTontiDiagram, complex::EmbeddedDeltaSet2D, dom::Array{Symbol}, func::Function, codom::Array{Symbol})
+""" Adds a transformation to the Tonti diagram between given variables
+
+TODO: Remove this function, since hodge-star is not defined element-wise and
+      cannot be added at this step.
+"""
+function addTransform!(td::AbstractTontiDiagram, complex::EmbeddedDeltaSet2D,
+                       dom::Array{Symbol}, func::Function,
+                       codom::Array{Symbol})
   # Check rules for transforms
   dual = EmbeddedDeltaDualComplex2D(complex)
   dom_sim = var_corner(td, first(dom))
@@ -135,6 +188,13 @@ function addTransform!(td::AbstractTontiDiagram, complex::EmbeddedDeltaSet2D, do
   add_parts!(td, :OutParam, length(codom), src=tran, out_var=[get_var_ind(td, v) for v in codom])
 end
 
+""" Adds a transformation to the Tonti diagram between given variables
+
+This expects a Julia function which will take as input an array of values the
+length of argument `dom` and will return an array the length of argument
+`codom`. The order of variables passed to and recieved from `func` is
+determined by the order in `dom` and `codom`.
+"""
 function addTransform!(td::AbstractTontiDiagram, dom::Array{Symbol}, func::Function, codom::Array{Symbol})
   # Check rules for transforms
   dom_sim = var_corner(td, first(dom))
@@ -149,6 +209,11 @@ function addTransform!(td::AbstractTontiDiagram, dom::Array{Symbol}, func::Funct
   add_parts!(td, :OutParam, length(codom), src=tran, out_var=[get_var_ind(td, v) for v in codom])
 end
 
+""" Adds a topological transformation to the Tonti diagram between given variables
+
+The primary purpose of this function is to ensure that the variables are
+appropriate for a topological transformation to exist between them.
+"""
 function addTopoTransform!(td::AbstractTontiDiagram, dom::Symbol, func::Function, codom::Symbol)
   v_dom = incident(td, dom, [:corner, :c_label])
   v_codom = incident(td, codom, [:corner, :c_label])
@@ -166,6 +231,11 @@ function addTopoTransform!(td::AbstractTontiDiagram, dom::Symbol, func::Function
   return true
 end
 
+""" Adds a temporal transformation to the Tonti diagram between given variables
+
+The primary purpose of this function is to ensure that the variables are
+appropriate for a temporal transformation to exist between them.
+"""
 function addTempTransform!(td::AbstractTontiDiagram, dom::Symbol, func::Function, codom::Symbol)
   v_dom = incident(td, dom, [:corner, :c_label])
   v_codom = incident(td, codom, [:corner, :c_label])
@@ -183,6 +253,12 @@ function addTempTransform!(td::AbstractTontiDiagram, dom::Symbol, func::Function
   return true
 end
 
+""" Adds a boundary condition to a Tonti Diagram
+
+TODO: Extend this to beyond a mask over certain values. Currently this allows
+for constant boundaries by applying a mask to the vectorfield result, but this
+does not generalize to all mathematical boundary conditions.
+"""
 function addBC!(td::AbstractTontiDiagram, dom::Symbol, mask::Function)
   v_dom = incident(td, dom, [:v_label])
 
@@ -191,6 +267,11 @@ function addBC!(td::AbstractTontiDiagram, dom::Symbol, mask::Function)
   add_part!(td, :OutParam, src=tran, out_var=v_dom[1])
 end
 
+""" Adds topological transformations to a 1D Tonti Diagram
+
+Note that since the complex is not embedded, we are unable to use a true
+dual derivative.
+"""
 function addSpace!(td::AbstractTontiDiagram, complex::AbstractDeltaSet1D)
   bound_1_0   = boundary(1,complex)
   cobound_0_1 = d(0,complex)
@@ -204,6 +285,9 @@ function addSpace!(td::AbstractTontiDiagram, complex::AbstractDeltaSet1D)
   td
 end
 
+""" Adds topological transformations to a 2D Tonti Diagram
+(from an embedded complex)
+"""
 function addSpace!(td::AbstractTontiDiagram, complex::EmbeddedDeltaSet2D)
   dual = EmbeddedDeltaDualComplex2D(complex)
   d_0_1 = d(0,complex)
@@ -225,6 +309,14 @@ function addSpace!(td::AbstractTontiDiagram, complex::EmbeddedDeltaSet2D)
   td
 end
 
+""" Adds topological transformations to a 2D Tonti Diagram
+
+Note that since the complex is not embedded, we are unable to use a true
+dual derivative.
+
+TODO: These should be able to be removed, but considerations must be made
+for what it means for a particle system to exist on an embedded complex.
+"""
 function addSpace!(td::AbstractTontiDiagram, complex::AbstractDeltaSet2D)
   d_0_1 = d(0,complex)
   d_1_2 = d(1,complex)
@@ -246,6 +338,14 @@ function addSpace!(td::AbstractTontiDiagram, complex::AbstractDeltaSet2D)
   td
 end
 
+""" Adds temporal transformations to a Tonti Diagram
+
+Currently all temporal transformations simply apply Euler's method. When
+attached to DifferentialEquations, more complex timestepping can be
+accomplished.
+
+TODO: Develop more time-stepping techniques for the Tonti diagram structure
+"""
 function addTime!(td::AbstractTontiDiagram; dt=1)
   addTempTransform!(td, :TP, x->dt*x, :IP)
   addTempTransform!(td, :TL, x->dt*x, :IL)
@@ -263,8 +363,20 @@ function addTime!(td::AbstractTontiDiagram; dt=1)
   end
 end
 
+""" Generates a vectorfield for simulation of a system given a Tonti diagram
+
+This function performs a topological sort to determine dependencies between
+variables (forgetting the temporal transformations). It then determines the
+necessary set of state variables to define the value of each variable for each
+time step.
+
+TODO: Convert dependencies to Graph in Catlab and take advantage of the
+topological sort tooling from there. Will significantly reduce the size of this
+function.
+"""
 function vectorfield(td::AbstractTontiDiagram, complex::Union{AbstractDeltaSet1D,
                                                               AbstractDeltaSet2D})
+  # Initialize hodge-stars if the tonti diagram is embedded
   star_arr = Array{Union{Number,AbstractArray},1}(undef, 3)
   if(has_part(complex, :Point))
     dual = EmbeddedDeltaDualComplex2D(complex)
@@ -283,7 +395,7 @@ function vectorfield(td::AbstractTontiDiagram, complex::Union{AbstractDeltaSet1D
   var_to_bc = Dict(map(filter(t->(td[t, :t_type] == :bc), collect(1:nparts(td, :Transform)))) do t
                                 td[incident(td, t,:src)[1], :out_var] => t
                               end
-                             )
+                             ) # Map from variables to their boundary conditions (if any)
   evaluated = [td[t, :t_type] == :bc for t in 1:nparts(td, :Transform)]
   to_evaluate = Array{Int64, 1}()
   to_eval_vars = Array{Int64, 1}()
@@ -344,6 +456,7 @@ function vectorfield(td::AbstractTontiDiagram, complex::Union{AbstractDeltaSet1D
   # Initialize memory
   data, v2ind = initData(td, complex)
 
+  # Create maps from tonti diagram variables to the initialized memory
   timevar_to_ind = Dict{Int, Tuple{Int,Int}}()
   for v in 1:length(time_vars)
     cur_corner = td[time_vars[v], :corner]
@@ -362,6 +475,8 @@ function vectorfield(td::AbstractTontiDiagram, complex::Union{AbstractDeltaSet1D
     push!(star_op, gen_star(first(first(in_vars)), first(first(out_vars)), td, star_arr))
     push!(transforms, in_vars => out_vars)
   end
+
+  # Vectorfield function definition
   function system(du, u, t, p)
     # Reset data to 0
     for i in 1:length(data)
@@ -398,6 +513,8 @@ function vectorfield(td::AbstractTontiDiagram, complex::Union{AbstractDeltaSet1D
   system, [td[v, :v_label] => size(data[v2ind[v][1]])[2] for v in time_vars]
 end
 
+# Helper function which intializes the data storage for vectorfield for a 1D
+# system
 function initData(td::AbstractTontiDiagram, complex::AbstractDeltaSet1D)
   data = Array{Array{Float64, 2}, 1}()
   corner_to_len = Dict(:IP => nv(complex), :TP => nv(complex), :IL2 => nv(complex), :TL2 => nv(complex),
@@ -412,6 +529,8 @@ function initData(td::AbstractTontiDiagram, complex::AbstractDeltaSet1D)
   data, v2ind
 end
 
+# Helper function which intializes the data storage for vectorfield for a 2D
+# system
 function initData(td::AbstractTontiDiagram, complex::AbstractDeltaSet2D)
   data = Array{Array{Float64, 2}, 1}()
   c_nv = nv(complex)
@@ -430,6 +549,16 @@ function initData(td::AbstractTontiDiagram, complex::AbstractDeltaSet2D)
   data, v2ind
 end
 
+
+""" Constructs a Tonti diagram from two source Tonti diagrams, combining over
+the corners.
+
+The result Tonti diagram contains all information from the independent Tonti
+diagrams and with variables on the same corners as before.
+
+TODO: Make this accept a UWD so that tonti diagrams can be joined over shared
+variables as well (also just provides a cleaner joining interface)
+"""
 function disj_union(td1::AbstractTontiDiagram, td2::AbstractTontiDiagram)
   o_td1 = Open(td1)
   o_td2 = Open(td2)
