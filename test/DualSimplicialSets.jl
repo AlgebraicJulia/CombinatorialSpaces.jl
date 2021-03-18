@@ -59,6 +59,12 @@ subdivide_duals!(s, Barycenter())
 @test ⋆(0,s) ≈ Diagonal([0.5, 1.5, 1.0])
 @test ⋆(1,s) ≈ Diagonal([1, 0.5])
 @test ⋆(s, VForm([0,2,0]))::DualForm{1} ≈ DualForm{1}([0,3,0])
+@test ∧(0,0,s, [1,2,3], [3,4,7]) ≈ [3,8,21]
+@test ∧(s, VForm([1,2,3]), VForm([3,4,7]))::VForm ≈ VForm([3,8,21])
+@test ∧(s, VForm([1,1,1]), EForm([2.5, 5.0]))::EForm ≈ EForm([2.5, 5.0])
+@test ∧(s, VForm([1,1,0]), EForm([2.5, 5.0])) ≈ EForm([2.5, 2.5])
+vform, eform = VForm([1.5, 2, 2.5]), EForm([13, 7])
+@test ∧(s, vform, eform) ≈ ∧(s, eform, vform)
 
 # Path graph on 5 vertices with regular lengths.
 #

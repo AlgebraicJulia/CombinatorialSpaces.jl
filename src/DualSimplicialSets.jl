@@ -8,12 +8,12 @@ export DualSimplex, DualV, DualE, DualTri, DualChain, DualForm,
   OrientedDeltaDualComplex2D, EmbeddedDeltaDualComplex2D,
   SimplexCenter, Barycenter, Circumcenter, Incenter, geometric_center,
   elementary_duals, dual_boundary, dual_derivative,
-  ⋆, hodge_star, δ, codifferential, Δ, laplace_beltrami,
+  ⋆, hodge_star, δ, codifferential, Δ, laplace_beltrami, ∧, wedge,
   vertex_center, edge_center, triangle_center, dual_triangle_vertices,
   dual_point, dual_volume, subdivide_duals!
 
 import Base: ndims
-using LinearAlgebra: Diagonal
+using LinearAlgebra: Diagonal, dot
 using SparseArrays
 using StaticArrays: @SVector, SVector
 
@@ -80,6 +80,16 @@ elementary_duals(::Type{Val{0}}, s::AbstractDeltaDualComplex1D, v::Int) =
   incident(s, vertex_center(s,v), :D_∂v1)
 elementary_duals(::Type{Val{1}}, s::AbstractDeltaDualComplex1D, e::Int) =
   SVector(edge_center(s,e))
+
+""" Boundary dual vertices of a dual triangle.
+
+This accessor assumes that the simplicial identities for the dual hold.
+"""
+function dual_triangle_vertices(s::AbstractACSet, t...)
+  SVector(s[s[t..., :D_∂e1], :D_∂v1],
+          s[s[t..., :D_∂e0], :D_∂v1],
+          s[s[t..., :D_∂e0], :D_∂v0])
+end
 
 # 1D oriented dual complex
 #-------------------------
@@ -185,6 +195,13 @@ hodge_diag(::Type{Val{0}}, s::AbstractDeltaDualComplex1D, v::Int) =
 hodge_diag(::Type{Val{1}}, s::AbstractDeltaDualComplex1D, e::Int) =
   1 / volume(Val{1},s,e)
 
+function wedge_zero_form(::Type{Val{1}}, s::AbstractACSet, vform, eform, e::Int)
+  sub_edges = SVector{2}(incident(s, edge_center(s, e), :D_∂v0))
+  vs = s[sub_edges, :D_∂v1]
+  coeffs = map(e′ -> dual_volume(Val{1},s,e′), sub_edges) / volume(Val{1},s,e)
+  dot(coeffs, vform[vs]) * eform[e]
+end
+
 """ Compute geometric subdivision for embedded dual complex.
 
 Supports different methods of subdivision through the choice of geometric
@@ -257,14 +274,6 @@ elementary_duals(::Type{Val{1}}, s::AbstractDeltaDualComplex2D, e::Int) =
   incident(s, edge_center(s,e), :D_∂v1)
 elementary_duals(::Type{Val{2}}, s::AbstractDeltaDualComplex2D, t::Int) =
   SVector(triangle_center(s,t))
-
-""" Boundary dual vertices of a  dual triangle
-
-This accessor assumes that the simplicial identities for the dual hold
-"""
-function dual_triangle_vertices(s::AbstractDeltaDualComplex2D,t...)
-  SVector(s[s[t..., :D_∂e1], :D_∂v1], s[s[t..., :D_∂e0], :D_∂v1], s[s[t..., :D_∂e0], :D_∂v0])
-end
 
 # 2D oriented dual complex
 #-------------------------
@@ -589,6 +598,32 @@ The linear operator on primal ``n``-forms defined by ``Δ f := δ d f``, where
 """ Alias for the Laplace-Beltrami operator [`Δ`](@ref).
 """
 const laplace_beltrami = Δ
+
+""" Wedge product of discrete forms.
+
+Specifically, this is the discrete primal-primal wedge product introduced in
+(Hirani, 2003, Chapter 7) and (Desbrun et al, 2005). It depends on the embedding
+and requires the dual complex.
+"""
+∧(s::AbstractACSet, α::SimplexForm{k}, β::SimplexForm{l}) where {k,l} =
+  SimplexForm{k+l}(∧(Tuple{k,l}, s, α.data, β.data))
+@inline ∧(k::Int, l::Int, s::AbstractACSet, args...) = ∧(Tuple{k,l}, s, args...)
+
+function ∧(::Type{Tuple{k,l}}, s::AbstractACSet, α, β) where {k,l}
+  map(simplices(k+l, s)) do x
+    ∧(Tuple{k,l}, s, α, β, x)
+  end
+end
+
+∧(::Type{Tuple{0,0}}, s::AbstractACSet, f, g, x::Int) = f[x]*g[x]
+∧(::Type{Tuple{k,0}}, s::AbstractACSet, α, g, x::Int) where k =
+  wedge_zero_form(Val{k}, s, g, α, x)
+∧(::Type{Tuple{0,k}}, s::AbstractACSet, f, β, x::Int) where k =
+  wedge_zero_form(Val{k}, s, f, β, x)
+
+""" Alias for the wedge product operator [`∧`](@ref).
+"""
+const wedge = ∧
 
 # Euclidean geometry
 ####################
