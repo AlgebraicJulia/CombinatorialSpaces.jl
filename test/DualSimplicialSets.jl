@@ -59,6 +59,7 @@ subdivide_duals!(s, Barycenter())
 @test ⋆(0,s) ≈ Diagonal([0.5, 1.5, 1.0])
 @test ⋆(1,s) ≈ Diagonal([1, 0.5])
 @test ⋆(s, VForm([0,2,0]))::DualForm{1} ≈ DualForm{1}([0,3,0])
+
 @test ∧(0,0,s, [1,2,3], [3,4,7]) ≈ [3,8,21]
 @test ∧(s, VForm([1,2,3]), VForm([3,4,7]))::VForm ≈ VForm([3,8,21])
 @test ∧(s, VForm([1,1,1]), EForm([2.5, 5.0]))::EForm ≈ EForm([2.5, 5.0])
@@ -153,6 +154,10 @@ subdivide_duals!(s, Barycenter())
                         -2.236  1  0;
                          0     -1 -2.236], atol=1e-3)
 @test δ(s, EForm([0.5,1.5,0.5])) isa VForm
+
+@test ∧(s, VForm([2,2,2]), TriForm([2.5]))::TriForm ≈ TriForm([2.5])
+vform, triform = VForm([1.5, 2, 2.5]), TriForm([7.5])
+@test ∧(s, vform, triform) ≈ ∧(s, triform, vform)
 
 subdivide_duals!(s, Circumcenter())
 @test dual_point(s, triangle_center(s, 1)) ≈ Point2D(1/2, 1/2)

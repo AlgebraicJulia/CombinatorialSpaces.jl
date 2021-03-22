@@ -7,7 +7,7 @@ export DualSimplex, DualV, DualE, DualTri, DualChain, DualForm,
   AbstractDeltaDualComplex2D, DeltaDualComplex2D,
   OrientedDeltaDualComplex2D, EmbeddedDeltaDualComplex2D,
   SimplexCenter, Barycenter, Circumcenter, Incenter, geometric_center,
-  elementary_duals, dual_boundary, dual_derivative,
+  subsimplices, elementary_duals, dual_boundary, dual_derivative,
   ⋆, hodge_star, δ, codifferential, Δ, laplace_beltrami, ∧, wedge,
   vertex_center, edge_center, triangle_center, dual_triangle_vertices,
   dual_point, dual_volume, subdivide_duals!
@@ -75,6 +75,11 @@ vertex_center(s::AbstractACSet, args...) = s[args..., :vertex_center]
 """ Dual vertex corresponding to center of primal edge.
 """
 edge_center(s::AbstractACSet, args...) = s[args..., :edge_center]
+
+subsimplices(::Type{Val{1}}, s::AbstractACSet, e::Int) =
+  SVector{2}(incident(s, edge_center(s, e), :D_∂v0))
+
+primal_vertex(::Type{Val{1}}, s::AbstractACSet, e...) = s[e..., :D_∂v1]
 
 elementary_duals(::Type{Val{0}}, s::AbstractDeltaDualComplex1D, v::Int) =
   incident(s, vertex_center(s,v), :D_∂v1)
@@ -195,13 +200,6 @@ hodge_diag(::Type{Val{0}}, s::AbstractDeltaDualComplex1D, v::Int) =
 hodge_diag(::Type{Val{1}}, s::AbstractDeltaDualComplex1D, e::Int) =
   1 / volume(Val{1},s,e)
 
-function wedge_zero_form(::Type{Val{1}}, s::AbstractACSet, vform, eform, e::Int)
-  sub_edges = SVector{2}(incident(s, edge_center(s, e), :D_∂v0))
-  vs = s[sub_edges, :D_∂v1]
-  coeffs = map(e′ -> dual_volume(Val{1},s,e′), sub_edges) / volume(Val{1},s,e)
-  dot(coeffs, vform[vs]) * eform[e]
-end
-
 """ Compute geometric subdivision for embedded dual complex.
 
 Supports different methods of subdivision through the choice of geometric
@@ -267,6 +265,12 @@ const DeltaDualComplex2D = CSetType(SchemaDualComplex2D,
 """ Dual vertex corresponding to center of primal triangle.
 """
 triangle_center(s::AbstractACSet, args...) = s[args..., :tri_center]
+
+subsimplices(::Type{Val{2}}, s::AbstractACSet, t::Int) =
+  SVector{6}(incident(s, triangle_center(s,t), [:D_∂e0, :D_∂v0]))
+
+primal_vertex(::Type{Val{2}}, s::AbstractACSet, t...) =
+  primal_vertex(Val{1}, s, s[t..., :D_∂e2])
 
 elementary_duals(::Type{Val{0}}, s::AbstractDeltaDualComplex2D, v::Int) =
   incident(s, vertex_center(s,v), @SVector [:D_∂e1, :D_∂v1])
@@ -483,6 +487,22 @@ volume(s::AbstractACSet, x::DualSimplex{n}, args...) where n =
 @inline dual_volume(n::Int, s::AbstractACSet, args...) =
   dual_volume(Val{n}, s, args...)
 
+""" List of dual simplices comprising the subdivision of a primal simplex.
+
+A primal ``n``-simplex is always subdivided into ``n!`` dual ``n``-simplices,
+not be confused with the [`elementary_duals`](@ref) which have complementary
+dimension.
+"""
+subsimplices(s::AbstractACSet, x::Simplex{n}) where n =
+  DualSimplex{n}(subsimplices(Val{n}, s, x.data))
+@inline subsimplices(n::Int, s::AbstractACSet, args...) =
+  subsimplices(Val{n}, s, args...)
+
+""" Primal vertex associated with a dual simplex.
+"""
+@inline primal_vertex(n::Int, s::AbstractACSet, args...) =
+  primal_vertex(Val{n}, s, args...)
+
 """ List of elementary dual simplices corresponding to primal simplex.
 
 In general, in an ``n``-dimensional complex, the elementary duals of primal
@@ -620,6 +640,13 @@ end
   wedge_zero_form(Val{k}, s, g, α, x)
 ∧(::Type{Tuple{0,k}}, s::AbstractACSet, f, β, x::Int) where k =
   wedge_zero_form(Val{k}, s, f, β, x)
+
+function wedge_zero_form(::Type{Val{k}}, s::AbstractACSet, f, α, x::Int) where k
+  subs = subsimplices(k, s, x)
+  vs = primal_vertex(k, s, subs)
+  coeffs = map(x′ -> dual_volume(k,s,x′), subs) / volume(k,s,x)
+  dot(coeffs, f[vs]) * α[x] / factorial(k)
+end
 
 """ Alias for the wedge product operator [`∧`](@ref).
 """
