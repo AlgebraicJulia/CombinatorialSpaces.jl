@@ -7,7 +7,7 @@ export DualSimplex, DualV, DualE, DualTri, DualChain, DualForm,
   AbstractDeltaDualComplex2D, DeltaDualComplex2D,
   OrientedDeltaDualComplex2D, EmbeddedDeltaDualComplex2D,
   SimplexCenter, Barycenter, Circumcenter, Incenter, geometric_center,
-  subsimplices, elementary_duals, dual_boundary, dual_derivative,
+  subsimplices, primal_vertex, elementary_duals, dual_boundary, dual_derivative,
   ⋆, hodge_star, δ, codifferential, Δ, laplace_beltrami, ∧, wedge,
   vertex_center, edge_center, triangle_center, dual_triangle_vertices,
   dual_point, dual_volume, subdivide_duals!
@@ -267,7 +267,7 @@ const DeltaDualComplex2D = CSetType(SchemaDualComplex2D,
 triangle_center(s::AbstractACSet, args...) = s[args..., :tri_center]
 
 subsimplices(::Type{Val{2}}, s::AbstractACSet, t::Int) =
-  SVector{6}(incident(s, triangle_center(s,t), [:D_∂e0, :D_∂v0]))
+  SVector{6}(incident(s, triangle_center(s,t), @SVector [:D_∂e1, :D_∂v0]))
 
 primal_vertex(::Type{Val{2}}, s::AbstractACSet, t...) =
   primal_vertex(Val{1}, s, s[t..., :D_∂e2])
@@ -415,6 +415,25 @@ hodge_diag(::Type{Val{1}}, s::AbstractDeltaDualComplex2D, e::Int) =
 hodge_diag(::Type{Val{2}}, s::AbstractDeltaDualComplex2D, t::Int) =
   1 / volume(Val{2},s,t)
 
+function ∧(::Type{Tuple{1,1}}, s::AbstractACSet, α, β, x::Int)
+  # XXX: This calculation of the volume coefficients is awkward due to the
+  # design decision described in `SchemaDualComplex1D`.
+  dual_vs = vertex_center(s, triangle_vertices(s, x))
+  dual_es = sort(SVector{6}(incident(s, triangle_center(s, x), :D_∂v0)),
+                 by=e -> s[e,:D_∂v1] .== dual_vs, rev=true)[1:3]
+  coeffs = map(dual_es) do e
+    sum(dual_volume(2, s, SVector{2}(incident(s, e, :D_∂e1))))
+  end / volume(2, s, x)
+
+  # Wedge product of two primal 1-forms, as in (Hirani 2003, Example 7.1.2).
+  # This formula is not the same as (Hirani 2003, Equation 7.1.2) but it is
+  # equivalent.
+  e0, e1, e2 = ∂(2,0,s,x), ∂(2,1,s,x), ∂(2,2,s,x)
+  dot(coeffs, SVector(α[e2] * β[e1] - α[e1] * β[e2],
+                      α[e2] * β[e0] - α[e0] * β[e2],
+                      α[e1] * β[e0] - α[e0] * β[e1])) / 2
+end
+
 function subdivide_duals!(s::EmbeddedDeltaDualComplex2D, args...)
   subdivide_duals_2d!(s, args...)
   precompute_volumes_2d!(s)
@@ -492,6 +511,9 @@ volume(s::AbstractACSet, x::DualSimplex{n}, args...) where n =
 A primal ``n``-simplex is always subdivided into ``n!`` dual ``n``-simplices,
 not be confused with the [`elementary_duals`](@ref) which have complementary
 dimension.
+
+The returned list is ordered such that subsimplices with the same primal vertex
+appear consecutively.
 """
 subsimplices(s::AbstractACSet, x::Simplex{n}) where n =
   DualSimplex{n}(subsimplices(Val{n}, s, x.data))
@@ -500,6 +522,8 @@ subsimplices(s::AbstractACSet, x::Simplex{n}) where n =
 
 """ Primal vertex associated with a dual simplex.
 """
+primal_vertex(s::AbstractACSet, x::DualSimplex{n}) where n =
+  V(primal_vertex(Val{n}, s, x.data))
 @inline primal_vertex(n::Int, s::AbstractACSet, args...) =
   primal_vertex(Val{n}, s, args...)
 

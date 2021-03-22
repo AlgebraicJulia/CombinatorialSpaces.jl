@@ -95,6 +95,7 @@ s = DeltaDualComplex2D(primal_s)
 @test nparts(s, :DualV) == nv(primal_s) + ne(primal_s) + ntriangles(primal_s)
 @test nparts(s, :DualE) == 2*ne(primal_s) + 6*ntriangles(primal_s)
 @test nparts(s, :DualTri) == 6*ntriangles(primal_s)
+@test primal_vertex(s, subsimplices(s, Tri(1)))::V == V([1,1,2,2,3,3])
 
 dual_vs = elementary_duals(2,s,2)
 @test dual_vs == [triangle_center(s,2)]
@@ -158,6 +159,9 @@ subdivide_duals!(s, Barycenter())
 @test ∧(s, VForm([2,2,2]), TriForm([2.5]))::TriForm ≈ TriForm([2.5])
 vform, triform = VForm([1.5, 2, 2.5]), TriForm([7.5])
 @test ∧(s, vform, triform) ≈ ∧(s, triform, vform)
+eform1, eform2 = EForm([1.5, 2, 2.5]), EForm([3, 7, 10])
+@test ∧(s, eform1, eform1)::TriForm ≈ TriForm([0])
+@test ∧(s, eform1, eform2) ≈ -∧(s, eform2, eform1)
 
 subdivide_duals!(s, Circumcenter())
 @test dual_point(s, triangle_center(s, 1)) ≈ Point2D(1/2, 1/2)
