@@ -60,6 +60,13 @@ subdivide_duals!(s, Barycenter())
 @test ⋆(1,s) ≈ Diagonal([1, 0.5])
 @test ⋆(s, VForm([0,2,0]))::DualForm{1} ≈ DualForm{1}([0,3,0])
 
+@test ∧(0,0,s, [1,2,3], [3,4,7]) ≈ [3,8,21]
+@test ∧(s, VForm([1,2,3]), VForm([3,4,7]))::VForm ≈ VForm([3,8,21])
+@test ∧(s, VForm([1,1,1]), EForm([2.5, 5.0]))::EForm ≈ EForm([2.5, 5.0])
+@test ∧(s, VForm([1,1,0]), EForm([2.5, 5.0])) ≈ EForm([2.5, 2.5])
+vform, eform = VForm([1.5, 2, 2.5]), EForm([13, 7])
+@test ∧(s, vform, eform) ≈ ∧(s, eform, vform)
+
 # Path graph on 5 vertices with regular lengths.
 #
 # Equals the graph Laplacian of the underlying graph, except at the boundary.
@@ -88,6 +95,7 @@ s = DeltaDualComplex2D(primal_s)
 @test nparts(s, :DualV) == nv(primal_s) + ne(primal_s) + ntriangles(primal_s)
 @test nparts(s, :DualE) == 2*ne(primal_s) + 6*ntriangles(primal_s)
 @test nparts(s, :DualTri) == 6*ntriangles(primal_s)
+@test primal_vertex(s, subsimplices(s, Tri(1)))::V == V([1,1,2,2,3,3])
 
 dual_vs = elementary_duals(2,s,2)
 @test dual_vs == [triangle_center(s,2)]
@@ -147,6 +155,13 @@ subdivide_duals!(s, Barycenter())
                         -2.236  1  0;
                          0     -1 -2.236], atol=1e-3)
 @test δ(s, EForm([0.5,1.5,0.5])) isa VForm
+
+@test ∧(s, VForm([2,2,2]), TriForm([2.5]))::TriForm ≈ TriForm([2.5])
+vform, triform = VForm([1.5, 2, 2.5]), TriForm([7.5])
+@test ∧(s, vform, triform) ≈ ∧(s, triform, vform)
+eform1, eform2 = EForm([1.5, 2, 2.5]), EForm([3, 7, 10])
+@test ∧(s, eform1, eform1)::TriForm ≈ TriForm([0])
+@test ∧(s, eform1, eform2) ≈ -∧(s, eform2, eform1)
 
 subdivide_duals!(s, Circumcenter())
 @test dual_point(s, triangle_center(s, 1)) ≈ Point2D(1/2, 1/2)

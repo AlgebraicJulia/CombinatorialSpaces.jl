@@ -174,7 +174,9 @@ coface(::Type{Val{(2,2)}}, s::AbstractACSet, args...) = incident(s, args..., :�
 This accessor assumes that the simplicial identities hold.
 """
 function triangle_vertices(s::AbstractACSet, t...)
-  SVector(s[s[t..., :∂e1], :src], s[s[t..., :∂e2], :tgt], s[s[t..., :∂e1], :tgt])
+  SVector(s[s[t..., :∂e1], :src],
+          s[s[t..., :∂e2], :tgt],
+          s[s[t..., :∂e1], :tgt])
 end
 
 """ Add a triangle (2-simplex) to a simplicial set, given its boundary edges.
