@@ -9,7 +9,7 @@ export DualSimplex, DualV, DualE, DualTri, DualChain, DualForm,
   SimplexCenter, Barycenter, Circumcenter, Incenter, geometric_center,
   subsimplices, primal_vertex, elementary_duals, dual_boundary, dual_derivative,
   ⋆, hodge_star, δ, codifferential, Δ, laplace_beltrami, ∧, wedge_product,
-  interior_product, interior_product_flat,
+  interior_product, interior_product_flat, lie_derivative, lie_derivative_flat,
   vertex_center, edge_center, triangle_center, dual_triangle_vertices,
   dual_point, dual_volume, subdivide_duals!
 
@@ -717,14 +717,35 @@ Usually, the interior product is defined for vector fields; this function
 assumes that the flat operator `♭` (not yet implemented) has already been
 applied to yield a 1-form.
 """
-interior_product_flat(n::Int, s::AbstractACSet, X♭::AbstractVector, args...) =
-  interior_product_flat(Val{n}, s, X♭, args...)
+@inline interior_product_flat(n::Int, s::AbstractACSet, args...) =
+  interior_product_flat(Val{n}, s, args...)
 
 function interior_product_flat(::Type{Val{n}}, s::AbstractACSet,
                                X♭::AbstractVector, α::AbstractVector) where n
   # TODO: Global sign `iseven(n*n′) ? +1 : -1`
   n′ = ndims(s) - n
   hodge_star(n′+1,s, wedge_product(n′,1,s, inv_hodge_star(n′,s, α), X♭))
+end
+
+""" Lie derivative of ``n``-form with respect to a vector field (or 1-form).
+
+Specifically, this is the primal-dual Lie derivative defined in (Hirani 2003,
+Section 8.4) and (Desbrun et al 2005, Section 10).
+"""
+lie_derivative(s::AbstractACSet, X♭::EForm, α::DualForm{n}) where n =
+  DualForm{n}(lie_derivative_flat(Val{n}, s, X♭, α.data))
+
+""" Lie derivative of ``n``-form with respect to a 1-form.
+
+Assumes that the flat operator `♭` has already been applied to the vector field.
+"""
+@inline lie_derivative_flat(n::Int, s::AbstractACSet, args...) =
+  lie_derivative_flat(Val{n}, s, args...)
+
+function lie_derivative_flat(::Type{Val{n}}, s::AbstractACSet,
+                             X♭::AbstractVector, α::AbstractVector) where n
+  interior_product_flat(n+1, s, X♭, dual_derivative(n, s, α)) +
+    dual_derivative(n-1, s, interior_product_flat(n, s, X♭, α))
 end
 
 # Euclidean geometry
