@@ -162,6 +162,7 @@ vform, triform = VForm([1.5, 2, 2.5]), TriForm([7.5])
 eform1, eform2 = EForm([1.5, 2, 2.5]), EForm([3, 7, 10])
 @test ∧(s, eform1, eform1)::TriForm ≈ TriForm([0])
 @test ∧(s, eform1, eform2) ≈ -∧(s, eform2, eform1)
+@test interior_product(s, eform1, DualForm{1}([3, 7, 10])) isa DualForm{0}
 
 subdivide_duals!(s, Circumcenter())
 @test dual_point(s, triangle_center(s, 1)) ≈ Point2D(1/2, 1/2)
