@@ -163,6 +163,12 @@ eform1, eform2 = EForm([1.5, 2, 2.5]), EForm([3, 7, 10])
 @test ∧(s, eform1, eform1)::TriForm ≈ TriForm([0])
 @test ∧(s, eform1, eform2) ≈ -∧(s, eform2, eform1)
 
+X♭, α = EForm([1.5, 2, 2.5]), DualForm{1}([3, 7, 10])
+@test interior_product(s, X♭, α) isa DualForm{0}
+@test length(interior_product_flat(1,s, X♭.data, α.data)) == 1
+@test lie_derivative(s, X♭, α) isa DualForm{1}
+@test length(lie_derivative_flat(1,s, X♭.data, α.data)) == 3
+
 subdivide_duals!(s, Circumcenter())
 @test dual_point(s, triangle_center(s, 1)) ≈ Point2D(1/2, 1/2)
 @test ⋆(0,s) ≈ Diagonal([1/4, 1/8, 1/8])

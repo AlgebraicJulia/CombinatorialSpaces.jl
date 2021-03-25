@@ -62,11 +62,11 @@ nzbuilder(::Type{<:SparseMatrixCSC{Tv}}, m::Integer, n::Integer) where {Tv,Ti} =
 
 """ Apply diagonal operator to dense or sparse vector.
 """
-applydiag(f, x::AbstractVector) = [ f(i)*a for (i,a) in enumerate(x) ]
+applydiag(f, x::AbstractVector) = map(f, eachindex(x), x)
 
 function applydiag(f, x::SparseVector)
   I, V = findnz(x)
-  sparsevec(I, [ f(i)*a for (i,a) in zip(I, V) ], length(x))
+  sparsevec(I, map(f, I, V), length(x))
 end
 
 """ Apply linear map defined in terms of structural nonzero values.

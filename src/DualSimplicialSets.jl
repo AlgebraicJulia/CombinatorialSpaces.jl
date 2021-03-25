@@ -8,7 +8,8 @@ export DualSimplex, DualV, DualE, DualTri, DualChain, DualForm,
   OrientedDeltaDualComplex2D, EmbeddedDeltaDualComplex2D,
   SimplexCenter, Barycenter, Circumcenter, Incenter, geometric_center,
   subsimplices, primal_vertex, elementary_duals, dual_boundary, dual_derivative,
-  ⋆, hodge_star, δ, codifferential, Δ, laplace_beltrami, ∧, wedge,
+  ⋆, hodge_star, δ, codifferential, Δ, laplace_beltrami, ∧, wedge_product,
+  interior_product, interior_product_flat, lie_derivative, lie_derivative_flat,
   vertex_center, edge_center, triangle_center, dual_triangle_vertices,
   dual_point, dual_volume, subdivide_duals!
 
@@ -594,13 +595,31 @@ end
 @inline ⋆(n::Int, s::AbstractACSet, args...) = ⋆(Val{n}, s, args...)
 
 ⋆(::Type{Val{n}}, s::AbstractACSet, form::AbstractVector) where n =
-  applydiag(form) do x; hodge_diag(Val{n},s,x) end
+  applydiag(form) do x, a; a * hodge_diag(Val{n},s,x) end
 ⋆(::Type{Val{n}}, s::AbstractACSet) where n =
   Diagonal([ hodge_diag(Val{n},s,x) for x in simplices(n,s) ])
 
 """ Alias for the Hodge star operator [`⋆`](@ref).
 """
 const hodge_star = ⋆
+
+""" Inverse Hodge star operator from dual ``N-n``-forms to primal ``n``-forms.
+
+Confusingly, this is *not* the operator inverse of the Hodge star [`⋆`](@ref)
+because it carries an extra global sign, in analogy to the smooth case
+(Gillette, 2009, Notes on the DEC, Definition 2.27).
+"""
+@inline inv_hodge_star(n::Int, s::AbstractACSet, args...) =
+  inv_hodge_star(Val{n}, s, args...)
+
+function inv_hodge_star(::Type{Val{n}}, s::AbstractACSet,
+                        form::AbstractVector) where n
+  if iseven(n*(ndims(s)-n))
+    applydiag(form) do x, a; a / hodge_diag(Val{n},s,x) end
+  else
+    applydiag(form) do x, a; -a / hodge_diag(Val{n},s,x) end
+  end
+end
 
 """ Codifferential operator from primal ``n`` forms to primal ``n-1``-forms.
 """
@@ -645,9 +664,12 @@ const laplace_beltrami = Δ
 
 """ Wedge product of discrete forms.
 
-Specifically, this is the discrete primal-primal wedge product introduced in
-(Hirani, 2003, Chapter 7) and (Desbrun et al, 2005). It depends on the embedding
-and requires the dual complex.
+The wedge product of a ``k``-form and an ``l``-form is a ``(k+l)``-form.
+
+The DEC and related systems have several flavors of wedge product. This one is
+the discrete primal-primal wedge product introduced in (Hirani, 2003, Chapter 7)
+and (Desbrun et al 2005, Section 8). It depends on the geometric embedding and
+requires the dual complex.
 """
 ∧(s::AbstractACSet, α::SimplexForm{k}, β::SimplexForm{l}) where {k,l} =
   SimplexForm{k+l}(∧(Tuple{k,l}, s, α.data, β.data))
@@ -661,11 +683,14 @@ end
 
 ∧(::Type{Tuple{0,0}}, s::AbstractACSet, f, g, x::Int) = f[x]*g[x]
 ∧(::Type{Tuple{k,0}}, s::AbstractACSet, α, g, x::Int) where k =
-  wedge_zero_form(Val{k}, s, g, α, x)
+  wedge_product_zero(Val{k}, s, g, α, x)
 ∧(::Type{Tuple{0,k}}, s::AbstractACSet, f, β, x::Int) where k =
-  wedge_zero_form(Val{k}, s, f, β, x)
+  wedge_product_zero(Val{k}, s, f, β, x)
 
-function wedge_zero_form(::Type{Val{k}}, s::AbstractACSet, f, α, x::Int) where k
+""" Wedge product of a 0-form and a ``k``-form.
+"""
+function wedge_product_zero(::Type{Val{k}}, s::AbstractACSet,
+                            f, α, x::Int) where k
   subs = subsimplices(k, s, x)
   vs = primal_vertex(k, s, subs)
   coeffs = map(x′ -> dual_volume(k,s,x′), subs) / volume(k,s,x)
@@ -674,7 +699,54 @@ end
 
 """ Alias for the wedge product operator [`∧`](@ref).
 """
-const wedge = ∧
+const wedge_product = ∧
+
+""" Interior product of a vector field (or 1-form) and a ``n``-form.
+
+Specifically, this is the primal-dual interior product defined in (Hirani 2003,
+Section 8.2) and (Desbrun et al 2005, Section 10). Thus it takes a primal vector
+field (or primal 1-form) and a dual ``n``-forms and then returns a dual
+``(n-1)``-form.
+"""
+interior_product(s::AbstractACSet, X♭::EForm, α::DualForm{n}) where n =
+  DualForm{n-1}(interior_product_flat(Val{n}, s, X♭.data, α.data))
+
+""" Interior product of a 1-form and a ``n``-form, yielding an ``(n-1)``-form.
+
+Usually, the interior product is defined for vector fields; this function
+assumes that the flat operator `♭` (not yet implemented) has already been
+applied to yield a 1-form.
+"""
+@inline interior_product_flat(n::Int, s::AbstractACSet, args...) =
+  interior_product_flat(Val{n}, s, args...)
+
+function interior_product_flat(::Type{Val{n}}, s::AbstractACSet,
+                               X♭::AbstractVector, α::AbstractVector) where n
+  # TODO: Global sign `iseven(n*n′) ? +1 : -1`
+  n′ = ndims(s) - n
+  hodge_star(n′+1,s, wedge_product(n′,1,s, inv_hodge_star(n′,s, α), X♭))
+end
+
+""" Lie derivative of ``n``-form with respect to a vector field (or 1-form).
+
+Specifically, this is the primal-dual Lie derivative defined in (Hirani 2003,
+Section 8.4) and (Desbrun et al 2005, Section 10).
+"""
+lie_derivative(s::AbstractACSet, X♭::EForm, α::DualForm{n}) where n =
+  DualForm{n}(lie_derivative_flat(Val{n}, s, X♭, α.data))
+
+""" Lie derivative of ``n``-form with respect to a 1-form.
+
+Assumes that the flat operator `♭` has already been applied to the vector field.
+"""
+@inline lie_derivative_flat(n::Int, s::AbstractACSet, args...) =
+  lie_derivative_flat(Val{n}, s, args...)
+
+function lie_derivative_flat(::Type{Val{n}}, s::AbstractACSet,
+                             X♭::AbstractVector, α::AbstractVector) where n
+  interior_product_flat(n+1, s, X♭, dual_derivative(n, s, α)) +
+    dual_derivative(n-1, s, interior_product_flat(n, s, X♭, α))
+end
 
 # Euclidean geometry
 ####################
