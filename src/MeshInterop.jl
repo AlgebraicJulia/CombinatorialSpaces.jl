@@ -48,13 +48,20 @@ end
 This operator should work for any triangular mesh object. Note that it will
 not preserve any normal, texture, or other attributes from the Mesh object.
 """
-function EmbeddedDeltaSet2D(m::GeometryBasics.Mesh)
+function EmbeddedDeltaSet2D(m::GeometryBasics.Mesh; force_unique=false)
   coords = coordinates(m)
+  ind_map = collect(1:length(coords))
+  if(force_unique) 
+    indices = unique(i->coords[i], 1:length(coords))
+    val2ind = Dict(coords[indices[i]]=>i for i in 1:length(indices))
+    ind_map = map(c->val2ind[c], coords)
+    coords = coords[indices]
+  end
   tris = faces(m)
   s = EmbeddedDeltaSet2D{Bool, eltype(coords)}()
   add_vertices!(s, length(coords), point=coords)
   for tri in tris
-    tri = convert.(Int64, tri)
+    tri = ind_map[convert.(Int64, tri)]
     glue_sorted_triangle!(s, tri...)
   end
   # Properly orient the delta set
@@ -69,6 +76,10 @@ that it will not preserve any normal, texture, or other data beyond points and
 triangles from the mesh file.
 """
 function EmbeddedDeltaSet2D(fn::String)
-	EmbeddedDeltaSet2D(FileIO.load(fn))
+  if(fn[(end-2):end] == "stl")
+    EmbeddedDeltaSet2D(FileIO.load(fn); force_unique=true)
+  else
+    EmbeddedDeltaSet2D(FileIO.load(fn))
+  end
 end
 end
