@@ -182,6 +182,12 @@ primal_s[:edge_orientation] = true
 s = EmbeddedDeltaDualComplex2D{Bool,Float64,Point2D}(primal_s)
 subdivide_duals!(s, Barycenter())
 
+x̂, ŷ, zero = @SVector([1,0]), @SVector([0,1]), @SVector([0,0])
+@test ♭(s, DualVectorField([x̂, -x̂])) ≈ EForm([2,0,0,2,0])
+@test ♭(s, DualVectorField([ŷ, -ŷ])) ≈ EForm([0,-2,0,0,2])
+@test ♭(s, DualVectorField([(x̂-ŷ)/√2, (x̂-ŷ)/√2]))[3] ≈ 2*√2
+@test ♭(s, DualVectorField([(x̂-ŷ)/√2, zero]))[3] ≈ √2
+
 @test ∧(s, VForm([2,2,2,2]), TriForm([2.5, 5]))::TriForm ≈ TriForm([2.5, 5])
 vform, triform = VForm([1.5, 2, 2.5, 3]), TriForm([5, 7.5])
 @test ∧(s, vform, triform) ≈ ∧(s, triform, vform)
