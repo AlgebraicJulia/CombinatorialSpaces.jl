@@ -1,15 +1,16 @@
 """ Dual complexes for simplicial sets in one, two, and three dimensions.
 """
 module DualSimplicialSets
-export DualSimplex, DualV, DualE, DualTri, DualChain, DualForm,
+export DualSimplex, DualV, DualE, DualTri, DualChain, DualForm, DualVectorField,
   AbstractDeltaDualComplex1D, DeltaDualComplex1D,
   OrientedDeltaDualComplex1D, EmbeddedDeltaDualComplex1D,
   AbstractDeltaDualComplex2D, DeltaDualComplex2D,
   OrientedDeltaDualComplex2D, EmbeddedDeltaDualComplex2D,
   SimplexCenter, Barycenter, Circumcenter, Incenter, geometric_center,
   subsimplices, primal_vertex, elementary_duals, dual_boundary, dual_derivative,
-  ⋆, hodge_star, δ, codifferential, Δ, laplace_beltrami, ∧, wedge_product,
-  interior_product, interior_product_flat, lie_derivative, lie_derivative_flat,
+  ⋆, hodge_star, δ, codifferential, Δ, laplace_beltrami, ♭, flat,
+  ∧, wedge_product, interior_product, interior_product_flat,
+  lie_derivative, lie_derivative_flat,
   vertex_center, edge_center, triangle_center, dual_triangle_vertices,
   dual_point, dual_volume, subdivide_duals!
 
@@ -24,6 +25,9 @@ using ..ArrayUtils, ..SimplicialSets
 using ..SimplicialSets: DeltaCategory1D, DeltaCategory2D, CayleyMengerDet,
   operator_nz, ∂_nz, d_nz, cayley_menger, negate
 import ..SimplicialSets: ∂, d, volume
+
+abstract type DiscreteFlat end
+struct DPPFlat <: DiscreteFlat end
 
 # 1D dual complex
 #################
@@ -416,6 +420,24 @@ hodge_diag(::Type{Val{1}}, s::AbstractDeltaDualComplex2D, e::Int) =
 hodge_diag(::Type{Val{2}}, s::AbstractDeltaDualComplex2D, t::Int) =
   1 / volume(Val{2},s,t)
 
+function ♭(s::AbstractDeltaDualComplex2D, X::AbstractVector, ::DPPFlat)
+  # XXX: Creating this lookup table shouldn't be necessary. Of course, we could
+  # index `tri_center` but that shouldn't be necessary either. Rather, we should
+  # loop over incident triangles instead of the elementary duals, which just
+  # happens to be inconvenient.
+  tri_map = Dict{Int,Int}(triangle_center(s,t) => t for t in triangles(s))
+
+  map(edges(s)) do e
+    e_vec = (point(s, tgt(s,e)) - point(s, src(s,e))) * sign(1,s,e)
+    dual_edges = elementary_duals(1,s,e)
+    dual_lengths = dual_volume(1, s, dual_edges)
+    mapreduce(+, dual_edges, dual_lengths) do dual_e, dual_length
+      X_vec = X[tri_map[s[dual_e, :D_∂v0]]]
+      dual_length * dot(X_vec, e_vec)
+    end / sum(dual_lengths)
+  end
+end
+
 function ∧(::Type{Tuple{1,1}}, s::AbstractACSet, α, β, x::Int)
   # XXX: This calculation of the volume coefficients is awkward due to the
   # design decision described in `SchemaDualComplex1D`.
@@ -498,6 +520,10 @@ this correspondence, a basis for primal ``n``-chains defines the basis for dual
 """ Wrapper for form, aka cochain, on dual cells of dimension `n`.
 """
 @vector_struct DualForm{n}
+
+""" Wrapper for vector field on dual vertices.
+"""
+@vector_struct DualVectorField
 
 ndims(s::AbstractDeltaDualComplex1D) = 1
 ndims(s::AbstractDeltaDualComplex2D) = 2
@@ -662,6 +688,17 @@ The linear operator on primal ``n``-forms defined by ``Δ f := δ d f``, where
 """
 const laplace_beltrami = Δ
 
+""" Flat operator converting vector fields to 1-forms.
+
+A generic function for the discrete flat operators proposed by (Hirani 2003).
+Currently only the DPP-flat is implemented.
+"""
+♭(s::AbstractACSet, X::DualVectorField) = EForm(♭(s, X.data, DPPFlat()))
+
+""" Alias for the flat operator [`♭`](@ref).
+"""
+const flat = ♭
+
 """ Wedge product of discrete forms.
 
 The wedge product of a ``k``-form and an ``l``-form is a ``(k+l)``-form.
@@ -703,10 +740,10 @@ const wedge_product = ∧
 
 """ Interior product of a vector field (or 1-form) and a ``n``-form.
 
-Specifically, this is the primal-dual interior product defined in (Hirani 2003,
-Section 8.2) and (Desbrun et al 2005, Section 10). Thus it takes a primal vector
-field (or primal 1-form) and a dual ``n``-forms and then returns a dual
-``(n-1)``-form.
+Specifically, this operation is the primal-dual interior product defined in
+(Hirani 2003, Section 8.2) and (Desbrun et al 2005, Section 10). Thus it takes a
+primal vector field (or primal 1-form) and a dual ``n``-forms and then returns a
+dual ``(n-1)``-form.
 """
 interior_product(s::AbstractACSet, X♭::EForm, α::DualForm{n}) where n =
   DualForm{n-1}(interior_product_flat(Val{n}, s, X♭.data, α.data))
@@ -714,8 +751,8 @@ interior_product(s::AbstractACSet, X♭::EForm, α::DualForm{n}) where n =
 """ Interior product of a 1-form and a ``n``-form, yielding an ``(n-1)``-form.
 
 Usually, the interior product is defined for vector fields; this function
-assumes that the flat operator `♭` (not yet implemented) has already been
-applied to yield a 1-form.
+assumes that the flat operator [`♭`](@ref) (not yet implemented for primal
+vector fields) has already been applied to yield a 1-form.
 """
 @inline interior_product_flat(n::Int, s::AbstractACSet, args...) =
   interior_product_flat(Val{n}, s, args...)
@@ -737,7 +774,8 @@ lie_derivative(s::AbstractACSet, X♭::EForm, α::DualForm{n}) where n =
 
 """ Lie derivative of ``n``-form with respect to a 1-form.
 
-Assumes that the flat operator `♭` has already been applied to the vector field.
+Assumes that the flat operator [`♭`](@ref) has already been applied to the
+vector field.
 """
 @inline lie_derivative_flat(n::Int, s::AbstractACSet, args...) =
   lie_derivative_flat(Val{n}, s, args...)

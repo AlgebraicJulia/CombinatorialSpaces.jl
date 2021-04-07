@@ -139,8 +139,10 @@ macro vector_struct(struct_sig)
     Core.@__doc__ struct $(name){$(params...),T,V<:AbstractVector{T}} <: AbstractVector{T}
       data::V
     end
-    $(name){$(params...)}(v::V) where {$(params...),T,V<:AbstractVector{T}} =
-      $(name){$(params...),T,V}(v)
+    $(if !isempty(params); quote
+        $(name){$(params...)}(v::V) where {$(params...),T,V<:AbstractVector{T}} =
+          $(name){$(params...),T,V}(v)
+      end end)
     Base.size(v::$name) = size(v.data)
     Base.getindex(v::$name, i::Int) = getindex(v.data, i)
     Base.setindex!(v::$name, x, i::Int) = setindex!(v.data, x, i)
