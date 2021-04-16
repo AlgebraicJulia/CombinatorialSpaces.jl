@@ -156,19 +156,6 @@ subdivide_duals!(s, Barycenter())
                          0     -1 -2.236], atol=1e-3)
 @test δ(s, EForm([0.5,1.5,0.5])) isa VForm
 
-@test ∧(s, VForm([2,2,2]), TriForm([2.5]))::TriForm ≈ TriForm([2.5])
-vform, triform = VForm([1.5, 2, 2.5]), TriForm([7.5])
-@test ∧(s, vform, triform) ≈ ∧(s, triform, vform)
-eform1, eform2 = EForm([1.5, 2, 2.5]), EForm([3, 7, 10])
-@test ∧(s, eform1, eform1)::TriForm ≈ TriForm([0])
-@test ∧(s, eform1, eform2) ≈ -∧(s, eform2, eform1)
-
-X♭, α = EForm([1.5, 2, 2.5]), DualForm{1}([3, 7, 10])
-@test interior_product(s, X♭, α) isa DualForm{0}
-@test length(interior_product_flat(1,s, X♭.data, α.data)) == 1
-@test lie_derivative(s, X♭, α) isa DualForm{1}
-@test length(lie_derivative_flat(1,s, X♭.data, α.data)) == 3
-
 subdivide_duals!(s, Circumcenter())
 @test dual_point(s, triangle_center(s, 1)) ≈ Point2D(1/2, 1/2)
 @test ⋆(0,s) ≈ Diagonal([1/4, 1/8, 1/8])
@@ -184,5 +171,34 @@ subdivide_duals!(s, Incenter())
 @test isapprox(δ(1,s), [ 2.449  0      2.449;
                         -2.029  1.172  0;
                          0     -1.172 -2.029], atol=1e-3)
+
+# Triangulated square with consistent orientation.
+primal_s = EmbeddedDeltaSet2D{Bool,Point2D}()
+add_vertices!(primal_s, 4, point=[Point2D(-1,+1), Point2D(+1,+1),
+                                  Point2D(+1,-1), Point2D(-1,-1)])
+glue_triangle!(primal_s, 1, 2, 3, tri_orientation=true)
+glue_triangle!(primal_s, 1, 3, 4, tri_orientation=true)
+primal_s[:edge_orientation] = true
+s = EmbeddedDeltaDualComplex2D{Bool,Float64,Point2D}(primal_s)
+subdivide_duals!(s, Barycenter())
+
+x̂, ŷ, zero = @SVector([1,0]), @SVector([0,1]), @SVector([0,0])
+@test ♭(s, DualVectorField([x̂, -x̂])) ≈ EForm([2,0,0,2,0])
+@test ♭(s, DualVectorField([ŷ, -ŷ])) ≈ EForm([0,-2,0,0,2])
+@test ♭(s, DualVectorField([(x̂-ŷ)/√2, (x̂-ŷ)/√2]))[3] ≈ 2*√2
+@test ♭(s, DualVectorField([(x̂-ŷ)/√2, zero]))[3] ≈ √2
+
+@test ∧(s, VForm([2,2,2,2]), TriForm([2.5, 5]))::TriForm ≈ TriForm([2.5, 5])
+vform, triform = VForm([1.5, 2, 2.5, 3]), TriForm([5, 7.5])
+@test ∧(s, vform, triform) ≈ ∧(s, triform, vform)
+eform1, eform2 = EForm([1.5, 2, 2.5, 3, 3.5]), EForm([3, 7, 10, 11, 15])
+@test ∧(s, eform1, eform1)::TriForm ≈ TriForm([0, 0])
+@test ∧(s, eform1, eform2) ≈ -∧(s, eform2, eform1)
+
+X♭, α = EForm([1.5, 2, 2.5, 3, 3.5]), DualForm{1}([3, 7, 10, 11, 15])
+@test interior_product(s, X♭, α) isa DualForm{0}
+@test length(interior_product_flat(1,s, X♭.data, α.data)) == 2
+@test lie_derivative(s, X♭, α) isa DualForm{1}
+@test length(lie_derivative_flat(1,s, X♭.data, α.data)) == 5
 
 end
