@@ -49,7 +49,7 @@ This operator should work for any triangular mesh object. Note that it will
 not preserve any normal, texture, or other attributes from the Mesh object.
 """
 function EmbeddedDeltaSet2D(m::GeometryBasics.Mesh; force_unique=false)
-  coords = coordinates(m)
+  coords = metafree.(coordinates(m))
   ind_map = collect(1:length(coords))
   if(force_unique) 
     indices = unique(i->coords[i], 1:length(coords))
