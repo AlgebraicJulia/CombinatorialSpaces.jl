@@ -523,6 +523,15 @@ function cayley_menger(p0::V, p1::V, p2::V) where V <: AbstractVector
                1,  d01, 0,   d12,
                1,  d02, d12, 0)
 end
+function cayley_menger(p0::V, p1::V, p2::V, p3::V) where V <: AbstractVector
+  d01, d12, d02 = sqdistance(p0, p1), sqdistance(p1, p2), sqdistance(p0, p2)
+  d03, d13, d23 = sqdistance(p0, p3), sqdistance(p1, p3), sqdistance(p2, p3)
+  SMatrix{5,5}(0,  1,   1,   1,   1,
+               1,  0,   d01, d02, d03,
+               1,  d01, 0,   d12, d13,
+               1,  d02, d12, 0,   d23,
+               1,  d03, d13, d23, 0)
+end
 
 """ Squared Euclidean distance between two points.
 """
