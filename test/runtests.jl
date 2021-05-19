@@ -9,6 +9,7 @@ end
 end
 
 @testset "ExteriorCalculus" begin
+  include("ExteriorCalculus.jl")
   include("DiscreteExteriorCalculus.jl")
 end
 
