@@ -14,28 +14,28 @@ module MeshGraphics
 using Catlab.CategoricalAlgebra
 using ..SimplicialSets
 using ..MeshInterop
-#import ...AbstractPlotting: wireframe, wireframe!, mesh, mesh!, scatter, scatter!
+#import ...Makie: wireframe, wireframe!, mesh, mesh!, scatter, scatter!
 #
 #export wireframe, wireframe!, mesh, mesh!, scatter, scatter!
 
-import ...AbstractPlotting
-import ...AbstractPlotting: convert_arguments
+import ...Makie
+import ...Makie: convert_arguments
 
 """ This extends the "Mesh" plotting recipe for embedded deltasets by converting
-an embedded deltaset into arguments that can be passed into AbstractPlotting.mesh
+an embedded deltaset into arguments that can be passed into Makie.mesh
 """
 
-function convert_arguments(P::Union{Type{<:AbstractPlotting.Wireframe},
-                                    Type{<:AbstractPlotting.Mesh},
-                                    Type{<:AbstractPlotting.Scatter}},
+function convert_arguments(P::Union{Type{<:Makie.Wireframe},
+                                    Type{<:Makie.Mesh},
+                                    Type{<:Makie.Scatter}},
                            dset::AbstractACSet)
   convert_arguments(P, Mesh(dset))
 end
 
 """ This extends the "LineSegments" plotting recipe for embedded deltasets by converting
-an embedded deltaset into arguments that can be passed into AbstractPlotting.linesegments
+an embedded deltaset into arguments that can be passed into Makie.linesegments
 """
-function convert_arguments(P::Type{<:AbstractPlotting.LineSegments}, dset::EmbeddedDeltaSet2D)
+function convert_arguments(P::Type{<:Makie.LineSegments}, dset::EmbeddedDeltaSet2D)
   edge_positions = zeros(ne(dset)*2,3)
   for e in edges(dset)
     edge_positions[2*e-1,:] = point(dset, dset[e,:src])
