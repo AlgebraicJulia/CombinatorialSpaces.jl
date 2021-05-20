@@ -151,4 +151,18 @@ add_vertices!(s, 3, point=[Point3D(1,0,0), Point3D(0,1,0), Point3D(0,0,1)])
 glue_triangle!(s, 1, 2, 3, tri_orientation=true)
 @test volume(s, Tri(1)) ≈ sqrt(3)/2
 
+# Euclidean geometry
+####################
+
+std_simplex_volume(n::Int) = sqrt(n+1) / factorial(n)
+
+p1, p2 = Point2D(1,0), Point2D(0,1)
+@test volume([p1, p2]) ≈ std_simplex_volume(1)
+
+p1, p2, p3 = Point3D(1,0,0), Point3D(0,1,0), Point3D(0,0,1)
+@test volume([p1, p2, p3]) ≈ std_simplex_volume(2)
+
+p1, p2, p3, p4 = SVector(1,0,0,0), SVector(0,1,0,0), SVector(0,0,1,0), SVector(0,0,0,1)
+@test volume([p1, p2, p3, p4]) ≈ std_simplex_volume(3)
+
 end
