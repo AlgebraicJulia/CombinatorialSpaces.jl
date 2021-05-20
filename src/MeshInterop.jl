@@ -47,10 +47,13 @@ end
 
 This operator should work for any triangular mesh object. Note that it will
 not preserve any normal, texture, or other attributes from the Mesh object.
+
+The force_unique flag merges all points which are at the same location. This is
+necessary to process `.stl` files which references points by location.
 """
 function EmbeddedDeltaSet2D(m::GeometryBasics.Mesh; force_unique=false)
   coords = metafree.(coordinates(m))
-  ind_map = collect(1:length(coords))
+  ind_map = 1:length(coords)
   if(force_unique) 
     indices = unique(i->coords[i], 1:length(coords))
     val2ind = Dict(coords[indices[i]]=>i for i in 1:length(indices))
@@ -76,7 +79,9 @@ that it will not preserve any normal, texture, or other data beyond points and
 triangles from the mesh file.
 """
 function EmbeddedDeltaSet2D(fn::String)
-  if(fn[(end-2):end] == "stl")
+  if(splitext(fn)[2] == ".stl")
+    # The .stl format references points by location so we apply the
+    # force_unique flag
     EmbeddedDeltaSet2D(FileIO.load(fn); force_unique=true)
   else
     EmbeddedDeltaSet2D(FileIO.load(fn))
