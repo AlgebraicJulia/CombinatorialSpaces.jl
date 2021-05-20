@@ -9,7 +9,7 @@ semi-simpicial sets as reflexive graphs are to simplicial sets.
 """
 module SimplicialSets
 export Simplex, V, E, Tri, SimplexChain, VChain, EChain, TriChain,
-  SimplexForm, VForm, EForm, TriForm,
+  SimplexForm, VForm, EForm, TriForm, VectorField,
   AbstractDeltaSet1D, DeltaSet1D, OrientedDeltaSet1D, EmbeddedDeltaSet1D,
   AbstractDeltaSet2D, DeltaSet2D, OrientedDeltaSet2D, EmbeddedDeltaSet2D,
   ∂, boundary, coface, d, coboundary, exterior_derivative,
@@ -304,6 +304,10 @@ const TriChain = SimplexChain{2}
 const VForm = SimplexForm{0}
 const EForm = SimplexForm{1}
 const TriForm = SimplexForm{2}
+
+""" Wrapper for vector field on vertices of simplicial set.
+"""
+@vector_struct VectorField
 
 """ Simplices of given dimension in a simplicial set.
 """
