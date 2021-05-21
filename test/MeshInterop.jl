@@ -12,6 +12,10 @@ const Point3D = SVector{3,Float64}
 # Import Tooling
 ################
 
+s_stl = EmbeddedDeltaSet2D(joinpath(@__DIR__, "assets", "square.stl"))
+@test s_stl isa EmbeddedDeltaSet2D
+@test triangle_vertices(s_stl, 1) == [1,2,3]
+
 s = EmbeddedDeltaSet2D(joinpath(@__DIR__, "assets", "square.obj"))
 @test s isa EmbeddedDeltaSet2D
 @test triangle_vertices(s, 1) == [1,2,3]
