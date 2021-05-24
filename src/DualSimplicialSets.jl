@@ -8,14 +8,14 @@ export DualSimplex, DualV, DualE, DualTri, DualChain, DualForm, DualVectorField,
   OrientedDeltaDualComplex2D, EmbeddedDeltaDualComplex2D,
   SimplexCenter, Barycenter, Circumcenter, Incenter, geometric_center,
   subsimplices, primal_vertex, elementary_duals, dual_boundary, dual_derivative,
-  ⋆, hodge_star, δ, codifferential, Δ, laplace_beltrami, ♭, flat,
+  ⋆, hodge_star, δ, codifferential, Δ, laplace_beltrami, ♭, flat, ♯, sharp,
   ∧, wedge_product, interior_product, interior_product_flat,
   lie_derivative, lie_derivative_flat,
   vertex_center, edge_center, triangle_center, dual_triangle_vertices,
   dual_point, dual_volume, subdivide_duals!
 
 import Base: ndims
-using LinearAlgebra: Diagonal, dot
+using LinearAlgebra: Diagonal, dot, norm
 using SparseArrays
 using StaticArrays: @SVector, SVector
 
@@ -28,6 +28,9 @@ import ..SimplicialSets: ∂, d, volume
 
 abstract type DiscreteFlat end
 struct DPPFlat <: DiscreteFlat end
+
+abstract type DiscreteSharp end
+struct PPSharp <: DiscreteSharp end
 
 # 1D dual complex
 #################
@@ -438,6 +441,26 @@ function ♭(s::AbstractDeltaDualComplex2D, X::AbstractVector, ::DPPFlat)
   end
 end
 
+function ♯(s::AbstractDeltaDualComplex2D, α::AbstractVector, ::PPSharp)
+  α♯ = zeros(eltype(s[:dual_point]), nv(s))
+  for t in triangles(s)
+    area = volume(2,s,t)
+    tri_center, tri_edges = triangle_center(s,t), triangle_edges(s,t)
+    tri_point = dual_point(s, tri_center)
+    for (i, (v₀, e₀)) in enumerate(zip(triangle_vertices(s,t), tri_edges))
+      out_vec = tri_point - dual_point(s, edge_center(s,e₀))
+      out_vec /= norm(out_vec)
+      for e in deleteat(tri_edges, i)
+        v, sgn = src(s,e) == v₀ ? (tgt(s,e), -1) : (src(s,e), +1)
+        dual_area = sum(dual_volume(2,s,d) for d in elementary_duals(0,s,v)
+                        if s[s[d, :D_∂e0], :D_∂v0] == tri_center)
+        α♯[v] += sgn * sign(1,s,e) * α[e] * (dual_area / area) * out_vec
+      end
+    end
+  end
+  α♯
+end
+
 function ∧(::Type{Tuple{1,1}}, s::AbstractACSet, α, β, x::Int)
   # XXX: This calculation of the volume coefficients is awkward due to the
   # design decision described in `SchemaDualComplex1D`.
@@ -690,14 +713,43 @@ const laplace_beltrami = Δ
 
 """ Flat operator converting vector fields to 1-forms.
 
-A generic function for the discrete flat operators proposed by (Hirani 2003).
-Currently only the DPP-flat is implemented.
+A generic function for discrete flat operators. Currently only the DPP-flat from
+(Hirani 2003, Definition 5.5.2) and (Desbrun et al 2005, Definition 7.3) is
+implemented.
+
+See also: the sharp operator [`♯`](@ref).
 """
 ♭(s::AbstractACSet, X::DualVectorField) = EForm(♭(s, X.data, DPPFlat()))
 
 """ Alias for the flat operator [`♭`](@ref).
 """
 const flat = ♭
+
+""" Sharp operator for converting 1-forms to vector fields.
+
+A generic function for discrete sharp operators. Currently only the PP-flat from
+(Hirani 2003, Definition 5.8.1) is implemented, subject to the caveats:
+
+- Although (Desbrun et al 2005, Definition 7.4) is supposed to be the same
+  definition, it differs in two ways: Desbrun et al's notation suggests a *unit*
+  normal vector, whereas the gradient of Hirani's primal-primal interpolation
+  function is not necessarily a unit vector (Hirani, Remark 2.7.2). More
+  importantly, Hirani's vector is a normal to a different face than Desbrun et
+  al's. Adding further confusion, Hirani's Figure 5.7 agrees with Desbrun et
+  al's textual description rather than his own. In our implementation, we take a
+  unit normal in the direction of Hirani's primal-primal interpolation function.
+
+- In our implementation, the "normal" vector is only guaranteed to be normal
+  when using circumcentric subdivision (as assumed by Hirani), not when using
+  barycentric subdivision
+
+See also: the flat operator [`♭`](@ref).
+"""
+♯(s::AbstractACSet, α::EForm) = VectorField(♯(s, α.data, PPSharp()))
+
+""" Alias for the sharp operator [`♯`](@ref).
+"""
+const sharp = ♯
 
 """ Wedge product of discrete forms.
 

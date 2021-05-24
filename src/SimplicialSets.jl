@@ -9,7 +9,7 @@ semi-simpicial sets as reflexive graphs are to simplicial sets.
 """
 module SimplicialSets
 export Simplex, V, E, Tri, SimplexChain, VChain, EChain, TriChain,
-  SimplexForm, VForm, EForm, TriForm,
+  SimplexForm, VForm, EForm, TriForm, VectorField,
   AbstractDeltaSet1D, DeltaSet1D, OrientedDeltaSet1D, EmbeddedDeltaSet1D,
   AbstractDeltaSet2D, DeltaSet2D, OrientedDeltaSet2D, EmbeddedDeltaSet2D,
   ∂, boundary, coface, d, coboundary, exterior_derivative,
@@ -18,7 +18,7 @@ export Simplex, V, E, Tri, SimplexChain, VChain, EChain, TriChain,
   src, tgt, nv, ne, vertices, edges, has_vertex, has_edge, edge_vertices,
   add_vertex!, add_vertices!, add_edge!, add_edges!,
   add_sorted_edge!, add_sorted_edges!,
-  triangle_vertices, ntriangles, triangles,
+  triangle_edges, triangle_vertices, ntriangles, triangles,
   add_triangle!, glue_triangle!, glue_sorted_triangle!
 
 using LinearAlgebra: det
@@ -169,6 +169,12 @@ coface(::Type{Val{(2,0)}}, s::AbstractACSet, args...) = incident(s, args..., :�
 coface(::Type{Val{(2,1)}}, s::AbstractACSet, args...) = incident(s, args..., :∂e1)
 coface(::Type{Val{(2,2)}}, s::AbstractACSet, args...) = incident(s, args..., :∂e2)
 
+""" Boundary edges of a triangle.
+"""
+function triangle_edges(s::AbstractACSet, t...)
+  SVector(∂(2,0,s,t...), ∂(2,1,s,t...), ∂(2,2,s,t...))
+end
+
 """ Boundary vertices of a triangle.
 
 This accessor assumes that the simplicial identities hold.
@@ -239,7 +245,7 @@ set_orientation!(::Type{Val{2}}, s::AbstractACSet, t, orientation) =
   (s[t, :tri_orientation] = orientation)
 
 function ∂_nz(::Type{Val{2}}, s::AbstractACSet, t::Int)
-  edges = SVector(∂(2,0,s,t), ∂(2,1,s,t), ∂(2,2,s,t))
+  edges = triangle_edges(s,t)
   (edges, sign(2,s,t) * sign(1,s,edges) .* @SVector([1,-1,1]))
 end
 
@@ -304,6 +310,10 @@ const TriChain = SimplexChain{2}
 const VForm = SimplexForm{0}
 const EForm = SimplexForm{1}
 const TriForm = SimplexForm{2}
+
+""" Wrapper for vector field on vertices of simplicial set.
+"""
+@vector_struct VectorField
 
 """ Simplices of given dimension in a simplicial set.
 """
