@@ -445,16 +445,16 @@ function ♯(s::AbstractDeltaDualComplex2D, α::AbstractVector, ::PPSharp)
   α♯ = zeros(eltype(s[:dual_point]), nv(s))
   for t in triangles(s)
     area = volume(2,s,t)
-    tri_center = triangle_center(s,t)
+    tri_center, tri_edges = triangle_center(s,t), triangle_edges(s,t)
     tri_point = dual_point(s, tri_center)
-    for e in (∂(2,0,s,t), ∂(2,1,s,t), ∂(2,2,s,t))
-      edge_point = dual_point(s, edge_center(s,e))
-      out_vec = tri_point - edge_point
-      vec = sign(1,s,e) * α[e] * out_vec / norm(out_vec)
-      for (v, sgn) in zip(∂_nz(Val{1},s,e)...)
+    for (i, (v₀, e₀)) in enumerate(zip(triangle_vertices(s,t), tri_edges))
+      out_vec = tri_point - dual_point(s, edge_center(s,e₀))
+      out_vec /= norm(out_vec)
+      for e in deleteat(tri_edges, i)
+        v, sgn = src(s,e) == v₀ ? (tgt(s,e), -1) : (src(s,e), +1)
         dual_area = sum(dual_volume(2,s,d) for d in elementary_duals(0,s,v)
                         if s[s[d, :D_∂e0], :D_∂v0] == tri_center)
-        α♯[v] += sgn * (dual_area / area) * vec
+        α♯[v] += sgn * sign(1,s,e) * α[e] * (dual_area / area) * out_vec
       end
     end
   end
@@ -728,16 +728,18 @@ const flat = ♭
 """ Sharp operator for converting 1-forms to vector fields.
 
 A generic function for discrete sharp operators. Currently only the PP-flat from
-(Desbrun et al 2005, Definition 7.4) is implemented, subject to the following
-caveats:
+(Hirani 2003, Definition 5.8.1) is implemented, subject to the caveats:
 
-- Although (Hirani 2003, Definition 5.8.1) is supposed to be the same
-  definition, Desbrun et al's notation suggests a *unit* normal vector, whereas
-  the gradient of Hirani's interpolation function is normal but not necessarily
-  unit length. We take the unit normal, although the justification for this
-  choice is unclear.
+- Although (Desbrun et al 2005, Definition 7.4) is supposed to be the same
+  definition, it differs in two ways: Desbrun et al's notation suggests a *unit*
+  normal vector, whereas the gradient of Hirani's primal-primal interpolation
+  function is not necessarily a unit vector (Hirani, Remark 2.7.2). More
+  importantly, Hirani's vector is a normal to a different face than Desbrun et
+  al's. Adding further confusion, Hirani's Figure 5.7 agrees with Desbrun et
+  al's textual description rather than his own. In our implementation, we take a
+  unit normal in the direction of Hirani's primal-primal interpolation function.
 
-- In our implementation, this "normal" vector is only guaranteed to be normal
+- In our implementation, the "normal" vector is only guaranteed to be normal
   when using circumcentric subdivision (as assumed by Hirani), not when using
   barycentric subdivision
 

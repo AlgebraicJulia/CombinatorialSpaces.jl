@@ -186,9 +186,10 @@ x̂, ŷ, zero = @SVector([1,0]), @SVector([0,1]), @SVector([0,0])
 @test ♭(s, DualVectorField([ŷ, -ŷ])) ≈ EForm([0,-2,0,0,2])
 @test ♭(s, DualVectorField([(x̂-ŷ)/√2, (x̂-ŷ)/√2]))[3] ≈ 2*√2
 @test ♭(s, DualVectorField([(x̂-ŷ)/√2, zero]))[3] ≈ √2
-X = ♯(s, EForm([2,0,0,2,0]))
-@test X isa VectorField
-@test X[1] ≈ X[4] && X[2] ≈ X[3] # Vector field does not vary in y-direction.
+X = ♯(s, EForm([2,0,0,2,0]))::VectorField
+@test X[2][1] > 0 && X[4][1] < 0
+X = ♯(s, EForm([0,-2,0,0,2]))
+@test X[2][2] > 0 && X[4][2] < 0
 
 @test ∧(s, VForm([2,2,2,2]), TriForm([2.5, 5]))::TriForm ≈ TriForm([2.5, 5])
 vform, triform = VForm([1.5, 2, 2.5, 3]), TriForm([5, 7.5])
