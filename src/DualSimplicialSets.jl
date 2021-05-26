@@ -448,13 +448,17 @@ function ♯(s::AbstractDeltaDualComplex2D, α::AbstractVector, ::PPSharp)
     tri_center, tri_edges = triangle_center(s,t), triangle_edges(s,t)
     tri_point = dual_point(s, tri_center)
     for (i, (v₀, e₀)) in enumerate(zip(triangle_vertices(s,t), tri_edges))
-      out_vec = tri_point - dual_point(s, edge_center(s,e₀))
+      e_vec = s[s[e₀, :tgt],:point] - s[s[e₀, :src],:point]
+      e_vec /= norm(e_vec)
+      e2_vec = s[v₀, :point] - s[s[e₀, :src],:point]
+      out_vec = e2_vec - dot(e2_vec, e_vec)*e_vec
+      h = norm(out_vec)
       out_vec /= norm(out_vec)
       for e in deleteat(tri_edges, i)
         v, sgn = src(s,e) == v₀ ? (tgt(s,e), -1) : (src(s,e), +1)
         dual_area = sum(dual_volume(2,s,d) for d in elementary_duals(0,s,v)
                         if s[s[d, :D_∂e0], :D_∂v0] == tri_center)
-        α♯[v] += sgn * sign(1,s,e) * α[e] * (dual_area / area) * out_vec
+        α♯[v] += sgn * sign(1,s,e) * α[e] * (dual_area / area) * out_vec / h
       end
     end
   end
