@@ -448,9 +448,9 @@ function ♯(s::AbstractDeltaDualComplex2D, α::AbstractVector, ::PPSharp)
     tri_center, tri_edges = triangle_center(s,t), triangle_edges(s,t)
     tri_point = dual_point(s, tri_center)
     for (i, (v₀, e₀)) in enumerate(zip(triangle_vertices(s,t), tri_edges))
-      e_vec = s[s[e₀, :tgt],:point] - s[s[e₀, :src],:point]
+      e_vec = point(s, tgt(s, e₀)) - point(s, src(s, e₀))
       e_vec /= norm(e_vec)
-      e2_vec = s[v₀, :point] - s[s[e₀, :src],:point]
+      e2_vec = point(s, v₀) - point(s, src(s, e₀))
       out_vec = e2_vec - dot(e2_vec, e_vec)*e_vec
       h = norm(out_vec)
       out_vec /= norm(out_vec)
@@ -732,7 +732,7 @@ const flat = ♭
 """ Sharp operator for converting 1-forms to vector fields.
 
 A generic function for discrete sharp operators. Currently only the PP-flat from
-(Hirani 2003, Definition 5.8.1) is implemented, subject to the caveats:
+(Hirani 2003, Definition 5.8.1) is implemented, subject to the caveat:
 
 - Although (Desbrun et al 2005, Definition 7.4) is supposed to be the same
   definition, it differs in two ways: Desbrun et al's notation suggests a *unit*
@@ -740,12 +740,10 @@ A generic function for discrete sharp operators. Currently only the PP-flat from
   function is not necessarily a unit vector (Hirani, Remark 2.7.2). More
   importantly, Hirani's vector is a normal to a different face than Desbrun et
   al's. Adding further confusion, Hirani's Figure 5.7 agrees with Desbrun et
-  al's textual description rather than his own. In our implementation, we take a
-  unit normal in the direction of Hirani's primal-primal interpolation function.
-
-- In our implementation, the "normal" vector is only guaranteed to be normal
-  when using circumcentric subdivision (as assumed by Hirani), not when using
-  barycentric subdivision
+  al's textual description rather than his own. In our implementation, we
+  calculate and use the vector defined by Hirani's primal-primal interpolation
+  function. This vector is not necessarily the unit normal, as its magnitude
+  is determined by the distance from the relevant edge to its opposite point.
 
 See also: the flat operator [`♭`](@ref).
 """
