@@ -448,8 +448,12 @@ function ♯(s::AbstractDeltaDualComplex2D, α::AbstractVector, ::PPSharp)
     tri_center, tri_edges = triangle_center(s,t), triangle_edges(s,t)
     tri_point = dual_point(s, tri_center)
     for (i, (v₀, e₀)) in enumerate(zip(triangle_vertices(s,t), tri_edges))
-      out_vec = tri_point - dual_point(s, edge_center(s,e₀))
-      out_vec /= norm(out_vec)
+      e_vec = point(s, tgt(s, e₀)) - point(s, src(s, e₀))
+      e_vec /= norm(e_vec)
+      e2_vec = point(s, v₀) - point(s, src(s, e₀))
+      out_vec = e2_vec - dot(e2_vec, e_vec)*e_vec
+      h = norm(out_vec)
+      out_vec /= h^2 # length == 1/h
       for e in deleteat(tri_edges, i)
         v, sgn = src(s,e) == v₀ ? (tgt(s,e), -1) : (src(s,e), +1)
         dual_area = sum(dual_volume(2,s,d) for d in elementary_duals(0,s,v)
@@ -727,21 +731,21 @@ const flat = ♭
 
 """ Sharp operator for converting 1-forms to vector fields.
 
-A generic function for discrete sharp operators. Currently only the PP-flat from
-(Hirani 2003, Definition 5.8.1) is implemented, subject to the caveats:
+A generic function for discrete sharp operators. Currently only the
+primal-primal flat from (Hirani 2003, Definition 5.8.1 and Remark 2.7.2) is
+implemented.
 
-- Although (Desbrun et al 2005, Definition 7.4) is supposed to be the same
-  definition, it differs in two ways: Desbrun et al's notation suggests a *unit*
-  normal vector, whereas the gradient of Hirani's primal-primal interpolation
-  function is not necessarily a unit vector (Hirani, Remark 2.7.2). More
-  importantly, Hirani's vector is a normal to a different face than Desbrun et
-  al's. Adding further confusion, Hirani's Figure 5.7 agrees with Desbrun et
-  al's textual description rather than his own. In our implementation, we take a
-  unit normal in the direction of Hirani's primal-primal interpolation function.
+!!! note
 
-- In our implementation, the "normal" vector is only guaranteed to be normal
-  when using circumcentric subdivision (as assumed by Hirani), not when using
-  barycentric subdivision
+    A PP-flat is also defined in (Desbrun et al 2005, Definition 7.4) but
+    differs in two ways: Desbrun et al's notation suggests a *unit* normal
+    vector, whereas the gradient of Hirani's primal-primal interpolation
+    function is not necessarily a unit vector. More importantly, Hirani's vector
+    is a normal to a different face than Desbrun et al's, with further confusion
+    created by the fact that Hirani's Figure 5.7 agrees with Desbrun et al's
+    description rather than his own. That being said, to the best of our
+    knowledge, our implementation is the correct one and agrees with Hirani's
+    description, if not his figure.
 
 See also: the flat operator [`♭`](@ref).
 """
