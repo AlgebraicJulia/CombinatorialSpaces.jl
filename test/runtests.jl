@@ -6,7 +6,10 @@ end
 
 @testset "SimplicialSets" begin
   include("SimplicialSets.jl")
-  include("DualSimplicialSets.jl")
+end
+
+@testset "ExteriorCalculus" begin
+  include("DiscreteExteriorCalculus.jl")
 end
 
 @testset "Meshes" begin
