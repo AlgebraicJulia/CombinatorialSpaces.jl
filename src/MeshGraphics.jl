@@ -1,14 +1,10 @@
-""" Visualization for Delta Sets and their duals.
+""" Visualization of delta sets and dual complexes.
 
-This module provides wrapper functions for plotting embedded delta sets
-using the Makie functionality. This includes the wireframe, mesh, and scatter
-plotting functions.
-
-It is important to note that the end-user will need to import one of the Makie
-backends (CairoMakie, GLMakie, or WGLMakie) in order for plotting to work
-correctly.
+This module providers wrapper functions to plotting embedded delta sets using
+Makie.jl, including wireframe, mesh, and scatter plots. Note that one of the
+Makie backends (CairoMakie, GLMakie, or WGLMakie) must be imported in order for
+plotting to work.
 """
-
 module MeshGraphics
 
 using Catlab.CategoricalAlgebra
@@ -18,6 +14,7 @@ using ..MeshInterop
 #
 #export wireframe, wireframe!, mesh, mesh!, scatter, scatter!
 
+using GeometryBasics: Mesh
 import ...Makie
 import ...Makie: convert_arguments
 

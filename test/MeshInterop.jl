@@ -2,15 +2,14 @@ module TestMeshInterop
 using Test
 
 using CombinatorialSpaces
-using CombinatorialSpaces.MeshInterop
 
 using GeometryBasics
 using StaticArrays: SVector
 
 const Point3D = SVector{3,Float64}
 
-# Import Tooling
-################
+# Import meshes
+###############
 
 s_stl = EmbeddedDeltaSet2D(joinpath(@__DIR__, "assets", "square.stl"))
 @test s_stl isa EmbeddedDeltaSet2D
@@ -22,6 +21,9 @@ s = EmbeddedDeltaSet2D(joinpath(@__DIR__, "assets", "square.obj"))
 
 sd = EmbeddedDeltaDualComplex2D{Bool, Float64, Point3D}(s)
 subdivide_duals!(sd, Barycenter())
+
+# Export meshes
+###############
 
 # Test consistency with conversion to/from mesh.
 msh = Mesh(s)
