@@ -6,10 +6,15 @@ sets](https://ncatlab.org/nlab/show/semi-simplicial+set). These include the face
 maps but not the degeneracy maps of a simplicial set. In the future we may add
 support for simplicial sets. The analogy to keep in mind is that graphs are to
 semi-simpicial sets as reflexive graphs are to simplicial sets.
+
+Also provided are the fundamental operators on simplicial sets used in virtually
+all geometric applications, namely the boundary and coboundary (discrete
+exterior derivative). For additional operators, see the
+`DiscreteExteriorCalculus` module.
 """
 module SimplicialSets
 export Simplex, V, E, Tri, SimplexChain, VChain, EChain, TriChain,
-  SimplexForm, VForm, EForm, TriForm, VectorField,
+  SimplexForm, VForm, EForm, TriForm,
   AbstractDeltaSet1D, DeltaSet1D, OrientedDeltaSet1D, EmbeddedDeltaSet1D,
   AbstractDeltaSet2D, DeltaSet2D, OrientedDeltaSet2D, EmbeddedDeltaSet2D,
   ∂, boundary, coface, d, coboundary, exterior_derivative,
@@ -310,10 +315,6 @@ const TriChain = SimplexChain{2}
 const VForm = SimplexForm{0}
 const EForm = SimplexForm{1}
 const TriForm = SimplexForm{2}
-
-""" Wrapper for vector field on vertices of simplicial set.
-"""
-@vector_struct VectorField
 
 """ Simplices of given dimension in a simplicial set.
 """

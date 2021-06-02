@@ -1,7 +1,14 @@
-""" Dual complexes for simplicial sets in one, two, and three dimensions.
+""" The discrete exterior calculus (DEC) for simplicial sets.
+
+This module provides the dual complex associated with a delta set (the primal
+complex), which is a discrete incarnation of Hodge duality, as well as the many
+operators of the DEC that depend on it, such as the Hodge star, codifferential,
+wedge product, interior product, and Lie derivative. The main reference for this
+module is Hirani's 2003 PhD thesis.
 """
-module DualSimplicialSets
-export DualSimplex, DualV, DualE, DualTri, DualChain, DualForm, DualVectorField,
+module DiscreteExteriorCalculus
+export DualSimplex, DualV, DualE, DualTri, DualChain, DualForm,
+  PrimalVectorField, DualVectorField,
   AbstractDeltaDualComplex1D, DeltaDualComplex1D,
   OrientedDeltaDualComplex1D, EmbeddedDeltaDualComplex1D,
   AbstractDeltaDualComplex2D, DeltaDualComplex2D,
@@ -548,6 +555,10 @@ this correspondence, a basis for primal ``n``-chains defines the basis for dual
 """
 @vector_struct DualForm{n}
 
+""" Wrapper for vector field on primal vertices.
+"""
+@vector_struct PrimalVectorField
+
 """ Wrapper for vector field on dual vertices.
 """
 @vector_struct DualVectorField
@@ -749,7 +760,7 @@ implemented.
 
 See also: the flat operator [`♭`](@ref).
 """
-♯(s::AbstractACSet, α::EForm) = VectorField(♯(s, α.data, PPSharp()))
+♯(s::AbstractACSet, α::EForm) = PrimalVectorField(♯(s, α.data, PPSharp()))
 
 """ Alias for the sharp operator [`♯`](@ref).
 """

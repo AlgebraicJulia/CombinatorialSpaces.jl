@@ -6,7 +6,7 @@ using Requires
 include("ArrayUtils.jl")
 include("CombinatorialMaps.jl")
 include("SimplicialSets.jl")
-include("DualSimplicialSets.jl")
+include("DiscreteExteriorCalculus.jl")
 include("MeshInterop.jl")
 
 function __init__()
@@ -14,7 +14,7 @@ function __init__()
 end
 
 @reexport using .SimplicialSets
-@reexport using .DualSimplicialSets
+@reexport using .DiscreteExteriorCalculus
 @reexport using .MeshInterop
 
 end

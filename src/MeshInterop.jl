@@ -12,7 +12,7 @@ using FileIO, MeshIO, GeometryBasics
 import GeometryBasics: Mesh
 
 using Catlab.CategoricalAlgebra: copy_parts!
-using ..SimplicialSets, ..DualSimplicialSets
+using ..SimplicialSets, ..DiscreteExteriorCalculus
 import ..SimplicialSets: EmbeddedDeltaSet2D
 
 # Helper Functions (should these be exposed?)
