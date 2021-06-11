@@ -22,7 +22,7 @@ export DualSimplex, DualV, DualE, DualTri, DualChain, DualForm,
   dual_point, dual_volume, subdivide_duals!
 
 import Base: ndims
-using LinearAlgebra: Diagonal, dot, norm
+using LinearAlgebra: Diagonal, dot, norm, ×
 using SparseArrays
 using StaticArrays: @SVector, SVector
 
@@ -212,6 +212,7 @@ dual_volume(::Type{Val{1}}, s::AbstractACSet, e::Int, ::CayleyMengerDet) =
 
 hodge_diag(::Type{Val{0}}, s::AbstractDeltaDualComplex1D, v::Int) =
   sum(dual_volume(Val{1}, s, elementary_duals(Val{0},s,v)))
+
 hodge_diag(::Type{Val{1}}, s::AbstractDeltaDualComplex1D, e::Int) =
   1 / volume(Val{1},s,e)
 
@@ -425,8 +426,22 @@ end
 
 hodge_diag(::Type{Val{0}}, s::AbstractDeltaDualComplex2D, v::Int) =
   sum(dual_volume(Val{2}, s, elementary_duals(Val{0},s,v)))
-hodge_diag(::Type{Val{1}}, s::AbstractDeltaDualComplex2D, e::Int) =
-  sum(dual_volume(Val{1}, s, elementary_duals(Val{1},s,e))) / volume(Val{1},s,e)
+
+function edge_comp(s, e)
+#  return sum(dual_volume(Val{1}, s, elementary_duals(Val{1},s,e)))
+  total = 0.0
+  e_vect = point(s, tgt(s, e)) - point(s, src(s,e))
+  for ed in elementary_duals(Val{1},s,e)
+    d_vect = dual_point(s, s[ed, :D_∂v1]) - dual_point(s, s[ed, :D_∂v0])
+    total += norm(e_vect×d_vect)
+  end
+  total
+end
+
+hodge_diag(::Type{Val{1}}, s::AbstractDeltaDualComplex2D, e::Int) = begin
+  Float32(edge_comp(s,e)) / (volume(Val{1},s,e))^2
+end
+
 hodge_diag(::Type{Val{2}}, s::AbstractDeltaDualComplex2D, t::Int) =
   1 / volume(Val{2},s,t)
 
@@ -439,12 +454,41 @@ function ♭(s::AbstractDeltaDualComplex2D, X::AbstractVector, ::DPPFlat)
 
   map(edges(s)) do e
     e_vec = (point(s, tgt(s,e)) - point(s, src(s,e))) * sign(1,s,e)
-    dual_edges = elementary_duals(1,s,e)
-    dual_lengths = dual_volume(1, s, dual_edges)
-    mapreduce(+, dual_edges, dual_lengths) do dual_e, dual_length
-      X_vec = X[tri_map[s[dual_e, :D_∂v0]]]
-      dual_length * dot(X_vec, e_vec)
-    end / sum(dual_lengths)
+    x_vec = X[e]
+
+    o_vec = (e_vec × x_vec) ./ (norm(e_vec)*norm(x_vec))
+
+    # Small sin(θ) vector means that they can just use the dot product without losing magnitude
+    # TODO:
+    # This threshold could possibly introduce error (very small error albeit).
+    # Acceptable for initial testing, potentially problematic later. There's a
+    # balance, because if this limit is smaller, then the inverse could be
+    # large.
+    if(norm(o_vec) < 1e-5)
+      return dot(e_vec, x_vec)
+    end
+
+    orientation = 1
+    u_vec = zeros(Float64, 3)
+    l_vec = zeros(Float64, 3)
+    for ed in elementary_duals(Val{1},s,e)
+      d_vec = dual_point(s, s[ed, :D_∂v1]) - dual_point(s, s[ed, :D_∂v0])
+      temp_u = x_vec × d_vec
+      temp_l = e_vec × d_vec
+      orientation = dot(temp_l, o_vec) < 0 ? -1 : 1
+      u_vec .+= temp_u .* orientation
+      l_vec .+= temp_l .* orientation
+    end
+    u_val = dot(u_vec, o_vec)
+    l_val = dot(l_vec, o_vec)
+
+    norm(e_vec)^2 * u_val / l_val
+    #dual_edges = elementary_duals(1,s,e)
+    #dual_lengths = dual_volume(1, s, dual_edges)
+    #mapreduce(+, dual_edges, dual_lengths) do dual_e, dual_length
+    #  X_vec = X[tri_map[s[dual_e, :D_∂v0]]]
+    #  dual_length * dot(X_vec, e_vec)
+    #end / sum(dual_lengths)
   end
 end
 
