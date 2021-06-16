@@ -1,16 +1,16 @@
 module ExteriorCalculus
 export Ob, Hom, dom, codom, compose, ⋅, id,
-  otimes, ⊗, munit, braid, oplus, ⊕, mzero, swap,
+  otimes, ⊗, munit, braid, oplus, ⊕, mzero, swap, coproduct, ⊔,
   mcopy, Δ, delete, ◊, plus, +, zero, antipode,
   MetricFreeExtCalc1D, MetricFreeExtCalc2D, ExtCalc1D, ExtCalc2D, FreeExtCalc2D,
-  Space, VectorField, Chain0, Chain1, Chain2, Form0, Form1, Form2,
+  Space, Chain0, Chain1, Chain2, Form0, Form1, Form2,
   ∂₁, ∂₂, d₀, d₁, ∧₀₀, ∧₁₀, ∧₀₁, ∧₁₁, ∧₂₀, ∧₀₂, ι₁, ι₂, ℒ₀, ℒ₁, ℒ₂,
   DualForm0, DualForm1, DualForm2, ⋆₀, ⋆₁, ⋆₂, ⋆₀⁻¹, ⋆₁⁻¹, ⋆₂⁻¹,
   dual_d₀, dual_d₁, δ₁, δ₂
 
 using Catlab, Catlab.Theories
 import Catlab.Theories: Ob, Hom, dom, codom, compose, ⋅, id,
-  otimes, ⊗, munit, braid, oplus, ⊕, mzero, swap,
+  otimes, ⊗, munit, braid, oplus, ⊕, mzero, swap, coproduct,
   mcopy, Δ, delete, ◊, plus, +, zero, antipode
 
 """ Theory of additive (symmetric) monoidal categories.
@@ -60,15 +60,17 @@ end
 This non-standard theory is for manifold-like spaces (`Space`) equipped with
 objects (`Ob`) and morphisms (`Hom`) belonging to an additive category, say of
 real vector spaces. The objects are spaces of things like vector fields, chains,
-forms, and twisted forms. Elements of these spaces, e.g. particular vector
-fields, are all assumed to be smoothly time-dependent and thus are equipped with
-time derivative operators. Note that, unlike in the space-time exterior
-calculus, we reserve the exterior calculus for the spatial dimensions and handle
-time separately.
+forms, and twisted forms. Elements of these spaces, e.g. particular forms, are
+all assumed to be smoothly time-dependent and so are equipped with time
+derivative operators. Unlike in the space-time exterior calculus, we reserve the
+exterior calculus for the spatial dimensions and handle time separately.
 """
 @theory ManifoldCalculus{Ob,Hom,Space} <: AdditiveMonoidalCategory{Ob,Hom} begin
   Space::TYPE
-  VectorField(X::Space)::Ob
+
+  # Coproduct of spaces. TODO: Is it worth fully axiomatizing?
+  coproduct(X::Space, Y::Space)::Space
+  @op (⊔) := coproduct
 
   """ Partial derivative with respect to time, a linear operator.
   """
@@ -87,6 +89,8 @@ end
 
   Form0(X::Space)::Ob
   Form1(X::Space)::Ob
+  Form0(X⊔Y) == Form0(X)⊕Form0(Y) ⊣ (X::Space, Y::Space)
+  Form1(X⊔Y) == Form1(X)⊕Form1(Y) ⊣ (X::Space, Y::Space)
   d₀(X::Space)::Hom(Form0(X), Form1(X))
 
   ∧₀₀(X::Space)::Hom(Form0(X)⊗Form0(X), Form0(X))
@@ -116,6 +120,7 @@ end
   ∂₂(X) ⋅ ∂₁(X) == zero(Chain2(X), Chain0(X)) ⊣ (X::Space)
 
   Form2(X::Space)::Ob
+  Form2(X⊔Y) == Form2(X)⊕Form2(Y) ⊣ (X::Space, Y::Space)
   d₁(X::Space)::Hom(Form1(X), Form2(X))
   d₀(X) ⋅ d₁(X) == zero(Form0(X), Form2(X)) ⊣ (X::Space)
 
@@ -145,6 +150,8 @@ end
 @theory ExtCalc1D{Ob,Hom,Space} <: MetricFreeExtCalc1D{Ob,Hom,Space} begin
   DualForm0(X::Space)::Ob
   DualForm1(X::Space)::Ob
+  DualForm0(X⊔Y) == DualForm0(X)⊕DualForm0(Y) ⊣ (X::Space, Y::Space)
+  DualForm1(X⊔Y) == DualForm1(X)⊕DualForm1(Y) ⊣ (X::Space, Y::Space)
   dual_d₀(X::Space)::Hom(DualForm0(X), DualForm1(X))
 
   ⋆₀(X::Space)::Hom(Form0(X), DualForm1(X))
@@ -164,6 +171,9 @@ end
   DualForm0(X::Space)::Ob
   DualForm1(X::Space)::Ob
   DualForm2(X::Space)::Ob
+  DualForm0(X⊔Y) == DualForm0(X)⊕DualForm0(Y) ⊣ (X::Space, Y::Space)
+  DualForm1(X⊔Y) == DualForm1(X)⊕DualForm1(Y) ⊣ (X::Space, Y::Space)
+  DualForm2(X⊔Y) == DualForm2(X)⊕DualForm2(Y) ⊣ (X::Space, Y::Space)
   dual_d₀(X::Space)::Hom(DualForm0(X), DualForm1(X))
   dual_d₁(X::Space)::Hom(DualForm1(X), DualForm2(X))
   dual_d₀(X) ⋅ dual_d₁(X) == zero(DualForm0(X), DualForm2(X)) ⊣ (X::Space)
