@@ -201,7 +201,7 @@ eform1, eform2 = EForm([1.5, 2, 2.5, 3, 3.5]), EForm([3, 7, 10, 11, 15])
 X♭, α = EForm([1.5, 2, 2.5, 3, 3.5]), DualForm{1}([3, 7, 10, 11, 15])
 @test interior_product(s, X♭, α) isa DualForm{0}
 @test length(interior_product_flat(1,s, X♭.data, α.data)) == 2
-@test lie_derivative(s, X♭, α) isa DualForm{1}
+@test ℒ(s, X♭, α) isa DualForm{1}
 @test length(lie_derivative_flat(1,s, X♭.data, α.data)) == 5
 
 end

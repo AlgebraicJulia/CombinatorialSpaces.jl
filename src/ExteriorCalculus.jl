@@ -34,7 +34,7 @@ TODO: Migrate to `Catlab.Theories.MonoidalMultiple`.
   @op (σ) := braid
   # TODO: Tensor product axioms should be inherited along with SMC operators.
 
-  # Distributity of tensor products over direct sums.
+  # Distributivity of tensor products over direct sums.
   #
   # In the standard categories like R-Mod, these would be distributors
   # (distributivity natural isomorphisms) but we replace them with equalities
