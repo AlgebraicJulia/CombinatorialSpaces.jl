@@ -3,9 +3,10 @@ export Ob, Hom, dom, codom, compose, ⋅, id,
   otimes, ⊗, munit, braid, oplus, ⊕, mzero, swap,
   mcopy, Δ, delete, ◊, plus, +, zero, antipode,
   MetricFreeExtCalc1D, MetricFreeExtCalc2D, ExtCalc1D, ExtCalc2D, FreeExtCalc2D,
-  Space, Chain0, Chain1, Chain2, Form0, Form1, Form2, ∂₁, ∂₂, d₀, d₁,
-  DualForm0, DualForm1, DualForm2, dual_d₀, dual_d₁, δ₁, δ₂,
-  ⋆₀, ⋆₁, ⋆₂, ⋆₀⁻¹, ⋆₁⁻¹, ⋆₂⁻¹
+  Space, VectorField, Chain0, Chain1, Chain2, Form0, Form1, Form2,
+  ∂₁, ∂₂, d₀, d₁, ι₁, ι₂, ℒ₀, ℒ₁, ℒ₂,
+  DualForm0, DualForm1, DualForm2, ⋆₀, ⋆₁, ⋆₂, ⋆₀⁻¹, ⋆₁⁻¹, ⋆₂⁻¹,
+  dual_d₀, dual_d₁, δ₁, δ₂
 
 using Catlab, Catlab.Theories
 import Catlab.Theories: Ob, Hom, dom, codom, compose, ⋅, id,
@@ -33,7 +34,7 @@ TODO: Migrate to `Catlab.Theories.MonoidalMultiple`.
   @op (σ) := braid
   # TODO: Tensor product axioms should be inherited along with SMC operators.
 
-  # Distributity of sums of over products.
+  # Distributity of tensor products over direct sums.
   #
   # In the standard categories like R-Mod, these would be distributors
   # (distributivity natural isomorphisms) but we replace them with equalities
@@ -54,14 +55,25 @@ TODO: Migrate to `Catlab.Theories.MonoidalMultiple`.
     (A::Ob, B::Ob, C::Ob, D::Ob, f::(A → B))
 end
 
+""" Base theory for algebra on manifold-like bases.
+
+This non-standard theory is for manifold-like spaces (`Space`) equipped with
+objects (`Ob`) and morphisms (`Hom`) belonging to an additive category, say of
+real vector spaces. The objects are spaces of things like vector fields, chains,
+forms, and twisted forms.
+"""
+@theory ManifoldAlgebra{Ob,Hom,Space} <: AdditiveMonoidalCategory{Ob,Hom} begin
+  Space::TYPE
+
+  VectorField(X::Space)::Ob
+end
+
 # Metric-free exterior calculus
 ###############################
 
-""" Theory of exterior caclulus on 1D manifold-like spaces.
+""" Theory of exterior calculus on 1-or-higher-dimensional manifold-like spaces.
 """
-@theory MetricFreeExtCalc1D{Ob,Hom,Space} <: AdditiveMonoidalCategory{Ob,Hom} begin
-  Space::TYPE
-
+@theory MetricFreeExtCalc1D₊{Ob,Hom,Space} <: ManifoldAlgebra{Ob,Hom,Space} begin
   Chain0(X::Space)::Ob
   Chain1(X::Space)::Ob
   ∂₁(X::Space)::Hom(Chain1(X), Chain0(X))
@@ -69,11 +81,22 @@ end
   Form0(X::Space)::Ob
   Form1(X::Space)::Ob
   d₀(X::Space)::Hom(Form0(X), Form1(X))
+
+  ι₁(X::Space)::Hom(Form1(X)⊗Form1(X), Form0(X))
+  ℒ₀(X::Space)::Hom(Form1(X)⊗Form0(X), Form0(X))
+  ℒ₀(X) == (id(Form1(X))⊗d₀(X)) ⋅ ι₁(X) ⊣ (X::Space)
+  ℒ₁(X::Space)::Hom(Form1(X)⊗Form1(X), Form1(X))
 end
 
-""" Theory of exterior calculus on 2D manifold-like spaces.
+""" Theory of exterior caclulus on 1D manifold-like spaces.
 """
-@theory MetricFreeExtCalc2D{Ob,Hom,Space} <: MetricFreeExtCalc1D{Ob,Hom,Space} begin
+@theory MetricFreeExtCalc1D{Ob,Hom,Space} <: MetricFreeExtCalc1D₊{Ob,Hom,Space} begin
+  ℒ₁(X) == ι₁(X) ⋅ d₀(X) ⊣ (X::Space)
+end
+
+""" Theory of exterior calculus on 2-or-higher-dimensional manifold-like spaces.
+"""
+@theory MetricFreeExtCalc2D₊{Ob,Hom,Space} <: MetricFreeExtCalc1D₊{Ob,Hom,Space} begin
   Chain2(X::Space)::Ob
   ∂₂(X::Space)::Hom(Chain2(X), Chain1(X))
   ∂₂(X) ⋅ ∂₁(X) == zero(Chain2(X), Chain0(X)) ⊣ (X::Space)
@@ -81,6 +104,16 @@ end
   Form2(X::Space)::Ob
   d₁(X::Space)::Hom(Form1(X), Form2(X))
   d₀(X) ⋅ d₁(X) == zero(Form0(X), Form2(X)) ⊣ (X::Space)
+
+  ι₂(X::Space)::Hom(Form1(X)⊗Form2(X), Form1(X))
+  ℒ₁(X) == (ι₁(X) ⋅ d₀(X)) + ((id(Form1(X))⊗d₁(X)) ⋅ ι₂(X)) ⊣ (X::Space)
+  ℒ₂(X::Space)::Hom(Form1(X)⊗Form2(X), Form2(X))
+end
+
+""" Theory of exterior calculus on 2D manifold-like spaces.
+"""
+@theory MetricFreeExtCalc2D{Ob,Hom,Space} <: MetricFreeExtCalc2D₊{Ob,Hom,Space} begin
+  ℒ₂(X) == ι₂(X) ⋅ d₁(X) ⊣ (X::Space)
 end
 
 # Exterior calculus (with metric)
