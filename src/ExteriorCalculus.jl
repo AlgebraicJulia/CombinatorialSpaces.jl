@@ -4,7 +4,7 @@ export Ob, Hom, dom, codom, compose, ⋅, id,
   mcopy, Δ, delete, ◊, plus, +, zero, antipode,
   MetricFreeExtCalc1D, MetricFreeExtCalc2D, ExtCalc1D, ExtCalc2D, FreeExtCalc2D,
   Space, VectorField, Chain0, Chain1, Chain2, Form0, Form1, Form2,
-  ∂₁, ∂₂, d₀, d₁, ι₁, ι₂, ℒ₀, ℒ₁, ℒ₂,
+  ∂₁, ∂₂, d₀, d₁, ∧₀₀, ∧₁₀, ∧₀₁, ∧₁₁, ∧₂₀, ∧₀₂, ι₁, ι₂, ℒ₀, ℒ₁, ℒ₂,
   DualForm0, DualForm1, DualForm2, ⋆₀, ⋆₁, ⋆₂, ⋆₀⁻¹, ⋆₁⁻¹, ⋆₂⁻¹,
   dual_d₀, dual_d₁, δ₁, δ₂
 
@@ -82,6 +82,13 @@ end
   Form1(X::Space)::Ob
   d₀(X::Space)::Hom(Form0(X), Form1(X))
 
+  ∧₀₀(X::Space)::Hom(Form0(X)⊗Form0(X), Form0(X))
+  ∧₁₀(X::Space)::Hom(Form1(X)⊗Form0(X), Form1(X))
+  ∧₀₁(X::Space)::Hom(Form0(X)⊗Form1(X), Form1(X))
+  σ(Form0(X),Form0(X)) ⋅ ∧₀₀(X) == ∧₀₀(X) ⊣ (X::Space)
+  σ(Form0(X),Form1(X)) ⋅ ∧₁₀(X) == ∧₀₁(X) ⊣ (X::Space)
+  σ(Form1(X),Form0(X)) ⋅ ∧₀₁(X) == ∧₁₀(X) ⊣ (X::Space)
+
   ι₁(X::Space)::Hom(Form1(X)⊗Form1(X), Form0(X))
   ℒ₀(X::Space)::Hom(Form1(X)⊗Form0(X), Form0(X))
   ℒ₀(X) == (id(Form1(X))⊗d₀(X)) ⋅ ι₁(X) ⊣ (X::Space)
@@ -104,6 +111,13 @@ end
   Form2(X::Space)::Ob
   d₁(X::Space)::Hom(Form1(X), Form2(X))
   d₀(X) ⋅ d₁(X) == zero(Form0(X), Form2(X)) ⊣ (X::Space)
+
+  ∧₁₁(X::Space)::Hom(Form1(X)⊗Form1(X), Form2(X))
+  ∧₂₀(X::Space)::Hom(Form2(X)⊗Form0(X), Form2(X))
+  ∧₀₂(X::Space)::Hom(Form0(X)⊗Form2(X), Form2(X))
+  σ(Form1(X),Form1(X)) ⋅ ∧₁₁(X) == ∧₁₁(X) ⋅ antipode(Form2(X)) ⊣ (X::Space)
+  σ(Form0(X),Form2(X)) ⋅ ∧₂₀(X) == ∧₀₂(X) ⊣ (X::Space)
+  σ(Form2(X),Form0(X)) ⋅ ∧₀₂(X) == ∧₂₀(X) ⊣ (X::Space)
 
   ι₂(X::Space)::Hom(Form1(X)⊗Form2(X), Form1(X))
   ℒ₁(X) == (ι₁(X) ⋅ d₀(X)) + ((id(Form1(X))⊗d₁(X)) ⋅ ι₂(X)) ⊣ (X::Space)
