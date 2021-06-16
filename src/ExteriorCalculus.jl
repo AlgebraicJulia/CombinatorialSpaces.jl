@@ -55,17 +55,24 @@ TODO: Migrate to `Catlab.Theories.MonoidalMultiple`.
     (A::Ob, B::Ob, C::Ob, D::Ob, f::(A → B))
 end
 
-""" Base theory for algebra on manifold-like bases.
+""" Base theory for calculus on manifold-like spaces.
 
 This non-standard theory is for manifold-like spaces (`Space`) equipped with
 objects (`Ob`) and morphisms (`Hom`) belonging to an additive category, say of
 real vector spaces. The objects are spaces of things like vector fields, chains,
-forms, and twisted forms.
+forms, and twisted forms. Elements of these spaces, e.g. particular vector
+fields, are all assumed to be smoothly time-dependent and thus are equipped with
+time derivative operators. Note that, unlike in the space-time exterior
+calculus, we reserve the exterior calculus for the spatial dimensions and handle
+time separately.
 """
-@theory ManifoldAlgebra{Ob,Hom,Space} <: AdditiveMonoidalCategory{Ob,Hom} begin
+@theory ManifoldCalculus{Ob,Hom,Space} <: AdditiveMonoidalCategory{Ob,Hom} begin
   Space::TYPE
-
   VectorField(X::Space)::Ob
+
+  """ Partial derivative with respect to time, a linear operator.
+  """
+  ∂ₜ(A::Ob)::Hom(A,A)
 end
 
 # Metric-free exterior calculus
@@ -73,7 +80,7 @@ end
 
 """ Theory of exterior calculus on 1-or-higher-dimensional manifold-like spaces.
 """
-@theory MetricFreeExtCalc1D₊{Ob,Hom,Space} <: ManifoldAlgebra{Ob,Hom,Space} begin
+@theory MetricFreeExtCalc1D₊{Ob,Hom,Space} <: ManifoldCalculus{Ob,Hom,Space} begin
   Chain0(X::Space)::Ob
   Chain1(X::Space)::Ob
   ∂₁(X::Space)::Hom(Chain1(X), Chain0(X))
