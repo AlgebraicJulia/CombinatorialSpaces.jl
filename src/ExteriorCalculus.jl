@@ -6,7 +6,7 @@ export Ob, Hom, dom, codom, compose, ⋅, id,
   Space, Chain0, Chain1, Chain2, Form0, Form1, Form2,
   ∂₁, ∂₂, d₀, d₁, ∧₀₀, ∧₁₀, ∧₀₁, ∧₁₁, ∧₂₀, ∧₀₂, ι₁, ι₂, ℒ₀, ℒ₁, ℒ₂,
   DualForm0, DualForm1, DualForm2, ⋆₀, ⋆₁, ⋆₂, ⋆₀⁻¹, ⋆₁⁻¹, ⋆₂⁻¹,
-  dual_d₀, dual_d₁, δ₁, δ₂
+  dual_d₀, dual_d₁, δ₁, δ₂, ∇²₀, ∇²₁, Δ₀, Δ₁, Δ₂
 
 using Catlab, Catlab.Theories
 import Catlab.Theories: Ob, Hom, dom, codom, compose, ⋅, id,
@@ -163,6 +163,14 @@ end
 
   δ₁(X::Space)::Hom(Form1(X), Form0(X))
   δ₁(X) == ⋆₁(X) ⋅ dual_d₀(X) ⋅ ⋆₀⁻¹(X) ⋅ antipode(Form0(X))
+
+  ∇²₀(X::Space)::Hom(Form0(X),Form0(X))
+  ∇²₀(X) == d₀(X) ⋅ δ₁(X) ⋅ antipode(Form0(X)) ⊣ (X::Space)
+
+  Δ₀(X::Space)::Hom(Form0(X),Form0(X))
+  Δ₁(X::Space)::Hom(Form1(X),Form1(X))
+  Δ₀(X) == d₀(X) ⋅ δ₁(X) ⊣ (X::Space)
+  Δ₁(X) == δ₁(X) ⋅ d₀(X) ⊣ (X::Space)
 end
 
 """ Theory of exterior calculus on 2D Riemannian manifold-like space.
@@ -192,6 +200,18 @@ end
   δ₂(X::Space)::Hom(Form2(X), Form1(X))
   δ₁(X) == ⋆₁(X) ⋅ dual_d₁(X) ⋅ ⋆₀⁻¹(X) ⋅ antipode(Form0(X))
   δ₂(X) == ⋆₂(X) ⋅ dual_d₀(X) ⋅ ⋆₁⁻¹(X)
+
+  ∇²₀(X::Space)::Hom(Form0(X),Form0(X))
+  ∇²₁(X::Space)::Hom(Form1(X),Form1(X))
+  ∇²₀(X) == d₀(X) ⋅ δ₁(X) ⋅ antipode(Form0(X)) ⊣ (X::Space)
+  ∇²₁(X) == d₁(X) ⋅ δ₂(X) ⋅ antipode(Form1(X)) ⊣ (X::Space)
+
+  Δ₀(X::Space)::Hom(Form0(X),Form0(X))
+  Δ₁(X::Space)::Hom(Form1(X),Form1(X))
+  Δ₂(X::Space)::Hom(Form2(X),Form2(X))
+  Δ₀(X) == d₀(X) ⋅ δ₁(X) ⊣ (X::Space)
+  Δ₁(X) == (d₁(X) ⋅ δ₂(X)) + (δ₁(X) ⋅ d₀(X)) ⊣ (X::Space)
+  Δ₂(X) == δ₂(X) ⋅ d₁(X) ⊣ (X::Space)
 end
 
 @syntax FreeExtCalc2D{ObExpr,HomExpr,GATExpr} ExtCalc2D begin
