@@ -15,8 +15,8 @@ export DualSimplex, DualV, DualE, DualTri, DualChain, DualForm,
   OrientedDeltaDualComplex2D, EmbeddedDeltaDualComplex2D,
   SimplexCenter, Barycenter, Circumcenter, Incenter, geometric_center,
   subsimplices, primal_vertex, elementary_duals, dual_boundary, dual_derivative,
-  ⋆, hodge_star, δ, codifferential, Δ, laplace_beltrami, ♭, flat, ♯, sharp,
-  ∧, wedge_product, interior_product, interior_product_flat,
+  ⋆, hodge_star, δ, codifferential, ∇², laplace_beltrami, Δ, laplace_de_rham,
+  ♭, flat, ♯, sharp, ∧, wedge_product, interior_product, interior_product_flat,
   ℒ, lie_derivative, lie_derivative_flat,
   vertex_center, edge_center, triangle_center, dual_triangle_vertices,
   dual_point, dual_volume, subdivide_duals!
@@ -647,7 +647,7 @@ end
 
 """ Hodge star operator from primal ``n``-forms to dual ``N-n``-forms.
 
-!!! warning
+!!! note
 
     Some authors, such as (Hirani 2003) and (Desbrun 2005), use the symbol ``⋆``
     for the duality operator on chains and the symbol ``*`` for the Hodge star
@@ -710,21 +710,29 @@ const codifferential = δ
 
 """ Laplace-Beltrami operator on discrete forms.
 
-The linear operator on primal ``n``-forms defined by ``Δ f := δ d f``, where
+This linear operator on primal ``n``-forms defined by ``∇² α := -δ d α``, where
 [`δ`](@ref) is the codifferential and [`d`](@ref) is the exterior derivative.
-"""
-Δ(s::AbstractACSet, x::SimplexForm{n}) where n =
-  SimplexForm{n}(Δ(Val{n}, s, x.data))
-@inline Δ(n::Int, s::AbstractACSet, args...) = Δ(Val{n}, s, args...)
 
-Δ(::Type{Val{n}}, s::AbstractACSet, form::AbstractVector) where n =
-  δ(Val{n+1}, s, d(Val{n}, s, form))
-Δ(::Type{Val{n}}, s::AbstractACSet, Mat::Type=SparseMatrixCSC{Float64}) where n =
-  δ(Val{n+1}, s, Mat) * d(Val{n}, s, Mat)
+!!! note
 
-""" Alias for the Laplace-Beltrami operator [`Δ`](@ref).
+    For following texts such as Abraham-Marsden-Ratiu, we take the sign
+    convention that makes the Laplace-Beltrami operator consistent with the
+    Euclidean Laplace operator (the divergence of the gradient). Other authors,
+    such as (Hirani 2003), take the opposite convention, which has the advantage
+    of being consistent with the Laplace-de Rham operator [`Δ`](@ref).
 """
-const laplace_beltrami = Δ
+∇²(s::AbstractACSet, x::SimplexForm{n}) where n =
+  SimplexForm{n}(∇²(Val{n}, s, x.data))
+@inline ∇²(n::Int, s::AbstractACSet, args...) = ∇²(Val{n}, s, args...)
+
+∇²(::Type{Val{n}}, s::AbstractACSet, form::AbstractVector) where n =
+  -δ(Val{n+1}, s, d(Val{n}, s, form))
+∇²(::Type{Val{n}}, s::AbstractACSet, Mat::Type=SparseMatrixCSC{Float64}) where n =
+  -δ(Val{n+1}, s, Mat) * d(Val{n}, s, Mat)
+
+""" Alias for the Laplace-Beltrami operator [`∇²`](@ref).
+"""
+const laplace_beltrami = ∇²
 
 """ Flat operator converting vector fields to 1-forms.
 
