@@ -82,6 +82,8 @@ subdivide_duals!(s, Barycenter())
                   0 -1  2 -1  0;
                   0  0 -1  2 -1;
                   0  0  0 -2  2]
+f = VForm([0,1,2,1,0])
+@test Δ(s,f) ≈ -∇²(s,f)
 
 # 2D dual complex
 #################
@@ -154,6 +156,7 @@ subdivide_duals!(s, Barycenter())
                         -2.236  1  0;
                          0     -1 -2.236], atol=1e-3)
 @test δ(s, EForm([0.5,1.5,0.5])) isa VForm
+@test Δ(s, EForm([1.,2.,1.])) isa EForm
 
 subdivide_duals!(s, Circumcenter())
 @test dual_point(s, triangle_center(s, 1)) ≈ Point2D(1/2, 1/2)

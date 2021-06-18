@@ -28,6 +28,7 @@ using StaticArrays: @SVector, SVector
 
 using Catlab, Catlab.CategoricalAlgebra.CSets
 using Catlab.CategoricalAlgebra.FinSets: deleteat
+import Catlab.Theories: Δ
 using ..ArrayUtils, ..SimplicialSets
 using ..SimplicialSets: DeltaCategory1D, DeltaCategory2D, CayleyMengerDet,
   operator_nz, ∂_nz, d_nz, cayley_menger, negate
@@ -733,6 +734,30 @@ This linear operator on primal ``n``-forms defined by ``∇² α := -δ d α``, 
 """ Alias for the Laplace-Beltrami operator [`∇²`](@ref).
 """
 const laplace_beltrami = ∇²
+
+""" Laplace-de Rham operator on discrete forms.
+
+This linear operator on primal ``n``-forms is defined by ``Δ := δ d + d δ``.
+Restricted to 0-forms, it reduces to the negative of the Laplace-Beltrami
+operator [`∇²`](@ref): ``Δ f = -∇² f``.
+"""
+Δ(s::AbstractACSet, x::SimplexForm{n}) where n =
+  SimplexForm{n}(Δ(Val{n}, s, x.data))
+@inline Δ(n::Int, s::AbstractACSet, args...) = Δ(Val{n}, s, args...)
+
+Δ(::Type{Val{0}}, s::AbstractACSet, form::AbstractVector) =
+  δ(Val{1}, s, d(Val{0}, s, form))
+Δ(::Type{Val{0}}, s::AbstractACSet, Mat::Type=SparseMatrixCSC{Float64}) =
+  δ(Val{1},s,Mat) * d(Val{0},s,Mat)
+
+Δ(::Type{Val{n}}, s::AbstractACSet, form::AbstractVector) where n =
+  δ(Val{n+1}, s, d(Val{n}, s, form)) + d(Val{n-1}, s, δ(Val{n}, s, form))
+Δ(::Type{Val{n}}, s::AbstractACSet, Mat::Type=SparseMatrixCSC{Float64}) where n =
+  δ(Val{n+1},s,Mat) * d(Val{n},s,Mat) + d(Val{n-1},s,Mat) * δ(Val{n},s,Mat)
+
+""" Alias for the Laplace-de Rham operator [`Δ`](@ref).
+"""
+const laplace_de_rham = Δ
 
 """ Flat operator converting vector fields to 1-forms.
 
