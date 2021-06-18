@@ -17,7 +17,7 @@ export DualSimplex, DualV, DualE, DualTri, DualChain, DualForm,
   subsimplices, primal_vertex, elementary_duals, dual_boundary, dual_derivative,
   ⋆, hodge_star, δ, codifferential, Δ, laplace_beltrami, ♭, flat, ♯, sharp,
   ∧, wedge_product, interior_product, interior_product_flat,
-  lie_derivative, lie_derivative_flat,
+  ℒ, lie_derivative, lie_derivative_flat,
   vertex_center, edge_center, triangle_center, dual_triangle_vertices,
   dual_point, dual_volume, subdivide_duals!
 
@@ -836,8 +836,12 @@ end
 Specifically, this is the primal-dual Lie derivative defined in (Hirani 2003,
 Section 8.4) and (Desbrun et al 2005, Section 10).
 """
-lie_derivative(s::AbstractACSet, X♭::EForm, α::DualForm{n}) where n =
+ℒ(s::AbstractACSet, X♭::EForm, α::DualForm{n}) where n =
   DualForm{n}(lie_derivative_flat(Val{n}, s, X♭, α.data))
+
+""" Alias for Lie derivative operator [`ℒ`](@ref).
+"""
+const lie_derivative = ℒ
 
 """ Lie derivative of ``n``-form with respect to a 1-form.
 
