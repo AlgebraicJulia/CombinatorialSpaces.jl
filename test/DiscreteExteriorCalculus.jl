@@ -76,12 +76,14 @@ add_vertices!(primal_s, 5, point=[Point2D(i,0) for i in -2:2])
 add_edges!(primal_s, 1:4, 2:5, edge_orientation=true)
 s = EmbeddedDeltaDualComplex1D{Bool,Float64,Point2D}(primal_s)
 subdivide_duals!(s, Barycenter())
-@test Δ(s, VForm([0,0,1,0,0])) ≈ VForm([0,1,-2,1,0])
-@test Δ(0,s) ≈ [-2  2  0  0  0;
-                 1 -2  1  0  0;
-                 0  1 -2  1  0;
-                 0  0  1 -2  1;
-                 0  0  0  2 -2]
+@test ∇²(s, VForm([0,0,1,0,0])) ≈ VForm([0,-1,2,-1,0])
+@test ∇²(0,s) ≈ [ 2 -2  0  0  0;
+                 -1  2 -1  0  0;
+                  0 -1  2 -1  0;
+                  0  0 -1  2 -1;
+                  0  0  0 -2  2]
+f = VForm([0,1,2,1,0])
+@test Δ(s,f) ≈ -∇²(s,f)
 
 # 2D dual complex
 #################
@@ -154,6 +156,7 @@ subdivide_duals!(s, Barycenter())
                         -2.236  1  0;
                          0     -1 -2.236], atol=1e-3)
 @test δ(s, EForm([0.5,1.5,0.5])) isa VForm
+@test Δ(s, EForm([1.,2.,1.])) isa EForm
 
 subdivide_duals!(s, Circumcenter())
 @test dual_point(s, triangle_center(s, 1)) ≈ Point2D(1/2, 1/2)
