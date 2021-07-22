@@ -689,15 +689,18 @@ function ⋆(::Type{Val{1}}, s::AbstractACSet)
     dv = fill(dual_point(s, triangle_center(s, t)),3) .- dual_point(s, edge_center(s, e))
     dv[2] *= -1
 
+    diag_dot = map(1:3) do i
+             dot(ev[i], dv[i]) / norm(ev[i])^2
+           end
+
     for i in 1:3
       diag_cross = sign(Val{2}, s, t) * crossdot(ev[i], dv[i]) / norm(ev[i])^2
       add_val!(vals, (e[i], e[i]), diag_cross)
     end
 
     for p ∈ [[1,2,3], [1,3,2], [2,1,3], [2,3,1], [3,1,2], [3,2,1]]
-      diag_dot = dot(ev[i], dv[i]) / norm(ev[i])^2
-      val = sign(Val{2}, s, t) *
-            diag_dot * dot(ev[p[1]], ev[p[3]]) / crossdot(ev[p[2]], ev[p[3]])
+      val = sign(Val{2}, s, t) * diag_dot[p[1]] * dot(ev[p[1]], ev[p[3]]) /
+              crossdot(ev[p[2]], ev[p[3]])
       add_val!(vals, (e[p[1]], e[p[2]]), val)
     end
   end
