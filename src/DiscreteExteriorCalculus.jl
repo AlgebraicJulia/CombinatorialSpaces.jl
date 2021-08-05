@@ -884,10 +884,20 @@ vector field.
 @inline lie_derivative_flat(n::Int, s::AbstractACSet, args...) =
   lie_derivative_flat(Val{n}, s, args...)
 
-function lie_derivative_flat(::Type{Val{n}}, s::AbstractACSet,
-                             X♭::AbstractVector, α::AbstractVector) where n
-  interior_product_flat(n+1, s, X♭, dual_derivative(n, s, α)) +
-    dual_derivative(n-1, s, interior_product_flat(n, s, X♭, α))
+function lie_derivative_flat(::Type{Val{0}}, s::AbstractACSet,
+                             X♭::AbstractVector, α::AbstractVector)
+  interior_product_flat(1, s, X♭, dual_derivative(0, s, α))
+end
+
+function lie_derivative_flat(::Type{Val{1}}, s::AbstractACSet,
+                             X♭::AbstractVector, α::AbstractVector)
+  interior_product_flat(2, s, X♭, dual_derivative(1, s, α)) +
+    dual_derivative(0, s, interior_product_flat(1, s, X♭, α))
+end
+
+function lie_derivative_flat(::Type{Val{2}}, s::AbstractACSet,
+                             X♭::AbstractVector, α::AbstractVector)
+  dual_derivative(1, s, interior_product_flat(2, s, X♭, α))
 end
 
 # Euclidean geometry
