@@ -659,9 +659,13 @@ end
     operator on cochains. We do not explicitly define the duality operator and
     we use the symbol ``⋆`` for the Hodge star.
 """
-⋆(s::AbstractACSet, x::SimplexForm{n}) where n =
-  DualForm{ndims(s)-n}(⋆(Val{n}, s, x.data, GeometricHodge()))
-@inline ⋆(n::Int, s::AbstractACSet, args...) = ⋆(Val{n}, s, args..., GeometricHodge())
+⋆(s::AbstractACSet, x::SimplexForm{n}; kw...) where n =
+  DualForm{ndims(s)-n}(⋆(Val{n}, s, x.data; kw...))
+@inline ⋆(n::Int, s::AbstractACSet, args...; kw...) = ⋆(Val{n}, s, args...; kw...)
+@inline ⋆(::Type{Val{n}}, s::AbstractACSet; hodge=GeometricHodge()) where n =
+            ⋆(Val{n}, s, hodge)
+@inline ⋆(::Type{Val{n}}, s::AbstractACSet, form::AbstractVector;
+          hodge=GeometricHodge()) where n = ⋆(Val{n}, s, form, hodge)
 
 ⋆(::Type{Val{n}}, s::AbstractACSet, form::AbstractVector, ::DiagonalHodge) where n =
   applydiag(form) do x, a; a * hodge_diag(Val{n},s,x) end
@@ -745,8 +749,12 @@ Confusingly, this is *not* the operator inverse of the Hodge star [`⋆`](@ref)
 because it carries an extra global sign, in analogy to the smooth case
 (Gillette, 2009, Notes on the DEC, Definition 2.27).
 """
-@inline inv_hodge_star(n::Int, s::AbstractACSet, args...) =
-  inv_hodge_star(Val{n}, s, args..., GeometricHodge())
+@inline inv_hodge_star(n::Int, s::AbstractACSet, args...; kw...) =
+  inv_hodge_star(Val{n}, s, args...; kw...)
+@inline inv_hodge_star(::Type{Val{n}}, s::AbstractACSet; hodge=GeometricHodge()) where n =
+            inv_hodge_star(Val{n}, s, hodge)
+@inline inv_hodge_star(::Type{Val{n}}, s::AbstractACSet, form::AbstractVector;
+          hodge=GeometricHodge()) where n = inv_hodge_star(Val{n}, s, form, hodge)
 
 function inv_hodge_star(::Type{Val{n}}, s::AbstractACSet,
                         form::AbstractVector, ::DiagonalHodge) where n
@@ -772,7 +780,7 @@ function inv_hodge_star(::Type{Val{1}}, s::AbstractDeltaDualComplex2D,
 end
 function inv_hodge_star(::Type{Val{1}}, s::AbstractDeltaDualComplex2D,
                         form::AbstractVector, ::GeometricHodge)
-  cholesky(⋆(Val{1}, s, GeometricHodge())) \ form
+  inv(Matrix(⋆(Val{1}, s, GeometricHodge()))) * form
 end
 
 inv_hodge_star(::Type{Val{0}}, s::AbstractDeltaDualComplex2D, ::GeometricHodge) =
@@ -780,23 +788,32 @@ inv_hodge_star(::Type{Val{0}}, s::AbstractDeltaDualComplex2D, ::GeometricHodge) 
 inv_hodge_star(::Type{Val{2}}, s::AbstractDeltaDualComplex2D, ::GeometricHodge) =
   inv_hodge_star(Val{2}, s, DiagonalHodge())
 
-inv_hodge_star(::Type{Val{0}}, s::AbstractDeltaDualComplex2D, form::AbstractVector, ::GeometricHodge) =
+inv_hodge_star(::Type{Val{0}}, s::AbstractDeltaDualComplex2D,
+               form::AbstractVector, ::GeometricHodge) =
   inv_hodge_star(Val{0}, s, form, DiagonalHodge())
-inv_hodge_star(::Type{Val{1}}, s::AbstractDeltaDualComplex2D, form::AbstractVector, ::GeometricHodge) =
-  inv_hodge_star(Val{1}, s, GeometricHodge()) * form
-inv_hodge_star(::Type{Val{2}}, s::AbstractDeltaDualComplex2D, form::AbstractVector, ::GeometricHodge) =
+inv_hodge_star(::Type{Val{2}}, s::AbstractDeltaDualComplex2D,
+               form::AbstractVector, ::GeometricHodge) =
   inv_hodge_star(Val{2}, s, form, DiagonalHodge())
 
-inv_hodge_star(::Type{Val{n}}, s::AbstractDeltaDualComplex1D, ::GeometricHodge) where n =
+inv_hodge_star(::Type{Val{n}}, s::AbstractDeltaDualComplex1D,
+               ::GeometricHodge) where n =
   inv_hodge_star(Val{n}, s, DiagonalHodge())
-inv_hodge_star(::Type{Val{n}}, s::AbstractDeltaDualComplex1D, form::AbstractVector, ::GeometricHodge) where n =
+inv_hodge_star(::Type{Val{n}}, s::AbstractDeltaDualComplex1D,
+               form::AbstractVector, ::GeometricHodge) where n =
   inv_hodge_star(Val{n}, s, form, DiagonalHodge())
 
 """ Codifferential operator from primal ``n`` forms to primal ``n-1``-forms.
 """
-δ(s::AbstractACSet, x::SimplexForm{n}) where n =
-  SimplexForm{n-1}(δ(Val{n}, s, GeometricHodge(), x.data))
-@inline δ(n::Int, s::AbstractACSet, args...) = δ(Val{n}, s, GeometricHodge(), args...)
+δ(s::AbstractACSet, x::SimplexForm{n}; kw...) where n =
+  SimplexForm{n-1}(δ(Val{n}, s, GeometricHodge(), x.data; kw...))
+@inline δ(n::Int, s::AbstractACSet, args...; kw...) =
+  δ(Val{n}, s, args...; kw...)
+@inline δ(::Type{Val{n}}, s::AbstractACSet; hodge=GeometricHodge(),
+          matrix::Type=SparseMatrixCSC{Float64}) where n =
+  δ(Val{n}, s, hodge, matrix)
+@inline δ(::Type{Val{n}}, s::AbstractACSet, form::AbstractVector;
+          hodge=GeometricHodge()) where n =
+  δ(Val{n}, s, hodge, form)
 
 function δ(::Type{Val{n}}, s::AbstractACSet, ::DiagonalHodge, args...) where n
   # TODO: What is the right global sign?
@@ -811,12 +828,12 @@ function δ(::Type{Val{n}}, s::AbstractACSet, ::DiagonalHodge, args...) where n
   end
 end
 
-function δ(::Type{Val{n}}, s::AbstractACSet, ::GeometricHodge, args...) where n
+function δ(::Type{Val{n}}, s::AbstractACSet, ::GeometricHodge, matrix) where n
   inv_hodge_star(n-1, s) * dual_derivative(ndims(s)-n, s) * ⋆(n, s)
 end
 
-function δ(::Type{Val{n}}, s::AbstractACSet, ::GeometricHodge, form::AbstractVector, args...) where n
-  inv_hodge_star(n - 1, s, dual_derivative(ndims(s)-n, s, ⋆(n, s, form)))
+function δ(::Type{Val{n}}, s::AbstractACSet, ::GeometricHodge, form::AbstractVector) where n
+  Vector(inv_hodge_star(n - 1, s, dual_derivative(ndims(s)-n, s, ⋆(n, s, form))))
 end
 
 """ Alias for the codifferential operator [`δ`](@ref).
@@ -836,14 +853,14 @@ This linear operator on primal ``n``-forms defined by ``∇² α := -δ d α``, 
     such as (Hirani 2003), take the opposite convention, which has the advantage
     of being consistent with the Laplace-de Rham operator [`Δ`](@ref).
 """
-∇²(s::AbstractACSet, x::SimplexForm{n}) where n =
-  SimplexForm{n}(∇²(Val{n}, s, x.data))
-@inline ∇²(n::Int, s::AbstractACSet, args...) = ∇²(Val{n}, s, args...)
+∇²(s::AbstractACSet, x::SimplexForm{n}; kw...) where n =
+  SimplexForm{n}(∇²(Val{n}, s, x.data; kw...))
+@inline ∇²(n::Int, s::AbstractACSet, args...; kw...) = ∇²(Val{n}, s, args...; kw...)
 
-∇²(::Type{Val{n}}, s::AbstractACSet, form::AbstractVector) where n =
-  -δ(n+1, s, d(Val{n}, s, form))
-∇²(::Type{Val{n}}, s::AbstractACSet, Mat::Type=SparseMatrixCSC{Float64}) where n =
-  -δ(n+1, s, Mat) * d(Val{n}, s, Mat)
+∇²(::Type{Val{n}}, s::AbstractACSet, form::AbstractVector; kw...) where n =
+  -δ(n+1, s, d(Val{n}, s, form); kw...)
+∇²(::Type{Val{n}}, s::AbstractACSet; matrix::Type=SparseMatrixCSC{Float64}, kw...) where n =
+  -δ(n+1, s; matrix=matrix, kw...) * d(Val{n}, s, matrix)
 
 """ Alias for the Laplace-Beltrami operator [`∇²`](@ref).
 """
@@ -855,19 +872,20 @@ This linear operator on primal ``n``-forms is defined by ``Δ := δ d + d δ``.
 Restricted to 0-forms, it reduces to the negative of the Laplace-Beltrami
 operator [`∇²`](@ref): ``Δ f = -∇² f``.
 """
-Δ(s::AbstractACSet, x::SimplexForm{n}) where n =
-  SimplexForm{n}(Δ(Val{n}, s, x.data))
-@inline Δ(n::Int, s::AbstractACSet, args...) = Δ(Val{n}, s, args...)
+Δ(s::AbstractACSet, x::SimplexForm{n}; kw...) where n =
+  SimplexForm{n}(Δ(Val{n}, s, x.data; kw...))
+@inline Δ(n::Int, s::AbstractACSet, args...; kw...) = Δ(Val{n}, s, args...; kw...)
 
-Δ(::Type{Val{0}}, s::AbstractACSet, form::AbstractVector) =
-  δ(1, s, d(Val{0}, s, form))
-Δ(::Type{Val{0}}, s::AbstractACSet, Mat::Type=SparseMatrixCSC{Float64}) =
-  δ(1,s,Mat) * d(Val{0},s,Mat)
+Δ(::Type{Val{0}}, s::AbstractACSet, form::AbstractVector; kw...) =
+  δ(1, s, d(Val{0}, s, form); kw...)
+Δ(::Type{Val{0}}, s::AbstractACSet; matrix::Type=SparseMatrixCSC{Float64}, kw...) =
+  δ(1,s; matrix=matrix, kw...) * d(Val{0},s,matrix)
 
-Δ(::Type{Val{n}}, s::AbstractACSet, form::AbstractVector) where n =
-  δ(n+1, s, d(Val{n}, s, form)) + d(Val{n-1}, s, δ(n, s, form))
-Δ(::Type{Val{n}}, s::AbstractACSet, Mat::Type=SparseMatrixCSC{Float64}) where n =
-  δ(n+1,s,Mat) * d(Val{n},s,Mat) + d(Val{n-1},s,Mat) * δ(n,s,Mat)
+Δ(::Type{Val{n}}, s::AbstractACSet, form::AbstractVector; kw...) where n =
+  δ(n+1, s, d(Val{n}, s, form); kw...) + d(Val{n-1}, s, δ(n, s, form; kw...))
+Δ(::Type{Val{n}}, s::AbstractACSet; matrix::Type=SparseMatrixCSC{Float64}, kw...) where n =
+  δ(n+1,s; matrix=matrix, kw...) * d(Val{n},s,matrix) +
+		d(Val{n-1},s,matrix) * δ(n,s; matrix=matrix, kw...)
 
 """ Alias for the Laplace-de Rham operator [`Δ`](@ref).
 """
@@ -959,8 +977,8 @@ Specifically, this operation is the primal-dual interior product defined in
 primal vector field (or primal 1-form) and a dual ``n``-forms and then returns a
 dual ``(n-1)``-form.
 """
-interior_product(s::AbstractACSet, X♭::EForm, α::DualForm{n}) where n =
-  DualForm{n-1}(interior_product_flat(Val{n}, s, X♭.data, α.data))
+interior_product(s::AbstractACSet, X♭::EForm, α::DualForm{n}; kw...) where n =
+  DualForm{n-1}(interior_product_flat(Val{n}, s, X♭.data, α.data); kw...)
 
 """ Interior product of a 1-form and a ``n``-form, yielding an ``(n-1)``-form.
 
@@ -968,14 +986,15 @@ Usually, the interior product is defined for vector fields; this function
 assumes that the flat operator [`♭`](@ref) (not yet implemented for primal
 vector fields) has already been applied to yield a 1-form.
 """
-@inline interior_product_flat(n::Int, s::AbstractACSet, args...) =
-  interior_product_flat(Val{n}, s, args...)
+@inline interior_product_flat(n::Int, s::AbstractACSet, args...; kw...) =
+  interior_product_flat(Val{n}, s, args...; kw...)
 
 function interior_product_flat(::Type{Val{n}}, s::AbstractACSet,
-                               X♭::AbstractVector, α::AbstractVector) where n
+                               X♭::AbstractVector, α::AbstractVector;
+                               kw...) where n
   # TODO: Global sign `iseven(n*n′) ? +1 : -1`
   n′ = ndims(s) - n
-  hodge_star(n′+1,s, wedge_product(n′,1,s, inv_hodge_star(n′,s, α), X♭))
+  hodge_star(n′+1,s, wedge_product(n′,1,s, inv_hodge_star(n′,s, α; kw...), X♭); kw...)
 end
 
 """ Lie derivative of ``n``-form with respect to a vector field (or 1-form).
@@ -983,8 +1002,8 @@ end
 Specifically, this is the primal-dual Lie derivative defined in (Hirani 2003,
 Section 8.4) and (Desbrun et al 2005, Section 10).
 """
-ℒ(s::AbstractACSet, X♭::EForm, α::DualForm{n}) where n =
-  DualForm{n}(lie_derivative_flat(Val{n}, s, X♭, α.data))
+ℒ(s::AbstractACSet, X♭::EForm, α::DualForm{n}; kw...) where n =
+  DualForm{n}(lie_derivative_flat(Val{n}, s, X♭, α.data; kw...))
 
 """ Alias for Lie derivative operator [`ℒ`](@ref).
 """
@@ -995,8 +1014,8 @@ const lie_derivative = ℒ
 Assumes that the flat operator [`♭`](@ref) has already been applied to the
 vector field.
 """
-@inline lie_derivative_flat(n::Int, s::AbstractACSet, args...) =
-  lie_derivative_flat(Val{n}, s, args...)
+@inline lie_derivative_flat(n::Int, s::AbstractACSet, args...; kw...) =
+  lie_derivative_flat(Val{n}, s, args...; kw...)
 
 function lie_derivative_flat(::Type{Val{0}}, s::AbstractACSet,
                              X♭::AbstractVector, α::AbstractVector)
