@@ -154,9 +154,12 @@ subdivide_duals!(s, Barycenter())
                 0.0 1/6 0.0;
                 1/6 0.0 1/3]
 @test ⋆(s, VForm([1,2,3]))::DualForm{2} ≈ DualForm{2}([1/6, 1/3, 1/2])
-@test isapprox(δ(1,s), [ 2.236  0  2.236;
-                        -2.236  1  0;
-                         0     -1 -2.236], atol=1e-3)
+@test isapprox(δ(Val{1},s, DiagonalHodge()), [ 2.236  0  2.236;
+                                              -2.236  1  0;
+                                               0     -1 -2.236], atol=1e-3)
+@test isapprox(δ(1,s), [ 3.0  0  3.0;
+                        -2.0  1 -1.0;
+                         -1  -1 -2.0], atol=1e-3)
 @test δ(s, EForm([0.5,1.5,0.5])) isa VForm
 @test Δ(s, EForm([1.,2.,1.])) isa EForm
 
@@ -174,9 +177,14 @@ subdivide_duals!(s, Incenter())
 @test isapprox(⋆(1,s), [0.293 0.000 0.207;
                         0.000 0.207 0.000;
                         0.207 0.000 0.293], atol=1e-3)
-@test isapprox(δ(1,s), [ 2.449  0      2.449;
-                        -2.029  1.172  0;
-                         0     -1.172 -2.029], atol=1e-3)
+
+@test isapprox(δ(Val{1},s, DiagonalHodge()), [ 2.449  0      2.449;
+                                              -2.029  1.172  0;
+                                               0     -1.172 -2.029], atol=1e-3)
+
+@test isapprox(δ(1,s), [ 3.414  0.000  3.414;
+                        -1.657  1.172 -1.172;
+                        -1.172 -1.172 -1.657], atol=1e-3)
 
 # Triangulated square with consistent orientation.
 primal_s = EmbeddedDeltaSet2D{Bool,Point2D}()
