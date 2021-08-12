@@ -694,8 +694,8 @@ function ⋆(::Type{Val{1}}, s::AbstractDeltaDualComplex2D)
     end
 
     diag_dot = map(1:3) do i
-             dot(ev[i], dv[i]) / norm(ev[i])^2
-           end
+      dot(ev[i], dv[i]) / dot(ev[i], ev[i])
+    end
 
     for i in 1:3
       diag_cross = sign(Val{2}, s, t) * crossdot(ev[i], dv[i]) /
