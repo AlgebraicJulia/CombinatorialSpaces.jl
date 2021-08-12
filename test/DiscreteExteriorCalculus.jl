@@ -150,7 +150,9 @@ subdivide_duals!(s, Barycenter())
 @test volume(s, elementary_duals(s, V(1))) ≈ [1/12, 1/12]
 @test [sum(volume(s, elementary_duals(s, V(i)))) for i in 1:3] ≈ [1/6, 1/6, 1/6]
 @test ⋆(0,s) ≈ Diagonal([1/6, 1/6, 1/6])
-@test ⋆(1,s) ≈ Diagonal([√5/6, 1/6, √5/6])
+@test ⋆(1,s) ≈ [1/3 0.0 1/6;
+                0.0 1/6 0.0;
+                1/6 0.0 1/3]
 @test ⋆(s, VForm([1,2,3]))::DualForm{2} ≈ DualForm{2}([1/6, 1/3, 1/2])
 @test isapprox(δ(1,s), [ 2.236  0  2.236;
                         -2.236  1  0;
@@ -169,7 +171,9 @@ subdivide_duals!(s, Circumcenter())
 subdivide_duals!(s, Incenter())
 @test dual_point(s, triangle_center(s, 1)) ≈ Point2D(1/(2+√2), 1/(2+√2))
 @test isapprox(⋆(0,s), Diagonal([0.146, 0.177, 0.177]), atol=1e-3)
-@test isapprox(⋆(1,s), Diagonal([0.359, 0.207, 0.359]), atol=1e-3)
+@test isapprox(⋆(1,s), [0.293 0.000 0.207;
+                        0.000 0.207 0.000;
+                        0.207 0.000 0.293], atol=1e-3)
 @test isapprox(δ(1,s), [ 2.449  0      2.449;
                         -2.029  1.172  0;
                          0     -1.172 -2.029], atol=1e-3)

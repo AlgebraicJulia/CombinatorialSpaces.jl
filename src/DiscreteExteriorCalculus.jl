@@ -40,6 +40,9 @@ struct DPPFlat <: DiscreteFlat end
 abstract type DiscreteSharp end
 struct PPSharp <: DiscreteSharp end
 
+abstract type DiscreteHodge end
+struct Geometric <: DiscreteHodge end
+
 # 1D dual complex
 #################
 
@@ -664,11 +667,6 @@ end
 ⋆(::Type{Val{n}}, s::AbstractACSet) where n =
   Diagonal([ hodge_diag(Val{n},s,x) for x in simplices(n,s) ])
 
-add_val!(d, k, v) = if k ∈ keys(d)
-  d[k] += v
-else
-  d[k] = v
-end
 crossdot(v1, v2) = norm(cross(v1, v2)) * sign(last(cross(v1, v2)))
 
 """ Hodge star operator from primal 1-forms to dual 1-forms.
@@ -679,34 +677,43 @@ This reproduces the diagonal hodge for a dual mesh generated under
 circumcentric subdivision and provides off-diagonal correction factors for
 meshes generated under other subdivision schemes (e.g. barycentric).
 """
-function ⋆(::Type{Val{1}}, s::AbstractACSet)
+function ⋆(::Type{Val{1}}, s::AbstractDeltaDualComplex2D)
 
   vals = Dict{Tuple{Int64, Int64}, Float64}()
+  I = Vector{Int64}()
+  J = Vector{Int64}()
+  V = Vector{Float64}()
+
   for t in triangles(s)
     e = reverse(triangle_edges(s, t))
     ev = point(s, tgt(s, e)) .- point(s, src(s,e))
 
-    dv = fill(dual_point(s, triangle_center(s, t)),3) .- dual_point(s, edge_center(s, e))
-    dv[2] *= -1
+    tc = dual_point(s, triangle_center(s, t))
+    dv = map(enumerate(dual_point(s, edge_center(s, e)))) do (i,v)
+      (tc - v) * (i == 2 ? -1 : 1)
+    end
 
     diag_dot = map(1:3) do i
              dot(ev[i], dv[i]) / norm(ev[i])^2
            end
 
     for i in 1:3
-      diag_cross = sign(Val{2}, s, t) * crossdot(ev[i], dv[i]) / norm(ev[i])^2
-      add_val!(vals, (e[i], e[i]), diag_cross)
+      diag_cross = sign(Val{2}, s, t) * crossdot(ev[i], dv[i]) /
+                      dot(ev[i], ev[i])
+      push!(I, e[i])
+      push!(J, e[i])
+      push!(V, diag_cross)
     end
 
-    for p ∈ [[1,2,3], [1,3,2], [2,1,3], [2,3,1], [3,1,2], [3,2,1]]
+    for p ∈ ((1,2,3), (1,3,2), (2,1,3),
+             (2,3,1), (3,1,2), (3,2,1))
       val = sign(Val{2}, s, t) * diag_dot[p[1]] * dot(ev[p[1]], ev[p[3]]) /
               crossdot(ev[p[2]], ev[p[3]])
-      add_val!(vals, (e[p[1]], e[p[2]]), val)
+      push!(I, e[p[1]])
+      push!(J, e[p[2]])
+      push!(V, val)
     end
   end
-  I = first.(keys(vals))
-  J = last.(keys(vals))
-  V = collect(values(vals))
   sparse(I,J,V)
 end
 
