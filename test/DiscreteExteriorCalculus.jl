@@ -165,6 +165,16 @@ subdivide_duals!(s, Barycenter())
 @test δ(s, EForm([0.5,1.5,0.5])) isa VForm
 @test Δ(s, EForm([1.,2.,1.])) isa EForm
 
+@test isapprox(Δ(0, s), [-6  3  3;
+                          3 -3  0;
+                          3  0 -3], atol=1e-3)
+
+@test isapprox(Δ(1, s), [7   13 -16;
+                         13  10 -13;
+                        -16 -13  7], atol=1e-3)
+
+@test isapprox(Δ(2, s), reshape([36.0], (1,1)), atol=1e-3)
+
 subdivide_duals!(s, Circumcenter())
 @test dual_point(s, triangle_center(s, 1)) ≈ Point2D(1/2, 1/2)
 @test ⋆(0,s) ≈ Diagonal([1/4, 1/8, 1/8])
