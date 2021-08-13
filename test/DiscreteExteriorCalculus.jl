@@ -6,6 +6,7 @@ using SparseArrays, StaticArrays
 
 using Catlab.CategoricalAlgebra.CSets
 using CombinatorialSpaces
+using CombinatorialSpaces.DiscreteExteriorCalculus: inv_hodge_star
 
 const Point2D = SVector{2,Float64}
 const Point3D = SVector{3,Float64}
@@ -85,6 +86,17 @@ subdivide_duals!(s, Barycenter())
 f = VForm([0,1,2,1,0])
 @test Δ(s,f) ≈ -∇²(s,f)
 
+@test isapprox(Δ(0, s), [-2  2  0  0  0;
+                          1 -2  1  0  0;
+                          0  1 -2  1  0;
+                          0  0  1 -2  1;
+                          0  0  0  2 -2], atol=1e-3)
+
+@test isapprox(Δ(1, s), [-3.0  1.0  0.0  0.0;
+                          1.0 -2.0  1.0  0.0;
+                          0.0  1.0 -2.0  1.0;
+                          0.0  0.0  1.0 -3.0], atol=1e-3)
+
 # 2D dual complex
 #################
 
@@ -155,6 +167,9 @@ subdivide_duals!(s, Barycenter())
 @test ⋆(1,s) ≈ [1/3 0.0 1/6;
                 0.0 1/6 0.0;
                 1/6 0.0 1/3]
+
+@test inv_hodge_star(2, s)[1,1] ≈ 0.5
+@test inv_hodge_star(2, s, [2.0])[1,1] ≈ 1.0
 @test ⋆(s, VForm([1,2,3]))::DualForm{2} ≈ DualForm{2}([1/6, 1/3, 1/2])
 @test isapprox(δ(1,s; hodge=DiagonalHodge()), [ 2.236  0  2.236;
                                               -2.236  1  0;
@@ -164,6 +179,7 @@ subdivide_duals!(s, Barycenter())
                          -1  -1 -2.0], atol=1e-3)
 @test δ(s, EForm([0.5,1.5,0.5])) isa VForm
 @test Δ(s, EForm([1.,2.,1.])) isa EForm
+@test Δ(s, TriForm([1.])) isa TriForm
 
 @test isapprox(Δ(0, s), [-6  3  3;
                           3 -3  0;
