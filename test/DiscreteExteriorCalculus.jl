@@ -85,6 +85,8 @@ subdivide_duals!(s, Barycenter())
                   0  0  0 -2  2]
 f = VForm([0,1,2,1,0])
 @test Δ(s,f) ≈ -∇²(s,f)
+@test Δ(s, EForm([0,1,1,0])) isa EForm
+@test Δ(s, EForm([0,1,1,0]), hodge=DiagonalHodge()) isa EForm
 
 @test isapprox(Δ(0, s), [-2  2  0  0  0;
                           1 -2  1  0  0;
@@ -170,6 +172,8 @@ subdivide_duals!(s, Barycenter())
 
 @test inv_hodge_star(2, s)[1,1] ≈ 0.5
 @test inv_hodge_star(2, s, [2.0])[1,1] ≈ 1.0
+@test inv_hodge_star(1, s, hodge=DiagonalHodge()) ≈ Diagonal([-6/√5, -6, -6/√5])
+@test inv_hodge_star(1, s, [0.5, 2.0, 0.5], hodge=DiagonalHodge()) ≈ [-3/√5, -12.0, -3/√5]
 @test ⋆(s, VForm([1,2,3]))::DualForm{2} ≈ DualForm{2}([1/6, 1/3, 1/2])
 @test isapprox(δ(1,s; hodge=DiagonalHodge()), [ 2.236  0  2.236;
                                               -2.236  1  0;
@@ -179,8 +183,9 @@ subdivide_duals!(s, Barycenter())
                          -1  -1 -2.0], atol=1e-3)
 @test δ(s, EForm([0.5,1.5,0.5])) isa VForm
 @test Δ(s, EForm([1.,2.,1.])) isa EForm
+@test Δ(s, EForm([1.,2.,1.]); hodge=DiagonalHodge()) isa EForm
 @test Δ(s, TriForm([1.])) isa TriForm
-
+@test Δ(s, TriForm([1.]); hodge=DiagonalHodge()) isa TriForm
 @test isapprox(Δ(0, s), [-6  3  3;
                           3 -3  0;
                           3  0 -3], atol=1e-3)
@@ -189,7 +194,13 @@ subdivide_duals!(s, Barycenter())
                          13  10 -13;
                         -16 -13  7], atol=1e-3)
 
+@test isapprox(Δ(1, s; hodge=DiagonalHodge()),
+                        [0.894  6.367 -7.603;
+                        14.236 10.0  -14.236;
+                        -7.603 -6.367  0.894], atol=1e-2)
+
 @test isapprox(Δ(2, s), reshape([36.0], (1,1)), atol=1e-3)
+@test isapprox(Δ(2, s; hodge=DiagonalHodge()), reshape([22.733], (1,1)), atol=1e-3)
 
 subdivide_duals!(s, Circumcenter())
 @test dual_point(s, triangle_center(s, 1)) ≈ Point2D(1/2, 1/2)
