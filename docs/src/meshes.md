@@ -20,7 +20,7 @@ into an embedded delta set, and render it as a 3D mesh using WGLMakie.
 using FileIO, WGLMakie, CombinatorialSpaces
 set_theme!(resolution=(800, 400))
 catmesh = FileIO.load(File{format"OBJ"}(download(
-  "https://raw.githubusercontent.com/JuliaPlots/GLMakie.jl/master/src/GLVisualize/assets/cat.obj")))
+  "https://github.com/JuliaPlots/Makie.jl/raw/master/assets/cat.obj")))
 
 catmesh_dset = EmbeddedDeltaSet2D(catmesh)
 mesh(catmesh_dset, shading=false)

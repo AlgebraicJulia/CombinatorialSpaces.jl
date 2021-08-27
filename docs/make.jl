@@ -8,7 +8,7 @@ makedocs(
   checkdocs = :exports,
   pages = [
     "simplicial_sets.md",
-    "dual_complexes.md",
+    "discrete_exterior_calculus.md",
     "combinatorial_maps.md",
     "meshes.md"
   ]
