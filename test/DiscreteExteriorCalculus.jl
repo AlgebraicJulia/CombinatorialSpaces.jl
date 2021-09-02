@@ -6,7 +6,6 @@ using SparseArrays, StaticArrays
 
 using Catlab.CategoricalAlgebra.CSets
 using CombinatorialSpaces
-using CombinatorialSpaces.DiscreteExteriorCalculus: inv_hodge_star
 
 const Point2D = SVector{2,Float64}
 const Point3D = SVector{3,Float64}
@@ -166,6 +165,9 @@ subdivide_duals!(s, Barycenter())
 @test ⋆(0,s) ≈ Diagonal([1/6, 1/6, 1/6])
 
 @test ⋆(1,s; hodge=DiagonalHodge()) ≈ Diagonal([√5/6, 1/6, √5/6])
+
+# This test is consistent with Ayoub et al 2020 page 13 (up to permutation of
+# vertices)
 @test ⋆(1,s) ≈ [1/3 0.0 1/6;
                 0.0 1/6 0.0;
                 1/6 0.0 1/3]

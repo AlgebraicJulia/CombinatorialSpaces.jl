@@ -15,14 +15,14 @@ export DualSimplex, DualV, DualE, DualTri, DualChain, DualForm,
   OrientedDeltaDualComplex2D, EmbeddedDeltaDualComplex2D,
   SimplexCenter, Barycenter, Circumcenter, Incenter, geometric_center,
   subsimplices, primal_vertex, elementary_duals, dual_boundary, dual_derivative,
-  ⋆, hodge_star, δ, codifferential, ∇², laplace_beltrami, Δ, laplace_de_rham,
+  ⋆, hodge_star, inv_hodge_star, δ, codifferential, ∇², laplace_beltrami, Δ, laplace_de_rham,
   ♭, flat, ♯, sharp, ∧, wedge_product, interior_product, interior_product_flat,
   ℒ, lie_derivative, lie_derivative_flat,
   vertex_center, edge_center, triangle_center, dual_triangle_vertices,
   dual_point, dual_volume, subdivide_duals!, DiagonalHodge, GeometricHodge
 
 import Base: ndims
-using LinearAlgebra: Diagonal, dot, norm, cross, cholesky
+using LinearAlgebra: Diagonal, dot, norm, cross
 using SparseArrays
 using StaticArrays: @SVector, SVector
 
@@ -672,7 +672,15 @@ end
 ⋆(::Type{Val{n}}, s::AbstractACSet, ::DiagonalHodge) where n =
   Diagonal([ hodge_diag(Val{n},s,x) for x in simplices(n,s) ])
 
-crossdot(v1, v2) = norm(cross(v1, v2)) * sign(last(cross(v1, v2)))
+# Note that this cross product defines the positive direction for flux to
+# always be in the positive z direction. This will likely not generalize to
+# arbitrary meshes embedded in 3D space, and so will need to be revisited.
+# Potentially this orientation can be provided by the simplicial triangle
+# orientation?
+crossdot(v1, v2) = begin
+  v1v2 = cross(v1, v2)
+  norm(v1v2) * (last(v1v2) == 0 ? 1.0 : sign(last(v1v2)))
+end
 
 """ Hodge star operator from primal 1-forms to dual 1-forms.
 
@@ -780,7 +788,7 @@ function inv_hodge_star(::Type{Val{1}}, s::AbstractDeltaDualComplex2D,
 end
 function inv_hodge_star(::Type{Val{1}}, s::AbstractDeltaDualComplex2D,
                         form::AbstractVector, ::GeometricHodge)
-  inv(Matrix(⋆(Val{1}, s, GeometricHodge()))) * form
+  Matrix(⋆(Val{1}, s, GeometricHodge())) \ form
 end
 
 inv_hodge_star(::Type{Val{0}}, s::AbstractDeltaDualComplex2D, ::GeometricHodge) =
@@ -809,8 +817,8 @@ inv_hodge_star(::Type{Val{n}}, s::AbstractDeltaDualComplex1D,
 @inline δ(n::Int, s::AbstractACSet, args...; kw...) =
   δ(Val{n}, s, args...; kw...)
 @inline δ(::Type{Val{n}}, s::AbstractACSet; hodge=GeometricHodge(),
-          matrix::Type=SparseMatrixCSC{Float64}) where n =
-  δ(Val{n}, s, hodge, matrix)
+          matrix_type::Type=SparseMatrixCSC{Float64}) where n =
+  δ(Val{n}, s, hodge, matrix_type)
 @inline δ(::Type{Val{n}}, s::AbstractACSet, form::AbstractVector;
           hodge=GeometricHodge()) where n =
   δ(Val{n}, s, hodge, form)
@@ -828,7 +836,7 @@ function δ(::Type{Val{n}}, s::AbstractACSet, ::DiagonalHodge, args...) where n
   end
 end
 
-function δ(::Type{Val{n}}, s::AbstractACSet, ::GeometricHodge, matrix) where n
+function δ(::Type{Val{n}}, s::AbstractACSet, ::GeometricHodge, matrix_type) where n
   inv_hodge_star(n-1, s) * dual_derivative(ndims(s)-n, s) * ⋆(n, s)
 end
 
@@ -859,8 +867,8 @@ This linear operator on primal ``n``-forms defined by ``∇² α := -δ d α``, 
 
 ∇²(::Type{Val{n}}, s::AbstractACSet, form::AbstractVector; kw...) where n =
   -δ(n+1, s, d(Val{n}, s, form); kw...)
-∇²(::Type{Val{n}}, s::AbstractACSet; matrix::Type=SparseMatrixCSC{Float64}, kw...) where n =
-  -δ(n+1, s; matrix=matrix, kw...) * d(Val{n}, s, matrix)
+∇²(::Type{Val{n}}, s::AbstractACSet; matrix_type::Type=SparseMatrixCSC{Float64}, kw...) where n =
+  -δ(n+1, s; matrix_type=matrix_type, kw...) * d(Val{n}, s, matrix_type)
 
 """ Alias for the Laplace-Beltrami operator [`∇²`](@ref).
 """
@@ -878,24 +886,24 @@ operator [`∇²`](@ref): ``Δ f = -∇² f``.
 
 Δ(::Type{Val{0}}, s::AbstractACSet, form::AbstractVector; kw...) =
   δ(1, s, d(Val{0}, s, form); kw...)
-Δ(::Type{Val{0}}, s::AbstractACSet; matrix::Type=SparseMatrixCSC{Float64}, kw...) =
-  δ(1,s; matrix=matrix, kw...) * d(Val{0},s,matrix)
+Δ(::Type{Val{0}}, s::AbstractACSet; matrix_type::Type=SparseMatrixCSC{Float64}, kw...) =
+  δ(1,s; matrix_type=matrix_type, kw...) * d(Val{0},s,matrix_type)
 
 Δ(::Type{Val{n}}, s::AbstractACSet, form::AbstractVector; kw...) where n =
   δ(n+1, s, d(Val{n}, s, form); kw...) + d(Val{n-1}, s, δ(n, s, form; kw...))
-Δ(::Type{Val{n}}, s::AbstractACSet; matrix::Type=SparseMatrixCSC{Float64}, kw...) where n =
-  δ(n+1,s; matrix=matrix, kw...) * d(Val{n},s,matrix) +
-		d(Val{n-1},s,matrix) * δ(n,s; matrix=matrix, kw...)
+Δ(::Type{Val{n}}, s::AbstractACSet; matrix_type::Type=SparseMatrixCSC{Float64}, kw...) where n =
+  δ(n+1,s; matrix_type=matrix_type, kw...) * d(Val{n},s,matrix_type) +
+		d(Val{n-1},s,matrix_type) * δ(n,s; matrix_type=matrix_type, kw...)
 
 Δ(::Type{Val{1}}, s::AbstractDeltaDualComplex1D, form::AbstractVector; kw...) =
   d(Val{0}, s, δ(1, s, form; kw...))
-Δ(::Type{Val{1}}, s::AbstractDeltaDualComplex1D; matrix::Type=SparseMatrixCSC{Float64}, kw...) =
-  d(Val{0},s,matrix) * δ(1,s; matrix=matrix, kw...)
+Δ(::Type{Val{1}}, s::AbstractDeltaDualComplex1D; matrix_type::Type=SparseMatrixCSC{Float64}, kw...) =
+  d(Val{0},s,matrix_type) * δ(1,s; matrix_type=matrix_type, kw...)
 
 Δ(::Type{Val{2}}, s::AbstractDeltaDualComplex2D, form::AbstractVector; kw...) =
   d(Val{1}, s, δ(2, s, form; kw...))
-Δ(::Type{Val{2}}, s::AbstractDeltaDualComplex2D; matrix::Type=SparseMatrixCSC{Float64}, kw...) =
-  d(Val{1},s,matrix) * δ(2,s; matrix=matrix, kw...)
+Δ(::Type{Val{2}}, s::AbstractDeltaDualComplex2D; matrix_type::Type=SparseMatrixCSC{Float64}, kw...) =
+  d(Val{1},s,matrix_type) * δ(2,s; matrix_type=matrix_type, kw...)
 """ Alias for the Laplace-de Rham operator [`Δ`](@ref).
 """
 const laplace_de_rham = Δ
