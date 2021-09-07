@@ -1035,19 +1035,19 @@ vector field.
   lie_derivative_flat(Val{n}, s, args...; kw...)
 
 function lie_derivative_flat(::Type{Val{0}}, s::AbstractACSet,
-                             X♭::AbstractVector, α::AbstractVector)
-  interior_product_flat(1, s, X♭, dual_derivative(0, s, α))
+                             X♭::AbstractVector, α::AbstractVector; kw...)
+  interior_product_flat(1, s, X♭, dual_derivative(0, s, α); kw...)
 end
 
 function lie_derivative_flat(::Type{Val{1}}, s::AbstractACSet,
-                             X♭::AbstractVector, α::AbstractVector)
-  interior_product_flat(2, s, X♭, dual_derivative(1, s, α)) +
-    dual_derivative(0, s, interior_product_flat(1, s, X♭, α))
+                             X♭::AbstractVector, α::AbstractVector; kw...)
+  interior_product_flat(2, s, X♭, dual_derivative(1, s, α); kw...) +
+    dual_derivative(0, s, interior_product_flat(1, s, X♭, α; kw...))
 end
 
 function lie_derivative_flat(::Type{Val{2}}, s::AbstractACSet,
-                             X♭::AbstractVector, α::AbstractVector)
-  dual_derivative(1, s, interior_product_flat(2, s, X♭, α))
+                             X♭::AbstractVector, α::AbstractVector; kw...)
+  dual_derivative(1, s, interior_product_flat(2, s, X♭, α; kw...))
 end
 
 # Euclidean geometry

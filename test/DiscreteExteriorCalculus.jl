@@ -256,21 +256,21 @@ eform1, eform2 = EForm([1.5, 2, 2.5, 3, 3.5]), EForm([3, 7, 10, 11, 15])
 
 # Lie derivative of flattened vector-field on dual 0-form
 X♭, α = EForm([1.5, 2, 2.5, 3, 3.5]), DualForm{0}([3, 7])
-@test ℒ(s, X♭, α) isa DualForm{0}
+@test ℒ(s, X♭, α; hodge=GeometricHodge()) isa DualForm{0}
 @test length(lie_derivative_flat(0,s, X♭.data, α.data)) == 2
 
 # Lie derivative of flattened vector-field on dual 1-form
 X♭, α = EForm([1.5, 2, 2.5, 3, 3.5]), DualForm{1}([3, 7, 10, 11, 15])
 @test interior_product(s, X♭, α) isa DualForm{0}
 @test length(interior_product_flat(1,s, X♭.data, α.data)) == 2
-@test ℒ(s, X♭, α) isa DualForm{1}
+@test ℒ(s, X♭, α; hodge=GeometricHodge()) isa DualForm{1}
 @test length(lie_derivative_flat(1,s, X♭.data, α.data)) == 5
 
 # Lie derivative of flattened vector-field on dual 2-form
 X♭, α = EForm([1.5, 2, 2.5, 3, 3.5]), DualForm{2}([3, 7, 10, 11])
 @test interior_product(s, X♭, α) isa DualForm{1}
 @test length(interior_product_flat(2,s, X♭.data, α.data)) == 5
-@test ℒ(s, X♭, α) isa DualForm{2}
+@test ℒ(s, X♭, α; hodge=GeometricHodge()) isa DualForm{2}
 @test length(lie_derivative_flat(2,s, X♭.data, α.data)) == 4
 
 end
