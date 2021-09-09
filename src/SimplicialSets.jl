@@ -475,25 +475,28 @@ function orient_component!(s::AbstractACSet, x::Simplex{n},
                            x_orientation::Orientation) where {n, Orientation}
   orientations = repeat(Union{Orientation,Nothing}[nothing], nsimplices(n, s))
 
-  function orient_neighbors!(x, target)
+  orient_stack = Vector{Pair{Int64, Orientation}}()
+
+  push!(orient_stack, x[] => x_orientation)
+  is_orientable = true
+  while !isempty(orient_stack)
+    x, target = pop!(orient_stack)
     current = orientations[x]
     if isnothing(current)
-      # If not visited, set the orientation and recursively visit neighbors.
+      # If not visited, set the orientation and add neighbors to stack.
       orientations[x] = target
       for i in 0:n, j in 0:n
         next = iseven(i+j) ? negate(target) : target
         for y in coface(n, j, s, ∂(n, i, s, x))
-          y == x || orient_neighbors!(y, next) || return false
+          y == x || push!(orient_stack, y=>next)
         end
       end
-      true
     else
       # If already visited, check that current and target orientations agree.
-      current == target
+      is_orientable = is_orientable && current == target
     end
   end
 
-  is_orientable = orient_neighbors!(x[], x_orientation)
   if is_orientable
     component = findall(!isnothing, orientations)
     set_orientation!(n, s, component, orientations[component])
