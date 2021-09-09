@@ -162,9 +162,13 @@ subdivide_duals!(s, Barycenter())
 @test volume(s, Tri(1)) ≈ 1/2
 @test volume(s, elementary_duals(s, V(1))) ≈ [1/12, 1/12]
 @test [sum(volume(s, elementary_duals(s, V(i)))) for i in 1:3] ≈ [1/6, 1/6, 1/6]
-@test ⋆(0,s) ≈ Diagonal([1/6, 1/6, 1/6])
 
+# These values are consistent with the Gillette paper, as described above
+@test ⋆(0,s) ≈ Diagonal([1/6, 1/6, 1/6])
 @test ⋆(1,s; hodge=DiagonalHodge()) ≈ Diagonal([√5/6, 1/6, √5/6])
+@test isapprox(δ(1,s; hodge=DiagonalHodge()), [ 2.236  0  2.236;
+                                              -2.236  1  0;
+                                               0     -1 -2.236], atol=1e-3)
 
 # This test is consistent with Ayoub et al 2020 page 13 (up to permutation of
 # vertices)
@@ -172,14 +176,17 @@ subdivide_duals!(s, Barycenter())
                 0.0 1/6 0.0;
                 1/6 0.0 1/3]
 
+# NOTICE:
+# Tests beneath this comment are not backed up by any external source, and are
+# included to determine consistency as the operators are modified.
+#
+# If a test beneath this comment fails due to a new implementation, it is
+# possible that the values for the test itself need to be modified.
 @test inv_hodge_star(2, s)[1,1] ≈ 0.5
 @test inv_hodge_star(2, s, [2.0])[1,1] ≈ 1.0
 @test inv_hodge_star(1, s, hodge=DiagonalHodge()) ≈ Diagonal([-6/√5, -6, -6/√5])
 @test inv_hodge_star(1, s, [0.5, 2.0, 0.5], hodge=DiagonalHodge()) ≈ [-3/√5, -12.0, -3/√5]
 @test ⋆(s, VForm([1,2,3]))::DualForm{2} ≈ DualForm{2}([1/6, 1/3, 1/2])
-@test isapprox(δ(1,s; hodge=DiagonalHodge()), [ 2.236  0  2.236;
-                                              -2.236  1  0;
-                                               0     -1 -2.236], atol=1e-3)
 @test isapprox(δ(1,s), [ 3.0  0  3.0;
                         -2.0  1 -1.0;
                          -1  -1 -2.0], atol=1e-3)
