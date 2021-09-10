@@ -491,9 +491,9 @@ function orient_component!(s::AbstractACSet, x::Simplex{n},
           y == x || push!(orient_stack, y=>next)
         end
       end
-    else
-      # If already visited, check that current and target orientations agree.
-      is_orientable = is_orientable && current == target
+    elseif current != target
+      is_orientable = false
+      break
     end
   end
 
