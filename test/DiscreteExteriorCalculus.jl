@@ -84,6 +84,19 @@ subdivide_duals!(s, Barycenter())
                   0  0  0 -2  2]
 f = VForm([0,1,2,1,0])
 @test Δ(s,f) ≈ -∇²(s,f)
+@test Δ(s, EForm([0,1,1,0])) isa EForm
+@test Δ(s, EForm([0,1,1,0]), hodge=DiagonalHodge()) isa EForm
+
+@test isapprox(Δ(0, s), [-2  2  0  0  0;
+                          1 -2  1  0  0;
+                          0  1 -2  1  0;
+                          0  0  1 -2  1;
+                          0  0  0  2 -2], atol=1e-3)
+
+@test isapprox(Δ(1, s), [-3.0  1.0  0.0  0.0;
+                          1.0 -2.0  1.0  0.0;
+                          0.0  1.0 -2.0  1.0;
+                          0.0  0.0  1.0 -3.0], atol=1e-3)
 
 # 2D dual complex
 #################
@@ -149,14 +162,54 @@ subdivide_duals!(s, Barycenter())
 @test volume(s, Tri(1)) ≈ 1/2
 @test volume(s, elementary_duals(s, V(1))) ≈ [1/12, 1/12]
 @test [sum(volume(s, elementary_duals(s, V(i)))) for i in 1:3] ≈ [1/6, 1/6, 1/6]
+
+# These values are consistent with the Gillette paper, as described above
 @test ⋆(0,s) ≈ Diagonal([1/6, 1/6, 1/6])
-@test ⋆(1,s) ≈ Diagonal([√5/6, 1/6, √5/6])
+@test ⋆(1,s; hodge=DiagonalHodge()) ≈ Diagonal([√5/6, 1/6, √5/6])
+@test isapprox(δ(1,s; hodge=DiagonalHodge()), [ 2.236  0  2.236;
+                                              -2.236  1  0;
+                                               0     -1 -2.236], atol=1e-3)
+
+# This test is consistent with Ayoub et al 2020 page 13 (up to permutation of
+# vertices)
+@test ⋆(1,s) ≈ [1/3 0.0 1/6;
+                0.0 1/6 0.0;
+                1/6 0.0 1/3]
+
+# NOTICE:
+# Tests beneath this comment are not backed up by any external source, and are
+# included to determine consistency as the operators are modified.
+#
+# If a test beneath this comment fails due to a new implementation, it is
+# possible that the values for the test itself need to be modified.
+@test inv_hodge_star(2, s)[1,1] ≈ 0.5
+@test inv_hodge_star(2, s, [2.0])[1,1] ≈ 1.0
+@test inv_hodge_star(1, s, hodge=DiagonalHodge()) ≈ Diagonal([-6/√5, -6, -6/√5])
+@test inv_hodge_star(1, s, [0.5, 2.0, 0.5], hodge=DiagonalHodge()) ≈ [-3/√5, -12.0, -3/√5]
 @test ⋆(s, VForm([1,2,3]))::DualForm{2} ≈ DualForm{2}([1/6, 1/3, 1/2])
-@test isapprox(δ(1,s), [ 2.236  0  2.236;
-                        -2.236  1  0;
-                         0     -1 -2.236], atol=1e-3)
+@test isapprox(δ(1,s), [ 3.0  0  3.0;
+                        -2.0  1 -1.0;
+                         -1  -1 -2.0], atol=1e-3)
 @test δ(s, EForm([0.5,1.5,0.5])) isa VForm
 @test Δ(s, EForm([1.,2.,1.])) isa EForm
+@test Δ(s, EForm([1.,2.,1.]); hodge=DiagonalHodge()) isa EForm
+@test Δ(s, TriForm([1.])) isa TriForm
+@test Δ(s, TriForm([1.]); hodge=DiagonalHodge()) isa TriForm
+@test isapprox(Δ(0, s), [-6  3  3;
+                          3 -3  0;
+                          3  0 -3], atol=1e-3)
+
+@test isapprox(Δ(1, s), [7   13 -16;
+                         13  10 -13;
+                        -16 -13  7], atol=1e-3)
+
+@test isapprox(Δ(1, s; hodge=DiagonalHodge()),
+                        [0.894  6.367 -7.603;
+                        14.236 10.0  -14.236;
+                        -7.603 -6.367  0.894], atol=1e-2)
+
+@test isapprox(Δ(2, s), reshape([36.0], (1,1)), atol=1e-3)
+@test isapprox(Δ(2, s; hodge=DiagonalHodge()), reshape([22.733], (1,1)), atol=1e-3)
 
 subdivide_duals!(s, Circumcenter())
 @test dual_point(s, triangle_center(s, 1)) ≈ Point2D(1/2, 1/2)
@@ -169,10 +222,17 @@ subdivide_duals!(s, Circumcenter())
 subdivide_duals!(s, Incenter())
 @test dual_point(s, triangle_center(s, 1)) ≈ Point2D(1/(2+√2), 1/(2+√2))
 @test isapprox(⋆(0,s), Diagonal([0.146, 0.177, 0.177]), atol=1e-3)
-@test isapprox(⋆(1,s), Diagonal([0.359, 0.207, 0.359]), atol=1e-3)
-@test isapprox(δ(1,s), [ 2.449  0      2.449;
-                        -2.029  1.172  0;
-                         0     -1.172 -2.029], atol=1e-3)
+@test isapprox(⋆(1,s), [0.293 0.000 0.207;
+                        0.000 0.207 0.000;
+                        0.207 0.000 0.293], atol=1e-3)
+
+@test isapprox(δ(1,s; hodge=DiagonalHodge()), [ 2.449  0      2.449;
+                                              -2.029  1.172  0;
+                                               0     -1.172 -2.029], atol=1e-3)
+
+@test isapprox(δ(1,s), [ 3.414  0.000  3.414;
+                        -1.657  1.172 -1.172;
+                        -1.172 -1.172 -1.657], atol=1e-3)
 
 # Triangulated square with consistent orientation.
 primal_s = EmbeddedDeltaSet2D{Bool,Point2D}()
@@ -203,21 +263,21 @@ eform1, eform2 = EForm([1.5, 2, 2.5, 3, 3.5]), EForm([3, 7, 10, 11, 15])
 
 # Lie derivative of flattened vector-field on dual 0-form
 X♭, α = EForm([1.5, 2, 2.5, 3, 3.5]), DualForm{0}([3, 7])
-@test ℒ(s, X♭, α) isa DualForm{0}
+@test ℒ(s, X♭, α; hodge=GeometricHodge()) isa DualForm{0}
 @test length(lie_derivative_flat(0,s, X♭.data, α.data)) == 2
 
 # Lie derivative of flattened vector-field on dual 1-form
 X♭, α = EForm([1.5, 2, 2.5, 3, 3.5]), DualForm{1}([3, 7, 10, 11, 15])
 @test interior_product(s, X♭, α) isa DualForm{0}
 @test length(interior_product_flat(1,s, X♭.data, α.data)) == 2
-@test ℒ(s, X♭, α) isa DualForm{1}
+@test ℒ(s, X♭, α; hodge=GeometricHodge()) isa DualForm{1}
 @test length(lie_derivative_flat(1,s, X♭.data, α.data)) == 5
 
 # Lie derivative of flattened vector-field on dual 2-form
 X♭, α = EForm([1.5, 2, 2.5, 3, 3.5]), DualForm{2}([3, 7, 10, 11])
 @test interior_product(s, X♭, α) isa DualForm{1}
 @test length(interior_product_flat(2,s, X♭.data, α.data)) == 5
-@test ℒ(s, X♭, α) isa DualForm{2}
+@test ℒ(s, X♭, α; hodge=GeometricHodge()) isa DualForm{2}
 @test length(lie_derivative_flat(2,s, X♭.data, α.data)) == 4
 
 end
