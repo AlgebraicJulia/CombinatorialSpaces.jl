@@ -973,6 +973,9 @@ end
 ∧(::Type{Tuple{0,k}}, s::AbstractACSet, f, β, x::Int) where k =
   wedge_product_zero(Val{k}, s, f, β, x)
 
+""" Special weighted wedge product
+This wedge product comes from Griebel et al, 2017.
+"""
 function wedge_product_zero(::Type{Val{1}}, s::AbstractACSet,
                             f, α, x::Int) where k
   subs = subsimplices(1, s, x)
