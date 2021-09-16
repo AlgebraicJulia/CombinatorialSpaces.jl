@@ -973,6 +973,20 @@ end
 ∧(::Type{Tuple{0,k}}, s::AbstractACSet, f, β, x::Int) where k =
   wedge_product_zero(Val{k}, s, f, β, x)
 
+function wedge_product_zero(::Type{Val{1}}, s::AbstractACSet,
+                            f, α, x::Int) where k
+  subs = subsimplices(1, s, x)
+  vs = [src(s, x), tgt(s,x)]
+  r = abs(α[x]) < 1e-6 ? 0.5 : (1 - (1/α[x])*(1 - (α[x]/(exp(α[x])-1))))
+  # Several choices for upwinding methods, including:
+  # Pure upwinding:        1/2 * (1 + sign(α[x]))
+  # Exponential upwinding: abs(α[x]) < 1e-6 ? 0.5 : (1 - (1/α[x])*(1 - (α[x]/(exp(α[x])-1))))
+  # Centered Difference:   1/2
+  coeffs = [1-r, r]
+#  println("This is being called")
+  α[x] * dot(coeffs, f[vs])
+end
+
 """ Wedge product of a 0-form and a ``k``-form.
 """
 function wedge_product_zero(::Type{Val{k}}, s::AbstractACSet,
