@@ -957,30 +957,31 @@ the discrete primal-primal wedge product introduced in (Hirani, 2003, Chapter 7)
 and (Desbrun et al 2005, Section 8). It depends on the geometric embedding and
 requires the dual complex.
 """
-∧(s::AbstractACSet, α::SimplexForm{k}, β::SimplexForm{l}) where {k,l} =
-  SimplexForm{k+l}(∧(Tuple{k,l}, s, α.data, β.data))
+∧(s::AbstractACSet, α::SimplexForm{k}, β::SimplexForm{l}, args...) where {k,l} =
+  SimplexForm{k+l}(∧(Tuple{k,l}, s, α.data, β.data, args...))
 @inline ∧(k::Int, l::Int, s::AbstractACSet, args...) = ∧(Tuple{k,l}, s, args...)
 
-function ∧(::Type{Tuple{k,l}}, s::AbstractACSet, α, β) where {k,l}
+function ∧(::Type{Tuple{k,l}}, s::AbstractACSet, α, β, args...) where {k,l}
   map(simplices(k+l, s)) do x
-    ∧(Tuple{k,l}, s, α, β, x)
+    ∧(Tuple{k,l}, s, α, β, x, args...)
   end
 end
 
 ∧(::Type{Tuple{0,0}}, s::AbstractACSet, f, g, x::Int) = f[x]*g[x]
-∧(::Type{Tuple{k,0}}, s::AbstractACSet, α, g, x::Int) where k =
-  wedge_product_zero(Val{k}, s, g, α, x)
-∧(::Type{Tuple{0,k}}, s::AbstractACSet, f, β, x::Int) where k =
-  wedge_product_zero(Val{k}, s, f, β, x)
+∧(::Type{Tuple{k,0}}, s::AbstractACSet, α, g, x::Int, args...) where k =
+  wedge_product_zero(Val{k}, s, g, α, x, args...)
+∧(::Type{Tuple{0,k}}, s::AbstractACSet, f, β, x::Int, args...) where k =
+  wedge_product_zero(Val{k}, s, f, β, x, args...)
 
 """ Special weighted wedge product
 This wedge product comes from Griebel et al, 2017.
 """
+
 function wedge_product_zero(::Type{Val{1}}, s::AbstractACSet,
-                            f, α, x::Int) where k
+                            f, α, x::Int, weight::Function) where k
   subs = subsimplices(1, s, x)
   vs = [src(s, x), tgt(s,x)]
-  r = abs(α[x]) < 1e-6 ? 0.5 : (1 - (1/α[x])*(1 - (α[x]/(exp(α[x])-1))))
+  r = weight(α[x])
   # Several choices for upwinding methods, including:
   # Pure upwinding:        1/2 * (1 + sign(α[x]))
   # Exponential upwinding: abs(α[x]) < 1e-6 ? 0.5 : (1 - (1/α[x])*(1 - (α[x]/(exp(α[x])-1))))
