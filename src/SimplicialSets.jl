@@ -56,24 +56,24 @@ const DeltaSet1D = Graph
 nsimplices(::Type{Val{0}}, s) = nv(s)
 nsimplices(::Type{Val{1}}, s) = ne(s)
 
-face(::Type{Val{(1,0)}}, s::AbstractACSet, args...) = subpart(s, args..., :tgt)
-face(::Type{Val{(1,1)}}, s::AbstractACSet, args...) = subpart(s, args..., :src)
+face(::Type{Val{(1,0)}}, s::ACSet, args...) = subpart(s, args..., :tgt)
+face(::Type{Val{(1,1)}}, s::ACSet, args...) = subpart(s, args..., :src)
 
-coface(::Type{Val{(1,0)}}, s::AbstractACSet, args...) = incident(s, args..., :tgt)
-coface(::Type{Val{(1,1)}}, s::AbstractACSet, args...) = incident(s, args..., :src)
+coface(::Type{Val{(1,0)}}, s::ACSet, args...) = incident(s, args..., :tgt)
+coface(::Type{Val{(1,1)}}, s::ACSet, args...) = incident(s, args..., :src)
 
 """ Boundary vertices of an edge.
 """
-edge_vertices(s::AbstractACSet, e...) = SVector(∂(1,0,s,e...), ∂(1,1,s,e...))
+edge_vertices(s::ACSet, e...) = SVector(∂(1,0,s,e...), ∂(1,1,s,e...))
 
 """ Add edge to simplicial set, respecting the order of the vertex IDs.
 """
-add_sorted_edge!(s::AbstractACSet, v₀::Int, v₁::Int; kw...) =
+add_sorted_edge!(s::ACSet, v₀::Int, v₁::Int; kw...) =
   add_edge!(s, min(v₀, v₁), max(v₀, v₁); kw...)
 
 """ Add edges to simplicial set, respecting the order of the vertex IDs.
 """
-function add_sorted_edges!(s::AbstractACSet, vs₀::AbstractVector{Int},
+function add_sorted_edges!(s::ACSet, vs₀::AbstractVector{Int},
                            vs₁::AbstractVector{Int}; kw...)
   add_edges!(s, min.(vs₀, vs₁), max.(vs₀, vs₁); kw...)
 end
@@ -82,7 +82,7 @@ end
 #----------------------------
 
 @present OrientedDeltaSchema1D <: DeltaCategory1D begin
-  Orientation::Data
+  Orientation::AttrType
   edge_orientation::Attr(E,Orientation)
 end
 
@@ -91,18 +91,19 @@ end
 Edges are oriented from source to target when `edge_orientation` is
 true/positive and from target to source when it is false/negative.
 """
-const OrientedDeltaSet1D = ACSetType(OrientedDeltaSchema1D, index=[:src,:tgt])
+@acset_type OrientedDeltaSet1D(OrientedDeltaSchema1D,
+                               index=[:src,:tgt]) <: AbstractDeltaSet1D
 
-orientation(::Type{Val{1}}, s::AbstractACSet, args...) =
+orientation(::Type{Val{1}}, s::ACSet, args...) =
   s[args..., :edge_orientation]
-set_orientation!(::Type{Val{1}}, s::AbstractACSet, e, orientation) =
+set_orientation!(::Type{Val{1}}, s::ACSet, e, orientation) =
   (s[e, :edge_orientation] = orientation)
 
-function ∂_nz(::Type{Val{1}}, s::AbstractACSet, e::Int)
+function ∂_nz(::Type{Val{1}}, s::ACSet, e::Int)
   (edge_vertices(s, e), sign(1,s,e) * @SVector([1,-1]))
 end
 
-function d_nz(::Type{Val{0}}, s::AbstractACSet, v::Int)
+function d_nz(::Type{Val{0}}, s::ACSet, v::Int)
   e₀, e₁ = coface(1,0,s,v), coface(1,1,s,v)
   (lazy(vcat, e₀, e₁), lazy(vcat, sign(1,s,e₀), -sign(1,s,e₁)))
 end
@@ -111,23 +112,24 @@ end
 #----------------------------
 
 @present EmbeddedDeltaSchema1D <: OrientedDeltaSchema1D begin
-  Point::Data
+  Point::AttrType
   point::Attr(V, Point)
 end
 
 """ A one-dimensional, embedded, oriented delta set.
 """
-const EmbeddedDeltaSet1D = ACSetType(EmbeddedDeltaSchema1D, index=[:src,:tgt])
+@acset_type EmbeddedDeltaSet1D(EmbeddedDeltaSchema1D,
+                               index=[:src,:tgt]) <: AbstractDeltaSet1D
 
 """ Point associated with vertex of complex.
 """
-point(s::AbstractACSet, args...) = s[args..., :point]
+point(s::ACSet, args...) = s[args..., :point]
 
 struct CayleyMengerDet end
 
 volume(::Type{Val{n}}, s::EmbeddedDeltaSet1D, x) where n =
   volume(Val{n}, s, x, CayleyMengerDet())
-volume(::Type{Val{1}}, s::AbstractACSet, e::Int, ::CayleyMengerDet) =
+volume(::Type{Val{1}}, s::ACSet, e::Int, ::CayleyMengerDet) =
   volume(point(s, edge_vertices(s, e)))
 
 # 2D simplicial sets
@@ -145,7 +147,7 @@ end
 
 """ Abstract type for 2D delta sets.
 """
-const AbstractDeltaSet2D = AbstractACSetType(DeltaCategory2D)
+@abstract_acset_type AbstractDeltaSet2D <: HasGraph
 
 """ A 2D delta set, aka semi-simplicial set.
 
@@ -159,24 +161,24 @@ higher-dimensional link or morphism, going from two edges in sequence (which
 might be called `src2_first` and `src2_last`) to a transitive edge (say `tgt2`).
 This is the shape of the binary composition operation in a category.
 """
-const DeltaSet2D = CSetType(DeltaCategory2D,
-                            index=[:src, :tgt, :∂e0, :∂e1, :∂e2])
+@acset_type DeltaSet2D(DeltaCategory2D,
+                       index=[:src,:tgt,:∂e0,:∂e1,:∂e2]) <: AbstractDeltaSet2D
 
-triangles(s::AbstractACSet) = parts(s, :Tri)
-ntriangles(s::AbstractACSet) = nparts(s, :Tri)
+triangles(s::ACSet) = parts(s, :Tri)
+ntriangles(s::ACSet) = nparts(s, :Tri)
 nsimplices(::Type{Val{2}}, s) = ntriangles(s)
 
-face(::Type{Val{(2,0)}}, s::AbstractACSet, args...) = subpart(s, args..., :∂e0)
-face(::Type{Val{(2,1)}}, s::AbstractACSet, args...) = subpart(s, args..., :∂e1)
-face(::Type{Val{(2,2)}}, s::AbstractACSet, args...) = subpart(s, args..., :∂e2)
+face(::Type{Val{(2,0)}}, s::ACSet, args...) = subpart(s, args..., :∂e0)
+face(::Type{Val{(2,1)}}, s::ACSet, args...) = subpart(s, args..., :∂e1)
+face(::Type{Val{(2,2)}}, s::ACSet, args...) = subpart(s, args..., :∂e2)
 
-coface(::Type{Val{(2,0)}}, s::AbstractACSet, args...) = incident(s, args..., :∂e0)
-coface(::Type{Val{(2,1)}}, s::AbstractACSet, args...) = incident(s, args..., :∂e1)
-coface(::Type{Val{(2,2)}}, s::AbstractACSet, args...) = incident(s, args..., :∂e2)
+coface(::Type{Val{(2,0)}}, s::ACSet, args...) = incident(s, args..., :∂e0)
+coface(::Type{Val{(2,1)}}, s::ACSet, args...) = incident(s, args..., :∂e1)
+coface(::Type{Val{(2,2)}}, s::ACSet, args...) = incident(s, args..., :∂e2)
 
 """ Boundary edges of a triangle.
 """
-function triangle_edges(s::AbstractACSet, t...)
+function triangle_edges(s::ACSet, t...)
   SVector(∂(2,0,s,t...), ∂(2,1,s,t...), ∂(2,2,s,t...))
 end
 
@@ -184,7 +186,7 @@ end
 
 This accessor assumes that the simplicial identities hold.
 """
-function triangle_vertices(s::AbstractACSet, t...)
+function triangle_vertices(s::ACSet, t...)
   SVector(s[s[t..., :∂e1], :src],
           s[s[t..., :∂e2], :tgt],
           s[s[t..., :∂e1], :tgt])
@@ -202,7 +204,7 @@ In the arguments to this function, the boundary edges have the order ``0 → 1``
     using the function [`glue_triangle!`](@ref) always satisfy the simplicial
     identities, by construction. Thus it is often easier to use this function.
 """
-add_triangle!(s::AbstractACSet, src2_first::Int, src2_last::Int, tgt2::Int; kw...) =
+add_triangle!(s::ACSet, src2_first::Int, src2_last::Int, tgt2::Int; kw...) =
   add_part!(s, :Tri; ∂e0=src2_last, ∂e1=tgt2, ∂e2=src2_first, kw...)
 
 """ Glue a triangle onto a simplicial set, given its boundary vertices.
@@ -210,19 +212,19 @@ add_triangle!(s::AbstractACSet, src2_first::Int, src2_last::Int, tgt2::Int; kw..
 If a needed edge between two vertices exists, it is reused (hence the "gluing");
 otherwise, it is created.
 """
-function glue_triangle!(s::AbstractACSet, v₀::Int, v₁::Int, v₂::Int; kw...)
+function glue_triangle!(s::ACSet, v₀::Int, v₁::Int, v₂::Int; kw...)
   add_triangle!(s, get_edge!(s, v₀, v₁), get_edge!(s, v₁, v₂),
                 get_edge!(s, v₀, v₂); kw...)
 end
 
-function get_edge!(s::AbstractACSet, src::Int, tgt::Int)
+function get_edge!(s::ACSet, src::Int, tgt::Int)
   es = edges(s, src, tgt)
   isempty(es) ? add_edge!(s, src, tgt) : first(es)
 end
 
 """ Glue a triangle onto a simplicial set, respecting the order of the vertices.
 """
-function glue_sorted_triangle!(s::AbstractACSet, v₀::Int, v₁::Int, v₂::Int; kw...)
+function glue_sorted_triangle!(s::ACSet, v₀::Int, v₁::Int, v₂::Int; kw...)
   v₀, v₁, v₂ = sort(SVector(v₀, v₁, v₂))
   glue_triangle!(s, v₀, v₁, v₂; kw...)
 end
@@ -231,7 +233,7 @@ end
 #----------------------------
 
 @present OrientedDeltaSchema2D <: DeltaCategory2D begin
-  Orientation::Data
+  Orientation::AttrType
   edge_orientation::Attr(E,Orientation)
   tri_orientation::Attr(Tri,Orientation)
 end
@@ -241,20 +243,20 @@ end
 Triangles are ordered in the cyclic order ``(0,1,2)`` when `tri_orientation` is
 true/positive and in the reverse order when it is false/negative.
 """
-const OrientedDeltaSet2D = ACSetType(OrientedDeltaSchema2D,
-                                     index=[:src, :tgt, :∂e0, :∂e1, :∂e2])
+@acset_type OrientedDeltaSet2D(OrientedDeltaSchema2D,
+                               index=[:src,:tgt,:∂e0,:∂e1,:∂e2]) <: AbstractDeltaSet2D
 
-orientation(::Type{Val{2}}, s::AbstractACSet, args...) =
+orientation(::Type{Val{2}}, s::ACSet, args...) =
   s[args..., :tri_orientation]
-set_orientation!(::Type{Val{2}}, s::AbstractACSet, t, orientation) =
+set_orientation!(::Type{Val{2}}, s::ACSet, t, orientation) =
   (s[t, :tri_orientation] = orientation)
 
-function ∂_nz(::Type{Val{2}}, s::AbstractACSet, t::Int)
+function ∂_nz(::Type{Val{2}}, s::ACSet, t::Int)
   edges = triangle_edges(s,t)
   (edges, sign(2,s,t) * sign(1,s,edges) .* @SVector([1,-1,1]))
 end
 
-function d_nz(::Type{Val{1}}, s::AbstractACSet, e::Int)
+function d_nz(::Type{Val{1}}, s::ACSet, e::Int)
   sgn = sign(1, s, e)
   t₀, t₁, t₂ = coface(2,0,s,e), coface(2,1,s,e), coface(2,2,s,e)
   (lazy(vcat, t₀, t₁, t₂),
@@ -265,18 +267,18 @@ end
 #----------------------------
 
 @present EmbeddedDeltaSchema2D <: OrientedDeltaSchema2D begin
-  Point::Data
+  Point::AttrType
   point::Attr(V, Point)
 end
 
 """ A two-dimensional, embedded, oriented delta set.
 """
-const EmbeddedDeltaSet2D = ACSetType(EmbeddedDeltaSchema2D,
-                                     index=[:src, :tgt, :∂e0, :∂e1, :∂e2])
+@acset_type EmbeddedDeltaSet2D(EmbeddedDeltaSchema2D,
+                               index=[:src,:tgt,:∂e0,:∂e1,:∂e2]) <: AbstractDeltaSet2D
 
 volume(::Type{Val{n}}, s::EmbeddedDeltaSet2D, x) where n =
   volume(Val{n}, s, x, CayleyMengerDet())
-volume(::Type{Val{2}}, s::AbstractACSet, t::Int, ::CayleyMengerDet) =
+volume(::Type{Val{2}}, s::ACSet, t::Int, ::CayleyMengerDet) =
   volume(point(s, triangle_vertices(s,t)))
 
 # General operators
@@ -318,11 +320,11 @@ const TriForm = SimplexForm{2}
 
 """ Simplices of given dimension in a simplicial set.
 """
-@inline simplices(n::Int, s::AbstractACSet) = 1:nsimplices(Val{n}, s)
+@inline simplices(n::Int, s::ACSet) = 1:nsimplices(Val{n}, s)
 
 """ Number of simplices of given dimension in a simplicial set.
 """
-@inline nsimplices(n::Int, s::AbstractACSet) = nsimplices(Val{n}, s)
+@inline nsimplices(n::Int, s::ACSet) = nsimplices(Val{n}, s)
 
 """ Face map and boundary operator on simplicial sets.
 
@@ -342,21 +344,21 @@ The boundary operator on `n`-faces and `n`-chains is implemented by the call
 Note that the face map returns *simplices*, while the boundary operator returns
 *chains* (vectors in the free vector space spanned by oriented simplices).
 """
-@inline ∂(i::Int, s::AbstractACSet, x::Simplex{n}) where n =
+@inline ∂(i::Int, s::ACSet, x::Simplex{n}) where n =
   Simplex{n-1}(face(Val{(n,i)}, s, x.data))
-@inline ∂(n::Int, i::Int, s::AbstractACSet, args...) =
+@inline ∂(n::Int, i::Int, s::ACSet, args...) =
   face(Val{(n,i)}, s, args...)
 
-@inline coface(i::Int, s::AbstractACSet, x::Simplex{n}) where n =
+@inline coface(i::Int, s::ACSet, x::Simplex{n}) where n =
   Simplex{n+1}(coface(Val{(n+1,i)}, s, x.data))
-@inline coface(n::Int, i::Int, s::AbstractACSet, args...) =
+@inline coface(n::Int, i::Int, s::ACSet, args...) =
   coface(Val{(n,i)}, s, args...)
 
-∂(s::AbstractACSet, x::SimplexChain{n}) where n =
+∂(s::ACSet, x::SimplexChain{n}) where n =
   SimplexChain{n-1}(∂(Val{n}, s, x.data))
-@inline ∂(n::Int, s::AbstractACSet, args...) = ∂(Val{n}, s, args...)
+@inline ∂(n::Int, s::ACSet, args...) = ∂(Val{n}, s, args...)
 
-function ∂(::Type{Val{n}}, s::AbstractACSet, args...) where n
+function ∂(::Type{Val{n}}, s::ACSet, args...) where n
   operator_nz(Int, nsimplices(n-1,s), nsimplices(n,s), args...) do x
     ∂_nz(Val{n}, s, x)
   end
@@ -368,11 +370,11 @@ const boundary = ∂
 
 """ The discrete exterior derivative, aka the coboundary operator.
 """
-d(s::AbstractACSet, x::SimplexForm{n}) where n =
+d(s::ACSet, x::SimplexForm{n}) where n =
   SimplexForm{n+1}(d(Val{n}, s, x.data))
-@inline d(n::Int, s::AbstractACSet, args...) = d(Val{n}, s, args...)
+@inline d(n::Int, s::ACSet, args...) = d(Val{n}, s, args...)
 
-function d(::Type{Val{n}}, s::AbstractACSet, args...) where n
+function d(::Type{Val{n}}, s::ACSet, args...) where n
   operator_nz(Int, nsimplices(n+1,s), nsimplices(n,s), args...) do x
     d_nz(Val{n}, s, x)
   end
@@ -388,13 +390,13 @@ const exterior_derivative = d
 
 """ Orientation of simplex.
 """
-orientation(s::AbstractACSet, x::Simplex{n}) where n =
+orientation(s::ACSet, x::Simplex{n}) where n =
   orientation(Val{n}, s, x.data)
-@inline orientation(n::Int, s::AbstractACSet, args...) =
+@inline orientation(n::Int, s::ACSet, args...) =
   orientation(Val{n}, s, args...)
 
-@inline Base.sign(n::Int, s::AbstractACSet, args...) = sign(Val{n}, s, args...)
-Base.sign(::Type{Val{n}}, s::AbstractACSet, args...) where n =
+@inline Base.sign(n::Int, s::ACSet, args...) = sign(Val{n}, s, args...)
+Base.sign(::Type{Val{n}}, s::ACSet, args...) where n =
   numeric_sign.(orientation(Val{n}, s, args...))
 
 numeric_sign(x) = sign(x)
@@ -402,14 +404,14 @@ numeric_sign(x::Bool) = x ? +1 : -1
 
 """ Set orientation of simplex.
 """
-@inline set_orientation!(n::Int, s::AbstractACSet, args...) =
+@inline set_orientation!(n::Int, s::ACSet, args...) =
   set_orientation!(Val{n}, s, args...)
 
 """ ``n``-dimensional volume of ``n``-simplex in an embedded simplicial set.
 """
-volume(s::AbstractACSet, x::Simplex{n}, args...) where n =
+volume(s::ACSet, x::Simplex{n}, args...) where n =
   volume(Val{n}, s, x.data, args...)
-@inline volume(n::Int, s::AbstractACSet, args...) = volume(Val{n}, s, args...)
+@inline volume(n::Int, s::ACSet, args...) = volume(Val{n}, s, args...)
 
 """ Convenience function for linear operator based on structural nonzero values.
 """
@@ -434,7 +436,7 @@ function [`orient_component!`](@ref).
 orient!(s::AbstractDeltaSet1D) = orient!(s, E)
 orient!(s::AbstractDeltaSet2D) = orient!(s, Tri)
 
-function orient!(s::AbstractACSet, ::Type{Simplex{n}}) where n
+function orient!(s::ACSet, ::Type{Simplex{n}}) where n
   # Compute connected components as coequalizer of face maps.
   ndom, ncodom = nsimplices(n, s), nsimplices(n-1, s)
   face_maps = SVector{n+1}([ FinFunction(x -> ∂(n,i,s,x), ndom, ncodom)
@@ -471,7 +473,7 @@ orient_component!(s::AbstractDeltaSet1D, e::Int, args...) =
 orient_component!(s::AbstractDeltaSet2D, t::Int, args...) =
   orient_component!(s, Tri(t), args...)
 
-function orient_component!(s::AbstractACSet, x::Simplex{n},
+function orient_component!(s::ACSet, x::Simplex{n},
                            x_orientation::Orientation) where {n, Orientation}
   orientations = repeat(Union{Orientation,Nothing}[nothing], nsimplices(n, s))
 
