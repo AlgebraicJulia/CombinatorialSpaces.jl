@@ -21,30 +21,30 @@ using Catlab.Permutations: cycles
 
 """ Vertex permutation of combinatorial map or similar structure.
 """
-σ(x::AbstractACSet, args...) = subpart(x, args..., :σ)
+σ(x::ACSet, args...) = subpart(x, args..., :σ)
 
 """ Edge permutation of combinatorial map or similar structure.
 """
-α(x::AbstractACSet, args...) = subpart(x, args..., :α)
+α(x::ACSet, args...) = subpart(x, args..., :α)
 
 """ Face permutation of combinatorial map or similar structure.
 """
-ϕ(x::AbstractACSet, args...) = subpart(x, args..., :ϕ)
+ϕ(x::ACSet, args...) = subpart(x, args..., :ϕ)
 
 """ Trace vertices of combinatorial map or similar, returning a list of cycles.
 """
-trace_vertices(x::AbstractACSet) = cycles(σ(x))
+trace_vertices(x::ACSet) = cycles(σ(x))
 
 """ Trace edges of combinatorial map or similar, return a listing of cycles.
 
 Usually the cycles will be pairs of half edges but in a hypermap the cycles can
 be arbitrary.
 """
-trace_edges(x::AbstractACSet) = cycles(α(x))
+trace_edges(x::ACSet) = cycles(α(x))
 
 """ Trace faces of combinatorial map or similar, returning list of cycles.
 """
-trace_faces(x::AbstractACSet) = cycles(ϕ(x))
+trace_faces(x::ACSet) = cycles(ϕ(x))
 
 # Rotation graphs
 #################
@@ -55,8 +55,9 @@ trace_faces(x::AbstractACSet) = cycles(ϕ(x))
   compose(σ, vertex) == vertex
 end
 
-const AbstractRotationGraph = AbstractACSetType(TheoryRotationGraph)
-const RotationGraph = CSetType(TheoryRotationGraph, index=[:vertex])
+@abstract_acset_type AbstractRotationGraph <: AbstractHalfEdgeGraph
+@acset_type RotationGraph(TheoryRotationGraph,
+                          index=[:vertex]) <: AbstractRotationGraph
 
 α(g::AbstractRotationGraph) = inv(g)
 ϕ(g::AbstractRotationGraph) = sortperm(inv(g)[σ(g)]) # == (σ ⋅ inv)⁻¹
@@ -89,8 +90,8 @@ pair_half_edges!(g::AbstractRotationGraph, h, h′) =
   compose(α, α) == id(H)
 end
 
-const AbstractRotationSystem = AbstractACSetType(TheoryRotationSystem)
-const RotationSystem = CSetType(TheoryRotationSystem)
+@abstract_acset_type AbstractRotationSystem
+@acset_type RotationSystem(TheoryRotationSystem) <: AbstractRotationSystem
 
 # ϕ == (σ⋅α)⁻¹ == α⁻¹ ⋅ σ⁻¹
 ϕ(sys::AbstractRotationSystem) = sortperm(α(sys)[σ(sys)])
@@ -119,8 +120,8 @@ end
   compose(α, α) == id(H)
 end
 
-const AbstractCombinatorialMap = AbstractACSetType(TheoryCombinatorialMap)
-const CombinatorialMap = CSetType(TheoryCombinatorialMap)
+@abstract_acset_type AbstractCombinatorialMap
+@acset_type CombinatorialMap(TheoryCombinatorialMap) <: AbstractCombinatorialMap
 
 # TODO: What kind of interface should we have for maps and hypermaps?
 
