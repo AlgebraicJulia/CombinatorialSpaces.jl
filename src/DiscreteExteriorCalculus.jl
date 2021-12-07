@@ -698,6 +698,7 @@ function ⋆(::Type{Val{1}}, s::AbstractDeltaDualComplex2D, ::GeometricHodge)
   J = Vector{Int64}()
   V = Vector{Float64}()
 
+  rel_orient = 0.0
   for t in triangles(s)
     e = reverse(triangle_edges(s, t))
     ev = point(s, tgt(s, e)) .- point(s, src(s,e))
@@ -711,21 +712,34 @@ function ⋆(::Type{Val{1}}, s::AbstractDeltaDualComplex2D, ::GeometricHodge)
       dot(ev[i], dv[i]) / dot(ev[i], ev[i])
     end
 
+    # This relative orientation needs to be redefined for each triangle in the
+    # case that the mesh has multiple independent connected components
+    rel_orient = 0.0
     for i in 1:3
       diag_cross = sign(Val{2}, s, t) * crossdot(ev[i], dv[i]) /
                       dot(ev[i], ev[i])
-      push!(I, e[i])
-      push!(J, e[i])
-      push!(V, diag_cross)
+      if diag_cross != 0.0
+        # Decide the orientation of the mesh relative to z-axis (see crossdot)
+        # For optimization, this could be moved out of this loop
+        if rel_orient == 0.0
+          rel_orient = sign(diag_cross)
+        end
+
+        push!(I, e[i])
+        push!(J, e[i])
+        push!(V, diag_cross * rel_orient)
+      end
     end
 
     for p ∈ ((1,2,3), (1,3,2), (2,1,3),
              (2,3,1), (3,1,2), (3,2,1))
-      val = sign(Val{2}, s, t) * diag_dot[p[1]] * dot(ev[p[1]], ev[p[3]]) /
-              crossdot(ev[p[2]], ev[p[3]])
-      push!(I, e[p[1]])
-      push!(J, e[p[2]])
-      push!(V, val)
+      val = rel_orient * sign(Val{2}, s, t) * diag_dot[p[1]] *
+              dot(ev[p[1]], ev[p[3]]) / crossdot(ev[p[2]], ev[p[3]])
+      if val != 0.0
+        push!(I, e[p[1]])
+        push!(J, e[p[2]])
+        push!(V, val)
+      end
     end
   end
   sparse(I,J,V)
@@ -785,11 +799,11 @@ end
 
 function inv_hodge_star(::Type{Val{1}}, s::AbstractDeltaDualComplex2D,
                         ::GeometricHodge)
-  inv(Matrix(⋆(Val{1}, s, GeometricHodge())))
+  -1 * inv(Matrix(⋆(Val{1}, s, GeometricHodge())))
 end
 function inv_hodge_star(::Type{Val{1}}, s::AbstractDeltaDualComplex2D,
                         form::AbstractVector, ::GeometricHodge)
-  Matrix(⋆(Val{1}, s, GeometricHodge())) \ form
+  -1 * (Matrix(⋆(Val{1}, s, GeometricHodge())) \ form)
 end
 
 inv_hodge_star(::Type{Val{0}}, s::AbstractDeltaDualComplex2D, ::GeometricHodge) =
@@ -825,13 +839,14 @@ inv_hodge_star(::Type{Val{n}}, s::AbstractDeltaDualComplex1D,
   δ(Val{n}, s, hodge, form)
 
 function δ(::Type{Val{n}}, s::ACSet, ::DiagonalHodge, args...) where n
-  # TODO: What is the right global sign?
-  # sgn = iseven((n-1)*(ndims(s)-n+1)) ? +1 : -1
+  # The sign of δ in Gillette's notes (see test file) is simply a product of
+  # the signs for the inverse hodge and dual derivative involved.
+  sgn = iseven((n-1)*(ndims(s)*(n-1) + 1)) ? +1 : -1
   operator_nz(Float64, nsimplices(n-1,s), nsimplices(n,s), args...) do x
     c = hodge_diag(Val{n}, s, x)
     I, V = dual_derivative_nz(Val{ndims(s)-n}, s, x)
     V = map(I, V) do i, a
-      c * a / hodge_diag(Val{n-1}, s, i)
+      sgn * c * a / hodge_diag(Val{n-1}, s, i)
     end
     (I, V)
   end

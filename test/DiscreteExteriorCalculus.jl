@@ -176,6 +176,14 @@ subdivide_duals!(s, Barycenter())
                 0.0 1/6 0.0;
                 1/6 0.0 1/3]
 
+# Test consistency regardless of base triangle orientation (relevant for
+# geometric hodge star)
+flipped_ps = deepcopy(primal_s)
+orient_component!(flipped_ps, 1, false)
+flipped_s = EmbeddedDeltaDualComplex2D{Bool,Float64,Point2D}(flipped_ps)
+subdivide_duals!(flipped_s, Barycenter())
+@test ⋆(1,s) ≈ ⋆(1,flipped_s)
+
 # NOTICE:
 # Tests beneath this comment are not backed up by any external source, and are
 # included to determine consistency as the operators are modified.
@@ -199,17 +207,17 @@ subdivide_duals!(s, Barycenter())
                           3 -3  0;
                           3  0 -3], atol=1e-3)
 
-@test isapprox(Δ(1, s), [7   13 -16;
-                         13  10 -13;
-                        -16 -13  7], atol=1e-3)
+@test isapprox(Δ(1, s), [-17 -11  8;
+                         -11 -14  11;
+                           8  11 -17], atol=1e-3)
 
 @test isapprox(Δ(1, s; hodge=DiagonalHodge()),
-                        [0.894  6.367 -7.603;
-                        14.236 10.0  -14.236;
-                        -7.603 -6.367  0.894], atol=1e-2)
+                        [-9.838  -4.366  3.130;
+                         -9.763  -14.0   9.763;
+                          3.130   4.366 -9.838], atol=1e-2)
 
-@test isapprox(Δ(2, s), reshape([36.0], (1,1)), atol=1e-3)
-@test isapprox(Δ(2, s; hodge=DiagonalHodge()), reshape([22.733], (1,1)), atol=1e-3)
+@test isapprox(Δ(2, s), reshape([-36.0], (1,1)), atol=1e-3)
+@test isapprox(Δ(2, s; hodge=DiagonalHodge()), reshape([-22.733], (1,1)), atol=1e-3)
 
 subdivide_duals!(s, Circumcenter())
 @test dual_point(s, triangle_center(s, 1)) ≈ Point2D(1/2, 1/2)
@@ -279,5 +287,25 @@ X♭, α = EForm([1.5, 2, 2.5, 3, 3.5]), DualForm{2}([3, 7, 10, 11])
 @test length(interior_product_flat(2,s, X♭.data, α.data)) == 5
 @test ℒ(s, X♭, α; hodge=GeometricHodge()) isa DualForm{2}
 @test length(lie_derivative_flat(2,s, X♭.data, α.data)) == 4
+
+# Equilateral triangle (to compare the diagonal w/ geometric hodge results)
+primal_s = EmbeddedDeltaSet2D{Bool,Point2D}()
+add_vertices!(primal_s, 3, point=[Point2D(0,0), Point2D(1,0), Point2D(0.5,sqrt(0.75))])
+glue_triangle!(primal_s, 1, 2, 3, tri_orientation=true)
+primal_s[:edge_orientation] = true
+s = EmbeddedDeltaDualComplex2D{Bool,Float64,Point2D}(primal_s)
+subdivide_duals!(s, Barycenter())
+
+@test isapprox(Δ(1, s), [-12 -6    6;
+                          -6 -12   6;
+                           6   6 -12], atol=1e-3)
+
+@test isapprox(Δ(1, s; hodge=DiagonalHodge()),
+                        [-12 -6    6;
+                          -6 -12   6;
+                           6   6 -12], atol=1e-2)
+
+@test isapprox(Δ(2, s), reshape([-24.0], (1,1)), atol=1e-3)
+@test isapprox(Δ(2, s; hodge=DiagonalHodge()), reshape([-24.0], (1,1)), atol=1e-3)
 
 end
