@@ -2,7 +2,7 @@ name = "CombinatorialSpaces"
 uuid = "b1c52339-7909-45ad-8b6a-6e388f7c67f2"
 license = "MIT"
 authors = ["Evan Patterson <evan@epatters.org>"]
-version = "0.2.5"
+version = "0.2.6"
 
 [deps]
 Catlab = "134e5e36-593f-5add-ad60-77f754baafbe"
