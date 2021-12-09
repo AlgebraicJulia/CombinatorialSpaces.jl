@@ -20,11 +20,16 @@ const Point3D = SVector{3,Float64}
 ####################
 
 s = DeltaSet1D()
-add_vertices!(s, 4)
+add_vertex!(s)
+add_vertices!(s, 3)
 add_sorted_edge!(s, 2, 1)
 add_sorted_edges!(s, [2,4], [3,3])
+@test (nv(s), ne(s)) == (4, 3)
+@test (vertices(s), edges(s)) == (1:4, 1:3)
 @test src(s) == [1,2,3]
 @test tgt(s) == [2,3,4]
+@test has_edge(s, 1, 2)
+@test !has_edge(s, 2, 1)
 @test ∂(1, 0, s) == [2,3,4]
 @test ∂(1, 1, s) == [1,2,3]
 @test ∂(0, s, E(1))::V == V(2)

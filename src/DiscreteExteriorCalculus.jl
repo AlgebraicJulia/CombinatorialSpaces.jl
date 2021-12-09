@@ -63,8 +63,8 @@ struct DiagonalHodge  <: DiscreteHodge end
   #
   # (∂v0_dual, ∂v1_dual)::Hom(E,DualE)
   #
-  # ∂v0_dual ⋅ D_∂v1 == tgt ⋅ vertex_center
-  # ∂v1_dual ⋅ D_∂v1 == src ⋅ vertex_center
+  # ∂v0_dual ⋅ D_∂v1 == ∂v0 ⋅ vertex_center
+  # ∂v1_dual ⋅ D_∂v1 == ∂v1 ⋅ vertex_center
   # ∂v0_dual ⋅ D_∂v0 == edge_center
   # ∂v1_dual ⋅ D_∂v0 == edge_center
   #
@@ -79,7 +79,7 @@ end
 
 """ Abstract type for dual complex of a 1D delta set.
 """
-@abstract_acset_type AbstractDeltaDualComplex1D <: HasGraph
+@abstract_acset_type AbstractDeltaDualComplex1D <: HasDeltaSet1D
 
 """ Dual complex of a one-dimensional delta set.
 
@@ -87,7 +87,7 @@ The data structure includes both the primal complex and the dual complex, as
 well as the mapping between them.
 """
 @acset_type DeltaDualComplex1D(SchemaDualComplex1D,
-  index=[:src,:tgt,:D_∂v0,:D_∂v1]) <: AbstractDeltaDualComplex1D
+  index=[:∂v0,:∂v1,:D_∂v0,:D_∂v1]) <: AbstractDeltaDualComplex1D
 
 """ Dual vertex corresponding to center of primal vertex.
 """
@@ -129,7 +129,7 @@ end
 """ Oriented dual complex of an oriented 1D delta set.
 """
 @acset_type OrientedDeltaDualComplex1D(SchemaOrientedDualComplex1D,
-  index=[:src,:tgt,:D_∂v0,:D_∂v1]) <: AbstractDeltaDualComplex1D
+  index=[:∂v0,:∂v1,:D_∂v0,:D_∂v1]) <: AbstractDeltaDualComplex1D
 
 dual_boundary_nz(::Type{Val{1}}, s::AbstractDeltaDualComplex1D, x::Int) =
   # Boundary vertices of dual 1-cell ↔
@@ -196,7 +196,7 @@ Although they are redundant information, the lengths of the primal and dual
 edges are precomputed and stored.
 """
 @acset_type EmbeddedDeltaDualComplex1D(SchemaEmbeddedDualComplex1D,
-  index=[:src,:tgt,:D_∂v0,:D_∂v1]) <: AbstractDeltaDualComplex1D
+  index=[:∂v0,:∂v1,:D_∂v0,:D_∂v1]) <: AbstractDeltaDualComplex1D
 
 """ Point associated with dual vertex of complex.
 """
@@ -276,12 +276,12 @@ end
 
 """ Abstract type for dual complex of a 2D delta set.
 """
-@abstract_acset_type AbstractDeltaDualComplex2D <: HasGraph
+@abstract_acset_type AbstractDeltaDualComplex2D <: HasDeltaSet2D
 
 """ Dual complex of a two-dimensional delta set.
 """
 @acset_type DeltaDualComplex2D(SchemaDualComplex2D,
-  index=[:src,:tgt,:∂e0,:∂e1,:∂e2,:D_∂v0,:D_∂v1,:D_∂e0,:D_∂e1,:D_∂e2]) <: AbstractDeltaDualComplex2D
+  index=[:∂v0,:∂v1,:∂e0,:∂e1,:∂e2,:D_∂v0,:D_∂v1,:D_∂e0,:D_∂e1,:D_∂e2]) <: AbstractDeltaDualComplex2D
 
 """ Dual vertex corresponding to center of primal triangle.
 """
@@ -314,7 +314,7 @@ end
 """ Oriented dual complex of an oriented 2D delta set.
 """
 @acset_type OrientedDeltaDualComplex2D(SchemaOrientedDualComplex2D,
-  index=[:src,:tgt,:∂e0,:∂e1,:∂e2,:D_∂v0,:D_∂v1,:D_∂e0,:D_∂e1,:D_∂e2]) <: AbstractDeltaDualComplex2D
+  index=[:∂v0,:∂v1,:∂e0,:∂e1,:∂e2,:D_∂v0,:D_∂v1,:D_∂e0,:D_∂e1,:D_∂e2]) <: AbstractDeltaDualComplex2D
 
 dual_boundary_nz(::Type{Val{1}}, s::AbstractDeltaDualComplex2D, x::Int) =
   # Boundary vertices of dual 1-cell ↔
@@ -411,7 +411,7 @@ Although they are redundant information, the lengths and areas of the
 primal/dual edges and triangles are precomputed and stored.
 """
 @acset_type EmbeddedDeltaDualComplex2D(SchemaEmbeddedDualComplex2D,
-  index=[:src,:tgt,:∂e0,:∂e1,:∂e2,:D_∂v0,:D_∂v1,:D_∂e0,:D_∂e1,:D_∂e2]) <: AbstractDeltaDualComplex2D
+  index=[:∂v0,:∂v1,:∂e0,:∂e1,:∂e2,:D_∂v0,:D_∂v1,:D_∂e0,:D_∂e1,:D_∂e2]) <: AbstractDeltaDualComplex2D
 
 volume(::Type{Val{n}}, s::EmbeddedDeltaDualComplex2D, x) where n =
   volume(Val{n}, s, x, PrecomputedVol())

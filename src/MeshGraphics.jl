@@ -35,8 +35,8 @@ an embedded deltaset into arguments that can be passed into Makie.linesegments
 function convert_arguments(P::Type{<:Makie.LineSegments}, dset::EmbeddedDeltaSet2D)
   edge_positions = zeros(ne(dset)*2,3)
   for e in edges(dset)
-    edge_positions[2*e-1,:] = point(dset, dset[e,:src])
-    edge_positions[2*e,:] = point(dset, dset[e,:tgt])
+    edge_positions[2*e-1,:] = point(dset, src(dset, e))
+    edge_positions[2*e,:] = point(dset, tgt(dset, e))
   end
   convert_arguments(P, edge_positions)
 end
