@@ -25,7 +25,7 @@ an embedded deltaset into arguments that can be passed into Makie.mesh
 function convert_arguments(P::Union{Type{<:Makie.Wireframe},
                                     Type{<:Makie.Mesh},
                                     Type{<:Makie.Scatter}},
-                           dset::ACSet)
+                           dset::HasDeltaSet)
   convert_arguments(P, Mesh(dset))
 end
 

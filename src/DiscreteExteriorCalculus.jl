@@ -91,16 +91,16 @@ well as the mapping between them.
 
 """ Dual vertex corresponding to center of primal vertex.
 """
-vertex_center(s::ACSet, args...) = s[args..., :vertex_center]
+vertex_center(s::HasDeltaSet, args...) = s[args..., :vertex_center]
 
 """ Dual vertex corresponding to center of primal edge.
 """
-edge_center(s::ACSet, args...) = s[args..., :edge_center]
+edge_center(s::HasDeltaSet1D, args...) = s[args..., :edge_center]
 
-subsimplices(::Type{Val{1}}, s::ACSet, e::Int) =
+subsimplices(::Type{Val{1}}, s::HasDeltaSet1D, e::Int) =
   SVector{2}(incident(s, edge_center(s, e), :D_∂v0))
 
-primal_vertex(::Type{Val{1}}, s::ACSet, e...) = s[e..., :D_∂v1]
+primal_vertex(::Type{Val{1}}, s::HasDeltaSet1D, e...) = s[e..., :D_∂v1]
 
 elementary_duals(::Type{Val{0}}, s::AbstractDeltaDualComplex1D, v::Int) =
   incident(s, vertex_center(s,v), :D_∂v1)
@@ -111,7 +111,7 @@ elementary_duals(::Type{Val{1}}, s::AbstractDeltaDualComplex1D, e::Int) =
 
 This accessor assumes that the simplicial identities for the dual hold.
 """
-function dual_triangle_vertices(s::ACSet, t...)
+function dual_triangle_vertices(s::HasDeltaSet1D, t...)
   SVector(s[s[t..., :D_∂e1], :D_∂v1],
           s[s[t..., :D_∂e0], :D_∂v1],
           s[s[t..., :D_∂e0], :D_∂v0])
@@ -160,7 +160,7 @@ If the primal complex is oriented, an orientation is induced on the dual
 complex. The dual edges are oriented relative to the primal edges they subdivide
 (Hirani 2003, PhD thesis, Ch. 2, last sentence of Remark 2.5.1).
 """
-function make_dual_simplices_1d!(s::ACSet)
+function make_dual_simplices_1d!(s::HasDeltaSet1D)
   # Make dual vertices and edges.
   s[:vertex_center] = vcenters = add_parts!(s, :DualV, nv(s))
   s[:edge_center] = ecenters = add_parts!(s, :DualV, ne(s))
@@ -200,7 +200,7 @@ edges are precomputed and stored.
 
 """ Point associated with dual vertex of complex.
 """
-dual_point(s::ACSet, args...) = s[args..., :dual_point]
+dual_point(s::HasDeltaSet, args...) = s[args..., :dual_point]
 
 struct PrecomputedVol end
 
@@ -209,11 +209,11 @@ volume(::Type{Val{n}}, s::EmbeddedDeltaDualComplex1D, x) where n =
 dual_volume(::Type{Val{n}}, s::EmbeddedDeltaDualComplex1D, x) where n =
   dual_volume(Val{n}, s, x, PrecomputedVol())
 
-volume(::Type{Val{1}}, s::ACSet, e, ::PrecomputedVol) = s[e, :length]
-dual_volume(::Type{Val{1}}, s::ACSet, e, ::PrecomputedVol) =
+volume(::Type{Val{1}}, s::HasDeltaSet1D, e, ::PrecomputedVol) = s[e, :length]
+dual_volume(::Type{Val{1}}, s::HasDeltaSet1D, e, ::PrecomputedVol) =
   s[e, :dual_length]
 
-dual_volume(::Type{Val{1}}, s::ACSet, e::Int, ::CayleyMengerDet) =
+dual_volume(::Type{Val{1}}, s::HasDeltaSet1D, e::Int, ::CayleyMengerDet) =
   volume(dual_point(s, SVector(s[e,:D_∂v0], s[e,:D_∂v1])))
 
 hodge_diag(::Type{Val{0}}, s::AbstractDeltaDualComplex1D, v::Int) =
@@ -232,7 +232,7 @@ function subdivide_duals!(s::EmbeddedDeltaDualComplex1D, args...)
   precompute_volumes_1d!(s)
 end
 
-function subdivide_duals_1d!(s::ACSet, alg)
+function subdivide_duals_1d!(s::HasDeltaSet1D, alg)
   for v in vertices(s)
     s[vertex_center(s,v), :dual_point] = point(s, v)
   end
@@ -242,7 +242,7 @@ function subdivide_duals_1d!(s::ACSet, alg)
   end
 end
 
-function precompute_volumes_1d!(s::ACSet)
+function precompute_volumes_1d!(s::HasDeltaSet1D)
   for e in edges(s)
     s[e, :length] = volume(1,s,e,CayleyMengerDet())
   end
@@ -285,12 +285,12 @@ end
 
 """ Dual vertex corresponding to center of primal triangle.
 """
-triangle_center(s::ACSet, args...) = s[args..., :tri_center]
+triangle_center(s::HasDeltaSet2D, args...) = s[args..., :tri_center]
 
-subsimplices(::Type{Val{2}}, s::ACSet, t::Int) =
+subsimplices(::Type{Val{2}}, s::HasDeltaSet2D, t::Int) =
   SVector{6}(incident(s, triangle_center(s,t), @SVector [:D_∂e1, :D_∂v0]))
 
-primal_vertex(::Type{Val{2}}, s::ACSet, t...) =
+primal_vertex(::Type{Val{2}}, s::HasDeltaSet2D, t...) =
   primal_vertex(Val{1}, s, s[t..., :D_∂e2])
 
 elementary_duals(::Type{Val{0}}, s::AbstractDeltaDualComplex2D, v::Int) =
@@ -346,7 +346,7 @@ complex. The elementary dual edges are oriented following (Hirani, 2003, Example
 2.5.2) or (Desbrun et al, 2005, Table 1) and the dual triangles are oriented
 relative to the primal triangles they subdivide.
 """
-function make_dual_simplices_2d!(s::ACSet)
+function make_dual_simplices_2d!(s::HasDeltaSet2D)
   # Make dual vertices and edges.
   D_edges01 = make_dual_simplices_1d!(s)
   s[:tri_center] = tri_centers = add_parts!(s, :DualV, ntriangles(s))
@@ -418,11 +418,11 @@ volume(::Type{Val{n}}, s::EmbeddedDeltaDualComplex2D, x) where n =
 dual_volume(::Type{Val{n}}, s::EmbeddedDeltaDualComplex2D, x) where n =
   dual_volume(Val{n}, s, x, PrecomputedVol())
 
-volume(::Type{Val{2}}, s::ACSet, t, ::PrecomputedVol) = s[t, :area]
-dual_volume(::Type{Val{2}}, s::ACSet, t, ::PrecomputedVol) =
+volume(::Type{Val{2}}, s::HasDeltaSet2D, t, ::PrecomputedVol) = s[t, :area]
+dual_volume(::Type{Val{2}}, s::HasDeltaSet2D, t, ::PrecomputedVol) =
   s[t, :dual_area]
 
-function dual_volume(::Type{Val{2}}, s::ACSet, t::Int, ::CayleyMengerDet)
+function dual_volume(::Type{Val{2}}, s::HasDeltaSet2D, t::Int, ::CayleyMengerDet)
   dual_vs = SVector(s[s[t, :D_∂e1], :D_∂v1],
                     s[s[t, :D_∂e2], :D_∂v0],
                     s[s[t, :D_∂e0], :D_∂v0])
@@ -478,7 +478,7 @@ function ♯(s::AbstractDeltaDualComplex2D, α::AbstractVector, ::PPSharp)
   α♯
 end
 
-function ∧(::Type{Tuple{1,1}}, s::ACSet, α, β, x::Int)
+function ∧(::Type{Tuple{1,1}}, s::HasDeltaSet2D, α, β, x::Int)
   # XXX: This calculation of the volume coefficients is awkward due to the
   # design decision described in `SchemaDualComplex1D`.
   dual_vs = vertex_center(s, triangle_vertices(s, x))
@@ -502,7 +502,7 @@ function subdivide_duals!(s::EmbeddedDeltaDualComplex2D, args...)
   precompute_volumes_2d!(s)
 end
 
-function subdivide_duals_2d!(s::ACSet, alg)
+function subdivide_duals_2d!(s::HasDeltaSet2D, alg)
   subdivide_duals_1d!(s, alg)
   for t in triangles(s)
     s[triangle_center(s,t), :dual_point] = geometric_center(
@@ -510,7 +510,7 @@ function subdivide_duals_2d!(s::ACSet, alg)
   end
 end
 
-function precompute_volumes_2d!(s::ACSet)
+function precompute_volumes_2d!(s::HasDeltaSet2D)
   precompute_volumes_1d!(s)
   for t in triangles(s)
     s[t, :area] = volume(2,s,t,CayleyMengerDet())
@@ -572,9 +572,9 @@ this correspondence, a basis for primal ``n``-chains defines the basis for dual
 ndims(s::AbstractDeltaDualComplex1D) = 1
 ndims(s::AbstractDeltaDualComplex2D) = 2
 
-volume(s::ACSet, x::DualSimplex{n}, args...) where n =
+volume(s::HasDeltaSet, x::DualSimplex{n}, args...) where n =
   dual_volume(Val{n}, s, x.data, args...)
-@inline dual_volume(n::Int, s::ACSet, args...) =
+@inline dual_volume(n::Int, s::HasDeltaSet, args...) =
   dual_volume(Val{n}, s, args...)
 
 """ List of dual simplices comprising the subdivision of a primal simplex.
@@ -586,16 +586,16 @@ dimension.
 The returned list is ordered such that subsimplices with the same primal vertex
 appear consecutively.
 """
-subsimplices(s::ACSet, x::Simplex{n}) where n =
+subsimplices(s::HasDeltaSet, x::Simplex{n}) where n =
   DualSimplex{n}(subsimplices(Val{n}, s, x.data))
-@inline subsimplices(n::Int, s::ACSet, args...) =
+@inline subsimplices(n::Int, s::HasDeltaSet, args...) =
   subsimplices(Val{n}, s, args...)
 
 """ Primal vertex associated with a dual simplex.
 """
-primal_vertex(s::ACSet, x::DualSimplex{n}) where n =
+primal_vertex(s::HasDeltaSet, x::DualSimplex{n}) where n =
   V(primal_vertex(Val{n}, s, x.data))
-@inline primal_vertex(n::Int, s::ACSet, args...) =
+@inline primal_vertex(n::Int, s::HasDeltaSet, args...) =
   primal_vertex(Val{n}, s, args...)
 
 """ List of elementary dual simplices corresponding to primal simplex.
@@ -613,21 +613,21 @@ In 2D dual complexes, the elementary duals of...
 - primal edges are dual edges
 - primal triangles are (single) dual triangles
 """
-elementary_duals(s::ACSet, x::Simplex{n}) where n =
+elementary_duals(s::HasDeltaSet, x::Simplex{n}) where n =
   DualSimplex{ndims(s)-n}(elementary_duals(Val{n}, s, x.data))
-@inline elementary_duals(n::Int, s::ACSet, args...) =
+@inline elementary_duals(n::Int, s::HasDeltaSet, args...) =
   elementary_duals(Val{n}, s, args...)
 
 """ Boundary of chain of dual cells.
 
 Transpose of [`dual_derivative`](@ref).
 """
-@inline dual_boundary(n::Int, s::ACSet, args...) =
+@inline dual_boundary(n::Int, s::HasDeltaSet, args...) =
   dual_boundary(Val{n}, s, args...)
-∂(s::ACSet, x::DualChain{n}) where n =
+∂(s::HasDeltaSet, x::DualChain{n}) where n =
   DualChain{n-1}(dual_boundary(Val{n}, s, x.data))
 
-function dual_boundary(::Type{Val{n}}, s::ACSet, args...) where n
+function dual_boundary(::Type{Val{n}}, s::HasDeltaSet, args...) where n
   operator_nz(Int, nsimplices(ndims(s)-n+1,s),
               nsimplices(ndims(s)-n,s), args...) do x
     dual_boundary_nz(Val{n}, s, x)
@@ -639,12 +639,12 @@ end
 Transpose of [`dual_boundary`](@ref). For more info, see (Desbrun, Kanso, Tong,
 2008: Discrete differential forms for computational modeling, §4.5).
 """
-@inline dual_derivative(n::Int, s::ACSet, args...) =
+@inline dual_derivative(n::Int, s::HasDeltaSet, args...) =
   dual_derivative(Val{n}, s, args...)
-d(s::ACSet, x::DualForm{n}) where n =
+d(s::HasDeltaSet, x::DualForm{n}) where n =
   DualForm{n+1}(dual_derivative(Val{n}, s, x.data))
 
-function dual_derivative(::Type{Val{n}}, s::ACSet, args...) where n
+function dual_derivative(::Type{Val{n}}, s::HasDeltaSet, args...) where n
   operator_nz(Int, nsimplices(ndims(s)-n-1,s),
               nsimplices(ndims(s)-n,s), args...) do x
     dual_derivative_nz(Val{n}, s, x)
@@ -660,17 +660,17 @@ end
     operator on cochains. We do not explicitly define the duality operator and
     we use the symbol ``⋆`` for the Hodge star.
 """
-⋆(s::ACSet, x::SimplexForm{n}; kw...) where n =
+⋆(s::HasDeltaSet, x::SimplexForm{n}; kw...) where n =
   DualForm{ndims(s)-n}(⋆(Val{n}, s, x.data; kw...))
-@inline ⋆(n::Int, s::ACSet, args...; kw...) = ⋆(Val{n}, s, args...; kw...)
-@inline ⋆(::Type{Val{n}}, s::ACSet; hodge=GeometricHodge()) where n =
-            ⋆(Val{n}, s, hodge)
-@inline ⋆(::Type{Val{n}}, s::ACSet, form::AbstractVector;
-          hodge=GeometricHodge()) where n = ⋆(Val{n}, s, form, hodge)
+@inline ⋆(n::Int, s::HasDeltaSet, args...; kw...) = ⋆(Val{n}, s, args...; kw...)
+@inline ⋆(::Type{Val{n}}, s::HasDeltaSet;
+          hodge::DiscreteHodge=GeometricHodge()) where n = ⋆(Val{n}, s, hodge)
+@inline ⋆(::Type{Val{n}}, s::HasDeltaSet, form::AbstractVector;
+          hodge::DiscreteHodge=GeometricHodge()) where n = ⋆(Val{n}, s, form, hodge)
 
-⋆(::Type{Val{n}}, s::ACSet, form::AbstractVector, ::DiagonalHodge) where n =
+⋆(::Type{Val{n}}, s::HasDeltaSet, form::AbstractVector, ::DiagonalHodge) where n =
   applydiag(form) do x, a; a * hodge_diag(Val{n},s,x) end
-⋆(::Type{Val{n}}, s::ACSet, ::DiagonalHodge) where n =
+⋆(::Type{Val{n}}, s::HasDeltaSet, ::DiagonalHodge) where n =
   Diagonal([ hodge_diag(Val{n},s,x) for x in simplices(n,s) ])
 
 # Note that this cross product defines the positive direction for flux to
@@ -772,14 +772,16 @@ Confusingly, this is *not* the operator inverse of the Hodge star [`⋆`](@ref)
 because it carries an extra global sign, in analogy to the smooth case
 (Gillette, 2009, Notes on the DEC, Definition 2.27).
 """
-@inline inv_hodge_star(n::Int, s::ACSet, args...; kw...) =
+@inline inv_hodge_star(n::Int, s::HasDeltaSet, args...; kw...) =
   inv_hodge_star(Val{n}, s, args...; kw...)
-@inline inv_hodge_star(::Type{Val{n}}, s::ACSet; hodge=GeometricHodge()) where n =
-            inv_hodge_star(Val{n}, s, hodge)
-@inline inv_hodge_star(::Type{Val{n}}, s::ACSet, form::AbstractVector;
-          hodge=GeometricHodge()) where n = inv_hodge_star(Val{n}, s, form, hodge)
+@inline inv_hodge_star(::Type{Val{n}}, s::HasDeltaSet;
+                       hodge::DiscreteHodge=GeometricHodge()) where n =
+  inv_hodge_star(Val{n}, s, hodge)
+@inline inv_hodge_star(::Type{Val{n}}, s::HasDeltaSet, form::AbstractVector;
+                       hodge::DiscreteHodge=GeometricHodge()) where n =
+  inv_hodge_star(Val{n}, s, form, hodge)
 
-function inv_hodge_star(::Type{Val{n}}, s::ACSet,
+function inv_hodge_star(::Type{Val{n}}, s::HasDeltaSet,
                         form::AbstractVector, ::DiagonalHodge) where n
   if iseven(n*(ndims(s)-n))
     applydiag(form) do x, a; a / hodge_diag(Val{n},s,x) end
@@ -788,8 +790,7 @@ function inv_hodge_star(::Type{Val{n}}, s::ACSet,
   end
 end
 
-function inv_hodge_star(::Type{Val{n}}, s::ACSet,
-                        ::DiagonalHodge) where n
+function inv_hodge_star(::Type{Val{n}}, s::HasDeltaSet, ::DiagonalHodge) where n
   if iseven(n*(ndims(s)-n))
     Diagonal([ 1 / hodge_diag(Val{n},s,x) for x in simplices(n,s) ])
   else
@@ -827,18 +828,18 @@ inv_hodge_star(::Type{Val{n}}, s::AbstractDeltaDualComplex1D,
 
 """ Codifferential operator from primal ``n`` forms to primal ``n-1``-forms.
 """
-δ(s::ACSet, x::SimplexForm{n}; kw...) where n =
+δ(s::HasDeltaSet, x::SimplexForm{n}; kw...) where n =
   SimplexForm{n-1}(δ(Val{n}, s, GeometricHodge(), x.data; kw...))
-@inline δ(n::Int, s::ACSet, args...; kw...) =
+@inline δ(n::Int, s::HasDeltaSet, args...; kw...) =
   δ(Val{n}, s, args...; kw...)
-@inline δ(::Type{Val{n}}, s::ACSet; hodge=GeometricHodge(),
+@inline δ(::Type{Val{n}}, s::HasDeltaSet; hodge::DiscreteHodge=GeometricHodge(),
           matrix_type::Type=SparseMatrixCSC{Float64}) where n =
   δ(Val{n}, s, hodge, matrix_type)
-@inline δ(::Type{Val{n}}, s::ACSet, form::AbstractVector;
-          hodge=GeometricHodge()) where n =
+@inline δ(::Type{Val{n}}, s::HasDeltaSet, form::AbstractVector;
+          hodge::DiscreteHodge=GeometricHodge()) where n =
   δ(Val{n}, s, hodge, form)
 
-function δ(::Type{Val{n}}, s::ACSet, ::DiagonalHodge, args...) where n
+function δ(::Type{Val{n}}, s::HasDeltaSet, ::DiagonalHodge, args...) where n
   # The sign of δ in Gillette's notes (see test file) is simply a product of
   # the signs for the inverse hodge and dual derivative involved.
   sgn = iseven((n-1)*(ndims(s)*(n-1) + 1)) ? +1 : -1
@@ -852,11 +853,11 @@ function δ(::Type{Val{n}}, s::ACSet, ::DiagonalHodge, args...) where n
   end
 end
 
-function δ(::Type{Val{n}}, s::ACSet, ::GeometricHodge, matrix_type) where n
+function δ(::Type{Val{n}}, s::HasDeltaSet, ::GeometricHodge, matrix_type) where n
   inv_hodge_star(n-1, s) * dual_derivative(ndims(s)-n, s) * ⋆(n, s)
 end
 
-function δ(::Type{Val{n}}, s::ACSet, ::GeometricHodge, form::AbstractVector) where n
+function δ(::Type{Val{n}}, s::HasDeltaSet, ::GeometricHodge, form::AbstractVector) where n
   Vector(inv_hodge_star(n - 1, s, dual_derivative(ndims(s)-n, s, ⋆(n, s, form))))
 end
 
@@ -877,13 +878,13 @@ This linear operator on primal ``n``-forms defined by ``∇² α := -δ d α``, 
     such as (Hirani 2003), take the opposite convention, which has the advantage
     of being consistent with the Laplace-de Rham operator [`Δ`](@ref).
 """
-∇²(s::ACSet, x::SimplexForm{n}; kw...) where n =
+∇²(s::HasDeltaSet, x::SimplexForm{n}; kw...) where n =
   SimplexForm{n}(∇²(Val{n}, s, x.data; kw...))
-@inline ∇²(n::Int, s::ACSet, args...; kw...) = ∇²(Val{n}, s, args...; kw...)
+@inline ∇²(n::Int, s::HasDeltaSet, args...; kw...) = ∇²(Val{n}, s, args...; kw...)
 
-∇²(::Type{Val{n}}, s::ACSet, form::AbstractVector; kw...) where n =
+∇²(::Type{Val{n}}, s::HasDeltaSet, form::AbstractVector; kw...) where n =
   -δ(n+1, s, d(Val{n}, s, form); kw...)
-∇²(::Type{Val{n}}, s::ACSet; matrix_type::Type=SparseMatrixCSC{Float64}, kw...) where n =
+∇²(::Type{Val{n}}, s::HasDeltaSet; matrix_type::Type=SparseMatrixCSC{Float64}, kw...) where n =
   -δ(n+1, s; matrix_type=matrix_type, kw...) * d(Val{n}, s, matrix_type)
 
 """ Alias for the Laplace-Beltrami operator [`∇²`](@ref).
@@ -896,18 +897,18 @@ This linear operator on primal ``n``-forms is defined by ``Δ := δ d + d δ``.
 Restricted to 0-forms, it reduces to the negative of the Laplace-Beltrami
 operator [`∇²`](@ref): ``Δ f = -∇² f``.
 """
-Δ(s::ACSet, x::SimplexForm{n}; kw...) where n =
+Δ(s::HasDeltaSet, x::SimplexForm{n}; kw...) where n =
   SimplexForm{n}(Δ(Val{n}, s, x.data; kw...))
-@inline Δ(n::Int, s::ACSet, args...; kw...) = Δ(Val{n}, s, args...; kw...)
+@inline Δ(n::Int, s::HasDeltaSet, args...; kw...) = Δ(Val{n}, s, args...; kw...)
 
-Δ(::Type{Val{0}}, s::ACSet, form::AbstractVector; kw...) =
+Δ(::Type{Val{0}}, s::HasDeltaSet, form::AbstractVector; kw...) =
   δ(1, s, d(Val{0}, s, form); kw...)
-Δ(::Type{Val{0}}, s::ACSet; matrix_type::Type=SparseMatrixCSC{Float64}, kw...) =
+Δ(::Type{Val{0}}, s::HasDeltaSet; matrix_type::Type=SparseMatrixCSC{Float64}, kw...) =
   δ(1,s; matrix_type=matrix_type, kw...) * d(Val{0},s,matrix_type)
 
-Δ(::Type{Val{n}}, s::ACSet, form::AbstractVector; kw...) where n =
+Δ(::Type{Val{n}}, s::HasDeltaSet, form::AbstractVector; kw...) where n =
   δ(n+1, s, d(Val{n}, s, form); kw...) + d(Val{n-1}, s, δ(n, s, form; kw...))
-Δ(::Type{Val{n}}, s::ACSet; matrix_type::Type=SparseMatrixCSC{Float64}, kw...) where n =
+Δ(::Type{Val{n}}, s::HasDeltaSet; matrix_type::Type=SparseMatrixCSC{Float64}, kw...) where n =
   δ(n+1,s; matrix_type=matrix_type, kw...) * d(Val{n},s,matrix_type) +
 		d(Val{n-1},s,matrix_type) * δ(n,s; matrix_type=matrix_type, kw...)
 
@@ -932,7 +933,7 @@ implemented.
 
 See also: the sharp operator [`♯`](@ref).
 """
-♭(s::ACSet, X::DualVectorField) = EForm(♭(s, X.data, DPPFlat()))
+♭(s::HasDeltaSet, X::DualVectorField) = EForm(♭(s, X.data, DPPFlat()))
 
 """ Alias for the flat operator [`♭`](@ref).
 """
@@ -958,7 +959,7 @@ implemented.
 
 See also: the flat operator [`♭`](@ref).
 """
-♯(s::ACSet, α::EForm) = PrimalVectorField(♯(s, α.data, PPSharp()))
+♯(s::HasDeltaSet, α::EForm) = PrimalVectorField(♯(s, α.data, PPSharp()))
 
 """ Alias for the sharp operator [`♯`](@ref).
 """
@@ -973,25 +974,25 @@ the discrete primal-primal wedge product introduced in (Hirani, 2003, Chapter 7)
 and (Desbrun et al 2005, Section 8). It depends on the geometric embedding and
 requires the dual complex.
 """
-∧(s::ACSet, α::SimplexForm{k}, β::SimplexForm{l}) where {k,l} =
+∧(s::HasDeltaSet, α::SimplexForm{k}, β::SimplexForm{l}) where {k,l} =
   SimplexForm{k+l}(∧(Tuple{k,l}, s, α.data, β.data))
-@inline ∧(k::Int, l::Int, s::ACSet, args...) = ∧(Tuple{k,l}, s, args...)
+@inline ∧(k::Int, l::Int, s::HasDeltaSet, args...) = ∧(Tuple{k,l}, s, args...)
 
-function ∧(::Type{Tuple{k,l}}, s::ACSet, α, β) where {k,l}
+function ∧(::Type{Tuple{k,l}}, s::HasDeltaSet, α, β) where {k,l}
   map(simplices(k+l, s)) do x
     ∧(Tuple{k,l}, s, α, β, x)
   end
 end
 
-∧(::Type{Tuple{0,0}}, s::ACSet, f, g, x::Int) = f[x]*g[x]
-∧(::Type{Tuple{k,0}}, s::ACSet, α, g, x::Int) where k =
+∧(::Type{Tuple{0,0}}, s::HasDeltaSet, f, g, x::Int) = f[x]*g[x]
+∧(::Type{Tuple{k,0}}, s::HasDeltaSet, α, g, x::Int) where k =
   wedge_product_zero(Val{k}, s, g, α, x)
-∧(::Type{Tuple{0,k}}, s::ACSet, f, β, x::Int) where k =
+∧(::Type{Tuple{0,k}}, s::HasDeltaSet, f, β, x::Int) where k =
   wedge_product_zero(Val{k}, s, f, β, x)
 
 """ Wedge product of a 0-form and a ``k``-form.
 """
-function wedge_product_zero(::Type{Val{k}}, s::ACSet,
+function wedge_product_zero(::Type{Val{k}}, s::HasDeltaSet,
                             f, α, x::Int) where k
   subs = subsimplices(k, s, x)
   vs = primal_vertex(k, s, subs)
@@ -1010,7 +1011,7 @@ Specifically, this operation is the primal-dual interior product defined in
 primal vector field (or primal 1-form) and a dual ``n``-forms and then returns a
 dual ``(n-1)``-form.
 """
-interior_product(s::ACSet, X♭::EForm, α::DualForm{n}; kw...) where n =
+interior_product(s::HasDeltaSet, X♭::EForm, α::DualForm{n}; kw...) where n =
   DualForm{n-1}(interior_product_flat(Val{n}, s, X♭.data, α.data); kw...)
 
 """ Interior product of a 1-form and a ``n``-form, yielding an ``(n-1)``-form.
@@ -1019,10 +1020,10 @@ Usually, the interior product is defined for vector fields; this function
 assumes that the flat operator [`♭`](@ref) (not yet implemented for primal
 vector fields) has already been applied to yield a 1-form.
 """
-@inline interior_product_flat(n::Int, s::ACSet, args...; kw...) =
+@inline interior_product_flat(n::Int, s::HasDeltaSet, args...; kw...) =
   interior_product_flat(Val{n}, s, args...; kw...)
 
-function interior_product_flat(::Type{Val{n}}, s::ACSet,
+function interior_product_flat(::Type{Val{n}}, s::HasDeltaSet,
                                X♭::AbstractVector, α::AbstractVector;
                                kw...) where n
   # TODO: Global sign `iseven(n*n′) ? +1 : -1`
@@ -1035,7 +1036,7 @@ end
 Specifically, this is the primal-dual Lie derivative defined in (Hirani 2003,
 Section 8.4) and (Desbrun et al 2005, Section 10).
 """
-ℒ(s::ACSet, X♭::EForm, α::DualForm{n}; kw...) where n =
+ℒ(s::HasDeltaSet, X♭::EForm, α::DualForm{n}; kw...) where n =
   DualForm{n}(lie_derivative_flat(Val{n}, s, X♭, α.data; kw...))
 
 """ Alias for Lie derivative operator [`ℒ`](@ref).
@@ -1047,21 +1048,21 @@ const lie_derivative = ℒ
 Assumes that the flat operator [`♭`](@ref) has already been applied to the
 vector field.
 """
-@inline lie_derivative_flat(n::Int, s::ACSet, args...; kw...) =
+@inline lie_derivative_flat(n::Int, s::HasDeltaSet, args...; kw...) =
   lie_derivative_flat(Val{n}, s, args...; kw...)
 
-function lie_derivative_flat(::Type{Val{0}}, s::ACSet,
+function lie_derivative_flat(::Type{Val{0}}, s::HasDeltaSet,
                              X♭::AbstractVector, α::AbstractVector; kw...)
   interior_product_flat(1, s, X♭, dual_derivative(0, s, α); kw...)
 end
 
-function lie_derivative_flat(::Type{Val{1}}, s::ACSet,
+function lie_derivative_flat(::Type{Val{1}}, s::HasDeltaSet,
                              X♭::AbstractVector, α::AbstractVector; kw...)
   interior_product_flat(2, s, X♭, dual_derivative(1, s, α); kw...) +
     dual_derivative(0, s, interior_product_flat(1, s, X♭, α; kw...))
 end
 
-function lie_derivative_flat(::Type{Val{2}}, s::ACSet,
+function lie_derivative_flat(::Type{Val{2}}, s::HasDeltaSet,
                              X♭::AbstractVector, α::AbstractVector; kw...)
   dual_derivative(1, s, interior_product_flat(2, s, X♭, α; kw...))
 end

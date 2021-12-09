@@ -8,7 +8,7 @@ using CombinatorialSpaces.SimplicialSets
 
 """ Check that the semi-simplicial identities hold in dimension `n`.
 """
-function is_semi_simplicial(s::ACSet, n::Int)
+function is_semi_simplicial(s::HasDeltaSet, n::Int)
   all(∂(n-1, i, s, ∂(n, j, s)) == ∂(n-1, j-1, s, ∂(n, i, s))
       for i in 0:n for j in (i+1):n)
 end
