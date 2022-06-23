@@ -2,7 +2,8 @@ module ExteriorCalculus
 export Ob, Hom, dom, codom, compose, ⋅, id,
   otimes, ⊗, munit, braid, oplus, ⊕, mzero, swap, coproduct, ⊔,
   mcopy, Δ, delete, ◊, plus, +, zero, antipode,
-  MetricFreeExtCalc1D, MetricFreeExtCalc2D, ExtCalc1D, ExtCalc2D, FreeExtCalc2D,
+  MetricFreeExtCalc1D, MetricFreeExtCalc2D, ExtCalc1D, FreeExtCalc1D,
+  ExtCalc2D, FreeExtCalc2D,
   Space, Chain0, Chain1, Chain2, Form0, Form1, Form2,
   ∂₁, ∂₂, d₀, d₁, ∧₀₀, ∧₁₀, ∧₀₁, ∧₁₁, ∧₂₀, ∧₀₂, ι₁, ι₂, ℒ₀, ℒ₁, ℒ₂,
   DualForm0, DualForm1, DualForm2, ⋆₀, ⋆₁, ⋆₂, ⋆₀⁻¹, ⋆₁⁻¹, ⋆₂⁻¹,
@@ -171,6 +172,14 @@ end
   Δ₁(X::Space)::Hom(Form1(X),Form1(X))
   Δ₀(X) == d₀(X) ⋅ δ₁(X) ⊣ (X::Space)
   Δ₁(X) == δ₁(X) ⋅ d₀(X) ⊣ (X::Space)
+end
+
+@syntax FreeExtCalc1D{ObExpr,HomExpr,GATExpr} ExtCalc1D begin
+  compose(f::Hom, g::Hom) = associate_unit(new(f,g; strict=true), id)
+  oplus(A::Ob, B::Ob) = associate_unit(new(A,B), mzero)
+  oplus(f::Hom, g::Hom) = associate(new(f,g))
+  otimes(A::Ob, B::Ob) = associate_unit(new(A,B), munit)
+  otimes(f::Hom, g::Hom) = associate(new(f,g))
 end
 
 """ Theory of exterior calculus on 2D Riemannian manifold-like space.
