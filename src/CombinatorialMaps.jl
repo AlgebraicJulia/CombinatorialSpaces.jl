@@ -8,12 +8,12 @@ combinatorial objects describing embedded graphs.
 """
 module CombinatorialMaps
 export σ, α, ϕ, trace_vertices, trace_edges, trace_faces,
-  AbstractRotationGraph, RotationGraph, add_corolla!, pair_half_edges!,
-  AbstractRotationSystem, RotationSystem,
-  AbstractCombinatorialMap, CombinatorialMap
+  AbstractRotationGraph, RotationGraph, SchRotationGraph,
+  add_corolla!, pair_half_edges!,
+  AbstractRotationSystem, RotationSystem, SchRotationSystem,
+  AbstractCombinatorialMap, CombinatorialMap, SchCombinatorialMap
 
 using Catlab, Catlab.CategoricalAlgebra.CSets, Catlab.Graphs
-using Catlab.Graphs.BasicGraphs: TheoryHalfEdgeGraph
 using Catlab.Permutations: cycles
 
 # General properties
@@ -49,14 +49,14 @@ trace_faces(x::ACSet) = cycles(ϕ(x))
 # Rotation graphs
 #################
 
-@present TheoryRotationGraph <: TheoryHalfEdgeGraph begin
+@present SchRotationGraph <: SchHalfEdgeGraph begin
   σ::Hom(H,H)
 
   compose(σ, vertex) == vertex
 end
 
 @abstract_acset_type AbstractRotationGraph <: AbstractHalfEdgeGraph
-@acset_type RotationGraph(TheoryRotationGraph,
+@acset_type RotationGraph(SchRotationGraph,
                           index=[:vertex]) <: AbstractRotationGraph
 
 α(g::AbstractRotationGraph) = inv(g)
@@ -82,7 +82,7 @@ pair_half_edges!(g::AbstractRotationGraph, h, h′) =
 # Rotation systems
 ##################
 
-@present TheoryRotationSystem(FreeSchema) begin
+@present SchRotationSystem(FreeSchema) begin
   H::Ob
   σ::Hom(H,H)
   α::Hom(H,H)
@@ -91,7 +91,7 @@ pair_half_edges!(g::AbstractRotationGraph, h, h′) =
 end
 
 @abstract_acset_type AbstractRotationSystem
-@acset_type RotationSystem(TheoryRotationSystem) <: AbstractRotationSystem
+@acset_type RotationSystem(SchRotationSystem) <: AbstractRotationSystem
 
 # ϕ == (σ⋅α)⁻¹ == α⁻¹ ⋅ σ⁻¹
 ϕ(sys::AbstractRotationSystem) = sortperm(α(sys)[σ(sys)])
@@ -107,7 +107,7 @@ pair_half_edges!(sys::AbstractRotationSystem, h, h′) =
 # Combinatorial maps
 ####################
 
-@present TheoryHypermap(FreeSchema) begin
+@present SchHypermap(FreeSchema) begin
   H::Ob
   σ::Hom(H,H)
   α::Hom(H,H)
@@ -116,12 +116,12 @@ pair_half_edges!(sys::AbstractRotationSystem, h, h′) =
   compose(σ, α, ϕ) == id(H)
 end
 
-@present TheoryCombinatorialMap <: TheoryHypermap begin
+@present SchCombinatorialMap <: SchHypermap begin
   compose(α, α) == id(H)
 end
 
 @abstract_acset_type AbstractCombinatorialMap
-@acset_type CombinatorialMap(TheoryCombinatorialMap) <: AbstractCombinatorialMap
+@acset_type CombinatorialMap(SchCombinatorialMap) <: AbstractCombinatorialMap
 
 # TODO: What kind of interface should we have for maps and hypermaps?
 

@@ -17,7 +17,7 @@ SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
 StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
 
 [compat]
-Catlab = "0.13.1"
+Catlab = "0.14"
 FileIO = "^1"
 GeometryBasics = "0.3, 0.4"
 LazyArrays = "0.20, 0.21, 0.22"
