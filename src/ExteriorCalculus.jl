@@ -2,8 +2,8 @@ module ExteriorCalculus
 export Ob, Hom, dom, codom, compose, ⋅, id,
   otimes, ⊗, munit, braid, oplus, ⊕, mzero, swap, coproduct, ⊔,
   mcopy, Δ, delete, ◊, plus, +, zero, antipode,
-  MetricFreeExtCalc1D, MetricFreeExtCalc2D, ExtCalc1D, FreeExtCalc1D,
-  ExtCalc2D, FreeExtCalc2D,
+  ThMetricFreeExtCalc1D, ThExtCalc1D, FreeExtCalc1D,
+  ThMetricFreeExtCalc2D, ThExtCalc2D, FreeExtCalc2D,
   Space, Chain0, Chain1, Chain2, Form0, Form1, Form2,
   ∂₁, ∂₂, d₀, d₁, ∧₀₀, ∧₁₀, ∧₀₁, ∧₁₁, ∧₂₀, ∧₀₂, ι₁, ι₂, ℒ₀, ℒ₁, ℒ₂,
   DualForm0, DualForm1, DualForm2, ⋆₀, ⋆₁, ⋆₂, ⋆₀⁻¹, ⋆₁⁻¹, ⋆₂⁻¹,
@@ -24,7 +24,7 @@ additively (`SymmetricMonoidalCategoryAdditive` in Catlab).
 
 TODO: Migrate to `Catlab.Theories.MonoidalMultiple`.
 """
-@theory AdditiveMonoidalCategory{Ob,Hom} <: AdditiveCategory{Ob,Hom} begin
+@theory ThAdditiveMonoidalCategory{Ob,Hom} <: ThAdditiveCategory{Ob,Hom} begin
   # Tensor product.
   otimes(A::Ob, B::Ob)::Ob
   otimes(f::(A → B), g::(C → D))::((A ⊗ C) → (B ⊗ D)) ⊣
@@ -66,7 +66,7 @@ all assumed to be smoothly time-dependent and so are equipped with time
 derivative operators. Unlike in the space-time exterior calculus, we reserve the
 exterior calculus for the spatial dimensions and handle time separately.
 """
-@theory ManifoldCalculus{Ob,Hom,Space} <: AdditiveMonoidalCategory{Ob,Hom} begin
+@theory ThManifoldCalculus{Ob,Hom,Space} <: ThAdditiveMonoidalCategory{Ob,Hom} begin
   Space::TYPE
 
   # Coproduct of spaces. TODO: Is it worth fully axiomatizing?
@@ -83,7 +83,7 @@ end
 
 """ Theory of exterior calculus on 1-or-higher-dimensional manifold-like spaces.
 """
-@theory MetricFreeExtCalc1D₊{Ob,Hom,Space} <: ManifoldCalculus{Ob,Hom,Space} begin
+@theory ThMetricFreeExtCalc1D₊{Ob,Hom,Space} <: ThManifoldCalculus{Ob,Hom,Space} begin
   Chain0(X::Space)::Ob
   Chain1(X::Space)::Ob
   ∂₁(X::Space)::Hom(Chain1(X), Chain0(X))
@@ -109,13 +109,13 @@ end
 
 """ Theory of exterior caclulus on 1D manifold-like spaces.
 """
-@theory MetricFreeExtCalc1D{Ob,Hom,Space} <: MetricFreeExtCalc1D₊{Ob,Hom,Space} begin
+@theory ThMetricFreeExtCalc1D{Ob,Hom,Space} <: ThMetricFreeExtCalc1D₊{Ob,Hom,Space} begin
   ℒ₁(X) == ι₁(X) ⋅ d₀(X) ⊣ (X::Space)
 end
 
 """ Theory of exterior calculus on 2-or-higher-dimensional manifold-like spaces.
 """
-@theory MetricFreeExtCalc2D₊{Ob,Hom,Space} <: MetricFreeExtCalc1D₊{Ob,Hom,Space} begin
+@theory ThMetricFreeExtCalc2D₊{Ob,Hom,Space} <: ThMetricFreeExtCalc1D₊{Ob,Hom,Space} begin
   Chain2(X::Space)::Ob
   ∂₂(X::Space)::Hom(Chain2(X), Chain1(X))
   ∂₂(X) ⋅ ∂₁(X) == zero(Chain2(X), Chain0(X)) ⊣ (X::Space)
@@ -139,7 +139,7 @@ end
 
 """ Theory of exterior calculus on 2D manifold-like spaces.
 """
-@theory MetricFreeExtCalc2D{Ob,Hom,Space} <: MetricFreeExtCalc2D₊{Ob,Hom,Space} begin
+@theory ThMetricFreeExtCalc2D{Ob,Hom,Space} <: ThMetricFreeExtCalc2D₊{Ob,Hom,Space} begin
   ℒ₂(X) == ι₂(X) ⋅ d₁(X) ⊣ (X::Space)
 end
 
@@ -148,7 +148,7 @@ end
 
 """ Theory of exterior calculus on 1D Riemannian manifold-like space.
 """
-@theory ExtCalc1D{Ob,Hom,Space} <: MetricFreeExtCalc1D{Ob,Hom,Space} begin
+@theory ThExtCalc1D{Ob,Hom,Space} <: ThMetricFreeExtCalc1D{Ob,Hom,Space} begin
   DualForm0(X::Space)::Ob
   DualForm1(X::Space)::Ob
   DualForm0(X⊔Y) == DualForm0(X)⊕DualForm0(Y) ⊣ (X::Space, Y::Space)
@@ -174,7 +174,7 @@ end
   Δ₁(X) == δ₁(X) ⋅ d₀(X) ⊣ (X::Space)
 end
 
-@syntax FreeExtCalc1D{ObExpr,HomExpr,GATExpr} ExtCalc1D begin
+@syntax FreeExtCalc1D{ObExpr,HomExpr,GATExpr} ThExtCalc1D begin
   compose(f::Hom, g::Hom) = associate_unit(new(f,g; strict=true), id)
   oplus(A::Ob, B::Ob) = associate_unit(new(A,B), mzero)
   oplus(f::Hom, g::Hom) = associate(new(f,g))
@@ -184,7 +184,7 @@ end
 
 """ Theory of exterior calculus on 2D Riemannian manifold-like space.
 """
-@theory ExtCalc2D{Ob,Hom,Space} <: MetricFreeExtCalc2D{Ob,Hom,Space} begin
+@theory ThExtCalc2D{Ob,Hom,Space} <: ThMetricFreeExtCalc2D{Ob,Hom,Space} begin
   DualForm0(X::Space)::Ob
   DualForm1(X::Space)::Ob
   DualForm2(X::Space)::Ob
@@ -223,7 +223,7 @@ end
   Δ₂(X) == δ₂(X) ⋅ d₁(X) ⊣ (X::Space)
 end
 
-@syntax FreeExtCalc2D{ObExpr,HomExpr,GATExpr} ExtCalc2D begin
+@syntax FreeExtCalc2D{ObExpr,HomExpr,GATExpr} ThExtCalc2D begin
   compose(f::Hom, g::Hom) = associate_unit(new(f,g; strict=true), id)
   oplus(A::Ob, B::Ob) = associate_unit(new(A,B), mzero)
   oplus(f::Hom, g::Hom) = associate(new(f,g))
