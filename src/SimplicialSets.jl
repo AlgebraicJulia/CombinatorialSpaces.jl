@@ -14,10 +14,13 @@ exterior derivative) operators. For additional operators, see the
 """
 module SimplicialSets
 export Simplex, V, E, Tri, SimplexChain, VChain, EChain, TriChain,
-  SimplexForm, VForm, EForm, TriForm,
-  HasDeltaSet, HasDeltaSet1D, HasDeltaSet2D,
-  AbstractDeltaSet1D, DeltaSet1D, OrientedDeltaSet1D, EmbeddedDeltaSet1D,
-  AbstractDeltaSet2D, DeltaSet2D, OrientedDeltaSet2D, EmbeddedDeltaSet2D,
+  SimplexForm, VForm, EForm, TriForm, HasDeltaSet,
+  HasDeltaSet1D, AbstractDeltaSet1D, DeltaSet1D, SchDeltaSet1D,
+  OrientedDeltaSet1D, SchOrientedDeltaSet1D,
+  EmbeddedDeltaSet1D, SchEmbeddedDeltaSet1D,
+  HasDeltaSet2D, AbstractDeltaSet2D, DeltaSet2D, SchDeltaSet2D,
+  OrientedDeltaSet2D, SchOrientedDeltaSet2D,
+  EmbeddedDeltaSet2D, SchEmbeddedDeltaSet2D,
   ∂, boundary, coface, d, coboundary, exterior_derivative,
   simplices, nsimplices, point, volume,
   orientation, set_orientation!, orient!, orient_component!,
@@ -39,7 +42,7 @@ using ..ArrayUtils
 # 0-D simplicial sets
 #####################
 
-@present DeltaCategory0D(FreeSchema) begin
+@present SchDeltaSet0D(FreeSchema) begin
   V::Ob
 end
 
@@ -61,7 +64,7 @@ add_vertices!(s::HasDeltaSet, n::Int; kw...) = add_parts!(s, :V, n; kw...)
 # 1D simplicial sets
 ####################
 
-@present DeltaCategory1D <: DeltaCategory0D begin
+@present SchDeltaSet1D <: SchDeltaSet0D begin
   E::Ob
   (∂v0, ∂v1)::Hom(E, V) # (∂₁(0), ∂₁(1))
 end
@@ -81,7 +84,7 @@ The source and target of an edge can be accessed using the face maps [`∂`](@re
 (simplicial terminology) or `src` and `tgt` maps (graph-theoretic terminology).
 More generally, this type implements the graphs interface in `Catlab.Graphs`.
 """
-@acset_type DeltaSet1D(DeltaCategory1D, index=[:∂v0,:∂v1]) <: AbstractDeltaSet1D
+@acset_type DeltaSet1D(SchDeltaSet1D, index=[:∂v0,:∂v1]) <: AbstractDeltaSet1D
 
 edges(s::HasDeltaSet1D) = parts(s, :E)
 edges(s::HasDeltaSet1D, src::Int, tgt::Int) =
@@ -130,7 +133,7 @@ end
 # 1D oriented simplicial sets
 #----------------------------
 
-@present OrientedDeltaSchema1D <: DeltaCategory1D begin
+@present SchOrientedDeltaSet1D <: SchDeltaSet1D begin
   Orientation::AttrType
   edge_orientation::Attr(E,Orientation)
 end
@@ -140,7 +143,7 @@ end
 Edges are oriented from source to target when `edge_orientation` is
 true/positive and from target to source when it is false/negative.
 """
-@acset_type OrientedDeltaSet1D(OrientedDeltaSchema1D,
+@acset_type OrientedDeltaSet1D(SchOrientedDeltaSet1D,
                                index=[:∂v0,:∂v1]) <: AbstractDeltaSet1D
 
 orientation(::Type{Val{1}}, s::HasDeltaSet1D, args...) =
@@ -160,14 +163,14 @@ end
 # 1D embedded simplicial sets
 #----------------------------
 
-@present EmbeddedDeltaSchema1D <: OrientedDeltaSchema1D begin
+@present SchEmbeddedDeltaSet1D <: SchOrientedDeltaSet1D begin
   Point::AttrType
   point::Attr(V, Point)
 end
 
 """ A one-dimensional, embedded, oriented delta set.
 """
-@acset_type EmbeddedDeltaSet1D(EmbeddedDeltaSchema1D,
+@acset_type EmbeddedDeltaSet1D(SchEmbeddedDeltaSet1D,
                                index=[:∂v0,:∂v1]) <: AbstractDeltaSet1D
 
 """ Point associated with vertex of complex.
@@ -184,7 +187,7 @@ volume(::Type{Val{1}}, s::HasDeltaSet1D, e::Int, ::CayleyMengerDet) =
 # 2D simplicial sets
 ####################
 
-@present DeltaCategory2D <: DeltaCategory1D begin
+@present SchDeltaSet2D <: SchDeltaSet1D begin
   Tri::Ob
   (∂e0, ∂e1, ∂e2)::Hom(Tri,E) # (∂₂(0), ∂₂(1), ∂₂(2))
 
@@ -214,7 +217,7 @@ higher-dimensional link or morphism, going from two edges in sequence (which
 might be called `src2_first` and `src2_last`) to a transitive edge (say `tgt2`).
 This is the shape of the binary composition operation in a category.
 """
-@acset_type DeltaSet2D(DeltaCategory2D,
+@acset_type DeltaSet2D(SchDeltaSet2D,
                        index=[:∂v0,:∂v1,:∂e0,:∂e1,:∂e2]) <: AbstractDeltaSet2D
 
 triangles(s::HasDeltaSet2D) = parts(s, :Tri)
@@ -285,7 +288,7 @@ end
 # 2D oriented simplicial sets
 #----------------------------
 
-@present OrientedDeltaSchema2D <: DeltaCategory2D begin
+@present SchOrientedDeltaSet2D <: SchDeltaSet2D begin
   Orientation::AttrType
   edge_orientation::Attr(E,Orientation)
   tri_orientation::Attr(Tri,Orientation)
@@ -296,7 +299,7 @@ end
 Triangles are ordered in the cyclic order ``(0,1,2)`` when `tri_orientation` is
 true/positive and in the reverse order when it is false/negative.
 """
-@acset_type OrientedDeltaSet2D(OrientedDeltaSchema2D,
+@acset_type OrientedDeltaSet2D(SchOrientedDeltaSet2D,
                                index=[:∂v0,:∂v1,:∂e0,:∂e1,:∂e2]) <: AbstractDeltaSet2D
 
 orientation(::Type{Val{2}}, s::HasDeltaSet2D, args...) =
@@ -319,14 +322,14 @@ end
 # 2D embedded simplicial sets
 #----------------------------
 
-@present EmbeddedDeltaSchema2D <: OrientedDeltaSchema2D begin
+@present SchEmbeddedDeltaSet2D <: SchOrientedDeltaSet2D begin
   Point::AttrType
   point::Attr(V, Point)
 end
 
 """ A two-dimensional, embedded, oriented delta set.
 """
-@acset_type EmbeddedDeltaSet2D(EmbeddedDeltaSchema2D,
+@acset_type EmbeddedDeltaSet2D(SchEmbeddedDeltaSet2D,
                                index=[:∂v0,:∂v1,:∂e0,:∂e1,:∂e2]) <: AbstractDeltaSet2D
 
 volume(::Type{Val{n}}, s::EmbeddedDeltaSet2D, x) where n =

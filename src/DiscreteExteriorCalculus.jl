@@ -9,10 +9,12 @@ module is Hirani's 2003 PhD thesis.
 module DiscreteExteriorCalculus
 export DualSimplex, DualV, DualE, DualTri, DualChain, DualForm,
   PrimalVectorField, DualVectorField,
-  AbstractDeltaDualComplex1D, DeltaDualComplex1D,
-  OrientedDeltaDualComplex1D, EmbeddedDeltaDualComplex1D,
-  AbstractDeltaDualComplex2D, DeltaDualComplex2D,
-  OrientedDeltaDualComplex2D, EmbeddedDeltaDualComplex2D,
+  AbstractDeltaDualComplex1D, DeltaDualComplex1D, SchDeltaDualComplex1D,
+  OrientedDeltaDualComplex1D, SchOrientedDeltaDualComplex1D,
+  EmbeddedDeltaDualComplex1D, SchEmbeddedDeltaDualComplex1D,
+  AbstractDeltaDualComplex2D, DeltaDualComplex2D, SchDeltaDualComplex2D,
+  OrientedDeltaDualComplex2D, SchOrientedDeltaDualComplex2D,
+  EmbeddedDeltaDualComplex2D, SchEmbeddedDeltaDualComplex2D,
   SimplexCenter, Barycenter, Circumcenter, Incenter, geometric_center,
   subsimplices, primal_vertex, elementary_duals, dual_boundary, dual_derivative,
   ⋆, hodge_star, inv_hodge_star, δ, codifferential, ∇², laplace_beltrami, Δ, laplace_de_rham,
@@ -28,11 +30,11 @@ using StaticArrays: @SVector, SVector
 
 using Catlab, Catlab.CategoricalAlgebra.CSets
 using Catlab.CategoricalAlgebra.FinSets: deleteat
-using Catlab.Graphs: HasGraph
 import Catlab.Theories: Δ
+
 using ..ArrayUtils, ..SimplicialSets
-using ..SimplicialSets: DeltaCategory1D, DeltaCategory2D, CayleyMengerDet,
-  operator_nz, ∂_nz, d_nz, cayley_menger, negate
+using ..SimplicialSets: CayleyMengerDet, operator_nz, ∂_nz, d_nz,
+  cayley_menger, negate
 import ..SimplicialSets: ∂, d, volume
 
 abstract type DiscreteFlat end
@@ -48,9 +50,9 @@ struct DiagonalHodge  <: DiscreteHodge end
 # 1D dual complex
 #################
 
-# Should be expressed using a coproduct of two copies of `DeltaCategory1D`.
+# Should be expressed using a coproduct of two copies of `SchDeltaSet1D`.
 
-@present SchemaDualComplex1D <: DeltaCategory1D begin
+@present SchDeltaDualComplex1D <: SchDeltaSet1D begin
   # Dual vertices and edges.
   (DualV, DualE)::Ob
   (D_∂v0, D_∂v1)::Hom(DualE, DualV)
@@ -86,7 +88,7 @@ end
 The data structure includes both the primal complex and the dual complex, as
 well as the mapping between them.
 """
-@acset_type DeltaDualComplex1D(SchemaDualComplex1D,
+@acset_type DeltaDualComplex1D(SchDeltaDualComplex1D,
   index=[:∂v0,:∂v1,:D_∂v0,:D_∂v1]) <: AbstractDeltaDualComplex1D
 
 """ Dual vertex corresponding to center of primal vertex.
@@ -120,7 +122,7 @@ end
 # 1D oriented dual complex
 #-------------------------
 
-@present SchemaOrientedDualComplex1D <: SchemaDualComplex1D begin
+@present SchOrientedDeltaDualComplex1D <: SchDeltaDualComplex1D begin
   Orientation::AttrType
   edge_orientation::Attr(E, Orientation)
   D_edge_orientation::Attr(DualE, Orientation)
@@ -128,7 +130,7 @@ end
 
 """ Oriented dual complex of an oriented 1D delta set.
 """
-@acset_type OrientedDeltaDualComplex1D(SchemaOrientedDualComplex1D,
+@acset_type OrientedDeltaDualComplex1D(SchOrientedDeltaDualComplex1D,
   index=[:∂v0,:∂v1,:D_∂v0,:D_∂v1]) <: AbstractDeltaDualComplex1D
 
 dual_boundary_nz(::Type{Val{1}}, s::AbstractDeltaDualComplex1D, x::Int) =
@@ -182,7 +184,7 @@ end
 # 1D embedded dual complex
 #-------------------------
 
-@present SchemaEmbeddedDualComplex1D <: SchemaOrientedDualComplex1D begin
+@present SchEmbeddedDeltaDualComplex1D <: SchOrientedDeltaDualComplex1D begin
   (Real, Point)::AttrType
   point::Attr(V, Point)
   length::Attr(E, Real)
@@ -195,7 +197,7 @@ end
 Although they are redundant information, the lengths of the primal and dual
 edges are precomputed and stored.
 """
-@acset_type EmbeddedDeltaDualComplex1D(SchemaEmbeddedDualComplex1D,
+@acset_type EmbeddedDeltaDualComplex1D(SchEmbeddedDeltaDualComplex1D,
   index=[:∂v0,:∂v1,:D_∂v0,:D_∂v1]) <: AbstractDeltaDualComplex1D
 
 """ Point associated with dual vertex of complex.
@@ -254,10 +256,10 @@ end
 # 2D dual complex
 #################
 
-# Should be expressed using a coproduct of two copies of `DeltaCategory2D` or
-# perhaps a pushout of `SchemaDualComplex2D` and `DeltaCategory1D`.
+# Should be expressed using a coproduct of two copies of `SchDeltaSet2D` or
+# perhaps a pushout of `SchDeltaDualComplex2D` and `SchDeltaSet1D`.
 
-@present SchemaDualComplex2D <: DeltaCategory2D begin
+@present SchDeltaDualComplex2D <: SchDeltaSet2D begin
   # Dual vertices, edges, and triangles.
   (DualV, DualE, DualTri)::Ob
   (D_∂v0, D_∂v1)::Hom(DualE, DualV)
@@ -280,7 +282,7 @@ end
 
 """ Dual complex of a two-dimensional delta set.
 """
-@acset_type DeltaDualComplex2D(SchemaDualComplex2D,
+@acset_type DeltaDualComplex2D(SchDeltaDualComplex2D,
   index=[:∂v0,:∂v1,:∂e0,:∂e1,:∂e2,:D_∂v0,:D_∂v1,:D_∂e0,:D_∂e1,:D_∂e2]) <: AbstractDeltaDualComplex2D
 
 """ Dual vertex corresponding to center of primal triangle.
@@ -303,7 +305,7 @@ elementary_duals(::Type{Val{2}}, s::AbstractDeltaDualComplex2D, t::Int) =
 # 2D oriented dual complex
 #-------------------------
 
-@present SchemaOrientedDualComplex2D <: SchemaDualComplex2D begin
+@present SchOrientedDeltaDualComplex2D <: SchDeltaDualComplex2D begin
   Orientation::AttrType
   edge_orientation::Attr(E, Orientation)
   tri_orientation::Attr(Tri, Orientation)
@@ -313,7 +315,7 @@ end
 
 """ Oriented dual complex of an oriented 2D delta set.
 """
-@acset_type OrientedDeltaDualComplex2D(SchemaOrientedDualComplex2D,
+@acset_type OrientedDeltaDualComplex2D(SchOrientedDeltaDualComplex2D,
   index=[:∂v0,:∂v1,:∂e0,:∂e1,:∂e2,:D_∂v0,:D_∂v1,:D_∂e0,:D_∂e1,:D_∂e2]) <: AbstractDeltaDualComplex2D
 
 dual_boundary_nz(::Type{Val{1}}, s::AbstractDeltaDualComplex2D, x::Int) =
@@ -395,7 +397,7 @@ relative_sign(x::Bool, y::Bool) = (x && y) || (!x && !y)
 # 2D embedded dual complex
 #-------------------------
 
-@present SchemaEmbeddedDualComplex2D <: SchemaOrientedDualComplex2D begin
+@present SchEmbeddedDeltaDualComplex2D <: SchOrientedDeltaDualComplex2D begin
   (Real, Point)::AttrType
   point::Attr(V, Point)
   length::Attr(E, Real)
@@ -410,7 +412,7 @@ end
 Although they are redundant information, the lengths and areas of the
 primal/dual edges and triangles are precomputed and stored.
 """
-@acset_type EmbeddedDeltaDualComplex2D(SchemaEmbeddedDualComplex2D,
+@acset_type EmbeddedDeltaDualComplex2D(SchEmbeddedDeltaDualComplex2D,
   index=[:∂v0,:∂v1,:∂e0,:∂e1,:∂e2,:D_∂v0,:D_∂v1,:D_∂e0,:D_∂e1,:D_∂e2]) <: AbstractDeltaDualComplex2D
 
 volume(::Type{Val{n}}, s::EmbeddedDeltaDualComplex2D, x) where n =
@@ -480,7 +482,7 @@ end
 
 function ∧(::Type{Tuple{1,1}}, s::HasDeltaSet2D, α, β, x::Int)
   # XXX: This calculation of the volume coefficients is awkward due to the
-  # design decision described in `SchemaDualComplex1D`.
+  # design decision described in `SchDeltaDualComplex1D`.
   dual_vs = vertex_center(s, triangle_vertices(s, x))
   dual_es = sort(SVector{6}(incident(s, triangle_center(s, x), :D_∂v0)),
                  by=e -> s[e,:D_∂v1] .== dual_vs, rev=true)[1:3]
