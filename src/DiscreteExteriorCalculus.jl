@@ -30,6 +30,7 @@ using StaticArrays: @SVector, SVector
 
 using Catlab, Catlab.CategoricalAlgebra.CSets
 using Catlab.CategoricalAlgebra.FinSets: deleteat
+import Catlab.CategoricalAlgebra.CSets: ∧
 import Catlab.Theories: Δ
 
 using ..ArrayUtils, ..SimplicialSets
