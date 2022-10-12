@@ -57,7 +57,7 @@ nzbuilder(::Type{Arr}, dims::Integer...) where Arr =
   ArrayBuilder(zeros(Arr, dims))
 nzbuilder(::Type{<:SparseVector{Tv}}, n::Integer) where Tv =
   SparseVectorBuilder(n, Int[], Tv[])
-nzbuilder(::Type{<:SparseMatrixCSC{Tv}}, m::Integer, n::Integer) where {Tv,Ti} =
+nzbuilder(::Type{<:SparseMatrixCSC{Tv}}, m::Integer, n::Integer) where Tv =
   SparseMatrixBuilder(m, n, Int[], Int[], Tv[])
 
 """ Apply diagonal operator to dense or sparse vector.
