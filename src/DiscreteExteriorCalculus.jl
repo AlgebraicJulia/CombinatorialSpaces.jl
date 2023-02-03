@@ -174,6 +174,13 @@ function make_dual_simplices_1d!(s::HasDeltaSet1D)
 
   # Orient elementary dual edges.
   if has_subpart(s, :edge_orientation)
+    # If orientations are not set, then set them here.
+    if any(isnothing, s[:edge_orientation])
+      oriented = orient!(s, E)
+      if !oriented
+        s[findall(isnothing, s[:edge_orientation]), :edge_orientation] = zero(eltype(s[:edge_orientation]))
+      end
+    end
     edge_orient = s[:edge_orientation]
     s[D_edges[1], :D_edge_orientation] = negate.(edge_orient)
     s[D_edges[2], :D_edge_orientation] = edge_orient
@@ -372,6 +379,13 @@ function make_dual_simplices_2d!(s::HasDeltaSet2D)
   end
 
   if has_subpart(s, :tri_orientation)
+    # If orientations are not set, then set them here.
+    if any(isnothing, s[:tri_orientation])
+      oriented = orient!(s, Tri)
+      if !oriented
+        s[findall(isnothing, s[:tri_orientation]), :tri_orientation] = zero(eltype(s[:tri_orientation]))
+      end
+    end
     # Orient elementary dual triangles.
     tri_orient = s[:tri_orientation]
     rev_tri_orient = negate.(tri_orient)
