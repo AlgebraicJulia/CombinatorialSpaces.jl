@@ -1,3 +1,11 @@
+# TODO: Document where appropriate where the compositional numbering vs.
+# simplicial identity numbering scheme is in use in this API.
+
+# TODO: Add a function that checks whether a complex is_manifold_like. (See
+# Hirani's definition.)
+
+# TODO: Would an accessor for the boundary edges of a tetrahedron be useful?
+
 """ Simplicial sets in one, two, and three dimensions.
 
 For the time being, this module provides data structures only for [delta
