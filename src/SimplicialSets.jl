@@ -1,3 +1,11 @@
+# TODO: Document where appropriate where the compositional numbering vs.
+# simplicial identity numbering scheme is in use in this API.
+
+# TODO: Add a function that checks whether a complex is_manifold_like. (See
+# Hirani's definition.)
+
+# TODO: Would an accessor for the boundary edges of a tetrahedron be useful?
+
 """ Simplicial sets in one, two, and three dimensions.
 
 For the time being, this module provides data structures only for [delta
@@ -13,14 +21,17 @@ exterior derivative) operators. For additional operators, see the
 `DiscreteExteriorCalculus` module.
 """
 module SimplicialSets
-export Simplex, V, E, Tri, SimplexChain, VChain, EChain, TriChain,
-  SimplexForm, VForm, EForm, TriForm, HasDeltaSet,
+export Simplex, V, E, Tri, Tet, SimplexChain, VChain, EChain, TriChain, TetChain,
+  SimplexForm, VForm, EForm, TriForm, TetForm, HasDeltaSet,
   HasDeltaSet1D, AbstractDeltaSet1D, DeltaSet1D, SchDeltaSet1D,
   OrientedDeltaSet1D, SchOrientedDeltaSet1D,
   EmbeddedDeltaSet1D, SchEmbeddedDeltaSet1D,
   HasDeltaSet2D, AbstractDeltaSet2D, DeltaSet2D, SchDeltaSet2D,
   OrientedDeltaSet2D, SchOrientedDeltaSet2D,
   EmbeddedDeltaSet2D, SchEmbeddedDeltaSet2D,
+  HasDeltaSet3D, AbstractDeltaSet3D, DeltaSet3D, SchDeltaSet3D,
+  OrientedDeltaSet3D, SchOrientedDeltaSet3D,
+  EmbeddedDeltaSet3D, SchEmbeddedDeltaSet3D,
   ∂, boundary, coface, d, coboundary, exterior_derivative,
   simplices, nsimplices, point, volume,
   orientation, set_orientation!, orient!, orient_component!,
@@ -28,7 +39,9 @@ export Simplex, V, E, Tri, SimplexChain, VChain, EChain, TriChain,
   add_vertex!, add_vertices!, add_edge!, add_edges!,
   add_sorted_edge!, add_sorted_edges!,
   triangle_edges, triangle_vertices, ntriangles, triangles,
-  add_triangle!, glue_triangle!, glue_sorted_triangle!
+  add_triangle!, glue_triangle!, glue_sorted_triangle!,
+  tetrahedron_triangles, tetrahedron_vertices, ntetrahedra, tetrahedra,
+  add_tetrahedron!, glue_tetrahedron!, glue_sorted_tetrahedron!
 
 using LinearAlgebra: det
 using SparseArrays
@@ -222,6 +235,24 @@ This is the shape of the binary composition operation in a category.
                        index=[:∂v0,:∂v1,:∂e0,:∂e1,:∂e2]) <: AbstractDeltaSet2D
 
 triangles(s::HasDeltaSet2D) = parts(s, :Tri)
+function triangles(s::HasDeltaSet2D, v₀::Int, v₁::Int, v₂::Int)
+  # Note: This could be written in a more efficient way by using ∂ interspersed
+  # with the calls to coface, similar to edges().
+
+  # Note: A faster method could be written if the mesh is guaranteed to be
+  # manifold-like, and it is guaranteed that v₀ < v₁ < v₂.
+
+  # TODO: Is there a better idiom for `isempty(x) && return []`?
+
+  e₀s = coface(1,0,s,v₂) ∩ coface(1,1,s,v₁)
+  isempty(e₀s) && return []
+  e₁s = coface(1,0,s,v₂) ∩ coface(1,1,s,v₀)
+  isempty(e₁s) && return []
+  e₂s = coface(1,0,s,v₁) ∩ coface(1,1,s,v₀)
+  isempty(e₂s) && return []
+  coface(2,0,s,e₀s...) ∩ coface(2,1,s,e₁s...) ∩ coface(2,2,s,e₂s...)
+end
+
 ntriangles(s::HasDeltaSet2D) = nparts(s, :Tri)
 nsimplices(::Type{Val{2}}, s::HasDeltaSet2D) = ntriangles(s)
 
@@ -252,7 +283,7 @@ end
 """ Add a triangle (2-simplex) to a simplicial set, given its boundary edges.
 
 In the arguments to this function, the boundary edges have the order ``0 → 1``,
-``1 → 2``, ``0 → 2``.
+``1 → 2``, ``0 → 2``. i.e. (∂e₂, ∂e₀, ∂e₁).
 
 !!! warning
 
@@ -338,6 +369,175 @@ volume(::Type{Val{n}}, s::EmbeddedDeltaSet2D, x) where n =
 volume(::Type{Val{2}}, s::HasDeltaSet2D, t::Int, ::CayleyMengerDet) =
   volume(point(s, triangle_vertices(s,t)))
 
+# 3D simplicial sets
+####################
+
+@present SchDeltaSet3D <: SchDeltaSet2D begin
+  Tet::Ob
+  (∂t0, ∂t1, ∂t2, ∂t3)::Hom(Tet,Tri) # (∂₃(0), ∂₃(1), ∂₃(2), ∂₃(3))
+
+  # TODO: Is there a test for these identities as given here?
+  # Simplicial identities.
+  ∂t3 ⋅ ∂e2 == ∂t2 ⋅ ∂e2
+  ∂t3 ⋅ ∂e1 == ∂t1 ⋅ ∂e2
+  ∂t3 ⋅ ∂e0 == ∂t0 ⋅ ∂e2
+
+  ∂t2 ⋅ ∂e1 == ∂t1 ⋅ ∂e1
+  ∂t2 ⋅ ∂e0 == ∂t0 ⋅ ∂e1
+
+  ∂t1 ⋅ ∂e0 == ∂t0 ⋅ ∂e0
+end
+
+""" Abstract type for C-sets containing a 3D delta set.
+"""
+@abstract_acset_type HasDeltaSet3D <: HasDeltaSet2D
+
+""" Abstract type for 3D delta sets.
+"""
+@abstract_acset_type AbstractDeltaSet3D <: HasDeltaSet3D
+
+""" A 3D delta set, aka semi-simplicial set.
+
+"""
+@acset_type DeltaSet3D(SchDeltaSet3D,
+                       index=[:∂v0,:∂v1,:∂e0,:∂e1,:∂e2,:∂t0,:∂t1,:∂t2,:∂t3]) <: AbstractDeltaSet3D
+
+tetrahedra(s::HasDeltaSet3D) = parts(s, :Tet)
+ntetrahedra(s::HasDeltaSet3D) = nparts(s, :Tet)
+nsimplices(::Type{Val{3}}, s::HasDeltaSet3D) = ntetrahedra(s)
+
+face(::Type{Val{(3,0)}}, s::HasDeltaSet3D, args...) = subpart(s, args..., :∂t0)
+face(::Type{Val{(3,1)}}, s::HasDeltaSet3D, args...) = subpart(s, args..., :∂t1)
+face(::Type{Val{(3,2)}}, s::HasDeltaSet3D, args...) = subpart(s, args..., :∂t2)
+face(::Type{Val{(3,3)}}, s::HasDeltaSet3D, args...) = subpart(s, args..., :∂t3)
+
+coface(::Type{Val{(3,0)}}, s::HasDeltaSet3D, args...) = incident(s, args..., :∂t0)
+coface(::Type{Val{(3,1)}}, s::HasDeltaSet3D, args...) = incident(s, args..., :∂t1)
+coface(::Type{Val{(3,2)}}, s::HasDeltaSet3D, args...) = incident(s, args..., :∂t2)
+coface(::Type{Val{(3,3)}}, s::HasDeltaSet3D, args...) = incident(s, args..., :∂t3)
+
+""" Boundary triangles of a tetrahedron.
+"""
+function tetrahedron_triangles(s::HasDeltaSet3D, t...)
+  SVector(∂(3,0,s,t...), ∂(3,1,s,t...), ∂(3,2,s,t...), ∂(3,3,s,t...))
+end
+
+""" Boundary vertices of a tetrahedron.
+
+This accessor assumes that the simplicial identities hold.
+"""
+function tetrahedron_vertices(s::HasDeltaSet3D, t...)
+  # TODO: Is there an index selection that would result in fewer cache misses,
+  # that still respects this vertex ordering?
+  SVector(s[s[s[t..., :∂t2], :∂e2], :∂v1], # v₀
+          s[s[s[t..., :∂t2], :∂e2], :∂v0], # v₁
+          s[s[s[t..., :∂t0], :∂e0], :∂v1], # v₂
+          s[s[s[t..., :∂t0], :∂e0], :∂v0]) # v₃
+end
+
+""" Add a tetrahedron (3-simplex) to a simplicial set, given its boundary triangles.
+
+In the arguments to this function, the boundary triangles have the order ....
+
+!!! warning
+
+    This low-level function does not check the simplicial identities. It is your
+    responsibility to ensure they are satisfied. By contrast, tetrahedra added
+    using the function [`glue_tetrahedron!`](@ref) always satisfy the simplicial
+    identities, by construction. Thus it is often easier to use this function.
+"""
+add_tetrahedron!(s::HasDeltaSet3D, tri0::Int, tri1::Int, tri2::Int, tri3::Int; kw...) =
+  add_part!(s, :Tet; ∂t0=tri0, ∂t1=tri1, ∂t2=tri2, ∂t3=tri3, kw...)
+
+""" Glue a tetrahedron onto a simplicial set, given its boundary vertices.
+
+If a needed triangle between two vertices exists, it is reused (hence the "gluing");
+otherwise, it is created. Necessary 1-simplices are likewise glued.
+"""
+function glue_tetrahedron!(s::HasDeltaSet3D, v₀::Int, v₁::Int, v₂::Int, v₃::Int; kw...)
+  # Note: You could write glue_tetrahedron! assuming instead get_triangle!
+  # takes edges as input. But, get_edge! would be called at the surface level
+  # (here), and again inside of glue_triangle!.
+
+  # Note: There is a redundancy here in that the e.g. the first get_triangle!
+  # guarantees that certain edges are already added, so some later calls to
+  # get_edge! inside the following calls to get_triangle! don't actually need to
+  # search using the edges() function for whether they have been added.
+  add_tetrahedron!(s,
+    get_triangle!(s, v₁, v₂, v₃), # t₀
+    get_triangle!(s, v₀, v₂, v₃), # t₁
+    get_triangle!(s, v₀, v₁, v₃), # t₂
+    get_triangle!(s, v₀, v₁, v₂); # t₃
+    kw...)
+end
+
+function get_triangle!(s::HasDeltaSet2D, v₀::Int, v₁::Int, v₂::Int)
+  ts = triangles(s, v₀, v₁, v₂)
+  isempty(ts) ? glue_triangle!(s, v₀, v₁, v₂) : first(ts)
+end
+
+""" Glue a tetrahedron onto a simplicial set, respecting the order of the vertices.
+"""
+function glue_sorted_tetrahedron!(s::HasDeltaSet3D, v₀::Int, v₁::Int, v₂::Int, v₃::Int; kw...)
+  v₀, v₁, v₂, v₃ = sort(SVector(v₀, v₁, v₂, v₃))
+  glue_tetrahedron!(s, v₀, v₁, v₂, v₃; kw...)
+end
+
+# 3D oriented simplicial sets
+#----------------------------
+
+@present SchOrientedDeltaSet3D <: SchDeltaSet3D begin
+  Orientation::AttrType
+  edge_orientation::Attr(E,Orientation)
+  tri_orientation::Attr(Tri,Orientation)
+  tet_orientation::Attr(Tet,Orientation)
+end
+
+""" A three-dimensional oriented delta set.
+
+# TODO: Where must the following condition be enforced in code?
+Tetrahedra are ordered in an even permutation of ``(0,1,2,3)`` when
+`tet_orientation` is true/positive and in odd order when it is false/negative.
+"""
+@acset_type OrientedDeltaSet3D(SchOrientedDeltaSet3D,
+                               index=[:∂v0,:∂v1,:∂e0,:∂e1,:∂e2,:∂t0,:∂t1,:∂t2,:∂t3]) <: AbstractDeltaSet3D
+
+orientation(::Type{Val{3}}, s::HasDeltaSet3D, args...) =
+  s[args..., :tet_orientation]
+set_orientation!(::Type{Val{3}}, s::HasDeltaSet3D, t, orientation) =
+  (s[t, :tet_orientation] = orientation)
+
+function ∂_nz(::Type{Val{3}}, s::HasDeltaSet3D, tet::Int)
+  tris = tetrahedron_triangles(s, tet)
+  (tris, sign(3,s,tet) * sign(2,s,tris) .* @SVector([1,-1,1,-1]))
+end
+
+function d_nz(::Type{Val{2}}, s::HasDeltaSet3D, tri::Int)
+  t₀, t₁, t₂, t₃ = map(x -> coface(3,x,s,tri), 0:3)
+  sgn = sign(2, s, tri)
+  (lazy(vcat, t₀, t₁, t₂, t₃),
+   lazy(vcat,
+     sgn*sign(3,s,t₀), -sgn*sign(3,s,t₁), sgn*sign(3,s,t₂), -sgn*sign(3,s,t₃)))
+end
+
+# 3D embedded simplicial sets
+#----------------------------
+
+@present SchEmbeddedDeltaSet3D <: SchOrientedDeltaSet3D begin
+  Point::AttrType
+  point::Attr(V, Point)
+end
+
+""" A three-dimensional, embedded, oriented delta set.
+"""
+@acset_type EmbeddedDeltaSet3D(SchEmbeddedDeltaSet3D,
+                               index=[:∂v0,:∂v1,:∂e0,:∂e1,:∂e2,:∂t0,:∂t1,:∂t2,:∂t3]) <: AbstractDeltaSet3D
+
+volume(::Type{Val{n}}, s::EmbeddedDeltaSet3D, x) where n =
+  volume(Val{n}, s, x, CayleyMengerDet())
+volume(::Type{Val{3}}, s::HasDeltaSet3D, t::Int, ::CayleyMengerDet) =
+  volume(point(s, tetrahedron_vertices(s,t)))
+
 # General operators
 ###################
 
@@ -359,6 +559,10 @@ const E = Simplex{1}
 """
 const Tri = Simplex{2}
 
+""" Tetrahedron in simplicial set: alias for `Simplex{3}`.
+"""
+const Tet = Simplex{3}
+
 """ Wrapper for chain of oriented simplices of dimension `n`.
 """
 @vector_struct SimplexChain{n}
@@ -366,6 +570,7 @@ const Tri = Simplex{2}
 const VChain = SimplexChain{0}
 const EChain = SimplexChain{1}
 const TriChain = SimplexChain{2}
+const TetChain = SimplexChain{3}
 
 """ Wrapper for discrete form, aka cochain, in simplicial set.
 """
@@ -374,6 +579,7 @@ const TriChain = SimplexChain{2}
 const VForm = SimplexForm{0}
 const EForm = SimplexForm{1}
 const TriForm = SimplexForm{2}
+const TetForm = SimplexForm{3}
 
 """ Simplices of given dimension in a simplicial set.
 """
@@ -492,6 +698,7 @@ function [`orient_component!`](@ref).
 """
 orient!(s::AbstractDeltaSet1D) = orient!(s, E)
 orient!(s::AbstractDeltaSet2D) = orient!(s, Tri)
+orient!(s::AbstractDeltaSet3D) = orient!(s, Tet)
 
 function orient!(s::HasDeltaSet, ::Type{Simplex{n}}) where n
   # Compute connected components as coequalizer of face maps.
@@ -529,6 +736,8 @@ orient_component!(s::AbstractDeltaSet1D, e::Int, args...) =
   orient_component!(s, E(e), args...)
 orient_component!(s::AbstractDeltaSet2D, t::Int, args...) =
   orient_component!(s, Tri(t), args...)
+orient_component!(s::AbstractDeltaSet3D, t::Int, args...) =
+  orient_component!(s, Tet(t), args...)
 
 function orient_component!(s::HasDeltaSet, x::Simplex{n},
                            x_orientation::Orientation) where {n, Orientation}
