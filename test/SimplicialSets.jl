@@ -162,11 +162,13 @@ glue_triangle!(s, 1, 2, 3, tri_orientation=true)
 s = DeltaSet3D()
 add_vertices!(s, 4)
 glue_tetrahedron!(s, 1, 2, 3, 4)
+@test is_semi_simplicial(s, 2)
 @test is_semi_simplicial(s, 3)
 @test ntetrahedra(s) == 1
-@test map(i -> ∂(2, i, s, 1), (0,1,2)) == (2,3,1) # This is a repeat of a 2D test.
+@test map(i -> ∂(2, i, s, 1), (0,1,2)) == (2,3,1)
 @test map(i -> ∂(3, i, s, 1), (0,1,2,3)) == (1,2,3,4)
 @test tetrahedron_vertices(s, 1) == [1,2,3,4]
+@test tetrahedron_edges(s, 1) == [2,3,1, 5,4, 6]
 
 s′ = DeltaSet3D()
 add_vertices!(s′, 4)
@@ -185,25 +187,35 @@ glue_tetrahedron!(s, 2, 3, 4, 5)
 @test ntriangles(s) == 7
 @test triangles(s) == 1:7
 @test ne(s) == 9
+@test is_semi_simplicial(s, 2)
 @test is_semi_simplicial(s, 3)
 @test tetrahedron_vertices(s, 1) == [1,2,3,5]
 @test tetrahedron_vertices(s, 2) == [2,3,4,5]
+@test sort(unique(reduce(vcat, edge_vertices(s, tetrahedron_edges(s,1))))) ==
+  tetrahedron_vertices(s,1)
+@test sort(unique(reduce(vcat, edge_vertices(s, tetrahedron_edges(s,2))))) ==
+  tetrahedron_vertices(s,2)
 
 # Six tetrahedra forming a cube.
 s = DeltaSet3D()
 add_vertices!(s, 8)
 glue_tetrahedron!(s, 1, 2, 4, 8)
 glue_tetrahedron!(s, 2, 3, 4, 8)
-glue_tetrahedron!(s, 1, 2, 7, 8)
+glue_tetrahedron!(s, 1, 2, 5, 8)
 glue_tetrahedron!(s, 2, 3, 7, 8)
 glue_tetrahedron!(s, 2, 5, 6, 8)
 glue_tetrahedron!(s, 2, 6, 7, 8)
 @test ntetrahedra(s) == 6
 @test tetrahedra(s) == 1:6
 @test ntriangles(s) == 18
-@test triangles(s) == 1:18
-# TODO: Add a test for the number of edges
+@test triangles(s) == 1:18 # (2 * num cube faces) + (2 * num "cuts" into cube)
+@test ne(s) == 19 # (num cube edges) + (num cube faces) + (internal diagonal)
+@test is_semi_simplicial(s, 2)
 @test is_semi_simplicial(s, 3)
+for t in tetrahedra(s)
+  @test sort(unique(reduce(vcat, edge_vertices(s, tetrahedron_edges(s,t))))) ==
+  tetrahedron_vertices(s,t)
+end
 
 # 3D oriented simplicial sets
 #----------------------------
@@ -216,13 +228,9 @@ s[:edge_orientation] = [true, false, true, false, true, false]
 s[:tri_orientation] = [true, false, true, false]
 @test orient_component!(s, 1, true)
 @test orientation(s, Tet(1)) == true
-# TODO: Check this by hand.
 @test ∂(3, s, 1) == [1,1,1,1]
-# TODO: Check this by hand.
 @test ∂(2, s, 1) == [1,-1,-1,0,0,0]
-# TODO: Check this by hand.
 @test d(1, s, [17,19,23,29,31,37]) == [-25,79,-45,-9]
-# TODO: Check this exterior derivative by hand.
 @test d(2, s, [3,5,17,257]) == [282] # == [3+5+17+257]
 
 # Two tetrahedra forming a square pyramid with orientation.
@@ -234,13 +242,10 @@ glue_tetrahedron!(s, 2, 3, 4, 5)
 s[:edge_orientation] = true
 s[:tri_orientation] = true
 @test orient!(s)
-# TODO: Check this by hand.
 @test orientation(s, Tet(1:2)) == [true, false]
-# TODO: Work out these computations by hand.
 @test ∂(2, s, 1) == sparsevec([1,2,3], [1,1,-1], 9)
 @test ∂(3, s, 1) == sparsevec([1,2,3,4], [1,-1,1,-1], 7)
 @test ∂(s, TetChain([1,1]))::TriChain == TriChain([0,-1,1,-1,-1,1,1])
-#@test d(s, TriForm([45,3,34,0,74,50,123]))::TetForm == TetForm([76,-192]) # == [...]
 @test d(s, TriForm([1,10,100,1000,10000,100000,1000000]))::TetForm == TetForm([-909,1089999]) # == [...]
 @test d(0, s) == ∂(1, s)'
 @test d(1, s) == ∂(2, s)'
@@ -251,11 +256,38 @@ s[:tri_orientation] = true
 
 # Regular tetrahedron with edge length 2√2 in ℝ³.
 s = EmbeddedDeltaSet3D{Bool,Point3D}()
-add_vertices!(s, 4, point=[Point3D(1,1,1), Point3D(1,-1,-1), Point3D(-1,1,-1), Point3D(-1,-1,1)])
+add_vertices!(s, 4, point=[Point3D(1,1,1), Point3D(1,-1,-1),
+  Point3D(-1,1,-1), Point3D(-1,-1,1)])
 glue_tetrahedron!(s, 1, 2, 3, 4)
 orient!(s)
 regular_tetrahedron_volume(len) = len^3/(6√2)
 @test volume(s, Tet(1)) ≈ regular_tetrahedron_volume(2√2)
+
+# Six tetrahedra forming a cube.
+s = EmbeddedDeltaSet3D{Bool,Point3D}()
+add_vertices!(s, 8, point=[
+  Point3D(-1,1,1), Point3D(1,1,1), Point3D(1,-1,1), Point3D(-1,-1,1),
+  Point3D(-1,1,-1), Point3D(1,1,-1), Point3D(1,-1,-1), Point3D(-1,-1,-1)])
+glue_sorted_tetrahedron!(s, 1, 2, 4, 8)
+glue_sorted_tetrahedron!(s, 2, 3, 4, 8)
+glue_sorted_tetrahedron!(s, 1, 2, 5, 8)
+glue_sorted_tetrahedron!(s, 2, 3, 7, 8)
+glue_sorted_tetrahedron!(s, 2, 5, 6, 8)
+glue_sorted_tetrahedron!(s, 2, 6, 7, 8)
+@test ntetrahedra(s) == 6
+@test tetrahedra(s) == 1:6
+@test ntriangles(s) == 18
+@test triangles(s) == 1:18 # (2 * num cube faces) + (2 * num "cuts" into cube)
+@test ne(s) == 19 # (num cube edges) + (num cube faces) + (internal diagonal)
+@test is_semi_simplicial(s, 2)
+@test is_semi_simplicial(s, 3)
+s[:edge_orientation] = true
+s[:tri_orientation] = true
+s[:tet_orientation] = true
+orient!(s)
+for t in tetrahedra(s)
+  @test volume(s, Tet(t)) ≈ 8/6
+end
 
 # Euclidean geometry
 ####################

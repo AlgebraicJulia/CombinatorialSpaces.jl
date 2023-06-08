@@ -4,8 +4,6 @@
 # TODO: Add a function that checks whether a complex is_manifold_like. (See
 # Hirani's definition.)
 
-# TODO: Would an accessor for the boundary edges of a tetrahedron be useful?
-
 """ Simplicial sets in one, two, and three dimensions.
 
 For the time being, this module provides data structures only for [delta
@@ -40,8 +38,8 @@ export Simplex, V, E, Tri, Tet, SimplexChain, VChain, EChain, TriChain, TetChain
   add_sorted_edge!, add_sorted_edges!,
   triangle_edges, triangle_vertices, ntriangles, triangles,
   add_triangle!, glue_triangle!, glue_sorted_triangle!,
-  tetrahedron_triangles, tetrahedron_vertices, ntetrahedra, tetrahedra,
-  add_tetrahedron!, glue_tetrahedron!, glue_sorted_tetrahedron!
+  tetrahedron_triangles, tetrahedron_edges, tetrahedron_vertices, ntetrahedra,
+  tetrahedra, add_tetrahedron!, glue_tetrahedron!, glue_sorted_tetrahedron!
 
 using LinearAlgebra: det
 using SparseArrays
@@ -299,6 +297,18 @@ add_triangle!(s::HasDeltaSet2D, src2_first::Int, src2_last::Int, tgt2::Int; kw..
 
 If a needed edge between two vertices exists, it is reused (hence the "gluing");
 otherwise, it is created.
+
+Note this function does not check whether a triangle [v₀,v₁,v₂] already exists.
+
+Note that this function does not rearrange v₀, v₁, v₂ in the way that minimizes
+the number of edges added. For example, if s is the DeltaSet with a single
+triangle [1,2,3] and edges [1,2], [2,3], [1,3], then gluing triangle [3,1,4]
+will add edges [3,1], [1,4], [3,4] so as to respect the simplicial identities.
+Note that the edges [1,3] and [3,1] are distinct!
+However, if the DeltaSet that one is creating is meant to be manifold-like, then
+adding triangles using only the command [`glue_sorted_triangle!`](@ref)
+guarantees that the minimal number of new edges are created.
+# TODO: Reference a proof of the above claim.
 """
 function glue_triangle!(s::HasDeltaSet2D, v₀::Int, v₁::Int, v₂::Int; kw...)
   add_triangle!(s, get_edge!(s, v₀, v₁), get_edge!(s, v₁, v₂),
@@ -376,7 +386,7 @@ volume(::Type{Val{2}}, s::HasDeltaSet2D, t::Int, ::CayleyMengerDet) =
   Tet::Ob
   (∂t0, ∂t1, ∂t2, ∂t3)::Hom(Tet,Tri) # (∂₃(0), ∂₃(1), ∂₃(2), ∂₃(3))
 
-  # TODO: Is there a test for these identities as given here?
+  # TODO: Is there a test that accesses SchDeltaSet3D.equations?
   # Simplicial identities.
   ∂t3 ⋅ ∂e2 == ∂t2 ⋅ ∂e2
   ∂t3 ⋅ ∂e1 == ∂t1 ⋅ ∂e2
@@ -422,6 +432,21 @@ function tetrahedron_triangles(s::HasDeltaSet3D, t...)
   SVector(∂(3,0,s,t...), ∂(3,1,s,t...), ∂(3,2,s,t...), ∂(3,3,s,t...))
 end
 
+""" Boundary edges of a tetrahedron.
+
+This accessor assumes that the simplicial identities hold.
+"""
+function tetrahedron_edges(s::HasDeltaSet3D, t...)
+  # TODO: Is there an index selection that would result in fewer cache misses,
+  # that still respects this vertex ordering?
+  SVector(s[s[t..., :∂t0], :∂e0], # e₀
+          s[s[t..., :∂t0], :∂e1], # e₁
+          s[s[t..., :∂t0], :∂e2], # e₂
+          s[s[t..., :∂t1], :∂e1], # e₃
+          s[s[t..., :∂t1], :∂e2], # e₄
+          s[s[t..., :∂t2], :∂e2]) # e₅
+end
+
 """ Boundary vertices of a tetrahedron.
 
 This accessor assumes that the simplicial identities hold.
@@ -437,6 +462,7 @@ end
 
 """ Add a tetrahedron (3-simplex) to a simplicial set, given its boundary triangles.
 
+# TODO: Add the order of the boundary triangles.
 In the arguments to this function, the boundary triangles have the order ....
 
 !!! warning
