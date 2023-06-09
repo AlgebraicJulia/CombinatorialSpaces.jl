@@ -1,9 +1,6 @@
 # TODO: Document where appropriate where the compositional numbering vs.
 # simplicial identity numbering scheme is in use in this API.
 
-# TODO: Add a function that checks whether a complex is_manifold_like. (See
-# Hirani's definition.)
-
 """ Simplicial sets in one, two, and three dimensions.
 
 For the time being, this module provides data structures only for [delta
@@ -39,7 +36,8 @@ export Simplex, V, E, Tri, Tet, SimplexChain, VChain, EChain, TriChain, TetChain
   triangle_edges, triangle_vertices, ntriangles, triangles,
   add_triangle!, glue_triangle!, glue_sorted_triangle!,
   tetrahedron_triangles, tetrahedron_edges, tetrahedron_vertices, ntetrahedra,
-  tetrahedra, add_tetrahedron!, glue_tetrahedron!, glue_sorted_tetrahedron!
+  tetrahedra, add_tetrahedron!, glue_tetrahedron!, glue_sorted_tetrahedron!,
+  is_manifold_like, nonfaces
 
 using LinearAlgebra: det
 using SparseArrays
@@ -844,5 +842,55 @@ end
 """ Squared Euclidean distance between two points.
 """
 sqdistance(x, y) = sum((x-y).^2)
+
+# Manifold-like
+###############
+
+""" Test whether a given simplicial complex is manifold-like.
+
+According to Hirani, "all simplices of dimension ``k`` with ``0 ≤ k ≤ n - 1`` 
+must be the face of some simplex of dimension ``n`` in the complex." This 
+function does not test that simplices do not overlap. Nor does it test that e.g.
+two triangles that share 2 vertices share an edge. Nor does it test that e.g.
+there is at most one triangle that connects 3 vertices. Nor does it test that
+the delta set consists of a single component.
+"""
+is_manifold_like(s::AbstractDeltaSet1D) = is_manifold_like(s, E)
+is_manifold_like(s::AbstractDeltaSet2D) = is_manifold_like(s, Tri)
+is_manifold_like(s::AbstractDeltaSet3D) = is_manifold_like(s, Tet)
+
+function is_manifold_like(s::HasDeltaSet, ::Type{Simplex{n}}) where n
+  for k in 0:n-1
+    # The yth k-simplex c is not a face of an (k+1)-simplex if the yth column of
+    # the exterior derivative matrix is all zeros.
+    for c in eachcol(d(k,s))
+      isempty(nonzeros(c)) && return false
+    end
+  end
+  true
+end
+
+""" Find the simplices which are not the face of another.
+
+For an n-D oriented delta set, return a vector of 0 through n-1 chains
+consisting of the simplices that are not the face of another. Note that since
+n-simplices in an n-D oriented delta set are never the face of an (n+1)-simplex,
+these are excluded.
+"""
+nonfaces(s::AbstractDeltaSet1D) = nonfaces(s, E)
+nonfaces(s::AbstractDeltaSet2D) = nonfaces(s, Tri)
+nonfaces(s::AbstractDeltaSet3D) = nonfaces(s, Tet)
+
+function nonfaces(s::HasDeltaSet, ::Type{Simplex{n}}) where n
+  nonfaces = [SimplexChain{i}([]) for i in 0:n-1]
+  for k in 0:n-1
+    # The yth k-simplex c is not a face of an (k+1)-simplex if the yth column of
+    # the exterior derivative matrix is all zeros.
+    for (y, c) in enumerate(eachcol(d(k,s)))
+      isempty(nonzeros(c)) && push!(nonfaces[k+1].data, y)
+    end
+  end
+  nonfaces
+end
 
 end

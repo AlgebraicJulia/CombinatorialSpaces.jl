@@ -44,6 +44,8 @@ add_vertices!(s, 4)
 add_edges!(s, [1,2,3], [2,3,4], edge_orientation=[true,false,true])
 @test ∂(1, s, 1) == [-1,1,0,0]
 @test ∂(1, s, 2) == [0,1,-1,0]
+@test is_manifold_like(s)
+@test isempty(only(nonfaces(s)))
 
 # Boundary operator, dense vectors.
 vvec = ∂(1, s, 1, Vector{Int})
@@ -146,6 +148,9 @@ s[:edge_orientation] = true
 @test d(s, EForm([45,3,34,0,0]))::TriForm == TriForm([14, 34]) # == [45+3-34, 34]
 @test d(s, EForm([45,3,34,17,5])) == TriForm([14, 46]) # == [45+3-34, 34+17-5]
 @test d(1, s) == ∂(2, s)'
+@test is_manifold_like(s)
+@test isempty(nonfaces(s)[1])
+@test isempty(nonfaces(s)[2])
 
 # 2D embedded simplicial sets
 #----------------------------
@@ -214,7 +219,7 @@ glue_tetrahedron!(s, 2, 6, 7, 8)
 @test is_semi_simplicial(s, 3)
 for t in tetrahedra(s)
   @test sort(unique(reduce(vcat, edge_vertices(s, tetrahedron_edges(s,t))))) ==
-  tetrahedron_vertices(s,t)
+    tetrahedron_vertices(s,t)
 end
 
 # 3D oriented simplicial sets
@@ -246,10 +251,12 @@ s[:tri_orientation] = true
 @test ∂(2, s, 1) == sparsevec([1,2,3], [1,1,-1], 9)
 @test ∂(3, s, 1) == sparsevec([1,2,3,4], [1,-1,1,-1], 7)
 @test ∂(s, TetChain([1,1]))::TriChain == TriChain([0,-1,1,-1,-1,1,1])
-@test d(s, TriForm([1,10,100,1000,10000,100000,1000000]))::TetForm == TetForm([-909,1089999]) # == [...]
+@test d(s, TriForm([1,10,100,1000,10000,100000,1000000]))::TetForm == TetForm([-909,1089999])
 @test d(0, s) == ∂(1, s)'
 @test d(1, s) == ∂(2, s)'
 @test d(2, s) == ∂(3, s)'
+@test d(1, s) * d(0, s) * collect(vertices(s)) == zeros(ntriangles(s))
+@test d(2, s) * d(1, s) * collect(edges(s)) == zeros(ntetrahedra(s))
 
 # 3D embedded simplicial sets
 #----------------------------
@@ -263,7 +270,7 @@ orient!(s)
 regular_tetrahedron_volume(len) = len^3/(6√2)
 @test volume(s, Tet(1)) ≈ regular_tetrahedron_volume(2√2)
 
-# Six tetrahedra forming a cube.
+# Six tetrahedra of equal volume forming a cube with edge length 2.
 s = EmbeddedDeltaSet3D{Bool,Point3D}()
 add_vertices!(s, 8, point=[
   Point3D(-1,1,1), Point3D(1,1,1), Point3D(1,-1,1), Point3D(-1,-1,1),
@@ -288,6 +295,12 @@ orient!(s)
 for t in tetrahedra(s)
   @test volume(s, Tet(t)) ≈ 8/6
 end
+@test is_manifold_like(s)
+for i in 1:3
+  @test isempty(nonfaces(s)[i])
+end
+@test d(1, s) * d(0, s) * collect(vertices(s)) == zeros(ntriangles(s))
+@test d(2, s) * d(1, s) * collect(edges(s)) == zeros(ntetrahedra(s))
 
 # Euclidean geometry
 ####################
