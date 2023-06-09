@@ -336,6 +336,37 @@ end
 @test d(1, s) * d(0, s) * collect(vertices(s)) == zeros(ntriangles(s))
 @test d(2, s) * d(1, s) * collect(edges(s)) == zeros(ntetrahedra(s))
 
+# Five tetrahedra example from Letniowski 1992, as given by Blessent Table 3.3b.
+s = EmbeddedDeltaSet3D{Bool,Point3D}()
+add_vertices!(s, 6, point=[
+  # See table 3.3a "Nodal coordinates"
+  Point3D(-2, -2,   0.5),
+  Point3D( 0, -2,   0.1),
+  Point3D(-2,  0,   0.1),
+  Point3D( 0,  0.1, 0),
+  Point3D(-2, -2,  -0.25),
+  Point3D(-2, -2,   1.5)])
+# See Table 3.3b "Connectivity list for Letniowski's example"
+glue_sorted_tetrahedron!(s, 1, 2, 4, 6)
+glue_sorted_tetrahedron!(s, 1, 3, 4, 6)
+glue_sorted_tetrahedron!(s, 1, 2, 3, 5)
+glue_sorted_tetrahedron!(s, 2, 3, 4, 5)
+glue_sorted_tetrahedron!(s, 1, 2, 3, 4)
+@test ntetrahedra(s) == 5
+@test tetrahedra(s) == 1:5
+@test is_semi_simplicial(s, 2)
+@test is_semi_simplicial(s, 3)
+s[:edge_orientation] = true
+s[:tri_orientation] = true
+s[:tet_orientation] = true
+orient!(s)
+@test is_manifold_like(s)
+for i in 1:3
+  @test isempty(nonfaces(s)[i])
+end
+@test d(1, s) * d(0, s) * collect(vertices(s)) == zeros(ntriangles(s))
+@test d(2, s) * d(1, s) * collect(edges(s)) == zeros(ntetrahedra(s))
+
 # Euclidean geometry
 ####################
 
