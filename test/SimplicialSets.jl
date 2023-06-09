@@ -417,6 +417,40 @@ for t in tetrahedra(s)
 end
 @test sum([volume(s, Tet(t)) for t in tetrahedra(s)]) == 8*2
 
+# Six tetrahedra of equal volume forming a cube with edge length 1.
+# The connectivity is that of Blessent's 2009 thesis, Figure 3.2.
+s = EmbeddedDeltaSet3D{Bool,Point3D}()
+add_vertices!(s, 8, point=[
+  Point3D(0,1,0), Point3D(0,0,0), Point3D(1,1,0), Point3D(1,0,0),
+  Point3D(0,1,1), Point3D(0,0,1), Point3D(1,1,1), Point3D(1,0,1)])
+# See Table 3.1 "Mesh connectivity".
+glue_sorted_tetrahedron!(s, 3, 5, 4, 2)
+glue_sorted_tetrahedron!(s, 7, 6, 8, 4)
+glue_sorted_tetrahedron!(s, 5, 6, 7, 4)
+glue_sorted_tetrahedron!(s, 3, 5, 7, 4)
+glue_sorted_tetrahedron!(s, 5, 6, 4, 2)
+glue_sorted_tetrahedron!(s, 1, 5, 3, 2)
+@test ntetrahedra(s) == 6
+@test tetrahedra(s) == 1:6
+@test ntriangles(s) == 18
+@test triangles(s) == 1:18 # (2 * num cube faces) + (2 * num "cuts" into cube)
+@test ne(s) == 19 # (num cube edges) + (num cube faces) + (internal diagonal)
+@test is_semi_simplicial(s, 2)
+@test is_semi_simplicial(s, 3)
+s[:edge_orientation] = true
+s[:tri_orientation] = true
+s[:tet_orientation] = true
+orient!(s)
+for t in tetrahedra(s)
+  @test volume(s, Tet(t)) ≈ 1/6
+end
+@test is_manifold_like(s)
+for i in 1:3
+  @test isempty(nonfaces(s)[i])
+end
+@test d(1, s) * d(0, s) * collect(vertices(s)) == zeros(ntriangles(s))
+@test d(2, s) * d(1, s) * collect(edges(s)) == zeros(ntetrahedra(s))
+
 # Euclidean geometry
 ####################
 
