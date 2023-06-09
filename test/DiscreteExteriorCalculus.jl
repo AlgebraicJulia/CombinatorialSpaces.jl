@@ -67,6 +67,26 @@ subdivide_duals!(s, Barycenter())
 vform, eform = VForm([1.5, 2, 2.5]), EForm([13, 7])
 @test ∧(s, vform, eform) ≈ ∧(s, eform, vform)
 
+# Path graph on 3 vertices without orientation set beforehand.
+primal_s = EmbeddedDeltaSet1D{Bool,Point2D}()
+add_vertices!(primal_s, 3, point=[Point2D(1,0), Point2D(0,0), Point2D(0,2)])
+add_edges!(primal_s, [1,2], [2,3])
+s = EmbeddedDeltaDualComplex1D{Bool,Float64,Point2D}(primal_s)
+subdivide_duals!(s, Barycenter())
+@test dual_point(s, edge_center(s, [1,2])) ≈ [Point2D(0.5,0), Point2D(0,1)]
+@test volume(s, E(1:2)) ≈ [1.0, 2.0]
+@test volume(s, elementary_duals(s, V(2))) ≈ [0.5, 1.0]
+@test ⋆(0,s) ≈ Diagonal([0.5, 1.5, 1.0])
+@test ⋆(1,s) ≈ Diagonal([1, 0.5])
+@test ⋆(s, VForm([0,2,0]))::DualForm{1} ≈ DualForm{1}([0,3,0])
+
+@test ∧(0,0,s, [1,2,3], [3,4,7]) ≈ [3,8,21]
+@test ∧(s, VForm([1,2,3]), VForm([3,4,7]))::VForm ≈ VForm([3,8,21])
+@test ∧(s, VForm([1,1,1]), EForm([2.5, 5.0]))::EForm ≈ EForm([2.5, 5.0])
+@test ∧(s, VForm([1,1,0]), EForm([2.5, 5.0])) ≈ EForm([2.5, 2.5])
+vform, eform = VForm([1.5, 2, 2.5]), EForm([13, 7])
+@test ∧(s, vform, eform) ≈ ∧(s, eform, vform)
+
 # Path graph on 5 vertices with regular lengths.
 #
 # Equals the graph Laplacian of the underlying graph, except at the boundary.
@@ -129,6 +149,25 @@ add_vertices!(primal_s, 4)
 glue_triangle!(primal_s, 1, 2, 3, tri_orientation=true)
 glue_triangle!(primal_s, 1, 3, 4, tri_orientation=true)
 primal_s[:edge_orientation] = true
+s = OrientedDeltaDualComplex2D{Bool}(primal_s)
+@test sum(s[:D_tri_orientation]) == nparts(s, :DualTri) ÷ 2
+@test [sum(s[elementary_duals(0,s,i), :D_tri_orientation])
+       for i in 1:4] == [2,1,2,1]
+@test sum(s[elementary_duals(1,s,3), :D_edge_orientation]) == 1
+
+for k in 0:1
+  @test dual_boundary(2-k,s) == (-1)^k * ∂(k+1,s)'
+end
+for k in 1:2
+  # Desbrun, Kanso, Tong 2008, Equation 4.2.
+  @test dual_derivative(2-k,s) == (-1)^k * d(k-1,s)'
+end
+
+# Triangulated square without explicit orientation set beforehand.
+primal_s = OrientedDeltaSet2D{Bool}()
+add_vertices!(primal_s, 4)
+glue_triangle!(primal_s, 1, 2, 3)
+glue_triangle!(primal_s, 1, 3, 4)
 s = OrientedDeltaDualComplex2D{Bool}(primal_s)
 @test sum(s[:D_tri_orientation]) == nparts(s, :DualTri) ÷ 2
 @test [sum(s[elementary_duals(0,s,i), :D_tri_orientation])
