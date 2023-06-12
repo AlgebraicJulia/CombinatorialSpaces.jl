@@ -39,13 +39,14 @@ add_sorted_edges!(s, [2,4], [3,3])
 # 1D oriented simplicial sets
 #----------------------------
 
+using Test
 s = OrientedDeltaSet1D{Bool}()
 add_vertices!(s, 4)
 add_edges!(s, [1,2,3], [2,3,4], edge_orientation=[true,false,true])
 @test ∂(1, s, 1) == [-1,1,0,0]
 @test ∂(1, s, 2) == [0,1,-1,0]
 @test is_manifold_like(s)
-@test isempty(only(nonfaces(s)))
+@test isempty(only(nonboundaries(s)))
 
 # Boundary operator, dense vectors.
 vvec = ∂(1, s, 1, Vector{Int})
@@ -149,8 +150,8 @@ s[:edge_orientation] = true
 @test d(s, EForm([45,3,34,17,5])) == TriForm([14, 46]) # == [45+3-34, 34+17-5]
 @test d(1, s) == ∂(2, s)'
 @test is_manifold_like(s)
-@test isempty(nonfaces(s)[1])
-@test isempty(nonfaces(s)[2])
+@test isempty(nonboundaries(s)[1])
+@test isempty(nonboundaries(s)[2])
 
 # 2D embedded simplicial sets
 #----------------------------
@@ -297,10 +298,14 @@ for t in tetrahedra(s)
 end
 @test is_manifold_like(s)
 for i in 1:3
-  @test isempty(nonfaces(s)[i])
+  @test isempty(nonboundaries(s)[i])
 end
 @test d(1, s) * d(0, s) * collect(vertices(s)) == zeros(ntriangles(s))
 @test d(2, s) * d(1, s) * collect(edges(s)) == zeros(ntetrahedra(s))
+added_edge = add_edge!(s, 1,2, edge_orientation=true)
+@test nonboundaries(s)[2] == EChain([added_edge])
+added_triangle = add_triangle!(s, 1,2,3, tri_orientation=true)
+@test nonboundaries(s)[3] == TriChain([added_triangle])
 
 # Six tetrahedra of equal volume forming a cube with edge length 1.
 # The connectivity is that of Blessent's 2009 thesis, Figure 3.2.
@@ -331,7 +336,7 @@ for t in tetrahedra(s)
 end
 @test is_manifold_like(s)
 for i in 1:3
-  @test isempty(nonfaces(s)[i])
+  @test isempty(nonboundaries(s)[i])
 end
 @test d(1, s) * d(0, s) * collect(vertices(s)) == zeros(ntriangles(s))
 @test d(2, s) * d(1, s) * collect(edges(s)) == zeros(ntetrahedra(s))
@@ -362,7 +367,7 @@ s[:tet_orientation] = true
 orient!(s)
 @test is_manifold_like(s)
 for i in 1:3
-  @test isempty(nonfaces(s)[i])
+  @test isempty(nonboundaries(s)[i])
 end
 @test d(1, s) * d(0, s) * collect(vertices(s)) == zeros(ntriangles(s))
 @test d(2, s) * d(1, s) * collect(edges(s)) == zeros(ntetrahedra(s))

@@ -37,7 +37,7 @@ export Simplex, V, E, Tri, Tet, SimplexChain, VChain, EChain, TriChain, TetChain
   add_triangle!, glue_triangle!, glue_sorted_triangle!,
   tetrahedron_triangles, tetrahedron_edges, tetrahedron_vertices, ntetrahedra,
   tetrahedra, add_tetrahedron!, glue_tetrahedron!, glue_sorted_tetrahedron!,
-  is_manifold_like, nonfaces
+  is_manifold_like, nonboundaries
 
 using LinearAlgebra: det
 using SparseArrays
@@ -870,27 +870,27 @@ function is_manifold_like(s::HasDeltaSet, ::Type{Simplex{n}}) where n
   true
 end
 
-""" Find the simplices which are not the face of another.
+""" Find the simplices which are not a face of another.
 
 For an n-D oriented delta set, return a vector of 0 through n-1 chains
 consisting of the simplices that are not the face of another. Note that since
 n-simplices in an n-D oriented delta set are never the face of an (n+1)-simplex,
 these are excluded.
-"""
-nonfaces(s::AbstractDeltaSet1D) = nonfaces(s, E)
-nonfaces(s::AbstractDeltaSet2D) = nonfaces(s, Tri)
-nonfaces(s::AbstractDeltaSet3D) = nonfaces(s, Tet)
 
-function nonfaces(s::HasDeltaSet, ::Type{Simplex{n}}) where n
-  nonfaces = [SimplexChain{i}([]) for i in 0:n-1]
-  for k in 0:n-1
-    # The yth k-simplex c is not a face of an (k+1)-simplex if the yth column of
-    # the exterior derivative matrix is all zeros.
-    for (y, c) in enumerate(eachcol(d(k,s)))
-      isempty(nonzeros(c)) && push!(nonfaces[k+1].data, y)
-    end
+We choose the term "nonboundaries" so as not to be confused with the term
+"nonface", defined as those faces that are not in a simplical complex, whose
+corresponding monomials are the basis of the Stanley-Reisner ideal.
+"""
+nonboundaries(s::AbstractDeltaSet1D) = nonboundaries(s, E)
+nonboundaries(s::AbstractDeltaSet2D) = nonboundaries(s, Tri)
+nonboundaries(s::AbstractDeltaSet3D) = nonboundaries(s, Tet)
+
+function nonboundaries(s::HasDeltaSet, ::Type{Simplex{n}}) where n
+  # The yth k-simplex c is not a face of an (k+1)-simplex if the yth column of
+  # the exterior derivative matrix is all zeros.
+  map(0:n-1) do k
+    SimplexChain{k}(findall(iszero, eachcol(d(k,s))))
   end
-  nonfaces
 end
 
 end
