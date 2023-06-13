@@ -250,6 +250,7 @@ function triangles(s::HasDeltaSet2D, v₀::Int, v₁::Int, v₂::Int)
   # to refactor around multiple dispatch, or always data-migrate to
   # SchDeltaSet2D.
 
+  # TODO: Is there a better idiom for `isempty(x) && return []`?
   e₀s = coface(1,0,s,v₂) ∩ coface(1,1,s,v₁)
   isempty(e₀s) && return Int[]
   e₁s = coface(1,0,s,v₂) ∩ coface(1,1,s,v₀)
