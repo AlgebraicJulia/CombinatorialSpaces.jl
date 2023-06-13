@@ -238,8 +238,19 @@ function triangles(s::HasDeltaSet2D, v₀::Int, v₁::Int, v₂::Int)
   # Note: A faster method could be written if the mesh is guaranteed to be
   # manifold-like, and it is guaranteed that v₀ < v₁ < v₂.
 
-  # TODO: Is there a better idiom for `isempty(x) && return []`?
+  # Note: This is a more "Catlab" approach to this problem:
+  #homs = homomorphisms(
+  #  representable(EmbeddedDeltaSet3D{Bool,Point3D}, SchEmbeddedDeltaSet3D, :Tri),
+  #  s;
+  #  initial=(V=[v₀, v₁, v₂],))
+  #map(x -> only(x[:Tri].func), homs)
+  # This is more elegant, exploiting the explicit representation of our axioms
+  # from the schema, instead of implicitly exploiting them like below.
+  # This method requires us to provide the schema for s as well, so we may have
+  # to refactor around multiple dispatch, or always data-migrate to
+  # SchDeltaSet2D.
 
+  # TODO: Is there a better idiom for `isempty(x) && return []`?
   e₀s = coface(1,0,s,v₂) ∩ coface(1,1,s,v₁)
   isempty(e₀s) && return []
   e₁s = coface(1,0,s,v₂) ∩ coface(1,1,s,v₀)
@@ -860,12 +871,10 @@ is_manifold_like(s::AbstractDeltaSet2D) = is_manifold_like(s, Tri)
 is_manifold_like(s::AbstractDeltaSet3D) = is_manifold_like(s, Tet)
 
 function is_manifold_like(s::HasDeltaSet, ::Type{Simplex{n}}) where n
-  for k in 0:n-1
-    # The yth k-simplex c is not a face of an (k+1)-simplex if the yth column of
-    # the exterior derivative matrix is all zeros.
-    for c in eachcol(d(k,s))
-      isempty(nonzeros(c)) && return false
-    end
+  # The yth k-simplex c is not a face of an (k+1)-simplex if the yth column of
+  # the exterior derivative matrix is all zeros.
+  foreach(0:n-1) do k
+    any(iszero, eachcol(d(k,s))) && return false
   end
   true
 end
