@@ -28,6 +28,7 @@ using LinearAlgebra: Diagonal, dot, norm, cross
 using SparseArrays
 using StaticArrays: @SVector, SVector
 
+using ACSets.DenseACSets: attrtype_type
 using Catlab, Catlab.CategoricalAlgebra.CSets
 using Catlab.CategoricalAlgebra.FinSets: deleteat
 import Catlab.CategoricalAlgebra.CSets: ∧
@@ -183,7 +184,7 @@ function make_dual_simplices_1d!(s::HasDeltaSet1D, ::Type{Simplex{n}}) where n
       if n == 1
         orient!(s, E) || error("The 1-simplices of the given 1D delta set are non-orientable.")
       else
-        s[findall(isnothing, s[:edge_orientation]), :edge_orientation] = zero(eltype(s[:edge_orientation]))
+        s[findall(isnothing, s[:edge_orientation]), :edge_orientation] = zero(attrtype_type(s, :Orientation))
       end
     end
     edge_orient = s[:edge_orientation]
@@ -395,7 +396,7 @@ function make_dual_simplices_2d!(s::HasDeltaSet2D, ::Type{Simplex{n}}) where n
       if n == 2
         orient!(s, Tri) || error("The 2-simplices of the given 2D delta set are non-orientable.")
       else
-        s[findall(isnothing, s[:tri_orientation]), :tri_orientation] = zero(eltype(s[:tri_orientation]))
+        s[findall(isnothing, s[:tri_orientation]), :tri_orientation] = zero(attrtype_type(s, :Orientation))
       end
     end
     # Orient elementary dual triangles.
@@ -412,7 +413,7 @@ function make_dual_simplices_2d!(s::HasDeltaSet2D, ::Type{Simplex{n}}) where n
         isodd(e) ? rev_tri_orient : tri_orient)
     end
     # Remaining dual edges are oriented arbitrarily.
-    s[lazy(vcat, D_edges02...), :D_edge_orientation] = one(eltype(tri_orient))
+    s[lazy(vcat, D_edges02...), :D_edge_orientation] = one(attrtype_type(s, :Orientation))
   end
 
   D_triangles
@@ -484,7 +485,7 @@ function ♭(s::AbstractDeltaDualComplex2D, X::AbstractVector, ::DPPFlat)
 end
 
 function ♯(s::AbstractDeltaDualComplex2D, α::AbstractVector, ::PPSharp)
-  α♯ = zeros(eltype(s[:dual_point]), nv(s))
+  α♯ = zeros(attrtype_type(s, :Point), nv(s))
   for t in triangles(s)
     area = volume(2,s,t)
     tri_center, tri_edges = triangle_center(s,t), triangle_edges(s,t)
