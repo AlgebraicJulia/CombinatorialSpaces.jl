@@ -28,6 +28,7 @@ using LinearAlgebra: Diagonal, dot, norm, cross
 using SparseArrays
 using StaticArrays: @SVector, SVector
 
+using ACSets.DenseACSets: attrtype_type
 using Catlab, Catlab.CategoricalAlgebra.CSets
 using Catlab.CategoricalAlgebra.FinSets: deleteat
 import Catlab.CategoricalAlgebra.CSets: ∧
@@ -153,6 +154,8 @@ function (::Type{S})(t::AbstractDeltaSet1D) where S <: AbstractDeltaDualComplex1
   return s
 end
 
+make_dual_simplices_1d!(s::AbstractDeltaDualComplex1D) = make_dual_simplices_1d!(s, E)
+
 """ Make dual vertice and edges for dual complex of dimension ≧ 1.
 
 Although zero-dimensional duality is geometrically trivial (subdividing a vertex
@@ -163,7 +166,7 @@ If the primal complex is oriented, an orientation is induced on the dual
 complex. The dual edges are oriented relative to the primal edges they subdivide
 (Hirani 2003, PhD thesis, Ch. 2, last sentence of Remark 2.5.1).
 """
-function make_dual_simplices_1d!(s::HasDeltaSet1D)
+function make_dual_simplices_1d!(s::HasDeltaSet1D, ::Type{Simplex{n}}) where n
   # Make dual vertices and edges.
   s[:vertex_center] = vcenters = add_parts!(s, :DualV, nv(s))
   s[:edge_center] = ecenters = add_parts!(s, :DualV, ne(s))
@@ -174,6 +177,16 @@ function make_dual_simplices_1d!(s::HasDeltaSet1D)
 
   # Orient elementary dual edges.
   if has_subpart(s, :edge_orientation)
+    # If orientations are not set, then set them here.
+    if any(isnothing, s[:edge_orientation])
+      # 1-simplices only need to be orientable if the delta set is 1D.
+      # (The 1-simplices in a 2D delta set need not represent a valid 1-Manifold.)
+      if n == 1
+        orient!(s, E) || error("The 1-simplices of the given 1D delta set are non-orientable.")
+      else
+        s[findall(isnothing, s[:edge_orientation]), :edge_orientation] = zero(attrtype_type(s, :Orientation))
+      end
+    end
     edge_orient = s[:edge_orientation]
     s[D_edges[1], :D_edge_orientation] = negate.(edge_orient)
     s[D_edges[2], :D_edge_orientation] = edge_orient
@@ -342,6 +355,10 @@ function (::Type{S})(t::AbstractDeltaSet2D) where S <: AbstractDeltaDualComplex2
   return s
 end
 
+make_dual_simplices_1d!(s::AbstractDeltaDualComplex2D) = make_dual_simplices_1d!(s, Tri)
+
+make_dual_simplices_2d!(s::AbstractDeltaDualComplex2D) = make_dual_simplices_2d!(s, Tri)
+
 """ Make dual simplices for dual complex of dimension ≧ 2.
 
 If the primal complex is oriented, an orientation is induced on the dual
@@ -349,7 +366,7 @@ complex. The elementary dual edges are oriented following (Hirani, 2003, Example
 2.5.2) or (Desbrun et al, 2005, Table 1) and the dual triangles are oriented
 relative to the primal triangles they subdivide.
 """
-function make_dual_simplices_2d!(s::HasDeltaSet2D)
+function make_dual_simplices_2d!(s::HasDeltaSet2D, ::Type{Simplex{n}}) where n
   # Make dual vertices and edges.
   D_edges01 = make_dual_simplices_1d!(s)
   s[:tri_center] = tri_centers = add_parts!(s, :DualV, ntriangles(s))
@@ -372,6 +389,16 @@ function make_dual_simplices_2d!(s::HasDeltaSet2D)
   end
 
   if has_subpart(s, :tri_orientation)
+    # If orientations are not set, then set them here.
+    if any(isnothing, s[:tri_orientation])
+      # 2-simplices only need to be orientable if the delta set is 2D.
+      # (The 2-simplices in a 3D delta set need not represent a valid 2-Manifold.)
+      if n == 2
+        orient!(s, Tri) || error("The 2-simplices of the given 2D delta set are non-orientable.")
+      else
+        s[findall(isnothing, s[:tri_orientation]), :tri_orientation] = zero(attrtype_type(s, :Orientation))
+      end
+    end
     # Orient elementary dual triangles.
     tri_orient = s[:tri_orientation]
     rev_tri_orient = negate.(tri_orient)
@@ -386,7 +413,7 @@ function make_dual_simplices_2d!(s::HasDeltaSet2D)
         isodd(e) ? rev_tri_orient : tri_orient)
     end
     # Remaining dual edges are oriented arbitrarily.
-    s[lazy(vcat, D_edges02...), :D_edge_orientation] = one(eltype(tri_orient))
+    s[lazy(vcat, D_edges02...), :D_edge_orientation] = one(attrtype_type(s, :Orientation))
   end
 
   D_triangles
@@ -458,7 +485,7 @@ function ♭(s::AbstractDeltaDualComplex2D, X::AbstractVector, ::DPPFlat)
 end
 
 function ♯(s::AbstractDeltaDualComplex2D, α::AbstractVector, ::PPSharp)
-  α♯ = zeros(eltype(s[:dual_point]), nv(s))
+  α♯ = zeros(attrtype_type(s, :Point), nv(s))
   for t in triangles(s)
     area = volume(2,s,t)
     tri_center, tri_edges = triangle_center(s,t), triangle_edges(s,t)

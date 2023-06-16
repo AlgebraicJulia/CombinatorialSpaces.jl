@@ -34,6 +34,7 @@ using LinearAlgebra: det
 using SparseArrays
 using StaticArrays: @SVector, SVector, SMatrix
 
+using ACSets.DenseACSets: attrtype_type
 using Catlab, Catlab.CategoricalAlgebra, Catlab.Graphs
 import Catlab.Graphs: src, tgt, nv, ne, vertices, edges, has_vertex, has_edge,
   add_vertex!, add_vertices!, add_edge!, add_edges!
@@ -506,7 +507,7 @@ function orient!(s::HasDeltaSet, ::Type{Simplex{n}}) where n
   end
 
   # Orient each component, starting at the chosen representative.
-  init_orientation = one(eltype(orientation(n, s)))
+  init_orientation = one(attrtype_type(s, :Orientation))
   for x in reps
     orient_component!(s, Simplex{n}(x), init_orientation) || return false
   end
