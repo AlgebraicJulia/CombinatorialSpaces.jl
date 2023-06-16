@@ -1,8 +1,9 @@
 # CombinatorialSpaces.jl
 
-[![Build Status](https://github.com/AlgebraicJulia/CombinatorialSpaces.jl/workflows/Tests/badge.svg)](https://github.com/AlgebraicJulia/CombinatorialSpaces.jl/actions?query=workflow%3ATests)
-[![Dev Docs](https://img.shields.io/badge/docs-dev-blue.svg)](https://algebraicjulia.github.io/CombinatorialSpaces.jl/dev)
+[![Stable Documentation](https://img.shields.io/badge/docs-stable-blue.svg)](https://AlgebraicJulia.github.io/CombinatorialSpaces.jl/stable)
+[![Development Documentation](https://img.shields.io/badge/docs-dev-blue.svg)](https://AlgebraicJulia.github.io/CombinatorialSpaces.jl/dev)
 [![Code Coverage](https://codecov.io/gh/AlgebraicJulia/CombinatorialSpaces.jl/branch/main/graph/badge.svg)](https://codecov.io/gh/AlgebraicJulia/CombinatorialSpaces.jl)
+[![CI/CD](https://github.com/AlgebraicJulia/CombinatorialSpaces.jl/actions/workflows/julia_ci.yml/badge.svg)](https://github.com/AlgebraicJulia/CombinatorialSpaces.jl/actions/workflows/julia_ci.yml)
 
 This package provides combinatorial models of geometric spaces, such as
 simplicial sets and combinatorial maps. These "combinatorial spaces" are useful
@@ -11,9 +12,9 @@ geometry plays a large role. They are also potentially useful in non-geometric
 applications, since structures like simplicial sets generalize graphs from
 binary relations to higher-arity relations.
 
-Combinatorial spaces, like graphs, are typically *C*-sets (copresheaves) on some
-category *C*. They are implemented here using the general data structures for
-*C*-sets offered by [Catlab.jl](https://github.com/AlgebraicJulia/Catlab.jl).
+Combinatorial spaces, like graphs, are typically _C_-sets (copresheaves) on some
+category _C_. They are implemented here using the general data structures for
+_C_-sets offered by [Catlab.jl](https://github.com/AlgebraicJulia/Catlab.jl).
 Thus, this package complements and extends the family of graph data structures
 shipped with Catlab in the module
 [`Catlab.Graphs`](https://algebraicjulia.github.io/Catlab.jl/stable/apis/graphs/).
