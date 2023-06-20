@@ -39,7 +39,6 @@ add_sorted_edges!(s, [2,4], [3,3])
 # 1D oriented simplicial sets
 #----------------------------
 
-using Test
 s = OrientedDeltaSet1D{Bool}()
 add_vertices!(s, 4)
 add_edges!(s, [1,2,3], [2,3,4], edge_orientation=[true,false,true])
@@ -449,13 +448,13 @@ end
 for i in 1:3
   @test isempty(nonboundaries(s)[i])
 end
-@test d(1, s) * d(0, s) * collect(vertices(s)) == zeros(ntriangles(s))
-@test d(2, s) * d(1, s) * collect(edges(s)) == zeros(ntetrahedra(s))
+@test d(1, s) * d(0, s) * vertices(s) == zeros(ntriangles(s))
+@test d(2, s) * d(1, s) * edges(s) == zeros(ntetrahedra(s))
 
 # Five tetrahedra example from Letniowski 1992, as given by Blessent Table 3.3b.
 s = EmbeddedDeltaSet3D{Bool,Point3D}()
 add_vertices!(s, 6, point=[
-  # See table 3.3a "Nodal coordinates"
+  # See Table 3.3a "Nodal coordinates"
   Point3D(-2, -2,   0.5),
   Point3D( 0, -2,   0.1),
   Point3D(-2,  0,   0.1),
@@ -480,8 +479,8 @@ orient!(s)
 for i in 1:3
   @test isempty(nonboundaries(s)[i])
 end
-@test d(1, s) * d(0, s) * collect(vertices(s)) == zeros(ntriangles(s))
-@test d(2, s) * d(1, s) * collect(edges(s)) == zeros(ntetrahedra(s))
+@test d(1, s) * d(0, s) * vertices(s) == zeros(ntriangles(s))
+@test d(2, s) * d(1, s) * edges(s) == zeros(ntetrahedra(s))
 
 # Euclidean geometry
 ####################

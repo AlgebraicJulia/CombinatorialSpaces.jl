@@ -1,6 +1,3 @@
-# TODO: Document where appropriate where the compositional numbering vs.
-# simplicial identity numbering scheme is in use in this API.
-
 """ Simplicial sets in one, two, and three dimensions.
 
 For the time being, this module provides data structures only for [delta
@@ -250,7 +247,6 @@ function triangles(s::HasDeltaSet2D, v₀::Int, v₁::Int, v₂::Int)
   # to refactor around multiple dispatch, or always data-migrate to
   # SchDeltaSet2D.
 
-  # TODO: Is there a better idiom for `isempty(x) && return []`?
   e₀s = coface(1,0,s,v₂) ∩ coface(1,1,s,v₁)
   isempty(e₀s) && return Int[]
   e₁s = coface(1,0,s,v₂) ∩ coface(1,1,s,v₀)
