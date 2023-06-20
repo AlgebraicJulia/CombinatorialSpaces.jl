@@ -1,6 +1,3 @@
-# TODO: Document where appropriate where the compositional numbering vs.
-# simplicial identity numbering scheme is in use in this API.
-
 """ Simplicial sets in one, two, and three dimensions.
 
 For the time being, this module provides data structures only for [delta
@@ -250,13 +247,12 @@ function triangles(s::HasDeltaSet2D, v₀::Int, v₁::Int, v₂::Int)
   # to refactor around multiple dispatch, or always data-migrate to
   # SchDeltaSet2D.
 
-  # TODO: Is there a better idiom for `isempty(x) && return []`?
   e₀s = coface(1,0,s,v₂) ∩ coface(1,1,s,v₁)
-  isempty(e₀s) && return []
+  isempty(e₀s) && return Int[]
   e₁s = coface(1,0,s,v₂) ∩ coface(1,1,s,v₀)
-  isempty(e₁s) && return []
+  isempty(e₁s) && return Int[]
   e₂s = coface(1,0,s,v₁) ∩ coface(1,1,s,v₀)
-  isempty(e₂s) && return []
+  isempty(e₂s) && return Int[]
   coface(2,0,s,e₀s...) ∩ coface(2,1,s,e₁s...) ∩ coface(2,2,s,e₂s...)
 end
 
@@ -395,7 +391,6 @@ volume(::Type{Val{2}}, s::HasDeltaSet2D, t::Int, ::CayleyMengerDet) =
   Tet::Ob
   (∂t0, ∂t1, ∂t2, ∂t3)::Hom(Tet,Tri) # (∂₃(0), ∂₃(1), ∂₃(2), ∂₃(3))
 
-  # TODO: Is there a test that accesses SchDeltaSet3D.equations?
   # Simplicial identities.
   ∂t3 ⋅ ∂e2 == ∂t2 ⋅ ∂e2
   ∂t3 ⋅ ∂e1 == ∂t1 ⋅ ∂e2
@@ -446,8 +441,6 @@ end
 This accessor assumes that the simplicial identities hold.
 """
 function tetrahedron_edges(s::HasDeltaSet3D, t...)
-  # TODO: Is there an index selection that would result in fewer cache misses,
-  # that still respects this vertex ordering?
   SVector(s[s[t..., :∂t0], :∂e0], # e₀
           s[s[t..., :∂t0], :∂e1], # e₁
           s[s[t..., :∂t0], :∂e2], # e₂
@@ -461,8 +454,6 @@ end
 This accessor assumes that the simplicial identities hold.
 """
 function tetrahedron_vertices(s::HasDeltaSet3D, t...)
-  # TODO: Is there an index selection that would result in fewer cache misses,
-  # that still respects this vertex ordering?
   SVector(s[s[s[t..., :∂t2], :∂e2], :∂v1], # v₀
           s[s[s[t..., :∂t2], :∂e2], :∂v0], # v₁
           s[s[s[t..., :∂t0], :∂e0], :∂v1], # v₂
@@ -470,9 +461,6 @@ function tetrahedron_vertices(s::HasDeltaSet3D, t...)
 end
 
 """ Add a tetrahedron (3-simplex) to a simplicial set, given its boundary triangles.
-
-# TODO: Add the order of the boundary triangles.
-In the arguments to this function, the boundary triangles have the order ....
 
 !!! warning
 
@@ -490,10 +478,6 @@ If a needed triangle between two vertices exists, it is reused (hence the "gluin
 otherwise, it is created. Necessary 1-simplices are likewise glued.
 """
 function glue_tetrahedron!(s::HasDeltaSet3D, v₀::Int, v₁::Int, v₂::Int, v₃::Int; kw...)
-  # Note: You could write glue_tetrahedron! assuming instead get_triangle!
-  # takes edges as input. But, get_edge! would be called at the surface level
-  # (here), and again inside of glue_triangle!.
-
   # Note: There is a redundancy here in that the e.g. the first get_triangle!
   # guarantees that certain edges are already added, so some later calls to
   # get_edge! inside the following calls to get_triangle! don't actually need to
@@ -529,10 +513,6 @@ end
 end
 
 """ A three-dimensional oriented delta set.
-
-# TODO: Where must the following condition be enforced in code?
-Tetrahedra are ordered in an even permutation of ``(0,1,2,3)`` when
-`tet_orientation` is true/positive and in odd order when it is false/negative.
 """
 @acset_type OrientedDeltaSet3D(SchOrientedDeltaSet3D,
                                index=[:∂v0,:∂v1,:∂e0,:∂e1,:∂e2,:∂t0,:∂t1,:∂t2,:∂t3]) <: AbstractDeltaSet3D

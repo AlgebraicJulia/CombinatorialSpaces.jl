@@ -39,7 +39,6 @@ add_sorted_edges!(s, [2,4], [3,3])
 # 1D oriented simplicial sets
 #----------------------------
 
-using Test
 s = OrientedDeltaSet1D{Bool}()
 add_vertices!(s, 4)
 add_edges!(s, [1,2,3], [2,3,4], edge_orientation=[true,false,true])
@@ -197,10 +196,10 @@ glue_tetrahedron!(s, 2, 3, 4, 5)
 @test is_semi_simplicial(s, 3)
 @test tetrahedron_vertices(s, 1) == [1,2,3,5]
 @test tetrahedron_vertices(s, 2) == [2,3,4,5]
-@test sort(unique(reduce(vcat, edge_vertices(s, tetrahedron_edges(s,1))))) ==
-  tetrahedron_vertices(s,1)
-@test sort(unique(reduce(vcat, edge_vertices(s, tetrahedron_edges(s,2))))) ==
-  tetrahedron_vertices(s,2)
+tetrahedron_to_edges_to_vertices(s,t) = sort(unique(reduce(vcat, edge_vertices(s, tetrahedron_edges(s,t)))))
+for t in tetrahedra(s)
+  @test tetrahedron_to_edges_to_vertices(s,t) == tetrahedron_vertices(s,t)
+end
 
 # Six tetrahedra forming a cube.
 s = DeltaSet3D()
@@ -219,8 +218,7 @@ glue_tetrahedron!(s, 2, 6, 7, 8)
 @test is_semi_simplicial(s, 2)
 @test is_semi_simplicial(s, 3)
 for t in tetrahedra(s)
-  @test sort(unique(reduce(vcat, edge_vertices(s, tetrahedron_edges(s,t))))) ==
-    tetrahedron_vertices(s,t)
+  @test tetrahedron_to_edges_to_vertices(s,t) == tetrahedron_vertices(s,t)
 end
 
 # 3D oriented simplicial sets
@@ -256,8 +254,8 @@ s[:tri_orientation] = true
 @test d(0, s) == ∂(1, s)'
 @test d(1, s) == ∂(2, s)'
 @test d(2, s) == ∂(3, s)'
-@test d(1, s) * d(0, s) * collect(vertices(s)) == zeros(ntriangles(s))
-@test d(2, s) * d(1, s) * collect(edges(s)) == zeros(ntetrahedra(s))
+@test d(1, s) * d(0, s) * vertices(s) == zeros(ntriangles(s))
+@test d(2, s) * d(1, s) * edges(s) == zeros(ntetrahedra(s))
 
 # 3D embedded simplicial sets
 #----------------------------
@@ -300,15 +298,16 @@ end
 for i in 1:3
   @test isempty(nonboundaries(s)[i])
 end
-@test d(1, s) * d(0, s) * collect(vertices(s)) == zeros(ntriangles(s))
-@test d(2, s) * d(1, s) * collect(edges(s)) == zeros(ntetrahedra(s))
+@test d(1, s) * d(0, s) * vertices(s) == zeros(ntriangles(s))
+@test d(2, s) * d(1, s) * edges(s) == zeros(ntetrahedra(s))
 added_edge = add_edge!(s, 1,2, edge_orientation=true)
 @test nonboundaries(s)[2] == EChain([added_edge])
 added_triangle = add_triangle!(s, 1,2,3, tri_orientation=true)
 @test nonboundaries(s)[3] == TriChain([added_triangle])
 
 # Six tetrahedra of equal volume forming a cube with edge length 1.
-# The connectivity is that of Blessent's 2009 thesis, Figure 3.2.
+# The connectivity is that of Blessent's 2009 thesis "Integration of 3D
+# Geologicial and Numerical Models Based on Tetrahedral Meshes...", Figure 3.2.
 s = EmbeddedDeltaSet3D{Bool,Point3D}()
 add_vertices!(s, 8, point=[
   Point3D(0,1,0), Point3D(0,0,0), Point3D(1,1,0), Point3D(1,0,0),
@@ -338,13 +337,13 @@ end
 for i in 1:3
   @test isempty(nonboundaries(s)[i])
 end
-@test d(1, s) * d(0, s) * collect(vertices(s)) == zeros(ntriangles(s))
-@test d(2, s) * d(1, s) * collect(edges(s)) == zeros(ntetrahedra(s))
+@test d(1, s) * d(0, s) * vertices(s) == zeros(ntriangles(s))
+@test d(2, s) * d(1, s) * edges(s) == zeros(ntetrahedra(s))
 
 # Five tetrahedra example from Letniowski 1992, as given by Blessent Table 3.3b.
 s = EmbeddedDeltaSet3D{Bool,Point3D}()
 add_vertices!(s, 6, point=[
-  # See table 3.3a "Nodal coordinates"
+  # See Table 3.3a "Nodal coordinates"
   Point3D(-2, -2,   0.5),
   Point3D( 0, -2,   0.1),
   Point3D(-2,  0,   0.1),
@@ -369,8 +368,8 @@ orient!(s)
 for i in 1:3
   @test isempty(nonboundaries(s)[i])
 end
-@test d(1, s) * d(0, s) * collect(vertices(s)) == zeros(ntriangles(s))
-@test d(2, s) * d(1, s) * collect(edges(s)) == zeros(ntetrahedra(s))
+@test d(1, s) * d(0, s) * vertices(s) == zeros(ntriangles(s))
+@test d(2, s) * d(1, s) * edges(s) == zeros(ntetrahedra(s))
 
 # Euclidean geometry
 ####################
