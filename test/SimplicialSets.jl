@@ -44,6 +44,8 @@ add_vertices!(s, 4)
 add_edges!(s, [1,2,3], [2,3,4], edge_orientation=[true,false,true])
 @test ∂(1, s, 1) == [-1,1,0,0]
 @test ∂(1, s, 2) == [0,1,-1,0]
+@test is_manifold_like(s)
+@test isempty(only(nonboundaries(s)))
 
 # Boundary operator, dense vectors.
 vvec = ∂(1, s, 1, Vector{Int})
@@ -146,6 +148,9 @@ s[:edge_orientation] = true
 @test d(s, EForm([45,3,34,0,0]))::TriForm == TriForm([14, 34]) # == [45+3-34, 34]
 @test d(s, EForm([45,3,34,17,5])) == TriForm([14, 46]) # == [45+3-34, 34+17-5]
 @test d(1, s) == ∂(2, s)'
+@test is_manifold_like(s)
+@test isempty(nonboundaries(s)[1])
+@test isempty(nonboundaries(s)[2])
 
 # 2D embedded simplicial sets
 #----------------------------
@@ -155,6 +160,262 @@ s = EmbeddedDeltaSet2D{Bool,Point3D}()
 add_vertices!(s, 3, point=[Point3D(1,0,0), Point3D(0,1,0), Point3D(0,0,1)])
 glue_triangle!(s, 1, 2, 3, tri_orientation=true)
 @test volume(s, Tri(1)) ≈ sqrt(3)/2
+
+# 3D simplicial sets
+####################
+
+s = DeltaSet3D()
+add_vertices!(s, 4)
+glue_tetrahedron!(s, 1, 2, 3, 4)
+@test is_semi_simplicial(s, 2)
+@test is_semi_simplicial(s, 3)
+@test ntetrahedra(s) == 1
+@test map(i -> ∂(2, i, s, 1), (0,1,2)) == (2,3,1)
+@test map(i -> ∂(3, i, s, 1), (0,1,2,3)) == (1,2,3,4)
+@test tetrahedron_vertices(s, 1) == [1,2,3,4]
+@test tetrahedron_edges(s, 1) == [2,3,1, 5,4, 6]
+
+s′ = DeltaSet3D()
+add_vertices!(s′, 4)
+glue_sorted_tetrahedron!(s′, 2, 4, 3, 1)
+@test s′ == s
+@test tetrahedron_vertices(s, 1) == tetrahedron_vertices(s′, 1)
+
+# Two tetrahedra forming a square pyramid.
+# The shared (internal) triangle is (2,3,5).
+s = DeltaSet3D()
+add_vertices!(s, 5)
+glue_tetrahedron!(s, 1, 2, 3, 5)
+glue_tetrahedron!(s, 2, 3, 4, 5)
+@test ntetrahedra(s) == 2
+@test tetrahedra(s) == 1:2
+@test ntriangles(s) == 7
+@test triangles(s) == 1:7
+@test ne(s) == 9
+@test is_semi_simplicial(s, 2)
+@test is_semi_simplicial(s, 3)
+@test tetrahedron_vertices(s, 1) == [1,2,3,5]
+@test tetrahedron_vertices(s, 2) == [2,3,4,5]
+tetrahedron_to_edges_to_vertices(s,t) = sort(unique(reduce(vcat, edge_vertices(s, tetrahedron_edges(s,t)))))
+for t in tetrahedra(s)
+  @test tetrahedron_to_edges_to_vertices(s,t) == tetrahedron_vertices(s,t)
+end
+
+# Six tetrahedra forming a cube.
+s = DeltaSet3D()
+add_vertices!(s, 8)
+glue_tetrahedron!(s, 1, 2, 4, 8)
+glue_tetrahedron!(s, 2, 3, 4, 8)
+glue_tetrahedron!(s, 1, 2, 5, 8)
+glue_tetrahedron!(s, 2, 3, 7, 8)
+glue_tetrahedron!(s, 2, 5, 6, 8)
+glue_tetrahedron!(s, 2, 6, 7, 8)
+@test ntetrahedra(s) == 6
+@test tetrahedra(s) == 1:6
+@test ntriangles(s) == 18
+@test triangles(s) == 1:18 # (2 * num cube faces) + (2 * num "cuts" into cube)
+@test ne(s) == 19 # (num cube edges) + (num cube faces) + (internal diagonal)
+@test is_semi_simplicial(s, 2)
+@test is_semi_simplicial(s, 3)
+for t in tetrahedra(s)
+  @test tetrahedron_to_edges_to_vertices(s,t) == tetrahedron_vertices(s,t)
+end
+
+# Tetrahedralized cube via helper function.
+s′ = DeltaSet3D()
+add_vertices!(s′, 8)
+glue_sorted_tet_cube!(s′, 1:8...)
+@test s == s′
+
+add_vertices!(s′, 4)
+# Glue along the face of the cube with vertices 5,6,7,8.
+glue_sorted_tet_cube!(s′, 5:12...)
+@test is_semi_simplicial(s′, 3)
+@test ntetrahedra(s′) == 2*ntetrahedra(s)
+# There are 2 triangles, 5 edges, and 4 vertices on the shared cube face.
+@test ntriangles(s′) == 2*ntriangles(s) - 2
+@test ne(s′) == 2*ne(s) - 5
+@test nv(s′) == 2*nv(s) - 4
+for t in tetrahedra(s′)
+  @test tetrahedron_to_edges_to_vertices(s′,t) == tetrahedron_vertices(s′,t)
+end
+
+# 3D oriented simplicial sets
+#----------------------------
+
+# Tetrahedron with orientation.
+s = OrientedDeltaSet3D{Bool}()
+add_vertices!(s, 4)
+glue_tetrahedron!(s, 1, 2, 3, 4)
+s[:edge_orientation] = [true, false, true, false, true, false]
+s[:tri_orientation] = [true, false, true, false]
+@test orient_component!(s, 1, true)
+@test orientation(s, Tet(1)) == true
+@test ∂(3, s, 1) == [1,1,1,1]
+@test ∂(2, s, 1) == [1,-1,-1,0,0,0]
+@test d(1, s, [17,19,23,29,31,37]) == [-25,79,-45,-9]
+@test d(2, s, [3,5,17,257]) == [282] # == [3+5+17+257]
+
+# Two tetrahedra forming a square pyramid with orientation.
+# The shared (internal) triangle is (2,3,5).
+s = OrientedDeltaSet3D{Bool}()
+add_vertices!(s, 5)
+glue_tetrahedron!(s, 1, 2, 3, 5)
+glue_tetrahedron!(s, 2, 3, 4, 5)
+s[:edge_orientation] = true
+s[:tri_orientation] = true
+@test orient!(s)
+@test orientation(s, Tet(1:2)) == [true, false]
+@test ∂(2, s, 1) == sparsevec([1,2,3], [1,1,-1], 9)
+@test ∂(3, s, 1) == sparsevec([1,2,3,4], [1,-1,1,-1], 7)
+@test ∂(s, TetChain([1,1]))::TriChain == TriChain([0,-1,1,-1,-1,1,1])
+@test d(s, TriForm([1,10,100,1000,10000,100000,1000000]))::TetForm == TetForm([-909,1089999])
+@test d(0, s) == ∂(1, s)'
+@test d(1, s) == ∂(2, s)'
+@test d(2, s) == ∂(3, s)'
+@test d(1, s) * d(0, s) * vertices(s) == zeros(ntriangles(s))
+@test d(2, s) * d(1, s) * edges(s) == zeros(ntetrahedra(s))
+
+# Tetrahedralized cube with orientation.
+s = OrientedDeltaSet3D{Bool}()
+add_vertices!(s, 8)
+glue_sorted_tet_cube!(s, 1:8..., tet_orientation=true)
+add_vertices!(s, 4)
+glue_sorted_tet_cube!(s, 5:12..., tet_orientation=false)
+# Test that the kw args passed correctly:
+@test s[:tet_orientation] == [fill(true,6)..., fill(false,6)...]
+s[:edge_orientation] = false
+s[:tri_orientation] = false
+@test orient!(s)
+@test is_manifold_like(s)
+
+# 3D embedded simplicial sets
+#----------------------------
+
+# Regular tetrahedron with edge length 2√2 in ℝ³.
+s = EmbeddedDeltaSet3D{Bool,Point3D}()
+add_vertices!(s, 4, point=[Point3D(1,1,1), Point3D(1,-1,-1),
+  Point3D(-1,1,-1), Point3D(-1,-1,1)])
+glue_tetrahedron!(s, 1, 2, 3, 4)
+orient!(s)
+regular_tetrahedron_volume(len) = len^3/(6√2)
+@test volume(s, Tet(1)) ≈ regular_tetrahedron_volume(2√2)
+
+# Six tetrahedra of equal volume forming a cube with edge length 2.
+s = EmbeddedDeltaSet3D{Bool,Point3D}()
+add_vertices!(s, 8, point=[
+  Point3D(-1,1,1), Point3D(1,1,1), Point3D(1,-1,1), Point3D(-1,-1,1),
+  Point3D(-1,1,-1), Point3D(1,1,-1), Point3D(1,-1,-1), Point3D(-1,-1,-1)])
+glue_sorted_tetrahedron!(s, 1, 2, 4, 8)
+glue_sorted_tetrahedron!(s, 2, 3, 4, 8)
+glue_sorted_tetrahedron!(s, 1, 2, 5, 8)
+glue_sorted_tetrahedron!(s, 2, 3, 7, 8)
+glue_sorted_tetrahedron!(s, 2, 5, 6, 8)
+glue_sorted_tetrahedron!(s, 2, 6, 7, 8)
+@test ntetrahedra(s) == 6
+@test tetrahedra(s) == 1:6
+@test ntriangles(s) == 18
+@test triangles(s) == 1:18 # (2 * num cube faces) + (2 * num "cuts" into cube)
+@test ne(s) == 19 # (num cube edges) + (num cube faces) + (internal diagonal)
+@test is_semi_simplicial(s, 2)
+@test is_semi_simplicial(s, 3)
+s[:edge_orientation] = true
+s[:tri_orientation] = true
+s[:tet_orientation] = true
+orient!(s)
+for t in tetrahedra(s)
+  @test volume(s, Tet(t)) ≈ 8/6
+end
+@test is_manifold_like(s)
+for i in 1:3
+  @test isempty(nonboundaries(s)[i])
+end
+@test d(1, s) * d(0, s) * vertices(s) == zeros(ntriangles(s))
+@test d(2, s) * d(1, s) * edges(s) == zeros(ntetrahedra(s))
+added_edge = add_edge!(s, 1,2, edge_orientation=true)
+@test nonboundaries(s)[2] == EChain([added_edge])
+added_triangle = add_triangle!(s, 1,2,3, tri_orientation=true)
+@test nonboundaries(s)[3] == TriChain([added_triangle])
+
+# Six tetrahedra of equal volume forming a cube with edge length 1.
+# The connectivity is that of Blessent's 2009 thesis "Integration of 3D
+# Geologicial and Numerical Models Based on Tetrahedral Meshes...", Figure 3.2.
+s = EmbeddedDeltaSet3D{Bool,Point3D}()
+add_vertices!(s, 8, point=[
+  Point3D(0,1,0), Point3D(0,0,0), Point3D(1,1,0), Point3D(1,0,0),
+  Point3D(0,1,1), Point3D(0,0,1), Point3D(1,1,1), Point3D(1,0,1)])
+# See Table 3.1 "Mesh connectivity".
+glue_sorted_tetrahedron!(s, 3, 5, 4, 2)
+glue_sorted_tetrahedron!(s, 7, 6, 8, 4)
+glue_sorted_tetrahedron!(s, 5, 6, 7, 4)
+glue_sorted_tetrahedron!(s, 3, 5, 7, 4)
+glue_sorted_tetrahedron!(s, 5, 6, 4, 2)
+glue_sorted_tetrahedron!(s, 1, 5, 3, 2)
+@test ntetrahedra(s) == 6
+@test tetrahedra(s) == 1:6
+@test ntriangles(s) == 18
+@test triangles(s) == 1:18 # (2 * num cube faces) + (2 * num "cuts" into cube)
+@test ne(s) == 19 # (num cube edges) + (num cube faces) + (internal diagonal)
+@test is_semi_simplicial(s, 2)
+@test is_semi_simplicial(s, 3)
+s[:edge_orientation] = true
+s[:tri_orientation] = true
+s[:tet_orientation] = true
+orient!(s)
+for t in tetrahedra(s)
+  @test volume(s, Tet(t)) ≈ 1/6
+end
+@test is_manifold_like(s)
+for i in 1:3
+  @test isempty(nonboundaries(s)[i])
+end
+@test d(1, s) * d(0, s) * vertices(s) == zeros(ntriangles(s))
+@test d(2, s) * d(1, s) * edges(s) == zeros(ntetrahedra(s))
+
+# Five tetrahedra example from Letniowski 1992, as given by Blessent Table 3.3b.
+s = EmbeddedDeltaSet3D{Bool,Point3D}()
+add_vertices!(s, 6, point=[
+  # See Table 3.3a "Nodal coordinates"
+  Point3D(-2, -2,   0.5),
+  Point3D( 0, -2,   0.1),
+  Point3D(-2,  0,   0.1),
+  Point3D( 0,  0.1, 0),
+  Point3D(-2, -2,  -0.25),
+  Point3D(-2, -2,   1.5)])
+# See Table 3.3b "Connectivity list for Letniowski's example"
+glue_sorted_tetrahedron!(s, 1, 2, 4, 6)
+glue_sorted_tetrahedron!(s, 1, 3, 4, 6)
+glue_sorted_tetrahedron!(s, 1, 2, 3, 5)
+glue_sorted_tetrahedron!(s, 2, 3, 4, 5)
+glue_sorted_tetrahedron!(s, 1, 2, 3, 4)
+@test ntetrahedra(s) == 5
+@test tetrahedra(s) == 1:5
+@test is_semi_simplicial(s, 2)
+@test is_semi_simplicial(s, 3)
+s[:edge_orientation] = true
+s[:tri_orientation] = true
+s[:tet_orientation] = true
+orient!(s)
+@test is_manifold_like(s)
+for i in 1:3
+  @test isempty(nonboundaries(s)[i])
+end
+@test d(1, s) * d(0, s) * vertices(s) == zeros(ntriangles(s))
+@test d(2, s) * d(1, s) * edges(s) == zeros(ntetrahedra(s))
+
+# Stacked tetrahedralized cubes each of volume 8.
+s = EmbeddedDeltaSet3D{Bool,Point3D}()
+add_vertices!(s, 8, point=[
+  Point3D(-1,1,1), Point3D(1,1,1), Point3D(1,-1,1), Point3D(-1,-1,1),
+  Point3D(-1,1,-1), Point3D(1,1,-1), Point3D(1,-1,-1), Point3D(-1,-1,-1)])
+glue_sorted_tet_cube!(s, 1:8...)
+add_vertices!(s, 4, point=[
+  Point3D(-1,1,-3), Point3D(1,1,-3), Point3D(1,-1,-3), Point3D(-1,-1,-3)])
+glue_sorted_tet_cube!(s, 5:12...)
+for t in tetrahedra(s)
+  @test volume(s, Tet(t)) ≈ 8/6
+end
+@test sum([volume(s, Tet(t)) for t in tetrahedra(s)]) == 8*2
 
 # Euclidean geometry
 ####################

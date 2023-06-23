@@ -13,14 +13,17 @@ exterior derivative) operators. For additional operators, see the
 `DiscreteExteriorCalculus` module.
 """
 module SimplicialSets
-export Simplex, V, E, Tri, SimplexChain, VChain, EChain, TriChain,
-  SimplexForm, VForm, EForm, TriForm, HasDeltaSet,
+export Simplex, V, E, Tri, Tet, SimplexChain, VChain, EChain, TriChain, TetChain,
+  SimplexForm, VForm, EForm, TriForm, TetForm, HasDeltaSet,
   HasDeltaSet1D, AbstractDeltaSet1D, DeltaSet1D, SchDeltaSet1D,
   OrientedDeltaSet1D, SchOrientedDeltaSet1D,
   EmbeddedDeltaSet1D, SchEmbeddedDeltaSet1D,
   HasDeltaSet2D, AbstractDeltaSet2D, DeltaSet2D, SchDeltaSet2D,
   OrientedDeltaSet2D, SchOrientedDeltaSet2D,
   EmbeddedDeltaSet2D, SchEmbeddedDeltaSet2D,
+  HasDeltaSet3D, AbstractDeltaSet3D, DeltaSet3D, SchDeltaSet3D,
+  OrientedDeltaSet3D, SchOrientedDeltaSet3D,
+  EmbeddedDeltaSet3D, SchEmbeddedDeltaSet3D,
   ∂, boundary, coface, d, coboundary, exterior_derivative,
   simplices, nsimplices, point, volume,
   orientation, set_orientation!, orient!, orient_component!,
@@ -28,7 +31,10 @@ export Simplex, V, E, Tri, SimplexChain, VChain, EChain, TriChain,
   add_vertex!, add_vertices!, add_edge!, add_edges!,
   add_sorted_edge!, add_sorted_edges!,
   triangle_edges, triangle_vertices, ntriangles, triangles,
-  add_triangle!, glue_triangle!, glue_sorted_triangle!
+  add_triangle!, glue_triangle!, glue_sorted_triangle!,
+  tetrahedron_triangles, tetrahedron_edges, tetrahedron_vertices, ntetrahedra,
+  tetrahedra, add_tetrahedron!, glue_tetrahedron!, glue_sorted_tetrahedron!,
+  is_manifold_like, nonboundaries, glue_sorted_tet_cube!
 
 using LinearAlgebra: det
 using SparseArrays
@@ -222,6 +228,34 @@ This is the shape of the binary composition operation in a category.
                        index=[:∂v0,:∂v1,:∂e0,:∂e1,:∂e2]) <: AbstractDeltaSet2D
 
 triangles(s::HasDeltaSet2D) = parts(s, :Tri)
+function triangles(s::HasDeltaSet2D, v₀::Int, v₁::Int, v₂::Int)
+  # Note: This could be written in a more efficient way by using ∂ interspersed
+  # with the calls to coface, similar to edges().
+
+  # Note: A faster method could be written if the mesh is guaranteed to be
+  # manifold-like, and it is guaranteed that v₀ < v₁ < v₂.
+
+  # Note: This is a more "Catlab" approach to this problem:
+  #homs = homomorphisms(
+  #  representable(EmbeddedDeltaSet3D{Bool,Point3D}, SchEmbeddedDeltaSet3D, :Tri),
+  #  s;
+  #  initial=(V=[v₀, v₁, v₂],))
+  #map(x -> only(x[:Tri].func), homs)
+  # This is more elegant, exploiting the explicit representation of our axioms
+  # from the schema, instead of implicitly exploiting them like below.
+  # This method requires us to provide the schema for s as well, so we may have
+  # to refactor around multiple dispatch, or always data-migrate to
+  # SchDeltaSet2D.
+
+  e₀s = coface(1,0,s,v₂) ∩ coface(1,1,s,v₁)
+  isempty(e₀s) && return Int[]
+  e₁s = coface(1,0,s,v₂) ∩ coface(1,1,s,v₀)
+  isempty(e₁s) && return Int[]
+  e₂s = coface(1,0,s,v₁) ∩ coface(1,1,s,v₀)
+  isempty(e₂s) && return Int[]
+  coface(2,0,s,e₀s...) ∩ coface(2,1,s,e₁s...) ∩ coface(2,2,s,e₂s...)
+end
+
 ntriangles(s::HasDeltaSet2D) = nparts(s, :Tri)
 nsimplices(::Type{Val{2}}, s::HasDeltaSet2D) = ntriangles(s)
 
@@ -252,7 +286,7 @@ end
 """ Add a triangle (2-simplex) to a simplicial set, given its boundary edges.
 
 In the arguments to this function, the boundary edges have the order ``0 → 1``,
-``1 → 2``, ``0 → 2``.
+``1 → 2``, ``0 → 2``. i.e. (∂e₂, ∂e₀, ∂e₁).
 
 !!! warning
 
@@ -268,6 +302,18 @@ add_triangle!(s::HasDeltaSet2D, src2_first::Int, src2_last::Int, tgt2::Int; kw..
 
 If a needed edge between two vertices exists, it is reused (hence the "gluing");
 otherwise, it is created.
+
+Note this function does not check whether a triangle [v₀,v₁,v₂] already exists.
+
+Note that this function does not rearrange v₀, v₁, v₂ in the way that minimizes
+the number of edges added. For example, if s is the DeltaSet with a single
+triangle [1,2,3] and edges [1,2], [2,3], [1,3], then gluing triangle [3,1,4]
+will add edges [3,1], [1,4], [3,4] so as to respect the simplicial identities.
+Note that the edges [1,3] and [3,1] are distinct!
+However, if the DeltaSet that one is creating is meant to be manifold-like, then
+adding triangles using only the command [`glue_sorted_triangle!`](@ref)
+guarantees that the minimal number of new edges are created.
+# TODO: Reference a proof of the above claim.
 """
 function glue_triangle!(s::HasDeltaSet2D, v₀::Int, v₁::Int, v₂::Int; kw...)
   add_triangle!(s, get_edge!(s, v₀, v₁), get_edge!(s, v₁, v₂),
@@ -338,6 +384,198 @@ volume(::Type{Val{n}}, s::EmbeddedDeltaSet2D, x) where n =
 volume(::Type{Val{2}}, s::HasDeltaSet2D, t::Int, ::CayleyMengerDet) =
   volume(point(s, triangle_vertices(s,t)))
 
+# 3D simplicial sets
+####################
+
+@present SchDeltaSet3D <: SchDeltaSet2D begin
+  Tet::Ob
+  (∂t0, ∂t1, ∂t2, ∂t3)::Hom(Tet,Tri) # (∂₃(0), ∂₃(1), ∂₃(2), ∂₃(3))
+
+  # Simplicial identities.
+  ∂t3 ⋅ ∂e2 == ∂t2 ⋅ ∂e2
+  ∂t3 ⋅ ∂e1 == ∂t1 ⋅ ∂e2
+  ∂t3 ⋅ ∂e0 == ∂t0 ⋅ ∂e2
+
+  ∂t2 ⋅ ∂e1 == ∂t1 ⋅ ∂e1
+  ∂t2 ⋅ ∂e0 == ∂t0 ⋅ ∂e1
+
+  ∂t1 ⋅ ∂e0 == ∂t0 ⋅ ∂e0
+end
+
+""" Abstract type for C-sets containing a 3D delta set.
+"""
+@abstract_acset_type HasDeltaSet3D <: HasDeltaSet2D
+
+""" Abstract type for 3D delta sets.
+"""
+@abstract_acset_type AbstractDeltaSet3D <: HasDeltaSet3D
+
+""" A 3D delta set, aka semi-simplicial set.
+
+"""
+@acset_type DeltaSet3D(SchDeltaSet3D,
+                       index=[:∂v0,:∂v1,:∂e0,:∂e1,:∂e2,:∂t0,:∂t1,:∂t2,:∂t3]) <: AbstractDeltaSet3D
+
+tetrahedra(s::HasDeltaSet3D) = parts(s, :Tet)
+ntetrahedra(s::HasDeltaSet3D) = nparts(s, :Tet)
+nsimplices(::Type{Val{3}}, s::HasDeltaSet3D) = ntetrahedra(s)
+
+face(::Type{Val{(3,0)}}, s::HasDeltaSet3D, args...) = subpart(s, args..., :∂t0)
+face(::Type{Val{(3,1)}}, s::HasDeltaSet3D, args...) = subpart(s, args..., :∂t1)
+face(::Type{Val{(3,2)}}, s::HasDeltaSet3D, args...) = subpart(s, args..., :∂t2)
+face(::Type{Val{(3,3)}}, s::HasDeltaSet3D, args...) = subpart(s, args..., :∂t3)
+
+coface(::Type{Val{(3,0)}}, s::HasDeltaSet3D, args...) = incident(s, args..., :∂t0)
+coface(::Type{Val{(3,1)}}, s::HasDeltaSet3D, args...) = incident(s, args..., :∂t1)
+coface(::Type{Val{(3,2)}}, s::HasDeltaSet3D, args...) = incident(s, args..., :∂t2)
+coface(::Type{Val{(3,3)}}, s::HasDeltaSet3D, args...) = incident(s, args..., :∂t3)
+
+""" Boundary triangles of a tetrahedron.
+"""
+function tetrahedron_triangles(s::HasDeltaSet3D, t...)
+  SVector(∂(3,0,s,t...), ∂(3,1,s,t...), ∂(3,2,s,t...), ∂(3,3,s,t...))
+end
+
+""" Boundary edges of a tetrahedron.
+
+This accessor assumes that the simplicial identities hold.
+"""
+function tetrahedron_edges(s::HasDeltaSet3D, t...)
+  SVector(s[s[t..., :∂t0], :∂e0], # e₀
+          s[s[t..., :∂t0], :∂e1], # e₁
+          s[s[t..., :∂t0], :∂e2], # e₂
+          s[s[t..., :∂t1], :∂e1], # e₃
+          s[s[t..., :∂t1], :∂e2], # e₄
+          s[s[t..., :∂t2], :∂e2]) # e₅
+end
+
+""" Boundary vertices of a tetrahedron.
+
+This accessor assumes that the simplicial identities hold.
+"""
+function tetrahedron_vertices(s::HasDeltaSet3D, t...)
+  SVector(s[s[s[t..., :∂t2], :∂e2], :∂v1], # v₀
+          s[s[s[t..., :∂t2], :∂e2], :∂v0], # v₁
+          s[s[s[t..., :∂t0], :∂e0], :∂v1], # v₂
+          s[s[s[t..., :∂t0], :∂e0], :∂v0]) # v₃
+end
+
+""" Add a tetrahedron (3-simplex) to a simplicial set, given its boundary triangles.
+
+!!! warning
+
+    This low-level function does not check the simplicial identities. It is your
+    responsibility to ensure they are satisfied. By contrast, tetrahedra added
+    using the function [`glue_tetrahedron!`](@ref) always satisfy the simplicial
+    identities, by construction. Thus it is often easier to use this function.
+"""
+add_tetrahedron!(s::HasDeltaSet3D, tri0::Int, tri1::Int, tri2::Int, tri3::Int; kw...) =
+  add_part!(s, :Tet; ∂t0=tri0, ∂t1=tri1, ∂t2=tri2, ∂t3=tri3, kw...)
+
+""" Glue a tetrahedron onto a simplicial set, given its boundary vertices.
+
+If a needed triangle between two vertices exists, it is reused (hence the "gluing");
+otherwise, it is created. Necessary 1-simplices are likewise glued.
+"""
+function glue_tetrahedron!(s::HasDeltaSet3D, v₀::Int, v₁::Int, v₂::Int, v₃::Int; kw...)
+  # Note: There is a redundancy here in that the e.g. the first get_triangle!
+  # guarantees that certain edges are already added, so some later calls to
+  # get_edge! inside the following calls to get_triangle! don't actually need to
+  # search using the edges() function for whether they have been added.
+  add_tetrahedron!(s,
+    get_triangle!(s, v₁, v₂, v₃), # t₀
+    get_triangle!(s, v₀, v₂, v₃), # t₁
+    get_triangle!(s, v₀, v₁, v₃), # t₂
+    get_triangle!(s, v₀, v₁, v₂); # t₃
+    kw...)
+end
+
+function get_triangle!(s::HasDeltaSet2D, v₀::Int, v₁::Int, v₂::Int)
+  ts = triangles(s, v₀, v₁, v₂)
+  isempty(ts) ? glue_triangle!(s, v₀, v₁, v₂) : first(ts)
+end
+
+""" Glue a tetrahedron onto a simplicial set, respecting the order of the vertices.
+"""
+function glue_sorted_tetrahedron!(s::HasDeltaSet3D, v₀::Int, v₁::Int, v₂::Int, v₃::Int; kw...)
+  v₀, v₁, v₂, v₃ = sort(SVector(v₀, v₁, v₂, v₃))
+  glue_tetrahedron!(s, v₀, v₁, v₂, v₃; kw...)
+end
+
+""" Glue a tetrahedralized cube onto a simplicial set, respecting the order of the vertices.
+
+After sorting, the faces of the cube are:
+1 5-4 0,
+1 2-6 5,
+1 2-3 0,
+7 4-0 3,
+7 3-2 6,
+7 6-5 4,
+For each face, the diagonal edge is between those vertices connected by a dash.
+The internal diagonal is between vertices 1 and 7.
+"""
+function glue_sorted_tet_cube!(s::HasDeltaSet3D, v₀::Int, v₁::Int, v₂::Int,
+  v₃::Int, v₄::Int, v₅::Int, v₆::Int, v₇::Int; kw...)
+  v₀, v₁, v₂, v₃, v₄, v₅, v₆, v₇ = sort(SVector(v₀, v₁, v₂, v₃, v₄, v₅, v₆, v₇))
+  glue_tetrahedron!(s, v₀, v₁, v₃, v₇; kw...),
+  glue_tetrahedron!(s, v₁, v₂, v₃, v₇; kw...),
+  glue_tetrahedron!(s, v₀, v₁, v₄, v₇; kw...),
+  glue_tetrahedron!(s, v₁, v₂, v₆, v₇; kw...),
+  glue_tetrahedron!(s, v₁, v₄, v₅, v₇; kw...),
+  glue_tetrahedron!(s, v₁, v₅, v₆, v₇; kw...)
+end
+
+# 3D oriented simplicial sets
+#----------------------------
+
+@present SchOrientedDeltaSet3D <: SchDeltaSet3D begin
+  Orientation::AttrType
+  edge_orientation::Attr(E,Orientation)
+  tri_orientation::Attr(Tri,Orientation)
+  tet_orientation::Attr(Tet,Orientation)
+end
+
+""" A three-dimensional oriented delta set.
+"""
+@acset_type OrientedDeltaSet3D(SchOrientedDeltaSet3D,
+                               index=[:∂v0,:∂v1,:∂e0,:∂e1,:∂e2,:∂t0,:∂t1,:∂t2,:∂t3]) <: AbstractDeltaSet3D
+
+orientation(::Type{Val{3}}, s::HasDeltaSet3D, args...) =
+  s[args..., :tet_orientation]
+set_orientation!(::Type{Val{3}}, s::HasDeltaSet3D, t, orientation) =
+  (s[t, :tet_orientation] = orientation)
+
+function ∂_nz(::Type{Val{3}}, s::HasDeltaSet3D, tet::Int)
+  tris = tetrahedron_triangles(s, tet)
+  (tris, sign(3,s,tet) * sign(2,s,tris) .* @SVector([1,-1,1,-1]))
+end
+
+function d_nz(::Type{Val{2}}, s::HasDeltaSet3D, tri::Int)
+  t₀, t₁, t₂, t₃ = map(x -> coface(3,x,s,tri), 0:3)
+  sgn = sign(2, s, tri)
+  (lazy(vcat, t₀, t₁, t₂, t₃),
+   lazy(vcat,
+     sgn*sign(3,s,t₀), -sgn*sign(3,s,t₁), sgn*sign(3,s,t₂), -sgn*sign(3,s,t₃)))
+end
+
+# 3D embedded simplicial sets
+#----------------------------
+
+@present SchEmbeddedDeltaSet3D <: SchOrientedDeltaSet3D begin
+  Point::AttrType
+  point::Attr(V, Point)
+end
+
+""" A three-dimensional, embedded, oriented delta set.
+"""
+@acset_type EmbeddedDeltaSet3D(SchEmbeddedDeltaSet3D,
+                               index=[:∂v0,:∂v1,:∂e0,:∂e1,:∂e2,:∂t0,:∂t1,:∂t2,:∂t3]) <: AbstractDeltaSet3D
+
+volume(::Type{Val{n}}, s::EmbeddedDeltaSet3D, x) where n =
+  volume(Val{n}, s, x, CayleyMengerDet())
+volume(::Type{Val{3}}, s::HasDeltaSet3D, t::Int, ::CayleyMengerDet) =
+  volume(point(s, tetrahedron_vertices(s,t)))
+
 # General operators
 ###################
 
@@ -359,6 +597,10 @@ const E = Simplex{1}
 """
 const Tri = Simplex{2}
 
+""" Tetrahedron in simplicial set: alias for `Simplex{3}`.
+"""
+const Tet = Simplex{3}
+
 """ Wrapper for chain of oriented simplices of dimension `n`.
 """
 @vector_struct SimplexChain{n}
@@ -366,6 +608,7 @@ const Tri = Simplex{2}
 const VChain = SimplexChain{0}
 const EChain = SimplexChain{1}
 const TriChain = SimplexChain{2}
+const TetChain = SimplexChain{3}
 
 """ Wrapper for discrete form, aka cochain, in simplicial set.
 """
@@ -374,6 +617,7 @@ const TriChain = SimplexChain{2}
 const VForm = SimplexForm{0}
 const EForm = SimplexForm{1}
 const TriForm = SimplexForm{2}
+const TetForm = SimplexForm{3}
 
 """ Simplices of given dimension in a simplicial set.
 """
@@ -492,6 +736,7 @@ function [`orient_component!`](@ref).
 """
 orient!(s::AbstractDeltaSet1D) = orient!(s, E)
 orient!(s::AbstractDeltaSet2D) = orient!(s, Tri)
+orient!(s::AbstractDeltaSet3D) = orient!(s, Tet)
 
 function orient!(s::HasDeltaSet, ::Type{Simplex{n}}) where n
   # Compute connected components as coequalizer of face maps.
@@ -529,6 +774,8 @@ orient_component!(s::AbstractDeltaSet1D, e::Int, args...) =
   orient_component!(s, E(e), args...)
 orient_component!(s::AbstractDeltaSet2D, t::Int, args...) =
   orient_component!(s, Tri(t), args...)
+orient_component!(s::AbstractDeltaSet3D, t::Int, args...) =
+  orient_component!(s, Tet(t), args...)
 
 function orient_component!(s::HasDeltaSet, x::Simplex{n},
                            x_orientation::Orientation) where {n, Orientation}
@@ -609,5 +856,53 @@ end
 """ Squared Euclidean distance between two points.
 """
 sqdistance(x, y) = sum((x-y).^2)
+
+# Manifold-like
+###############
+
+""" Test whether a given simplicial complex is manifold-like.
+
+According to Hirani, "all simplices of dimension ``k`` with ``0 ≤ k ≤ n - 1`` 
+must be the face of some simplex of dimension ``n`` in the complex." This 
+function does not test that simplices do not overlap. Nor does it test that e.g.
+two triangles that share 2 vertices share an edge. Nor does it test that e.g.
+there is at most one triangle that connects 3 vertices. Nor does it test that
+the delta set consists of a single component.
+"""
+is_manifold_like(s::AbstractDeltaSet1D) = is_manifold_like(s, E)
+is_manifold_like(s::AbstractDeltaSet2D) = is_manifold_like(s, Tri)
+is_manifold_like(s::AbstractDeltaSet3D) = is_manifold_like(s, Tet)
+
+function is_manifold_like(s::HasDeltaSet, ::Type{Simplex{n}}) where n
+  # The yth k-simplex c is not a face of an (k+1)-simplex if the yth column of
+  # the exterior derivative matrix is all zeros.
+  foreach(0:n-1) do k
+    any(iszero, eachcol(d(k,s))) && return false
+  end
+  true
+end
+
+""" Find the simplices which are not a face of another.
+
+For an n-D oriented delta set, return a vector of 0 through n-1 chains
+consisting of the simplices that are not the face of another. Note that since
+n-simplices in an n-D oriented delta set are never the face of an (n+1)-simplex,
+these are excluded.
+
+We choose the term "nonboundaries" so as not to be confused with the term
+"nonface", defined as those faces that are not in a simplical complex, whose
+corresponding monomials are the basis of the Stanley-Reisner ideal.
+"""
+nonboundaries(s::AbstractDeltaSet1D) = nonboundaries(s, E)
+nonboundaries(s::AbstractDeltaSet2D) = nonboundaries(s, Tri)
+nonboundaries(s::AbstractDeltaSet3D) = nonboundaries(s, Tet)
+
+function nonboundaries(s::HasDeltaSet, ::Type{Simplex{n}}) where n
+  # The yth k-simplex c is not a face of an (k+1)-simplex if the yth column of
+  # the exterior derivative matrix is all zeros.
+  map(0:n-1) do k
+    SimplexChain{k}(findall(iszero, eachcol(d(k,s))))
+  end
+end
 
 end
