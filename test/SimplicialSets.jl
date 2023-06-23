@@ -221,6 +221,25 @@ for t in tetrahedra(s)
   @test tetrahedron_to_edges_to_vertices(s,t) == tetrahedron_vertices(s,t)
 end
 
+# Tetrahedralized cube via helper function.
+s′ = DeltaSet3D()
+add_vertices!(s′, 8)
+glue_sorted_tet_cube!(s′, 1:8...)
+@test s == s′
+
+add_vertices!(s′, 4)
+# Glue along the face of the cube with vertices 5,6,7,8.
+glue_sorted_tet_cube!(s′, 5:12...)
+@test is_semi_simplicial(s′, 3)
+@test ntetrahedra(s′) == 2*ntetrahedra(s)
+# There are 2 triangles, 5 edges, and 4 vertices on the shared cube face.
+@test ntriangles(s′) == 2*ntriangles(s) - 2
+@test ne(s′) == 2*ne(s) - 5
+@test nv(s′) == 2*nv(s) - 4
+for t in tetrahedra(s′)
+  @test tetrahedron_to_edges_to_vertices(s′,t) == tetrahedron_vertices(s′,t)
+end
+
 # 3D oriented simplicial sets
 #----------------------------
 
@@ -256,6 +275,19 @@ s[:tri_orientation] = true
 @test d(2, s) == ∂(3, s)'
 @test d(1, s) * d(0, s) * vertices(s) == zeros(ntriangles(s))
 @test d(2, s) * d(1, s) * edges(s) == zeros(ntetrahedra(s))
+
+# Tetrahedralized cube with orientation.
+s = OrientedDeltaSet3D{Bool}()
+add_vertices!(s, 8)
+glue_sorted_tet_cube!(s, 1:8..., tet_orientation=true)
+add_vertices!(s, 4)
+glue_sorted_tet_cube!(s, 5:12..., tet_orientation=false)
+# Test that the kw args passed correctly:
+@test s[:tet_orientation] == [fill(true,6)..., fill(false,6)...]
+s[:edge_orientation] = false
+s[:tri_orientation] = false
+@test orient!(s)
+@test is_manifold_like(s)
 
 # 3D embedded simplicial sets
 #----------------------------
@@ -370,6 +402,20 @@ for i in 1:3
 end
 @test d(1, s) * d(0, s) * vertices(s) == zeros(ntriangles(s))
 @test d(2, s) * d(1, s) * edges(s) == zeros(ntetrahedra(s))
+
+# Stacked tetrahedralized cubes each of volume 8.
+s = EmbeddedDeltaSet3D{Bool,Point3D}()
+add_vertices!(s, 8, point=[
+  Point3D(-1,1,1), Point3D(1,1,1), Point3D(1,-1,1), Point3D(-1,-1,1),
+  Point3D(-1,1,-1), Point3D(1,1,-1), Point3D(1,-1,-1), Point3D(-1,-1,-1)])
+glue_sorted_tet_cube!(s, 1:8...)
+add_vertices!(s, 4, point=[
+  Point3D(-1,1,-3), Point3D(1,1,-3), Point3D(1,-1,-3), Point3D(-1,-1,-3)])
+glue_sorted_tet_cube!(s, 5:12...)
+for t in tetrahedra(s)
+  @test volume(s, Tet(t)) ≈ 8/6
+end
+@test sum([volume(s, Tet(t)) for t in tetrahedra(s)]) == 8*2
 
 # Euclidean geometry
 ####################

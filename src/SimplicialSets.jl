@@ -34,7 +34,7 @@ export Simplex, V, E, Tri, Tet, SimplexChain, VChain, EChain, TriChain, TetChain
   add_triangle!, glue_triangle!, glue_sorted_triangle!,
   tetrahedron_triangles, tetrahedron_edges, tetrahedron_vertices, ntetrahedra,
   tetrahedra, add_tetrahedron!, glue_tetrahedron!, glue_sorted_tetrahedron!,
-  is_manifold_like, nonboundaries
+  is_manifold_like, nonboundaries, glue_sorted_tet_cube!
 
 using LinearAlgebra: det
 using SparseArrays
@@ -500,6 +500,29 @@ end
 function glue_sorted_tetrahedron!(s::HasDeltaSet3D, v₀::Int, v₁::Int, v₂::Int, v₃::Int; kw...)
   v₀, v₁, v₂, v₃ = sort(SVector(v₀, v₁, v₂, v₃))
   glue_tetrahedron!(s, v₀, v₁, v₂, v₃; kw...)
+end
+
+""" Glue a tetrahedralized cube onto a simplicial set, respecting the order of the vertices.
+
+After sorting, the faces of the cube are:
+1 5-4 0,
+1 2-6 5,
+1 2-3 0,
+7 4-0 3,
+7 3-2 6,
+7 6-5 4,
+For each face, the diagonal edge is between those vertices connected by a dash.
+The internal diagonal is between vertices 1 and 7.
+"""
+function glue_sorted_tet_cube!(s::HasDeltaSet3D, v₀::Int, v₁::Int, v₂::Int,
+  v₃::Int, v₄::Int, v₅::Int, v₆::Int, v₇::Int; kw...)
+  v₀, v₁, v₂, v₃, v₄, v₅, v₆, v₇ = sort(SVector(v₀, v₁, v₂, v₃, v₄, v₅, v₆, v₇))
+  glue_tetrahedron!(s, v₀, v₁, v₃, v₇; kw...),
+  glue_tetrahedron!(s, v₁, v₂, v₃, v₇; kw...),
+  glue_tetrahedron!(s, v₀, v₁, v₄, v₇; kw...),
+  glue_tetrahedron!(s, v₁, v₂, v₆, v₇; kw...),
+  glue_tetrahedron!(s, v₁, v₄, v₅, v₇; kw...),
+  glue_tetrahedron!(s, v₁, v₅, v₆, v₇; kw...)
 end
 
 # 3D oriented simplicial sets
