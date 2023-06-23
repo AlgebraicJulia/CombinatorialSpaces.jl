@@ -496,4 +496,61 @@ p1, p2, p3 = Point3D(1,0,0), Point3D(0,1,0), Point3D(0,0,1)
 p1, p2, p3, p4 = SVector(1,0,0,0), SVector(0,1,0,0), SVector(0,0,1,0), SVector(0,0,0,1)
 @test volume([p1, p2, p3, p4]) ≈ std_simplex_volume(3)
 
+# Topological helper functions
+##############################
+
+# §62 Example 1 Figure 62.1 from Munkres 1984:
+s = DeltaSet2D()
+# 6 adjacent triangles forming a hexagon, with a stand-alone edge at the center.
+g, h = 7, 8
+add_vertices!(s, 8)
+foreach(1:5, 2:6) do x,y
+  glue_sorted_triangle!(s, g,x,y)
+end
+glue_sorted_triangle!(s, g,6,1)
+add_sorted_edge!(s, g,h)
+
+Stg = star(s, g)
+@test issetequal(Stg[1], [g])
+@test issetequal(Stg[2], union(coface(1,0,s,g), union(coface(1,1,s,g))))
+@test issetequal(Stg[3], triangles(s))
+
+St̄g = closed_star(s, g)
+@test issetequal(St̄g[1], vertices(s))
+@test issetequal(St̄g[2], edges(s))
+@test issetequal(St̄g[3], triangles(s))
+
+# "The link of the vertex g consists of the hexagon ... and the vertex h."
+Lkg = link(s, g)
+@test issetequal(Lkg[1], [1,2,3,4,5,6, 8])
+@test issetequal(Lkg[2], setdiff(St̄g[2], Stg[2]))
+@test isempty(Lkg[3])
+
+# "The link of the vertex h is the vertex g."
+Lkh = link(s, h)
+@test issetequal(Lkh[1], [g])
+@test isempty(Lkh[2])
+@test isempty(Lkh[3])
+
+# §62 Example 1 Figure 62.2 from Munkres 1984:
+s = DeltaSet3D()
+# 5 adjacent tetrahedra forming a pentagonal bipyramid.
+add_vertices!(s, 7)
+foreach(1:4, 2:5) do x,y
+  glue_sorted_tetrahedron!(s, 6,7, x,y)
+end
+glue_sorted_tetrahedron!(s, 6,7, 5,1)
+
+# "The link of the vertex a is the union of the 2-simplices bfg and efg."
+# bfg=[267], efg=[567]
+@test link(s,1)[3] == [1, 11]
+
+# "The link of the vertex f is the cone: abcdea * g
+Lkf = link(s,6)
+es = union(∂(0, s, Tri(Lkf[3])), ∂(1, s, Tri(Lkf[3])), ∂(2, s, Tri(Lkf[3])))
+vs = union(∂(0, s, E(es)), ∂(1, s, E(es)))
+@test Set(es) == Set(Lkf[2])
+@test Set(vs) == Set(Lkf[1])
+@test Set(Lkf[1]) == Set([1,2,3,4,5,7])
+
 end

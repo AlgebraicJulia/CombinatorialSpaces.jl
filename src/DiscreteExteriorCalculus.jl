@@ -18,15 +18,16 @@ export DualSimplex, DualV, DualE, DualTri, DualChain, DualForm,
   SimplexCenter, Barycenter, Circumcenter, Incenter, geometric_center,
   subsimplices, primal_vertex, elementary_duals, dual_boundary, dual_derivative,
   ⋆, hodge_star, inv_hodge_star, δ, codifferential, ∇², laplace_beltrami, Δ, laplace_de_rham,
-  ♭, flat, ♯, sharp, ∧, wedge_product, interior_product, interior_product_flat,
+  ♭, flat, ♭_mat, ♯, sharp, ∧, wedge_product, interior_product, interior_product_flat,
   ℒ, lie_derivative, lie_derivative_flat,
   vertex_center, edge_center, triangle_center, dual_triangle_vertices,
-  dual_point, dual_volume, subdivide_duals!, DiagonalHodge, GeometricHodge
+  dual_point, dual_volume, subdivide_duals!, DiagonalHodge, GeometricHodge,
+  subdivide!
 
 import Base: ndims
 using LinearAlgebra: Diagonal, dot, norm, cross
 using SparseArrays
-using StaticArrays: @SVector, SVector
+using StaticArrays: @SVector, SVector, SMatrix
 
 using ACSets.DenseACSets: attrtype_type
 using Catlab, Catlab.CategoricalAlgebra.CSets
@@ -48,6 +49,57 @@ struct PPSharp <: DiscreteSharp end
 abstract type DiscreteHodge end
 struct GeometricHodge <: DiscreteHodge end
 struct DiagonalHodge  <: DiscreteHodge end
+
+# Euclidean geometry
+####################
+
+""" A notion of "geometric center" of a simplex.
+
+See also: [`geometric_center`](@ref).
+"""
+abstract type SimplexCenter end
+
+""" Calculate the center of simplex spanned by given points.
+
+The first argument is a list of points and the second specifies the notion of
+"center", via an instance of [`SimplexCenter`](@ref).
+"""
+function geometric_center end
+
+""" Barycenter, aka centroid, of a simplex.
+"""
+struct Barycenter <: SimplexCenter end
+
+function geometric_center(points, ::Barycenter)
+  sum(points) / length(points)
+end
+
+""" Circumcenter, or center of circumscribed circle, of a simplex.
+
+The circumcenter is calculated by inverting the Cayley-Menger matrix, as
+explained by
+[Westdendorp](https://westy31.home.xs4all.nl/Circumsphere/ncircumsphere.htm).
+This method of calculation is also used in the package
+[AlphaShapes.jl](https://github.com/harveydevereux/AlphaShapes.jl).
+"""
+struct Circumcenter <: SimplexCenter end
+
+function geometric_center(points, ::Circumcenter)
+  CM = cayley_menger(points...)
+  barycentric_coords = inv(CM)[1,2:end]
+  mapreduce(*, +, barycentric_coords, points)
+end
+
+""" Incenter, or center of inscribed circle, of a simplex.
+"""
+struct Incenter <: SimplexCenter end
+
+function geometric_center(points, ::Incenter)
+  length(points) > 2 || return geometric_center(points, Barycenter())
+  face_volumes = map(i -> volume(deleteat(points, i)), eachindex(points))
+  barycentric_coords = face_volumes / sum(face_volumes)
+  mapreduce(*, +, barycentric_coords, points)
+end
 
 # 1D dual complex
 #################
@@ -355,6 +407,82 @@ function (::Type{S})(t::AbstractDeltaSet2D) where S <: AbstractDeltaDualComplex2
   return s
 end
 
+# TODO: Instead of copying-and-pasting:
+# - Use metaprogramming, or
+# - Don't use the migration DSL, but rather the lower-level functor interface.
+# TODO: Add some @test_broken's until the attrMigr branch is merged into Catlab.
+""" Perform barycentric subdivision on the given simplicial complex.
+"""
+function subdivide!(s::HasDeltaSet1D)
+  @migrate typeof(s) s begin
+    V => @cases begin
+      v::V
+      e::E
+    end
+    E => @cases begin
+      e₁::E
+      e₂::E
+    end
+    ∂v1 => begin
+      e₁ => e
+      e₂ => e
+    end
+    ∂v0 => begin
+      e₁ => (v∘∂v1)
+      e₂ => (v∘∂v0)
+    end
+  end
+end
+function subdivide!(s::OrientedDeltaSet1D{T}) where T
+  @migrate typeof(s) s begin
+    V => @cases begin
+      v::V
+      e::E
+    end
+    E => @cases begin
+      e₁::E
+      e₂::E
+    end
+    ∂v1 => begin
+      e₁ => e
+      e₂ => e
+    end
+    ∂v0 => begin
+      e₁ => (v∘∂v1)
+      e₂ => (v∘∂v0)
+    end
+    Orientation => Orientation
+    # TODO: One of these edge orientations must be flipped. (e₂?)
+    edge_orientation => (e₁ => edge_orientation; e₂ => edge_orientation)
+  end
+end
+function subdivide!(s::EmbeddedDeltaSet1D{T,U}, alg::SimplexCenter) where {T,U}
+  @migrate typeof(s) s begin
+    V => @cases begin
+      v::V
+      e::E
+    end
+    E => @cases begin
+      e₁::E
+      e₂::E
+    end
+    ∂v1 => begin
+      e₁ => e
+      e₂ => e
+    end
+    ∂v0 => begin
+      e₁ => (v∘∂v1)
+      e₂ => (v∘∂v0)
+    end
+    Orientation => Orientation
+    # TODO: One of these edge orientations must be flipped. (e₂?)
+    edge_orientation => (e₁ => edge_orientation; e₂ => edge_orientation)
+    # TODO: Assign the new point the geometric_center of the previous.
+    #Point => Point
+    #point => ...
+  end
+end
+
 make_dual_simplices_1d!(s::AbstractDeltaDualComplex2D) = make_dual_simplices_1d!(s, Tri)
 
 make_dual_simplices_2d!(s::AbstractDeltaDualComplex2D) = make_dual_simplices_2d!(s, Tri)
@@ -473,17 +601,75 @@ function ♭(s::AbstractDeltaDualComplex2D, X::AbstractVector, ::DPPFlat)
   # happens to be inconvenient.
   tri_map = Dict{Int,Int}(triangle_center(s,t) => t for t in triangles(s))
 
+  # For each primal edge:
   map(edges(s)) do e
+    # Get the vector from src to tgt (oriented correctly).
     e_vec = (point(s, tgt(s,e)) - point(s, src(s,e))) * sign(1,s,e)
+    # Grab all the dual edges of this primal edge.
     dual_edges = elementary_duals(1,s,e)
+    # And the corresponding lengths.
     dual_lengths = dual_volume(1, s, dual_edges)
+    # For each of these dual edges:
     mapreduce(+, dual_edges, dual_lengths) do dual_e, dual_length
+      # Get the vector at the center of the triangle this edge is pointing at.
       X_vec = X[tri_map[s[dual_e, :D_∂v0]]]
+      # Take their dot product and multiply by the length of this dual edge.
       dual_length * dot(X_vec, e_vec)
+      # When done, sum these weights up and divide by the total length.
     end / sum(dual_lengths)
   end
 end
 
+# TODO: ♭_mat's output multipled by a vector of SVectors returns a vector 
+# of length 1 SVectors.
+function ♭_mat(s::AbstractDeltaDualComplex2D)
+  ♭_mat(s, ∂(2,s))
+end
+
+function ♭_mat(s::AbstractDeltaDualComplex2D, p2s)
+  mat_type = SMatrix{1, length(eltype(s[:point])), eltype(eltype(s[:point])), length(eltype(s[:point]))}
+  ♭_mat = spzeros(mat_type, ne(s), ntriangles(s))
+  for e in edges(s)
+    # The triangles associated with this primal edge.
+    tris = p2s[e,:].nzind
+    # The vector associated with this primal edge.
+    e_vec = (point(s, tgt(s,e)) - point(s, src(s,e))) * sign(1,s,e)
+    # The dual vertex at the center of this primal edge.
+    center = edge_center(s, e)
+    # The centers of the triangles associated with this primal edge.
+    dvs = triangle_center(s, tris)
+    # The dual edge pointing to each triangle.
+    des = map(dvs) do dv
+      # (This is the edges(s,src,tgt) function.)
+      only(de for de in incident(s, dv, :D_∂v0) if s[de, :D_∂v1] == center)
+    end
+    # The lengths of those dual edges.
+    dels = volume(s, DualE(des))
+    # The sum of the lengths of the dual edges at each primal edge.
+    dels_sum = sum(dels)
+    # The index in the DualVectorField vector corresponding to each triangle.
+    # Note that :tri_center is not indexed by any of the ACSet Types.
+    dvf_idxs = only.(incident(s, dvs, :tri_center))
+
+    for (dvf_idx, del) in zip(dvf_idxs, dels)
+      ♭_mat[e, dvf_idx] = del * mat_type(e_vec) / dels_sum
+    end
+
+    # TODO: Instead of indexing with dvf_idxs here, perhaps we use Tri indices
+    # as the column indices  in this inner loop, and simply shift columns around
+    # as a post-processing step. If this works, this side-steps the issue of
+    # tri_center not being indexed. i.e.:
+    # In the inner loop:
+    # ♭_mat[e, tri] = del * mat_type(e_vec) / dels_sum
+    # Just before returing:
+    # tri_centers = triangle_center(s,triangles(s))
+    # return ♭_mat[:, tri_centers .- minimum(tri_centers) .+ 1]
+    # This exploits the fact that Tri is always ordered 1:ntriangles(s).
+  end
+  ♭_mat
+end
+
+# TODO: Take in a metric? e.g. [1 0; 0 sin²θ]
 function ♯(s::AbstractDeltaDualComplex2D, α::AbstractVector, ::PPSharp)
   α♯ = zeros(attrtype_type(s, :Point), nv(s))
   for t in triangles(s)
@@ -1095,57 +1281,6 @@ end
 function lie_derivative_flat(::Type{Val{2}}, s::HasDeltaSet,
                              X♭::AbstractVector, α::AbstractVector; kw...)
   dual_derivative(1, s, interior_product_flat(2, s, X♭, α; kw...))
-end
-
-# Euclidean geometry
-####################
-
-""" A notion of "geometric center" of a simplex.
-
-See also: [`geometric_center`](@ref).
-"""
-abstract type SimplexCenter end
-
-""" Calculate the center of simplex spanned by given points.
-
-The first argument is a list of points and the second specifies the notion of
-"center", via an instance of [`SimplexCenter`](@ref).
-"""
-function geometric_center end
-
-""" Barycenter, aka centroid, of a simplex.
-"""
-struct Barycenter <: SimplexCenter end
-
-function geometric_center(points, ::Barycenter)
-  sum(points) / length(points)
-end
-
-""" Circumcenter, or center of circumscribed circle, of a simplex.
-
-The circumcenter is calculated by inverting the Cayley-Menger matrix, as
-explained by
-[Westdendorp](https://westy31.home.xs4all.nl/Circumsphere/ncircumsphere.htm).
-This method of calculation is also used in the package
-[AlphaShapes.jl](https://github.com/harveydevereux/AlphaShapes.jl).
-"""
-struct Circumcenter <: SimplexCenter end
-
-function geometric_center(points, ::Circumcenter)
-  CM = cayley_menger(points...)
-  barycentric_coords = inv(CM)[1,2:end]
-  mapreduce(*, +, barycentric_coords, points)
-end
-
-""" Incenter, or center of inscribed circle, of a simplex.
-"""
-struct Incenter <: SimplexCenter end
-
-function geometric_center(points, ::Incenter)
-  length(points) > 2 || return geometric_center(points, Barycenter())
-  face_volumes = map(i -> volume(deleteat(points, i)), eachindex(points))
-  barycentric_coords = face_volumes / sum(face_volumes)
-  mapreduce(*, +, barycentric_coords, points)
 end
 
 end

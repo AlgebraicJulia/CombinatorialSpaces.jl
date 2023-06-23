@@ -1,7 +1,7 @@
 module TestDiscreteExteriorCalculus
 using Test
 
-using LinearAlgebra: Diagonal
+using LinearAlgebra: Diagonal, mul!
 using SparseArrays, StaticArrays
 
 using Catlab.CategoricalAlgebra.CSets
@@ -163,6 +163,46 @@ end
 # 2D embedded dual complex
 #-------------------------
 
+# Triangulated hexagon in ℝ³,
+# from Hirani §5.5 Figure 5.5, showing ♭ᵈᵖᵖ(X) to be 0 for a non-trivial X.
+primal_s = EmbeddedDeltaSet2D{Bool,Point3D}()
+unit_vector(θ) = cos(θ), sin(θ), 0
+hexagon_exterior_points = map(Point3D∘unit_vector, (pi/6):(pi/3):(2pi))
+add_vertices!(primal_s, 7, point=[hexagon_exterior_points..., Point3D(0, 0, 0)])
+foreach(1:5) do x
+  glue_sorted_triangle!(primal_s, 7, x, x+1)
+end
+glue_sorted_triangle!(primal_s, 7, 6, 1)
+s = EmbeddedDeltaDualComplex2D{Bool,Float64,Point3D}(primal_s)
+subdivide_duals!(s, Circumcenter())
+X = map([8,4,0,8,4,0]) do i
+  SVector(unit_vector(i*(2pi/12)))
+end
+@test all(♭(s, DualVectorField(X))) do i
+  isapprox(i, 0.0; atol=1e-15)
+end
+♭_m = ♭_mat(s)
+@test all(reinterpret(Float64, ♭_m * X)) do i
+  isapprox(i, 0.0; atol=1e-15)
+end
+# Half of Proposition 5.5.3: ♭ᵈᵖᵖ is not injective:
+@test all(map(♭_m * X, ♭_m * 2X) do x♭, x2♭
+  isapprox(x♭, x2♭; atol=1e-15)
+end)
+
+#using Random
+#Random.seed!(1)
+#Y = map(1:6) do i
+#  10 .* SVector(randn(), randn(), randn())
+#end
+Y = SVector{3, Float64}[[-0.7058313895389791, 5.314767537831963, -8.06852326006714], [24.56991333983293, 11.648740735275195, 2.6756441862888507], [17.499336925282453, -8.260207919192975, -10.427524178910968], [-3.291338458564041, -4.822519154091156, 11.822427034001585], [4.806914145449797, -0.025581805543075972, 14.346125517139171], [5.320444346188966, 2.4384867352385236, 0.20245933893191853]]
+Y♭ = zeros(SVector{1, Float64}, ne(s))
+mul!(Y♭, ♭_m, Y)
+Y♭_floats = reinterpret(Float64, Y♭)
+@test all(map(♭(s, DualVectorField(Y)), Y♭_floats) do orig, new
+  isapprox(orig, new; atol=20*eps(Float64))
+end)
+
 # Single triangle: numerical example from Gillette's notes on DEC, §2.13.
 #
 # Compared with Gillette, edges #2 and #3 are swapped in the ordering, which
@@ -268,12 +308,17 @@ glue_triangle!(primal_s, 1, 3, 4, tri_orientation=true)
 primal_s[:edge_orientation] = true
 s = EmbeddedDeltaDualComplex2D{Bool,Float64,Point2D}(primal_s)
 subdivide_duals!(s, Barycenter())
+♭_m = ♭_mat(s)
 
-x̂, ŷ, zero = @SVector([1,0]), @SVector([0,1]), @SVector([0,0])
+x̂, ŷ, ẑ = @SVector([1,0]), @SVector([0,1]), @SVector([0,0])
 @test ♭(s, DualVectorField([x̂, -x̂])) ≈ EForm([2,0,0,2,0])
 @test ♭(s, DualVectorField([ŷ, -ŷ])) ≈ EForm([0,-2,0,0,2])
 @test ♭(s, DualVectorField([(x̂-ŷ)/√2, (x̂-ŷ)/√2]))[3] ≈ 2*√2
-@test ♭(s, DualVectorField([(x̂-ŷ)/√2, zero]))[3] ≈ √2
+@test ♭(s, DualVectorField([(x̂-ŷ)/√2, ẑ]))[3] ≈ √2
+@test reinterpret(Float64, ♭_m * [x̂, -x̂]) ≈ EForm([2,0,0,2,0])
+@test reinterpret(Float64, ♭_m * [ŷ, -ŷ]) ≈ EForm([0,-2,0,0,2])
+@test reinterpret(Float64, ♭_m * [(x̂-ŷ)/√2, (x̂-ŷ)/√2])[3] ≈ 2*√2
+@test reinterpret(Float64, ♭_m * [(x̂-ŷ)/√2, ẑ])[3] ≈ √2
 X = ♯(s, EForm([2,0,0,2,0]))::PrimalVectorField
 @test X[2][1] > 0 && X[4][1] < 0
 X = ♯(s, EForm([0,-2,0,0,2]))
