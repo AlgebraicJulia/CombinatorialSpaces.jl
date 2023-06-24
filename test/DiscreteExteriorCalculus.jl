@@ -370,4 +370,23 @@ subdivide_duals!(s, Barycenter())
 @test isapprox(Δ(2, s), reshape([-24.0], (1,1)), atol=1e-3)
 @test isapprox(Δ(2, s; hodge=DiagonalHodge()), reshape([-24.0], (1,1)), atol=1e-3)
 
+# A triangulated quadrilateral where edges are all of distinct length,
+# for testing the correct weighting of averages in ♭ᵈᵖᵖ.
+primal_s = EmbeddedDeltaSet2D{Bool,Point2D}()
+add_vertices!(primal_s, 4, point=[Point2D(0,0), Point2D(1,0), Point2D(0,2), Point2D(-2,5)])
+glue_triangle!(primal_s, 1, 2, 3)
+glue_triangle!(primal_s, 1, 3, 4)
+s = EmbeddedDeltaDualComplex2D{Bool,Float64,Point2D}(primal_s)
+subdivide_duals!(s, Barycenter())
+X = [SVector(2,3), SVector(5,7)]
+♭_m = ♭_mat(s)
+X♭ = zeros(ne(s))
+mul!(X♭, ♭_m,  DualVectorField(X))
+@test all(map(♭(s, DualVectorField(X)), X♭) do orig, new
+  isapprox(orig, new; atol=20*eps(Float64))
+end)
+@test all(map(♭(s, DualVectorField(X)), ♭_m * DualVectorField(X)) do orig, new
+  isapprox(orig, new; atol=20*eps(Float64))
+end)
+
 end

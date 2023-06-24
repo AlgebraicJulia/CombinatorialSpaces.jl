@@ -25,6 +25,8 @@ export DualSimplex, DualV, DualE, DualTri, DualChain, DualForm,
   subdivide!
 
 import Base: ndims
+import Base: *
+import LinearAlgebra: mul!
 using LinearAlgebra: Diagonal, dot, norm, cross
 using SparseArrays
 using StaticArrays: @SVector, SVector, SMatrix
@@ -601,6 +603,7 @@ function ♭(s::AbstractDeltaDualComplex2D, X::AbstractVector, ::DPPFlat)
   # happens to be inconvenient.
   tri_map = Dict{Int,Int}(triangle_center(s,t) => t for t in triangles(s))
 
+  # TODO: Remove these comments before merging.
   # For each primal edge:
   map(edges(s)) do e
     # Get the vector from src to tgt (oriented correctly).
@@ -620,8 +623,6 @@ function ♭(s::AbstractDeltaDualComplex2D, X::AbstractVector, ::DPPFlat)
   end
 end
 
-# TODO: ♭_mat's output multipled by a vector of SVectors returns a vector 
-# of length 1 SVectors.
 function ♭_mat(s::AbstractDeltaDualComplex2D)
   ♭_mat(s, ∂(2,s))
 end
@@ -656,7 +657,7 @@ function ♭_mat(s::AbstractDeltaDualComplex2D, p2s)
     end
 
     # TODO: Instead of indexing with dvf_idxs here, perhaps we use Tri indices
-    # as the column indices  in this inner loop, and simply shift columns around
+    # as the column indices in this inner loop, and simply shift columns around
     # as a post-processing step. If this works, this side-steps the issue of
     # tri_center not being indexed. i.e.:
     # In the inner loop:
@@ -784,6 +785,36 @@ this correspondence, a basis for primal ``n``-chains defines the basis for dual
 """ Wrapper for vector field on dual vertices.
 """
 @vector_struct DualVectorField
+
+# When the user wraps a vector of SVectors in DualVectorField(), automatically
+# reinterpret the result of multiplication from a vector of length 1 SVectors
+# to a vector of floats.
+function *(A::AbstractMatrix{T}, x::DualVectorField) where T
+  reinterpret(Float64, invoke(*, Tuple{AbstractMatrix{T} where T, AbstractVector{S} where S}, A, x))
+end
+
+function mul!(C::Vector{H}, A::AbstractVecOrMat,
+  B::DualVectorField, α::Number, β::Number) where {H <: Number}
+  size(A, 2) == size(B, 1) || throw(DimensionMismatch())
+  size(A, 1) == size(C, 1) || throw(DimensionMismatch())
+  size(B, 2) == size(C, 2) || throw(DimensionMismatch())
+  nzv = nonzeros(A)
+  rv = rowvals(A)
+  if β != 1
+      #β != 0 ? rmul!(C, β) : fill!(C, zero(eltype(C)))
+      β != 0 ? rmul!(C, β) : fill!(C, zero(H))
+  end
+  for k in 1:size(C, 2)
+      @inbounds for col in 1:size(A, 2)
+          αxj = B[col,k] * α
+          for j in nzrange(A, col)
+              #C[rv[j], k] += nzv[j]*αxj
+              C[rv[j], k] += only(nzv[j]*αxj)
+          end
+      end
+  end
+  C
+end
 
 ndims(s::AbstractDeltaDualComplex1D) = 1
 ndims(s::AbstractDeltaDualComplex2D) = 2
