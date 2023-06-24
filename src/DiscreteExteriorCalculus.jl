@@ -631,10 +631,10 @@ function ♭_mat(s::AbstractDeltaDualComplex2D, p2s)
   mat_type = SMatrix{1, length(eltype(s[:point])), eltype(eltype(s[:point])), length(eltype(s[:point]))}
   ♭_mat = spzeros(mat_type, ne(s), ntriangles(s))
   for e in edges(s)
-    # The triangles associated with this primal edge.
-    tris = p2s[e,:].nzind
     # The vector associated with this primal edge.
     e_vec = (point(s, tgt(s,e)) - point(s, src(s,e))) * sign(1,s,e)
+    # The triangles associated with this primal edge.
+    tris = p2s[e,:].nzind
     # The dual vertex at the center of this primal edge.
     center = edge_center(s, e)
     # The centers of the triangles associated with this primal edge.
@@ -648,24 +648,10 @@ function ♭_mat(s::AbstractDeltaDualComplex2D, p2s)
     dels = volume(s, DualE(des))
     # The sum of the lengths of the dual edges at each primal edge.
     dels_sum = sum(dels)
-    # The index in the DualVectorField vector corresponding to each triangle.
-    # Note that :tri_center is not indexed by any of the ACSet Types.
-    dvf_idxs = only.(incident(s, dvs, :tri_center))
 
-    for (dvf_idx, del) in zip(dvf_idxs, dels)
-      ♭_mat[e, dvf_idx] = del * mat_type(e_vec) / dels_sum
+    for (tri, del) in zip(tris, dels)
+      ♭_mat[e, tri] = del * mat_type(e_vec) / dels_sum
     end
-
-    # TODO: Instead of indexing with dvf_idxs here, perhaps we use Tri indices
-    # as the column indices in this inner loop, and simply shift columns around
-    # as a post-processing step. If this works, this side-steps the issue of
-    # tri_center not being indexed. i.e.:
-    # In the inner loop:
-    # ♭_mat[e, tri] = del * mat_type(e_vec) / dels_sum
-    # Just before returing:
-    # tri_centers = triangle_center(s,triangles(s))
-    # return ♭_mat[:, tri_centers .- minimum(tri_centers) .+ 1]
-    # This exploits the fact that Tri is always ordered 1:ntriangles(s).
   end
   ♭_mat
 end

@@ -389,4 +389,30 @@ end)
   isapprox(orig, new; atol=20*eps(Float64))
 end)
 
+# Test whether the implementation of ♭ assumes that the DualVectorField vector
+# is indexed in the same order as Tri i.e. 1:ntriangles(s).
+primal_s = EmbeddedDeltaSet2D{Bool,Point2D}()
+add_vertices!(primal_s, 4, point=[Point2D(0,0), Point2D(1,0), Point2D(0,2), Point2D(-2,5)])
+glue_triangle!(primal_s, 1, 2, 3)
+glue_triangle!(primal_s, 1, 3, 4)
+s = EmbeddedDeltaDualComplex2D{Bool,Float64,Point2D}(primal_s)
+subdivide_duals!(s, Barycenter())
+
+primal_s′ = EmbeddedDeltaSet2D{Bool,Point2D}()
+add_vertices!(primal_s′, 4, point=[Point2D(0,0), Point2D(1,0), Point2D(0,2), Point2D(-2,5)])
+glue_triangle!(primal_s′, 1, 2, 3)
+glue_triangle!(primal_s′, 1, 3, 4)
+s′ = EmbeddedDeltaDualComplex2D{Bool,Float64,Point2D}(primal_s′)
+s′[1, :tri_center] = 11
+s′[2, :tri_center] = 10
+s′[[11,13,15,17,19,21], :D_∂v0] = 11
+s′[[12,14,16,18,20,22], :D_∂v0] = 10
+subdivide_duals!(s′, Barycenter())
+#@assert is_homomorphic(s,s′)
+
+X = [SVector(2,3), SVector(5,7)]
+
+♭(s, DualVectorField(X)) == ♭(s′, DualVectorField(X))
+♭_mat(s) * DualVectorField(X) == ♭_mat(s′) * DualVectorField(X)
+
 end
