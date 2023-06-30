@@ -1,7 +1,7 @@
 module TestDiscreteExteriorCalculus
 using Test
 
-using LinearAlgebra: Diagonal, mul!
+using LinearAlgebra: Diagonal, mul!, norm, dot
 using SparseArrays, StaticArrays
 
 using Catlab.CategoricalAlgebra.CSets
@@ -163,16 +163,26 @@ end
 # 2D embedded dual complex
 #-------------------------
 
+unit_vector(θ) = cos(θ), sin(θ), 0
+
+function get_regular_polygon(n::Int)
+  n < 3 && error("Cannot construct a polygon with fewer than 3 points.")
+  primal_s = EmbeddedDeltaSet2D{Bool,Point3D}()
+  exterior_points = map(Point3D∘unit_vector, range(0, 2pi-(pi/(n/2)), length=n))
+  add_vertices!(primal_s, n+1, point=[exterior_points..., Point3D(0, 0, 0)])
+  foreach(1:n-1) do x
+    glue_sorted_triangle!(primal_s, n+1, x, x+1)
+  end
+  glue_sorted_triangle!(primal_s, n+1, n, 1)
+  primal_s
+end
+
 # Triangulated hexagon in ℝ³,
 # from Hirani §5.5 Figure 5.5, showing ♭ᵈᵖᵖ(X) to be 0 for a non-trivial X.
-primal_s = EmbeddedDeltaSet2D{Bool,Point3D}()
-unit_vector(θ) = cos(θ), sin(θ), 0
-hexagon_exterior_points = map(Point3D∘unit_vector, (pi/6):(pi/3):(2pi))
-add_vertices!(primal_s, 7, point=[hexagon_exterior_points..., Point3D(0, 0, 0)])
-foreach(1:5) do x
-  glue_sorted_triangle!(primal_s, 7, x, x+1)
-end
-glue_sorted_triangle!(primal_s, 7, 6, 1)
+primal_s = get_regular_polygon(6)
+# Rotate counter-clockwise by pi/6 to match the Hirani figure.
+θ = -pi/6
+primal_s[:point] = [[[cos(θ), -sin(θ), 0];; [sin(θ), cos(θ), 0];; [0,0,1]] * p for p in primal_s[:point]]
 s = EmbeddedDeltaDualComplex2D{Bool,Float64,Point3D}(primal_s)
 subdivide_duals!(s, Circumcenter())
 X = map([8,4,0,8,4,0]) do i
@@ -299,6 +309,128 @@ subdivide_duals!(s, Incenter())
                         -1.657  1.172 -1.172;
                         -1.172 -1.172 -1.657], atol=1e-3)
 
+#using CairoMakie
+#""" Plot the primal vector field X♯ over the simplicial complex primal_s.
+#"""
+#function plot_pvf(primal_s, X♯; ls=1f0)
+#  # Makie will throw an error if the colorrange end points are not unique:
+#  extX = extrema(norm.(X♯))
+#  range = extX[1] ≈ extX[2] ? (0,extX[2]) : extX
+#  f = Figure()
+#  ax = Axis(f[1, 1])
+#  wireframe!(ax, primal_s, color=:gray95)
+#  scatter!(ax, getindex.(primal_s[:point],1), getindex.(primal_s[:point],2), color = norm.(X♯), colorrange=range)
+#  arrows!(ax, getindex.(primal_s[:point],1), getindex.(primal_s[:point],2), getindex.(X♯,1), getindex.(X♯,2), lengthscale=ls)
+#  Colorbar(f[1,2], limits=range)
+#  hidedecorations!(ax)
+#  f
+#end
+#plot_pvf(primal_s, ♯(s, E))
+#plot_pvf(primal_s, ♯(s, E, AltPPSharp()))
+
+eval_one_form(s, α::SVector) = map(edges(s)) do e
+  dot(α, point(s, tgt(s,e)) - point(s, src(s,e))) * sign(1,s,e)
+end |> EForm
+
+# 3,4,5 triangle.
+primal_s = EmbeddedDeltaSet2D{Bool,Point3D}()
+add_vertices!(primal_s, 3, point=[Point3D(0,0,0), Point3D(3,0,0), Point3D(3,4,0)])
+glue_triangle!(primal_s, 1, 2, 3, tri_orientation=true)
+primal_s[:edge_orientation] = true
+s = EmbeddedDeltaDualComplex2D{Bool,Float64,Point3D}(primal_s)
+subdivide_duals!(s, Barycenter())
+# X := 1dx + 0dy ⟹ # X(3∂x) = 3 # X(3∂x + 4∂y) = 0 # X(4∂y) = 3
+#X = EForm([3, 0, 3])
+X = eval_one_form(s, Point3D(1,0,0))
+X♯ = ♯(s, X)
+@test all(isapprox.(X♯, [Point3D(1/3, 0, 0)]))
+X♯ = ♯(s, X, AltPPSharp())
+@test all(isapprox.(X♯, [Point3D(1, 0, 0)]))
+♯_m = ♯_mat(s, AltPPSharp())
+X♯ = ♯_m * X
+@test all(isapprox.(X♯, [Point3D(1, 0, 0)]))
+♯_m = ♯_mat(s, PPSharp())
+@test all(isapprox.(♯_m * X, ♯(s, X, PPSharp())))
+♯_m = ♯_mat(s, AltPPSharp())
+@test all(isapprox.(♯_m * X, ♯(s, X, AltPPSharp())))
+♯_m = ♯_mat(s, DesbrunSharp())
+X♯ = ♯_m * X
+@test all(X♯ .≈ [Point3D(.8,.4,0), Point3D(0,-1,0), Point3D(-.8,.6,0)])
+
+# Grid of 3,4,5 triangles.
+primal_s = EmbeddedDeltaSet2D{Bool,Point3D}()
+add_vertices!(primal_s, 9,
+  point=[Point3D(0,+4,0), Point3D(3,+4,0), Point3D(6,+4,0),
+         Point3D(0, 0,0), Point3D(3, 0,0), Point3D(6, 0,0),
+         Point3D(0,-4,0), Point3D(3,-4,0), Point3D(6,-4,0)])
+glue_sorted_triangle!(primal_s, 1, 2, 4)
+glue_sorted_triangle!(primal_s, 5, 2, 4)
+glue_sorted_triangle!(primal_s, 5, 2, 3)
+glue_sorted_triangle!(primal_s, 5, 6, 3)
+glue_sorted_triangle!(primal_s, 5, 7, 4)
+glue_sorted_triangle!(primal_s, 5, 7, 8)
+glue_sorted_triangle!(primal_s, 5, 6, 8)
+glue_sorted_triangle!(primal_s, 9, 6, 8)
+primal_s[:edge_orientation] = true
+s = EmbeddedDeltaDualComplex2D{Bool,Float64,Point3D}(primal_s)
+subdivide_duals!(s, Barycenter())
+# X := 1dx
+X = eval_one_form(s, Point3D(1,0,0))
+X♯ = ♯(s, X)
+# Test all X♯ are parallel to [1,0,0].
+@test all(map(X♯) do x
+  dot(x, Point3D(1,0,0)) == norm(x) * 1
+end)
+X♯ = ♯(s, X, AltPPSharp())
+@test all(isapprox.(X♯, [Point3D(1, 0, 0)]))
+♯_m = ♯_mat(s, AltPPSharp())
+X♯ = ♯_m * X
+@test all(isapprox.(X♯, [Point3D(1, 0, 0)]))
+♯_m = ♯_mat(s, PPSharp())
+@test all(isapprox.(♯_m * X, ♯(s, X, PPSharp())))
+♯_m = ♯_mat(s, AltPPSharp())
+@test all(isapprox.(♯_m * X, ♯(s, X, AltPPSharp())))
+# TODO: Compute results for Desbrun's ♯ by hand.
+#plot_pvf(primal_s, ♯_mat(s, PPSharp()) * X)
+#plot_pvf(primal_s, ♯_mat(s, AltPPSharp()) * X)
+#plot_pvf(primal_s, ♯_mat(s, DesbrunSharp()) * X)
+
+# Triangulated regular dodecagon.
+primal_s = get_regular_polygon(12)
+primal_s[:point] = [Point3D(1/4,1/5,0) + p for p in primal_s[:point]]
+s = EmbeddedDeltaDualComplex2D{Bool,Float64,Point3D}(primal_s)
+subdivide_duals!(s, Circumcenter())
+# X := 1dx
+X = eval_one_form(s, Point3D(1,0,0))
+X♯ = ♯(s, X)
+# Test all X♯ are parallel to [1,0,0].
+@test all(map(X♯) do x
+  dot(x, Point3D(1,0,0)) == norm(x) * 1
+end)
+X♯ = ♯(s, X, AltPPSharp())
+@test all(isapprox.(X♯, [Point3D(1, 0, 0)]))
+♯_m = ♯_mat(s, AltPPSharp())
+X♯ = ♯_m * X
+@test all(isapprox.(X♯, [Point3D(1, 0, 0)]))
+# TODO: Compute results for Desbrun's ♯ by hand.
+# X := 1dx + 1dy
+X = eval_one_form(s, Point3D(1,1,0))
+X♯ = ♯(s, X)
+# Test all X♯ are parallel to [1,1,0].
+@test all(map(X♯) do x
+  isapprox(dot(x, Point3D(1,1,0)), norm(x) * √2, atol=0.05)
+end)
+X♯ = ♯(s, X, AltPPSharp())
+@test all(isapprox.(X♯, [Point3D(1, 1, 0)]))
+♯_m = ♯_mat(s, AltPPSharp())
+X♯ = ♯_m * X
+@test all(isapprox.(X♯, [Point3D(1, 1, 0)]))
+♯_m = ♯_mat(s, PPSharp())
+@test all(isapprox.(♯_m * X, ♯(s, X, PPSharp())))
+♯_m = ♯_mat(s, AltPPSharp())
+@test all(isapprox.(♯_m * X, ♯(s, X, AltPPSharp())))
+# TODO: Compute results for Desbrun's ♯ by hand.
+
 # Triangulated square with consistent orientation.
 primal_s = EmbeddedDeltaSet2D{Bool,Point2D}()
 add_vertices!(primal_s, 4, point=[Point2D(-1,+1), Point2D(+1,+1),
@@ -370,8 +502,7 @@ subdivide_duals!(s, Barycenter())
 @test isapprox(Δ(2, s), reshape([-24.0], (1,1)), atol=1e-3)
 @test isapprox(Δ(2, s; hodge=DiagonalHodge()), reshape([-24.0], (1,1)), atol=1e-3)
 
-# A triangulated quadrilateral where edges are all of distinct length,
-# for testing the correct weighting of averages in ♭ᵈᵖᵖ.
+# A triangulated quadrilateral where edges are all of distinct length.
 primal_s = EmbeddedDeltaSet2D{Bool,Point2D}()
 add_vertices!(primal_s, 4, point=[Point2D(0,0), Point2D(1,0), Point2D(0,2), Point2D(-2,5)])
 glue_triangle!(primal_s, 1, 2, 3)

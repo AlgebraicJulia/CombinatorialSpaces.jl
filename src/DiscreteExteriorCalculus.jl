@@ -18,11 +18,11 @@ export DualSimplex, DualV, DualE, DualTri, DualChain, DualForm,
   SimplexCenter, Barycenter, Circumcenter, Incenter, geometric_center,
   subsimplices, primal_vertex, elementary_duals, dual_boundary, dual_derivative,
   ⋆, hodge_star, inv_hodge_star, δ, codifferential, ∇², laplace_beltrami, Δ, laplace_de_rham,
-  ♭, flat, ♭_mat, ♯, sharp, ∧, wedge_product, interior_product, interior_product_flat,
+  ♭, flat, ♭_mat, ♯, ♯_mat, sharp, ∧, wedge_product, interior_product, interior_product_flat,
   ℒ, lie_derivative, lie_derivative_flat,
   vertex_center, edge_center, triangle_center, dual_triangle_vertices,
   dual_point, dual_volume, subdivide_duals!, DiagonalHodge, GeometricHodge,
-  subdivide!
+  subdivide!, PPSharp, AltPPSharp, DesbrunSharp
 
 import Base: ndims
 import Base: *
@@ -47,6 +47,8 @@ struct DPPFlat <: DiscreteFlat end
 
 abstract type DiscreteSharp end
 struct PPSharp <: DiscreteSharp end
+struct AltPPSharp <: DiscreteSharp end
+struct DesbrunSharp <: DiscreteSharp end
 
 abstract type DiscreteHodge end
 struct GeometricHodge <: DiscreteHodge end
@@ -656,11 +658,9 @@ function ♭_mat(s::AbstractDeltaDualComplex2D, p2s)
   ♭_mat
 end
 
-# TODO: Take in a metric? e.g. [1 0; 0 sin²θ]
-function ♯(s::AbstractDeltaDualComplex2D, α::AbstractVector, ::PPSharp)
+function ♯(s::AbstractDeltaDualComplex2D, α::AbstractVector, DS::DiscreteSharp)
   α♯ = zeros(attrtype_type(s, :Point), nv(s))
   for t in triangles(s)
-    area = volume(2,s,t)
     tri_center, tri_edges = triangle_center(s,t), triangle_edges(s,t)
     tri_point = dual_point(s, tri_center)
     for (i, (v₀, e₀)) in enumerate(zip(triangle_vertices(s,t), tri_edges))
@@ -674,11 +674,82 @@ function ♯(s::AbstractDeltaDualComplex2D, α::AbstractVector, ::PPSharp)
         v, sgn = src(s,e) == v₀ ? (tgt(s,e), -1) : (src(s,e), +1)
         dual_area = sum(dual_volume(2,s,d) for d in elementary_duals(0,s,v)
                         if s[s[d, :D_∂e0], :D_∂v0] == tri_center)
+        area = ♯_denominator(s, v, t, DS)
         α♯[v] += sgn * sign(1,s,e) * α[e] * (dual_area / area) * out_vec
       end
     end
   end
   α♯
+end
+
+""" Divided weighted normals by | σⁿ | .
+
+This weighting is that used in equation 5.8.1 from Hirani.
+
+See Hirani §5.8.
+"""
+♯_denominator(s::AbstractDeltaDualComplex2D, _::Int, t::Int, ::DiscreteSharp) =
+  volume(2,s,t)
+
+""" Divided weighted normals by | ⋆v | .
+
+This weighting is NOT that of equation 5.8.1, but a different weighting scheme.
+We essentially replace the denominator in equation 5.8.1 with | ⋆v | . This
+may be what Hirani intended, and perhaps the denominator | σⁿ | in that equation
+is either a mistake or clerical error.
+
+See Hirani §5.8.
+"""
+♯_denominator(s::AbstractDeltaDualComplex2D, v::Int, _::Int, ::AltPPSharp) =
+  sum(dual_volume(2,s, elementary_duals(0,s,v)))
+
+""" Find a vector orthogonal to e pointing into the triangle shared with v.
+"""
+function get_orthogonal_vector(s::AbstractDeltaDualComplex2D, v::Int, e::Int)
+  e_vec = point(s, tgt(s, e)) - point(s, src(s, e))
+  e_vec /= norm(e_vec)
+  e2_vec = point(s, v) - point(s, src(s, e))
+  e2_vec - dot(e2_vec, e_vec)*e_vec
+end
+
+function ♯_assign!(♯_mat::AbstractSparseMatrix, s::AbstractDeltaDualComplex2D, 
+  v₀::Int, _::Int, t::Int, i::Int, tri_edges::SVector{3, Int}, tri_center::Int,
+  out_vec, DS::DiscreteSharp)
+  for e in deleteat(tri_edges, i)
+    v, sgn = src(s,e) == v₀ ? (tgt(s,e), -1) : (src(s,e), +1)
+    # | ⋆vₓ ∩ σⁿ |
+    dual_area = sum(dual_volume(2,s,d) for d in elementary_duals(0,s,v)
+                    if s[s[d, :D_∂e0], :D_∂v0] == tri_center)
+    area = ♯_denominator(s, v, t, DS)
+    ♯_mat[v,e] += sgn * sign(1,s,e) * (dual_area / area) * out_vec
+  end
+end
+
+function ♯_assign!(♯_mat::AbstractSparseMatrix, s::AbstractDeltaDualComplex2D, 
+  _::Int, e₀::Int, t::Int, _::Int, _::SVector{3, Int}, tri_center::Int,
+  out_vec, DS::DesbrunSharp)
+  for v in edge_vertices(s, e₀)
+    sgn = v == tgt(s,e₀) ? -1 : +1
+    # | ⋆vₓ ∩ σⁿ |
+    dual_area = sum(dual_volume(2,s,d) for d in elementary_duals(0,s,v)
+                    if s[s[d, :D_∂e0], :D_∂v0] == tri_center)
+    area = ♯_denominator(s, v, t, DS)
+    ♯_mat[v,e₀] += sgn * sign(1,s,e₀) * (dual_area / area) * out_vec
+  end
+end
+
+function ♯_mat(s::AbstractDeltaDualComplex2D, DS::DiscreteSharp)
+  ♯_mat = spzeros(attrtype_type(s, :Point), (nv(s), ne(s)))
+  for t in triangles(s)
+    tri_center, tri_edges = triangle_center(s,t), triangle_edges(s,t)
+    for (i, (v₀, e₀)) in enumerate(zip(triangle_vertices(s,t), tri_edges))
+      out_vec = get_orthogonal_vector(s, v₀, e₀)
+      h = norm(out_vec)
+      out_vec /= DS == DesbrunSharp() ? h : h^2
+      ♯_assign!(♯_mat, s, v₀, e₀, t, i, tri_edges, tri_center, out_vec, DS)
+    end
+  end
+  ♯_mat
 end
 
 function ∧(::Type{Tuple{1,1}}, s::HasDeltaSet2D, α, β, x::Int)

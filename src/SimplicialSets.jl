@@ -34,7 +34,8 @@ export Simplex, V, E, Tri, Tet, SimplexChain, VChain, EChain, TriChain, TetChain
   add_triangle!, glue_triangle!, glue_sorted_triangle!,
   tetrahedron_triangles, tetrahedron_edges, tetrahedron_vertices, ntetrahedra,
   tetrahedra, add_tetrahedron!, glue_tetrahedron!, glue_sorted_tetrahedron!,
-  is_manifold_like, nonboundaries, star, St, closed_star, St̄, link, Lk
+  glue_sorted_tet_cube!, is_manifold_like, nonboundaries,
+  star, St, closed_star, St̄, link, Lk
 
 using LinearAlgebra: det
 using SparseArrays
