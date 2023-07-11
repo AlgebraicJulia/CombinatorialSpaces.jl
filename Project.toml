@@ -2,7 +2,7 @@ name = "CombinatorialSpaces"
 uuid = "b1c52339-7909-45ad-8b6a-6e388f7c67f2"
 license = "MIT"
 authors = ["Evan Patterson <evan@epatters.org>"]
-version = "0.4.1"
+version = "1.0.0"
 
 [deps]
 ACSets = "227ef7b5-1206-438b-ac65-934d6da304b8"
