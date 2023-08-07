@@ -309,15 +309,17 @@ subdivide_duals!(s, Incenter())
                         -1.657  1.172 -1.172;
                         -1.172 -1.172 -1.657], atol=1e-3)
 
+# This plots a primal vector field over a simplicial complex.
+# This is helpful for debugging operators like sharp and flat.
 #using CairoMakie
 #""" Plot the primal vector field X♯ over the simplicial complex primal_s.
 #"""
-#function plot_pvf(primal_s, X♯; ls=1f0)
+#function plot_pvf(primal_s, X♯; ls=1f0, title="Primal Vector Field")
 #  # Makie will throw an error if the colorrange end points are not unique:
 #  extX = extrema(norm.(X♯))
 #  range = extX[1] ≈ extX[2] ? (0,extX[2]) : extX
 #  f = Figure()
-#  ax = Axis(f[1, 1])
+#  ax = Axis(f[1, 1], title=title)
 #  wireframe!(ax, primal_s, color=:gray95)
 #  scatter!(ax, getindex.(primal_s[:point],1), getindex.(primal_s[:point],2), color = norm.(X♯), colorrange=range)
 #  arrows!(ax, getindex.(primal_s[:point],1), getindex.(primal_s[:point],2), getindex.(X♯,1), getindex.(X♯,2), lengthscale=ls)
@@ -328,9 +330,30 @@ subdivide_duals!(s, Incenter())
 #plot_pvf(primal_s, ♯(s, E))
 #plot_pvf(primal_s, ♯(s, E, AltPPSharp()))
 
-eval_one_form(s, α::SVector) = map(edges(s)) do e
+# Evaluate a constant 1-form α assuming Euclidean space. (Inner product is dot)
+eval_constant_form(s, α::SVector) = map(edges(s)) do e
   dot(α, point(s, tgt(s,e)) - point(s, src(s,e))) * sign(1,s,e)
 end |> EForm
+
+function test_♯(s, covector::SVector; atol=1e-8)
+  X = eval_constant_form(s, covector)
+  # Test that the Hirani field is approximately parallel to the given field.
+  X♯ = ♯(s, X)
+  @test all(map(X♯) do x
+    isapprox(dot(x, covector), norm(x) * norm(covector), atol=atol)
+  end)
+  # Test that the Alternate field approximately equals the given field.
+  X♯ = ♯(s, X, AltPPSharp())
+  @test all(isapprox.(X♯, [covector]))
+  # Test that the matrix and non-matrix versions yield the same result.
+  @test all(isapprox.(♯_mat(s, PPSharp()) * X, ♯(s, X, PPSharp())))
+  @test all(isapprox.(♯_mat(s, AltPPSharp()) * X, ♯(s, X, AltPPSharp())))
+end
+#using Random
+#Random.seed!(1)
+#Point3D(randn(), randn(), 0)
+vfs = [Point3D(1,0,0), Point3D(1,1,0), Point3D(-3,2,0), Point3D(0,0,0),
+  Point3D(-0.07058313895389791, 0.5314767537831963, 0.0)]
 
 # 3,4,5 triangle.
 primal_s = EmbeddedDeltaSet2D{Bool,Point3D}()
@@ -339,21 +362,9 @@ glue_triangle!(primal_s, 1, 2, 3, tri_orientation=true)
 primal_s[:edge_orientation] = true
 s = EmbeddedDeltaDualComplex2D{Bool,Float64,Point3D}(primal_s)
 subdivide_duals!(s, Barycenter())
-# X := 1dx + 0dy ⟹ # X(3∂x) = 3 # X(3∂x + 4∂y) = 0 # X(4∂y) = 3
-#X = EForm([3, 0, 3])
-X = eval_one_form(s, Point3D(1,0,0))
-X♯ = ♯(s, X)
-@test all(isapprox.(X♯, [Point3D(1/3, 0, 0)]))
-X♯ = ♯(s, X, AltPPSharp())
-@test all(isapprox.(X♯, [Point3D(1, 0, 0)]))
-♯_m = ♯_mat(s, AltPPSharp())
-X♯ = ♯_m * X
-@test all(isapprox.(X♯, [Point3D(1, 0, 0)]))
-♯_m = ♯_mat(s, PPSharp())
-@test all(isapprox.(♯_m * X, ♯(s, X, PPSharp())))
-♯_m = ♯_mat(s, AltPPSharp())
-@test all(isapprox.(♯_m * X, ♯(s, X, AltPPSharp())))
+foreach(vf -> test_♯(s, vf), vfs)
 ♯_m = ♯_mat(s, DesbrunSharp())
+X = eval_constant_form(s, Point3D(1,0,0))
 X♯ = ♯_m * X
 @test all(X♯ .≈ [Point3D(.8,.4,0), Point3D(0,-1,0), Point3D(-.8,.6,0)])
 
@@ -374,61 +385,15 @@ glue_sorted_triangle!(primal_s, 9, 6, 8)
 primal_s[:edge_orientation] = true
 s = EmbeddedDeltaDualComplex2D{Bool,Float64,Point3D}(primal_s)
 subdivide_duals!(s, Barycenter())
-# X := 1dx
-X = eval_one_form(s, Point3D(1,0,0))
-X♯ = ♯(s, X)
-# Test all X♯ are parallel to [1,0,0].
-@test all(map(X♯) do x
-  dot(x, Point3D(1,0,0)) == norm(x) * 1
-end)
-X♯ = ♯(s, X, AltPPSharp())
-@test all(isapprox.(X♯, [Point3D(1, 0, 0)]))
-♯_m = ♯_mat(s, AltPPSharp())
-X♯ = ♯_m * X
-@test all(isapprox.(X♯, [Point3D(1, 0, 0)]))
-♯_m = ♯_mat(s, PPSharp())
-@test all(isapprox.(♯_m * X, ♯(s, X, PPSharp())))
-♯_m = ♯_mat(s, AltPPSharp())
-@test all(isapprox.(♯_m * X, ♯(s, X, AltPPSharp())))
+foreach(vf -> test_♯(s, vf), vfs)
 # TODO: Compute results for Desbrun's ♯ by hand.
-#plot_pvf(primal_s, ♯_mat(s, PPSharp()) * X)
-#plot_pvf(primal_s, ♯_mat(s, AltPPSharp()) * X)
-#plot_pvf(primal_s, ♯_mat(s, DesbrunSharp()) * X)
 
 # Triangulated regular dodecagon.
 primal_s = get_regular_polygon(12)
 primal_s[:point] = [Point3D(1/4,1/5,0) + p for p in primal_s[:point]]
 s = EmbeddedDeltaDualComplex2D{Bool,Float64,Point3D}(primal_s)
 subdivide_duals!(s, Circumcenter())
-# X := 1dx
-X = eval_one_form(s, Point3D(1,0,0))
-X♯ = ♯(s, X)
-# Test all X♯ are parallel to [1,0,0].
-@test all(map(X♯) do x
-  dot(x, Point3D(1,0,0)) == norm(x) * 1
-end)
-X♯ = ♯(s, X, AltPPSharp())
-@test all(isapprox.(X♯, [Point3D(1, 0, 0)]))
-♯_m = ♯_mat(s, AltPPSharp())
-X♯ = ♯_m * X
-@test all(isapprox.(X♯, [Point3D(1, 0, 0)]))
-# TODO: Compute results for Desbrun's ♯ by hand.
-# X := 1dx + 1dy
-X = eval_one_form(s, Point3D(1,1,0))
-X♯ = ♯(s, X)
-# Test all X♯ are parallel to [1,1,0].
-@test all(map(X♯) do x
-  isapprox(dot(x, Point3D(1,1,0)), norm(x) * √2, atol=0.05)
-end)
-X♯ = ♯(s, X, AltPPSharp())
-@test all(isapprox.(X♯, [Point3D(1, 1, 0)]))
-♯_m = ♯_mat(s, AltPPSharp())
-X♯ = ♯_m * X
-@test all(isapprox.(X♯, [Point3D(1, 1, 0)]))
-♯_m = ♯_mat(s, PPSharp())
-@test all(isapprox.(♯_m * X, ♯(s, X, PPSharp())))
-♯_m = ♯_mat(s, AltPPSharp())
-@test all(isapprox.(♯_m * X, ♯(s, X, AltPPSharp())))
+foreach(vf -> test_♯(s, vf), vfs)
 # TODO: Compute results for Desbrun's ♯ by hand.
 
 # Triangulated square with consistent orientation.
