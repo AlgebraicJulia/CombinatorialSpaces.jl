@@ -29,6 +29,10 @@ dual_es = elementary_duals(0,s,5)
 @test s[dual_es, :D_∂v0] == edge_center(s, 1:4)
 @test elementary_duals(s, V(5)) == DualE(dual_es)
 
+primal_s′ = subdivide(primal_s)
+@test nv(primal_s′) == nv(primal_s) + ne(primal_s)
+@test ne(primal_s′) == 2*ne(primal_s)
+
 # 1D oriented dual complex
 #-------------------------
 
@@ -43,6 +47,11 @@ s = OrientedDeltaDualComplex1D{Bool}(primal_s)
 @test d(s, DualForm{0}([1,1])) isa DualForm{1}
 @test dual_boundary(1,s) == ∂(1,s)'
 @test dual_derivative(0,s) == -d(0,s)'
+
+primal_s′ = subdivide(primal_s)
+@test nv(primal_s′) == nv(primal_s) + ne(primal_s)
+@test ne(primal_s′) == 2*ne(primal_s)
+@test orient!(primal_s′)
 
 # 1D embedded dual complex
 #-------------------------

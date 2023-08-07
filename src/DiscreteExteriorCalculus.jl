@@ -22,7 +22,7 @@ export DualSimplex, DualV, DualE, DualTri, DualChain, DualForm,
   ℒ, lie_derivative, lie_derivative_flat,
   vertex_center, edge_center, triangle_center, dual_triangle_vertices,
   dual_point, dual_volume, subdivide_duals!, DiagonalHodge, GeometricHodge,
-  subdivide!, PPSharp, AltPPSharp, DesbrunSharp
+  subdivide, PPSharp, AltPPSharp, DesbrunSharp
 
 import Base: ndims
 import Base: *
@@ -177,6 +177,29 @@ function dual_triangle_vertices(s::HasDeltaSet1D, t...)
           s[s[t..., :D_∂e0], :D_∂v0])
 end
 
+""" Subdivide a 1D delta set.
+"""
+function subdivide(s::HasDeltaSet1D)
+  @migrate typeof(s) s begin
+    V => @cases begin
+      v::V
+      e::E
+    end
+    E => @cases begin
+      e₁::E
+      e₂::E
+    end
+    ∂v1 => begin
+      e₁ => e
+      e₂ => e
+    end
+    ∂v0 => begin
+      e₁ => (v∘∂v1)
+      e₂ => (v∘∂v0)
+    end
+  end
+end
+
 # 1D oriented dual complex
 #-------------------------
 
@@ -251,6 +274,41 @@ function make_dual_simplices_1d!(s::HasDeltaSet1D, ::Type{Simplex{n}}) where n
   D_edges
 end
 
+# TODO: Instead of copying-and-pasting the DeltaSet1D version:
+# - Use metaprogramming, or
+# - Don't use the migration DSL, but rather the lower-level functor interface.
+# TODO: When Catlab PR #823 "Data migrations with Julia functions on attributes"
+# is merged, ensure that oriented-ness is preserved. (Flip one of the
+# orientations.)
+""" Subdivide an oriented 1D delta set.
+
+Note that this function does NOT currently guarantee that if the input is
+oriented, then the output will be.
+"""
+function subdivide(s::OrientedDeltaSet1D{T}) where T
+  @migrate typeof(s) s begin
+    V => @cases begin
+      v::V
+      e::E
+    end
+    E => @cases begin
+      e₁::E
+      e₂::E
+    end
+    ∂v1 => begin
+      e₁ => e
+      e₂ => e
+    end
+    ∂v0 => begin
+      e₁ => (v∘∂v1)
+      e₂ => (v∘∂v0)
+    end
+    Orientation => Orientation
+    # TODO: One of these edge orientations must be flipped. (e₂?)
+    edge_orientation => (e₁ => edge_orientation; e₂ => edge_orientation)
+  end
+end
+
 # 1D embedded dual complex
 #-------------------------
 
@@ -322,6 +380,18 @@ function precompute_volumes_1d!(s::HasDeltaSet1D)
     s[e, :dual_length] = dual_volume(1,s,e,CayleyMengerDet())
   end
 end
+
+# TODO: When Catlab PR #823 "Data migrations with Julia functions on attributes"
+# is merged, encode subdivision like so:
+#function subdivide(s::EmbeddedDeltaSet1D{T,U}, alg::V) where {T,U,V <: SimplexCenter}
+#  @migrate typeof(s) s begin
+#    ...
+#    edge_orientation => (e₁ => edge_orientation; e₂ => !(edge_orientation))
+#    Point => Point
+#    point => (v => point; e => geometric_center([e₁ ⋅ point, e₂ ⋅ point], alg))
+#    ...
+#  end
+#end
 
 # 2D dual complex
 #################
@@ -409,82 +479,6 @@ function (::Type{S})(t::AbstractDeltaSet2D) where S <: AbstractDeltaDualComplex2
   copy_parts!(s, t)
   make_dual_simplices_2d!(s)
   return s
-end
-
-# TODO: Instead of copying-and-pasting:
-# - Use metaprogramming, or
-# - Don't use the migration DSL, but rather the lower-level functor interface.
-# TODO: Add some @test_broken's until the attrMigr branch is merged into Catlab.
-""" Perform barycentric subdivision on the given simplicial complex.
-"""
-function subdivide!(s::HasDeltaSet1D)
-  @migrate typeof(s) s begin
-    V => @cases begin
-      v::V
-      e::E
-    end
-    E => @cases begin
-      e₁::E
-      e₂::E
-    end
-    ∂v1 => begin
-      e₁ => e
-      e₂ => e
-    end
-    ∂v0 => begin
-      e₁ => (v∘∂v1)
-      e₂ => (v∘∂v0)
-    end
-  end
-end
-function subdivide!(s::OrientedDeltaSet1D{T}) where T
-  @migrate typeof(s) s begin
-    V => @cases begin
-      v::V
-      e::E
-    end
-    E => @cases begin
-      e₁::E
-      e₂::E
-    end
-    ∂v1 => begin
-      e₁ => e
-      e₂ => e
-    end
-    ∂v0 => begin
-      e₁ => (v∘∂v1)
-      e₂ => (v∘∂v0)
-    end
-    Orientation => Orientation
-    # TODO: One of these edge orientations must be flipped. (e₂?)
-    edge_orientation => (e₁ => edge_orientation; e₂ => edge_orientation)
-  end
-end
-function subdivide!(s::EmbeddedDeltaSet1D{T,U}, alg::SimplexCenter) where {T,U}
-  @migrate typeof(s) s begin
-    V => @cases begin
-      v::V
-      e::E
-    end
-    E => @cases begin
-      e₁::E
-      e₂::E
-    end
-    ∂v1 => begin
-      e₁ => e
-      e₂ => e
-    end
-    ∂v0 => begin
-      e₁ => (v∘∂v1)
-      e₂ => (v∘∂v0)
-    end
-    Orientation => Orientation
-    # TODO: One of these edge orientations must be flipped. (e₂?)
-    edge_orientation => (e₁ => edge_orientation; e₂ => edge_orientation)
-    # TODO: Assign the new point the geometric_center of the previous.
-    #Point => Point
-    #point => ...
-  end
 end
 
 make_dual_simplices_1d!(s::AbstractDeltaDualComplex2D) = make_dual_simplices_1d!(s, Tri)
