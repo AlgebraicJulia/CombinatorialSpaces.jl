@@ -378,22 +378,26 @@ X♯ = ♯_m * X
 @test all(X♯ .≈ [Point3D(.8,.4,0), Point3D(0,-1,0), Point3D(-.8,.6,0)])
 
 # Grid of 3,4,5 triangles.
-primal_s = EmbeddedDeltaSet2D{Bool,Point3D}()
-add_vertices!(primal_s, 9,
-  point=[Point3D(0,+4,0), Point3D(3,+4,0), Point3D(6,+4,0),
-         Point3D(0, 0,0), Point3D(3, 0,0), Point3D(6, 0,0),
-         Point3D(0,-4,0), Point3D(3,-4,0), Point3D(6,-4,0)])
-glue_sorted_triangle!(primal_s, 1, 2, 4)
-glue_sorted_triangle!(primal_s, 5, 2, 4)
-glue_sorted_triangle!(primal_s, 5, 2, 3)
-glue_sorted_triangle!(primal_s, 5, 6, 3)
-glue_sorted_triangle!(primal_s, 5, 7, 4)
-glue_sorted_triangle!(primal_s, 5, 7, 8)
-glue_sorted_triangle!(primal_s, 5, 6, 8)
-glue_sorted_triangle!(primal_s, 9, 6, 8)
-primal_s[:edge_orientation] = true
-s = EmbeddedDeltaDualComplex2D{Bool,Float64,Point3D}(primal_s)
-subdivide_duals!(s, Barycenter())
+function grid_345()
+  primal_s = EmbeddedDeltaSet2D{Bool,Point3D}()
+  add_vertices!(primal_s, 9,
+    point=[Point3D(0,+4,0), Point3D(3,+4,0), Point3D(6,+4,0),
+          Point3D(0, 0,0), Point3D(3, 0,0), Point3D(6, 0,0),
+          Point3D(0,-4,0), Point3D(3,-4,0), Point3D(6,-4,0)])
+  glue_sorted_triangle!(primal_s, 1, 2, 4)
+  glue_sorted_triangle!(primal_s, 5, 2, 4)
+  glue_sorted_triangle!(primal_s, 5, 2, 3)
+  glue_sorted_triangle!(primal_s, 5, 6, 3)
+  glue_sorted_triangle!(primal_s, 5, 7, 4)
+  glue_sorted_triangle!(primal_s, 5, 7, 8)
+  glue_sorted_triangle!(primal_s, 5, 6, 8)
+  glue_sorted_triangle!(primal_s, 9, 6, 8)
+  primal_s[:edge_orientation] = true
+  s = EmbeddedDeltaDualComplex2D{Bool,Float64,Point3D}(primal_s)
+  subdivide_duals!(s, Barycenter())
+  (primal_s, s)
+end
+primal_s, s = grid_345()
 foreach(vf -> test_♯(s, vf), vfs)
 # TODO: Compute results for Desbrun's ♯ by hand.
 
@@ -430,7 +434,7 @@ X = ♯(s, EForm([2,0,0,2,0]))::PrimalVectorField
 X = ♯(s, EForm([0,-2,0,0,2]))
 @test X[2][2] > 0 && X[4][2] < 0
 
-@test ∧(s, VForm([2,2,2,2]), TriForm([2.5, 5]))::TriForm ≈ TriForm([2.5, 5])
+@test all(∧(s, VForm([2,2,2,2]), TriForm([2.5, 5]))::TriForm .≈ TriForm([5.0, 10.0]))
 vform, triform = VForm([1.5, 2, 2.5, 3]), TriForm([5, 7.5])
 @test ∧(s, vform, triform) ≈ ∧(s, triform, vform)
 eform1, eform2 = EForm([1.5, 2, 2.5, 3, 3.5]), EForm([3, 7, 10, 11, 15])
@@ -476,6 +480,47 @@ subdivide_duals!(s, Barycenter())
 @test isapprox(Δ(2, s), reshape([-24.0], (1,1)), atol=1e-3)
 @test isapprox(Δ(2, s; hodge=DiagonalHodge()), reshape([-24.0], (1,1)), atol=1e-3)
 
+# 3,4,5 triangle of unit area.
+# Unit area makes computing integrals by hand simple.
+primal_s = EmbeddedDeltaSet2D{Bool,Point2D}()
+add_vertices!(primal_s, 3, point=[Point2D(0,0), Point2D(6/8,0), Point2D(6/8,8/3)])
+glue_triangle!(primal_s, 1, 2, 3, tri_orientation=true)
+primal_s[:edge_orientation] = true
+s = EmbeddedDeltaDualComplex2D{Bool,Float64,Point2D}(primal_s)
+subdivide_duals!(s, Barycenter())
+#@assert only(s[:area]) == 1.0
+
+# The wedge product of 0-form and a 2-form "is multiplication."
+# α = 3
+# β = 5 dx ∧ dy
+# α ∧ β = 15 dx ∧ dy
+# We also write just αβ, when α is a 0-form.
+@test only(∧(s, VForm([3,3,3]), TriForm([only(s[:area])*5]))) ≈ 15
+
+# Grid of 3,4,5 triangles.
+primal_s, s = grid_345()
+
+# ∀ βᵏ ∧(α,βᵏ) = id(βᵏ), where α = 1.
+α = VForm(ones(nv(s)))
+for k = 0:2
+  βᵏ = SimplexForm{k}(collect(1:nsimplices(k,s)))
+  @test all(∧(s, α, βᵏ) .≈ βᵏ)
+end
+
+# 1dx ∧ 1dy = 1 dx∧dy
+onedx = eval_constant_form(s, @SVector [1.0,0.0,0.0])
+onedy = eval_constant_form(s, @SVector [0.0,1.0,0.0])
+@test ∧(s, onedx, onedy) == map(s[:tri_orientation], s[:area]) do o,a
+  # Note by the order of -1 and 1 here that 
+  a * (o ? -1 : 1)
+end
+
+# 1dx∧dy = -1dy∧dx
+@test ∧(s, onedx, onedy) == -∧(s, onedy, onedx)
+
+# 3dx ∧ 2dy = 2 dx ∧ 3dy
+@test ∧(s, EForm(3*onedx), EForm(2*onedy)) == ∧(s, EForm(2*onedx), EForm(3*onedy))
+
 # A triangulated quadrilateral where edges are all of distinct length.
 primal_s = EmbeddedDeltaSet2D{Bool,Point2D}()
 add_vertices!(primal_s, 4, point=[Point2D(0,0), Point2D(1,0), Point2D(0,2), Point2D(-2,5)])
@@ -513,11 +558,11 @@ s′[2, :tri_center] = 10
 s′[[11,13,15,17,19,21], :D_∂v0] = 11
 s′[[12,14,16,18,20,22], :D_∂v0] = 10
 subdivide_duals!(s′, Barycenter())
-#@assert is_homomorphic(s,s′)
+#@assert is_isomorphic(s,s′)
 
 X = [SVector(2,3), SVector(5,7)]
 
-♭(s, DualVectorField(X)) == ♭(s′, DualVectorField(X))
-♭_mat(s) * DualVectorField(X) == ♭_mat(s′) * DualVectorField(X)
+@test ♭(s, DualVectorField(X)) == ♭(s′, DualVectorField(X))
+@test ♭_mat(s) * DualVectorField(X) == ♭_mat(s′) * DualVectorField(X)
 
 end

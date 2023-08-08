@@ -561,7 +561,7 @@ relative_sign(x::Bool, y::Bool) = (x && y) || (!x && !y)
   dual_area::Attr(DualTri, Real)
 end
 
-""" Embedded dual complex of an embedded 12 delta set.
+""" Embedded dual complex of an embedded 2D delta set.
 
 Although they are redundant information, the lengths and areas of the
 primal/dual edges and triangles are precomputed and stored.
@@ -877,7 +877,7 @@ volume(s::HasDeltaSet, x::DualSimplex{n}, args...) where n =
 
 """ List of dual simplices comprising the subdivision of a primal simplex.
 
-A primal ``n``-simplex is always subdivided into ``n!`` dual ``n``-simplices,
+A primal ``n``-simplex is always subdivided into ``(n+1)!`` dual ``n``-simplices,
 not be confused with the [`elementary_duals`](@ref) which have complementary
 dimension.
 
@@ -909,7 +909,7 @@ In 2D dual complexes, the elementary duals of...
 
 - primal vertices are dual triangles
 - primal edges are dual edges
-- primal triangles are (single) dual triangles
+- primal triangles are (single) dual vertices
 """
 elementary_duals(s::HasDeltaSet, x::Simplex{n}) where n =
   DualSimplex{ndims(s)-n}(elementary_duals(Val{n}, s, x.data))
@@ -1270,7 +1270,8 @@ The wedge product of a ``k``-form and an ``l``-form is a ``(k+l)``-form.
 The DEC and related systems have several flavors of wedge product. This one is
 the discrete primal-primal wedge product introduced in (Hirani, 2003, Chapter 7)
 and (Desbrun et al 2005, Section 8). It depends on the geometric embedding and
-requires the dual complex.
+requires the dual complex. Note that we diverge from Hirani in that his
+formulation explicitly divides by (k+1)!. We do not do so in this computation.
 """
 ∧(s::HasDeltaSet, α::SimplexForm{k}, β::SimplexForm{l}) where {k,l} =
   SimplexForm{k+l}(∧(Tuple{k,l}, s, α.data, β.data))
@@ -1295,7 +1296,7 @@ function wedge_product_zero(::Type{Val{k}}, s::HasDeltaSet,
   subs = subsimplices(k, s, x)
   vs = primal_vertex(k, s, subs)
   coeffs = map(x′ -> dual_volume(k,s,x′), subs) / volume(k,s,x)
-  dot(coeffs, f[vs]) * α[x] / factorial(k)
+  dot(coeffs, f[vs]) * α[x]
 end
 
 """ Alias for the wedge product operator [`∧`](@ref).
