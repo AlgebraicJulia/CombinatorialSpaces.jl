@@ -15,6 +15,9 @@ export DualSimplex, DualV, DualE, DualTri, DualChain, DualForm,
   AbstractDeltaDualComplex2D, DeltaDualComplex2D, SchDeltaDualComplex2D,
   OrientedDeltaDualComplex2D, SchOrientedDeltaDualComplex2D,
   EmbeddedDeltaDualComplex2D, SchEmbeddedDeltaDualComplex2D,
+  AbstractDeltaDualComplex3D, DeltaDualComplex3D, SchDeltaDualComplex3D,
+  OrientedDeltaDualComplex3D, SchOrientedDeltaDualComplex3D,
+  #EmbeddedDeltaDualComplex3D, SchEmbeddedDeltaDualComplex3D,
   SimplexCenter, Barycenter, Circumcenter, Incenter, geometric_center,
   subsimplices, primal_vertex, elementary_duals, dual_boundary, dual_derivative,
   ⋆, hodge_star, inv_hodge_star, δ, codifferential, ∇², laplace_beltrami, Δ, laplace_de_rham,
@@ -907,6 +910,59 @@ make_dual_simplices_2d!(s::AbstractDeltaDualComplex3D) = make_dual_simplices_2d!
 
 make_dual_simplices_3d!(s::AbstractDeltaDualComplex3D) = make_dual_simplices_3d!(s, Tet)
 
+# Note: these accessors are isomorphic to those for their primal counterparts.
+# These can be eliminated by the DualComplex schema refactor.
+add_dual_edge!(s::AbstractDeltaDualComplex3D, d_src::Int, d_tgt::Int; kw...) =
+  add_part!(s, :DualE; D_∂v1=d_src, D_∂v0=d_tgt, kw...)
+
+function get_dual_edge!(s::AbstractDeltaDualComplex3D, d_src::Int, d_tgt::Int; kw...)
+  es = (e for e in incident(s, d_src, :D_∂v1) if s[e, :D_∂v0] == d_tgt)
+  isempty(es) ? add_part!(s, :DualE; D_∂v1=d_src, D_∂v0=d_tgt, kw...) : first(es)
+end
+
+add_dual_triangle!(s::AbstractDeltaDualComplex3D, d_src2_first::Int, d_src2_last::Int, d_tgt2::Int; kw...) =
+  add_part!(s, :DualTri; D_∂e0=d_src2_last, D_∂e1=d_tgt2, D_∂e2=d_src2_first, kw...)
+
+function glue_dual_triangle!(s::AbstractDeltaDualComplex3D, d_v₀::Int, d_v₁::Int, d_v₂::Int; kw...)
+  add_dual_triangle!(s, get_dual_edge!(s, d_v₀, d_v₁), get_dual_edge!(s, d_v₁, d_v₂),
+                get_dual_edge!(s, d_v₀, d_v₂); kw...)
+end
+
+add_dual_tetrahedron!(s::AbstractDeltaDualComplex3D, d_tri0::Int, d_tri1::Int, d_tri2::Int, d_tri3::Int; kw...) =
+  add_part!(s, :DualTet; D_∂t0=d_tri0, D_∂t1=d_tri1, D_∂t2=d_tri2, D_∂t3=d_tri3, kw...)
+
+function dual_triangles(s::AbstractDeltaDualComplex3D, d_v₀::Int, d_v₁::Int, d_v₂::Int)
+  d_e₀s = incident(s, d_v₂, :D_∂v0) ∩ incident(s, d_v₁, :D_∂v1)
+  isempty(d_e₀s) && return Int[]
+  d_e₁s = incident(s, d_v₂, :D_∂v0) ∩ incident(s, d_v₀, :D_∂v1)
+  isempty(d_e₁s) && return Int[]
+  d_e₂s = incident(s, d_v₁, :D_∂v0) ∩ incident(s, d_v₀, :D_∂v1)
+  isempty(d_e₂s) && return Int[]
+  intersect(
+    incident(s, d_e₀s, :D_∂e0)...,
+    incident(s, d_e₁s, :D_∂e1)...,
+    incident(s, d_e₂s, :D_∂e2)...)
+end
+
+function get_dual_triangle!(s::AbstractDeltaDualComplex3D, d_v₀::Int, d_v₁::Int, d_v₂::Int)
+  d_ts = dual_triangles(s, d_v₀, d_v₁, d_v₂)
+  isempty(d_ts) ? glue_dual_triangle!(s, d_v₀, d_v₁, d_v₂) : first(d_ts)
+end
+
+function glue_dual_tetrahedron!(s::AbstractDeltaDualComplex3D, d_v₀::Int, d_v₁::Int, d_v₂::Int, d_v₃::Int; kw...)
+  add_dual_tetrahedron!(s,
+    get_dual_triangle!(s, d_v₁, d_v₂, d_v₃), # d_t₀
+    get_dual_triangle!(s, d_v₀, d_v₂, d_v₃), # d_t₁
+    get_dual_triangle!(s, d_v₀, d_v₁, d_v₃), # d_t₂
+    get_dual_triangle!(s, d_v₀, d_v₁, d_v₂); # d_t₃
+    kw...)
+end
+
+function glue_sorted_dual_tetrahedron!(s::AbstractDeltaDualComplex3D, d_v₀::Int, d_v₁::Int, d_v₂::Int, d_v₃::Int; kw...)
+  d_v₀, d_v₁, d_v₂, d_v₃ = sort(SVector(d_v₀, d_v₁, d_v₂, d_v₃))
+  glue_dual_tetrahedron!(s, d_v₀, d_v₁, d_v₂, d_v₃; kw...)
+end
+
 """ Make dual simplices for dual complex of dimension ≧ 3.
 
 If the primal complex is oriented, an orientation is induced on the dual
@@ -914,25 +970,66 @@ complex.
 """
 function make_dual_simplices_3d!(s::HasDeltaSet3D, ::Type{Simplex{n}}) where n
   # Make dual vertices, edges, and triangles.
-  D_tris123 = make_dual_simplices_2d!(s)
-  #s[:tri_center] = tri_centers = add_parts!(s, :DualV, ntriangles(s))
-  #D_edges12 = map((0,1,2)) do e
-  #  add_parts!(s, :DualE, ntriangles(s);
-  #             D_∂v0=tri_centers, D_∂v1=edge_center(s, ∂(2,e,s)))
-  #end
-  #D_edges02 = map(triangle_vertices(s)) do vs
-  #  add_parts!(s, :DualE, ntriangles(s);
-  #             D_∂v0=tri_centers, D_∂v1=vertex_center(s, vs))
-  #end
 
-  ## Make dual triangles.
-  ## Counterclockwise order in drawing with vertices 0, 1, 2 from left to right.
-  #D_triangle_schemas = ((0,1,1),(0,2,1),(1,2,0),(1,0,1),(2,0,0),(2,1,0))
-  #D_triangles = map(D_triangle_schemas) do (v,e,ev)
-  #  add_parts!(s, :DualTri, ntriangles(s);
-  #             D_∂e0=D_edges12[e+1], D_∂e1=D_edges02[v+1],
-  #             D_∂e2=view(D_edges01[ev+1], ∂(2,e,s)))
-  #end
+  # Triangles on the face of primal tetrahedra.
+  # i.e. Triangles with (vertex center, edge center, edge center).
+  make_dual_simplices_2d!(s)
+  # All vertex centers are now created.
+  s[:tet_center] = tet_centers = add_parts!(s, :DualV, ntetrahedra(s))
+  # All tet centers are now created.
+  for tet in tetrahedra(s)
+    tet_center = s[tet, :tet_center]
+    # Create the dual triangles on the interior of this tetrahedron.
+    tvs = tetrahedron_vertices(s,tet)
+    tes = tetrahedron_edges(s,tet)
+    tts = tetrahedron_triangles(s,tet)
+    # Assign indices to each of the dual vertices of this tetrahedron.
+    # Exploit the fact that `glue_sorted_dual_tetrahedron!` adds only necessary
+    # new dual triangles.
+    dvs = [
+      vertex_center(s,tvs)..., # v₀ v₁ v₂ v₃
+      edge_center(s,tes)..., # e₀ e₁ e₂ e₃ e₄ e₅
+      triangle_center(s,tts)...] # t₀ t₁ t₂ t₃ t₄ t₅
+    v = 1:4
+    e = 5:10
+    t = 11:16
+
+    # You could programmatically come up with this relationship using:
+    #es_per_v = [(3,4,5), (1,2,5), (0,2,4), (0,1,3)]
+    #ts_per_e = [(0,1), (0,2), (0,3), (1,2), (1,3), (2,3)]
+
+    # Note that e.g. e₀ is e[1]
+    D_tetrahedron_schemas = [
+      (v[1],e[4],t[2]), #(v₀, e₃, t₁)
+      (v[1],e[4],t[3]),
+      (v[1],e[5],t[2]),
+      (v[1],e[5],t[4]),
+      (v[1],e[6],t[3]),
+      (v[1],e[6],t[4]),
+      (v[2],e[2],t[1]), #v₁...
+      (v[2],e[2],t[3]),
+      (v[2],e[3],t[1]),
+      (v[2],e[3],t[4]),
+      (v[2],e[6],t[3]),
+      (v[2],e[6],t[4]),
+      (v[3],e[1],t[1]), #v₂...
+      (v[3],e[1],t[2]),
+      (v[3],e[3],t[1]),
+      (v[3],e[3],t[4]),
+      (v[3],e[5],t[2]),
+      (v[3],e[5],t[4]),
+      (v[4],e[1],t[1]), #v₃...
+      (v[4],e[1],t[2]),
+      (v[4],e[2],t[1]),
+      (v[4],e[2],t[3]),
+      (v[4],e[4],t[2]),
+      (v[4],e[4],t[3])]
+
+    foreach(D_tetrahedron_schemas) do (x,y,z)
+      glue_sorted_dual_tetrahedron!(s, dvs[x], dvs[y], dvs[z], tet_center)
+    end
+  end
+
 
   if has_subpart(s, :tet_orientation)
     # If orientations are not set, then set them here.
@@ -944,6 +1041,8 @@ function make_dual_simplices_3d!(s::HasDeltaSet3D, ::Type{Simplex{n}}) where n
         s[findall(isnothing, s[:tet_orientation]), :tet_orientation] = zero(attrtype_type(s, :Orientation))
       end
     end
+    # TODO: Assign orientations.
+
     ## Orient elementary dual triangles.
     #tri_orient = s[:tri_orientation]
     #rev_tri_orient = negate.(tri_orient)
@@ -961,7 +1060,8 @@ function make_dual_simplices_3d!(s::HasDeltaSet3D, ::Type{Simplex{n}}) where n
     #s[lazy(vcat, D_edges02...), :D_edge_orientation] = one(attrtype_type(s, :Orientation))
   end
 
-  D_tetrahedra
+  #D_tetrahedra
+  return
 end
 
 # General operators
