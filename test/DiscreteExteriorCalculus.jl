@@ -569,15 +569,17 @@ X = [SVector(2,3), SVector(5,7)]
 #################
 
 # Single tetrahedron.
-using CombinatorialSpaces
 primal_s = DeltaSet3D()
 add_vertices!(primal_s, 4)
 glue_sorted_tetrahedron!(primal_s, 1, 2, 3, 4)
 s = DeltaDualComplex3D(primal_s)
+# This SO answer explains the expected number of cells:
+# https://math.stackexchange.com/a/3511873
 @test nparts(s, :DualV) == nv(primal_s) + ne(primal_s) + ntriangles(primal_s) + ntetrahedra(primal_s)
 @test nparts(s, :DualE) == 6*4 + 2*6 + 14 # 36 exterior and 14 interior
 @test nparts(s, :DualTri) == 60
 @test nparts(s, :DualTet) == 24 * ntetrahedra(primal_s)
+@test primal_vertex(s, subsimplices(s, Tet(1)))::V == V(repeat(1:4, inner=6))
 
 # Two tetrahedra forming a square pyramid.
 # The shared (internal) triangle is (2,3,5).
@@ -587,8 +589,10 @@ glue_tetrahedron!(primal_s, 1, 2, 3, 5)
 glue_tetrahedron!(primal_s, 2, 3, 4, 5)
 s = DeltaDualComplex3D(primal_s)
 @test nparts(s, :DualV) == 5 + 1 + 2 + 9 + 6
-#@test nparts(s, :DualE) == # TODO: Compute by hand
-#@test nparts(s, :DualTri) == # TODO: Compute by hand
+@test nparts(s, :DualE) == (6*4 + 2*6 + 14)*2 - 12
+@test nparts(s, :DualTri) == 60*2 - 6
 @test nparts(s, :DualTet) == 24*2
+@test primal_vertex(s, subsimplices(s, Tet(1)))::V == V(repeat([1,2,3,5], inner=6))
+@test primal_vertex(s, subsimplices(s, Tet(2)))::V == V(repeat(2:5, inner=6))
 
 end

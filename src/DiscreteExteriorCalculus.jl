@@ -23,7 +23,7 @@ export DualSimplex, DualV, DualE, DualTri, DualChain, DualForm,
   ⋆, hodge_star, inv_hodge_star, δ, codifferential, ∇², laplace_beltrami, Δ, laplace_de_rham,
   ♭, flat, ♭_mat, ♯, ♯_mat, sharp, ∧, wedge_product, interior_product, interior_product_flat,
   ℒ, lie_derivative, lie_derivative_flat,
-  vertex_center, edge_center, triangle_center, dual_triangle_vertices,
+  vertex_center, edge_center, triangle_center, tetrahedron_center, dual_triangle_vertices,
   dual_point, dual_volume, subdivide_duals!, DiagonalHodge, GeometricHodge,
   subdivide, PPSharp, AltPPSharp, DesbrunSharp
 
@@ -833,15 +833,12 @@ end
 """
 tetrahedron_center(s::HasDeltaSet3D, args...) = s[args..., :tet_center]
 
-# TODO: Verify which faces we should use in building up this incident.
 subsimplices(::Type{Val{3}}, s::HasDeltaSet3D, tet::Int) =
   SVector{24}(incident(s, tetrahedron_center(s,tet), @SVector [:D_∂t1, :D_∂e1, :D_∂v0]))
 
-# TODO: Verify which face we should use.
 primal_vertex(::Type{Val{3}}, s::HasDeltaSet3D, tet...) =
-  primal_vertex(Val{1}, s, s[tet..., :D_∂t3])
+  primal_vertex(Val{2}, s, s[tet..., :D_∂t1])
 
-# TODO: Verify which faces we should use.
 elementary_duals(::Type{Val{0}}, s::AbstractDeltaDualComplex3D, v::Int) =
   incident(s, vertex_center(s,v), @SVector [:D_∂t1, :D_∂e1, :D_∂v1])
 elementary_duals(::Type{Val{1}}, s::AbstractDeltaDualComplex3D, e::Int) =
@@ -1030,7 +1027,6 @@ function make_dual_simplices_3d!(s::HasDeltaSet3D, ::Type{Simplex{n}}) where n
     end
   end
 
-
   if has_subpart(s, :tet_orientation)
     # If orientations are not set, then set them here.
     if any(isnothing, s[:tet_orientation])
@@ -1042,6 +1038,13 @@ function make_dual_simplices_3d!(s::HasDeltaSet3D, ::Type{Simplex{n}}) where n
       end
     end
     # TODO: Assign orientations.
+
+    # Orient elementary dual tetrahedra.
+    #tet_orient = s[:tet_orientation]
+    #rev_tet_orient = negate.(tet_orient)
+    #for (i, D_tets) in enumerate(D_tetrahedra)
+    #  s[D_tets, :D_tet_orientation] = isodd(i) ? rev_tet_orient : tet_orient
+    #end
 
     ## Orient elementary dual triangles.
     #tri_orient = s[:tri_orientation]
