@@ -216,7 +216,7 @@ end
 
 dual_boundary_nz(::Type{Val{1}}, s::AbstractDeltaDualComplex1D, x::Int) =
   # Boundary vertices of dual 1-cell ↔
-  # Dual vertices for cofaces of (edges incident to) primal vertex.
+  # Dual vertices for cofaces of (i.e. edges incident to) primal vertex.
   d_nz(Val{0}, s, x)
 
 dual_derivative_nz(::Type{Val{0}}, s::AbstractDeltaDualComplex1D, x::Int) =
@@ -788,6 +788,182 @@ function precompute_volumes_2d!(s::HasDeltaSet2D)
   end
 end
 
+# 3D dual complex
+#################
+
+# Should be expressed using a coproduct of two copies of `SchDeltaSet3D`...
+
+@present SchDeltaDualComplex3D <: SchDeltaSet3D begin
+  # Dual vertices, edges, triangles, and tetrahedra.
+  (DualV, DualE, DualTri, DualTet)::Ob
+  (D_∂v0, D_∂v1)::Hom(DualE, DualV)
+  (D_∂e0, D_∂e1, D_∂e2)::Hom(DualTri, DualE)
+  (D_∂t0, D_∂t1, D_∂t2, D_∂t3)::Hom(DualTet, DualTri)
+
+  # Simplicial identities for dual simplices.
+  D_∂t3 ⋅ D_∂e2 == D_∂t2 ⋅ D_∂e2
+  D_∂t3 ⋅ D_∂e1 == D_∂t1 ⋅ D_∂e2
+  D_∂t3 ⋅ D_∂e0 == D_∂t0 ⋅ D_∂e2
+
+  D_∂t2 ⋅ D_∂e1 == D_∂t1 ⋅ D_∂e1
+  D_∂t2 ⋅ D_∂e0 == D_∂t0 ⋅ D_∂e1
+
+  D_∂t1 ⋅ D_∂e0 == D_∂t0 ⋅ D_∂e0
+
+  # Centers of primal simplices are dual vertices.
+  vertex_center::Hom(V, DualV)
+  edge_center::Hom(E, DualV)
+  tri_center::Hom(Tri, DualV)
+  tet_center::Hom(Tet, DualV)
+end
+
+""" Abstract type for dual complex of a 3D delta set.
+"""
+@abstract_acset_type AbstractDeltaDualComplex3D <: HasDeltaSet3D
+
+""" Dual complex of a three-dimensional delta set.
+"""
+@acset_type DeltaDualComplex3D(SchDeltaDualComplex3D,
+  index=[:∂v0,:∂v1,:∂e0,:∂e1,:∂e2,:D_∂v0,:D_∂v1,:D_∂e0,:D_∂e1,:D_∂e2,:D_∂t0,:D_∂t1,:D_∂t2,:D_∂t3]) <: AbstractDeltaDualComplex3D
+
+""" Dual vertex corresponding to center of primal tetrahedron.
+"""
+tetrahedron_center(s::HasDeltaSet3D, args...) = s[args..., :tet_center]
+
+# TODO: Verify which faces we should use in building up this incident.
+subsimplices(::Type{Val{3}}, s::HasDeltaSet3D, tet::Int) =
+  SVector{24}(incident(s, tetrahedron_center(s,tet), @SVector [:D_∂t1, :D_∂e1, :D_∂v0]))
+
+# TODO: Verify which face we should use.
+primal_vertex(::Type{Val{3}}, s::HasDeltaSet3D, tet...) =
+  primal_vertex(Val{1}, s, s[tet..., :D_∂t3])
+
+# TODO: Verify which faces we should use.
+elementary_duals(::Type{Val{0}}, s::AbstractDeltaDualComplex3D, v::Int) =
+  incident(s, vertex_center(s,v), @SVector [:D_∂t1, :D_∂e1, :D_∂v1])
+elementary_duals(::Type{Val{1}}, s::AbstractDeltaDualComplex3D, e::Int) =
+  incident(s, edge_center(s,e), @SVector [:D_∂e1, :D_∂v1])
+elementary_duals(::Type{Val{2}}, s::AbstractDeltaDualComplex3D, t::Int) =
+  incident(s, triangle_center(s,e), :D_∂v1)
+elementary_duals(::Type{Val{3}}, s::AbstractDeltaDualComplex3D, tet::Int) =
+  SVector(tetrahedron_center(s,tet))
+
+# 3D oriented dual complex
+#-------------------------
+
+@present SchOrientedDeltaDualComplex3D <: SchDeltaDualComplex3D begin
+  Orientation::AttrType
+  edge_orientation::Attr(E, Orientation)
+  tri_orientation::Attr(Tri, Orientation)
+  tet_orientation::Attr(Tet, Orientation)
+  D_edge_orientation::Attr(DualE, Orientation)
+  D_tri_orientation::Attr(DualTri, Orientation)
+  D_tet_orientation::Attr(DualTet, Orientation)
+end
+
+""" Oriented dual complex of an oriented 3D delta set.
+"""
+@acset_type OrientedDeltaDualComplex3D(SchOrientedDeltaDualComplex3D,
+  index=[:∂v0,:∂v1,:∂e0,:∂e1,:∂e2,:D_∂v0,:D_∂v1,:D_∂e0,:D_∂e1,:D_∂e2,:D_∂t0,:D_∂t1,:D_∂t2,:D_∂t3]) <: AbstractDeltaDualComplex3D
+
+# TODO: There might need to be a negatenz here.
+dual_boundary_nz(::Type{Val{1}}, s::AbstractDeltaDualComplex3D, x::Int) =
+  # Boundary vertices of dual 1-cell ↔
+  # Dual vertices for cofaces of (tetrahedra incident to) primal triangle.
+  negatenz(d_nz(Val{1}, s, x))
+# TODO: There might need to be a negatenz here.
+dual_boundary_nz(::Type{Val{2}}, s::AbstractDeltaDualComplex3D, x::Int) =
+  # Boundary edges of dual 2-cell ↔
+  # Dual edges for cofaces of (i.e. triangles incident to) primal edge.
+  d_nz(Val{1}, s, x)
+# TODO: There might need to be a negatenz here.
+dual_boundary_nz(::Type{Val{3}}, s::AbstractDeltaDualComplex3D, x::Int) =
+  # Boundary triangles of dual 3-cell ↔
+  # Dual triangles for cofaces of (i.e. edges incident to) primal vertex.
+  d_nz(Val{0}, s, x)
+
+# TODO: There might need to be a negatenz here.
+dual_derivative_nz(::Type{Val{0}}, s::AbstractDeltaDualComplex3D, x::Int) =
+  ∂_nz(Val{2}, s, x)
+# TODO: There might need to be a negatenz here.
+dual_derivative_nz(::Type{Val{1}}, s::AbstractDeltaDualComplex3D, x::Int) =
+  negatenz(∂_nz(Val{1}, s, x))
+# TODO: There might need to be a negatenz here.
+dual_derivative_nz(::Type{Val{2}}, s::AbstractDeltaDualComplex3D, x::Int) =
+  ∂_nz(Val{0}, s, x)
+
+""" Construct 3D dual complex from 3D delta set.
+"""
+function (::Type{S})(t::AbstractDeltaSet3D) where S <: AbstractDeltaDualComplex3D
+  s = S()
+  copy_parts!(s, t)
+  make_dual_simplices_3d!(s)
+  return s
+end
+
+make_dual_simplices_1d!(s::AbstractDeltaDualComplex3D) = make_dual_simplices_1d!(s, Tet)
+
+make_dual_simplices_2d!(s::AbstractDeltaDualComplex3D) = make_dual_simplices_2d!(s, Tet)
+
+make_dual_simplices_3d!(s::AbstractDeltaDualComplex3D) = make_dual_simplices_3d!(s, Tet)
+
+""" Make dual simplices for dual complex of dimension ≧ 3.
+
+If the primal complex is oriented, an orientation is induced on the dual
+complex.
+"""
+function make_dual_simplices_3d!(s::HasDeltaSet3D, ::Type{Simplex{n}}) where n
+  # Make dual vertices, edges, and triangles.
+  D_tris123 = make_dual_simplices_2d!(s)
+  #s[:tri_center] = tri_centers = add_parts!(s, :DualV, ntriangles(s))
+  #D_edges12 = map((0,1,2)) do e
+  #  add_parts!(s, :DualE, ntriangles(s);
+  #             D_∂v0=tri_centers, D_∂v1=edge_center(s, ∂(2,e,s)))
+  #end
+  #D_edges02 = map(triangle_vertices(s)) do vs
+  #  add_parts!(s, :DualE, ntriangles(s);
+  #             D_∂v0=tri_centers, D_∂v1=vertex_center(s, vs))
+  #end
+
+  ## Make dual triangles.
+  ## Counterclockwise order in drawing with vertices 0, 1, 2 from left to right.
+  #D_triangle_schemas = ((0,1,1),(0,2,1),(1,2,0),(1,0,1),(2,0,0),(2,1,0))
+  #D_triangles = map(D_triangle_schemas) do (v,e,ev)
+  #  add_parts!(s, :DualTri, ntriangles(s);
+  #             D_∂e0=D_edges12[e+1], D_∂e1=D_edges02[v+1],
+  #             D_∂e2=view(D_edges01[ev+1], ∂(2,e,s)))
+  #end
+
+  if has_subpart(s, :tet_orientation)
+    # If orientations are not set, then set them here.
+    if any(isnothing, s[:tet_orientation])
+      # 3-simplices only need to be orientable if the delta set is 3D.
+      if n == 3
+        orient!(s, Tet) || error("The 3-simplices of the given 3D delta set are non-orientable.")
+      else
+        s[findall(isnothing, s[:tet_orientation]), :tet_orientation] = zero(attrtype_type(s, :Orientation))
+      end
+    end
+    ## Orient elementary dual triangles.
+    #tri_orient = s[:tri_orientation]
+    #rev_tri_orient = negate.(tri_orient)
+    #for (i, D_tris) in enumerate(D_triangles)
+    #  s[D_tris, :D_tri_orientation] = isodd(i) ? rev_tri_orient : tri_orient
+    #end
+
+    ## Orient elementary dual edges.
+    #for e in (0,1,2)
+    #  s[D_edges12[e+1], :D_edge_orientation] = relative_sign.(
+    #    s[∂(2,e,s), :edge_orientation],
+    #    isodd(e) ? rev_tri_orient : tri_orient)
+    #end
+    ## Remaining dual edges are oriented arbitrarily.
+    #s[lazy(vcat, D_edges02...), :D_edge_orientation] = one(attrtype_type(s, :Orientation))
+  end
+
+  D_tetrahedra
+end
+
 # General operators
 ###################
 
@@ -910,6 +1086,13 @@ In 2D dual complexes, the elementary duals of...
 - primal vertices are dual triangles
 - primal edges are dual edges
 - primal triangles are (single) dual vertices
+
+In 3D dual complexes, the elementary duals of...
+
+- primal vertices are dual tetrahedra
+- primal edges are dual triangles
+- primal triangles are dual edges
+- primal tetrahedra are (single) dual vertices
 """
 elementary_duals(s::HasDeltaSet, x::Simplex{n}) where n =
   DualSimplex{ndims(s)-n}(elementary_duals(Val{n}, s, x.data))
