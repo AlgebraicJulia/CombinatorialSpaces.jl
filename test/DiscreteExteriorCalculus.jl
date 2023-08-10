@@ -581,6 +581,20 @@ s = DeltaDualComplex3D(primal_s)
 @test nparts(s, :DualTet) == 24 * ntetrahedra(primal_s)
 @test primal_vertex(s, subsimplices(s, Tet(1)))::V == V(repeat(1:4, inner=6))
 
+dual_v = elementary_duals(3,s,1)
+@test dual_v == [tetrahedron_center(s,1)]
+@test elementary_duals(s, Tet(1)) == DualV(dual_v)
+dual_e = elementary_duals(2,s,1)
+@test s[dual_e, :D_∂v0] == [tetrahedron_center(s,1)]
+@test s[dual_e, :D_∂v1] == [triangle_center(s,1)]
+@test elementary_duals(s, Tri(1)) == DualE(dual_e)
+dual_ts = elementary_duals(1,s,1)
+@test s[dual_ts, [:D_∂e0, :D_∂v0]] == [tetrahedron_center(s,1), tetrahedron_center(s,1)]
+@test elementary_duals(s, E(1)) == DualTri(dual_ts)
+dual_tets = elementary_duals(0,s,1)
+@test s[dual_tets, [:D_∂t0, :D_∂e0, :D_∂v0]] == fill(tetrahedron_center(s,1), 6)
+@test elementary_duals(s, V(1)) == DualTet(dual_tets)
+
 # Two tetrahedra forming a square pyramid.
 # The shared (internal) triangle is (2,3,5).
 primal_s = DeltaSet3D()
