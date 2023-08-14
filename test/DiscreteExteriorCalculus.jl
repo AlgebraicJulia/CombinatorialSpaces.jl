@@ -609,4 +609,34 @@ s = DeltaDualComplex3D(primal_s)
 @test primal_vertex(s, subsimplices(s, Tet(1)))::V == V(repeat([1,2,3,5], inner=6))
 @test primal_vertex(s, subsimplices(s, Tet(2)))::V == V(repeat(2:5, inner=6))
 
+# 3D oriented dual complex
+#-------------------------
+
+# Oriented single tetrahedron.
+primal_s = OrientedDeltaSet3D{Bool}()
+add_vertices!(primal_s, 4)
+glue_tetrahedron!(primal_s, 1, 2, 3, 4, tet_orientation=true)
+primal_s[:tri_orientation] = true
+primal_s[:edge_orientation] = true
+tetrahedron_s = OrientedDeltaDualComplex3D{Bool}(primal_s)
+
+# Oriented cube.
+primal_s = OrientedDeltaSet3D{Bool}()
+add_vertices!(primal_s, 8)
+glue_sorted_tet_cube!(primal_s, 1:8..., tet_orientation=true)
+cube_s = OrientedDeltaDualComplex3D{Bool}(primal_s)
+
+for s in [tetrahedron_s, cube_s]
+  @test all(==(0), dual_derivative(1,s)*dual_derivative(0,s))
+  @test all(==(0), dual_derivative(2,s)*dual_derivative(1,s))
+
+  for k in 0:2
+    @test dual_boundary(3-k,s) == (-1)^k * ∂(k+1,s)'
+  end
+  for k in 1:3
+    # Desbrun, Kanso, Tong 2008, Equation 4.2.
+    @test dual_derivative(3-k,s) == (-1)^k * d(k-1,s)'
+  end
+end
+
 end
