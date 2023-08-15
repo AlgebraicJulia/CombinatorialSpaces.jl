@@ -298,6 +298,8 @@ add_vertices!(s, 4, point=[Point3D(1,1,1), Point3D(1,-1,-1),
   Point3D(-1,1,-1), Point3D(-1,-1,1)])
 glue_tetrahedron!(s, 1, 2, 3, 4)
 orient!(s)
+equilateral_triangle_area(len) = √3/4*len^2
+@test all(volume(s, Tri(1)) .≈ equilateral_triangle_area(2√2))
 regular_tetrahedron_volume(len) = len^3/(6√2)
 @test volume(s, Tet(1)) ≈ regular_tetrahedron_volume(2√2)
 

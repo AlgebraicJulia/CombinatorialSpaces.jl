@@ -639,4 +639,71 @@ for s in [tetrahedron_s, cube_s]
   end
 end
 
+# 3D embedded dual complex
+#-------------------------
+
+# Regular tetrahedron with edge length 2√2 in ℝ³.
+primal_s = EmbeddedDeltaSet3D{Bool,Point3D}()
+add_vertices!(primal_s, 4, point=[Point3D(1,1,1), Point3D(1,-1,-1),
+  Point3D(-1,1,-1), Point3D(-1,-1,1)])
+glue_tetrahedron!(primal_s, 1, 2, 3, 4)
+s = EmbeddedDeltaDualComplex3D{Bool,Float64,Point3D}(primal_s)
+subdivide_duals!(s, Circumcenter())
+regular_tetrahedron_volume(len) = len^3/(6√2)
+@test all(dual_volume(3,s,1:24) .≈ regular_tetrahedron_volume(2√2)/24)
+@test dual_point(s,tetrahedron_center(s,1)) == sum(point(s)) / length(point(s))
+
+# Heat equation:
+d₀_mat = d(0,s)
+star₁_mat = hodge_star(1,s,DiagonalHodge())
+dual_d₀_mat = dual_derivative(2,s)
+inv_star₃_mat = inv_hodge_star(0,s,DiagonalHodge())
+
+lap_mat = inv_star₃_mat * dual_d₀_mat * star₁_mat * d₀_mat
+
+C = collect(1.0:4.0)
+C₀ = collect(1.0:4.0)
+D = 0.005
+for _ in 0:100_000
+  dt_C = D * lap_mat*C
+  C .+= dt_C
 end
+@test all(C .≈ sum(C₀)/length(C₀))
+
+# Six tetrahedra of equal volume forming a cube with edge length 1.
+# The connectivity is that of Blessent's 2009 thesis, Figure 3.2.
+primal_s = EmbeddedDeltaSet3D{Bool,Point3D}()
+add_vertices!(primal_s, 8, point=[
+  Point3D(0,1,0), Point3D(0,0,0), Point3D(1,1,0), Point3D(1,0,0),
+  Point3D(0,1,1), Point3D(0,0,1), Point3D(1,1,1), Point3D(1,0,1)])
+# See Table 3.1 "Mesh connectivity".
+glue_sorted_tetrahedron!(primal_s, 3, 5, 4, 2)
+glue_sorted_tetrahedron!(primal_s, 7, 6, 8, 4)
+glue_sorted_tetrahedron!(primal_s, 5, 6, 7, 4)
+glue_sorted_tetrahedron!(primal_s, 3, 5, 7, 4)
+glue_sorted_tetrahedron!(primal_s, 5, 6, 4, 2)
+glue_sorted_tetrahedron!(primal_s, 1, 5, 3, 2)
+primal_s[:edge_orientation] = true
+primal_s[:tri_orientation] = true
+primal_s[:tet_orientation] = true
+orient!(primal_s)
+
+# Note that under circumcentric subdivision, some dual simplices will be of 0
+# area or volume, because e.g. a tetrahedron and a face of that tetrahedron may
+# have the same circumcenter. So a dual tetrahedron associated with those will
+# have two dual vertices at the same coordinates, thus resulting in a 0-volume
+# dual tetrahedron.  e.g. circumcenter([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0,
+# 1.0, 1.0]) == circumcenter([0.0, 0.0, 0.0], [1.0, 1.0, 0.0], [1.0, 0.0, 0.0],
+# [0.0, 1.0, 1.0])
+#s = EmbeddedDeltaDualComplex3D{Bool,Float64,Point3D}(primal_s)
+#subdivide_duals!(s, Circumcenter())
+#@test_throws sum(dual_volume(3,s,parts(s,:DualTet))) ≈ 1
+
+# Barycentric subdivision avoids the above issue.
+s = EmbeddedDeltaDualComplex3D{Bool,Float64,Point3D}(primal_s)
+subdivide_duals!(s, Barycenter())
+@test sum(dual_volume(3,s,parts(s,:DualTet))) ≈ 1
+@test all(dual_volume(3,s,parts(s,:DualTet)) .≈ 1/nparts(s,:DualTet))
+
+end
+
