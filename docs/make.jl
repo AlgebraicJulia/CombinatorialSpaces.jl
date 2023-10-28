@@ -3,9 +3,14 @@ using CombinatorialSpaces
 
 makedocs(
   sitename = "CombinatorialSpaces.jl",
-  format = Documenter.HTML(),
+  format = Documenter.HTML(
+    size_threshold_ignore = [
+      "meshes.md"
+    ]
+  ),
   modules = [CombinatorialSpaces],
   checkdocs = :exports,
+  warnonly = true,
   pages = [
     "simplicial_sets.md",
     "discrete_exterior_calculus.md",
