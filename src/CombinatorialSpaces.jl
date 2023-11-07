@@ -9,9 +9,11 @@ include("ExteriorCalculus.jl")
 include("SimplicialSets.jl")
 include("DiscreteExteriorCalculus.jl")
 include("MeshInterop.jl")
+include("FastDEC.jl")
 
 @reexport using .SimplicialSets
 @reexport using .DiscreteExteriorCalculus
+@reexport using .FastDEC
 @reexport using .MeshInterop
 
 function __init__()
