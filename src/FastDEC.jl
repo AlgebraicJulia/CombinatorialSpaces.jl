@@ -447,11 +447,8 @@ function fast_hodge_star(::Type{Val{1}}, sd::AbstractDeltaDualComplex2D, ::Geome
     edge_centers = @view sd[:edge_center]
     tri_centers = @view sd[:tri_center]
 
-    points::Vector{Point3D} = sd[:point]
-    dual_points::Vector{Point3D} = sd[:dual_point]
-
-    # points = sd[:point]
-    # dual_points = sd[:dual_point]
+    points = sd[:point]
+    dual_points = sd[:dual_point]
 
     tgts = @view sd[:∂v0]
     srcs = @view sd[:∂v1]
