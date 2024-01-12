@@ -1,3 +1,5 @@
+module Benchmarks
+
 using Catlab
 using Catlab.Graphics
 using CombinatorialSpaces
@@ -10,7 +12,6 @@ Point3D = Point3{Float64}
 
 begin 
     # TODO: Support larger meshes like Ico7
-    # primal_earth = EmbeddedDeltaSet2D("Ico7.obj");
     mesh_size = 5
     primal_earth = loadmesh(Icosphere(mesh_size))
     orient!(primal_earth);
@@ -132,4 +133,6 @@ for op in sort(collect(keys(results)))
         println("Variant: $k, [$t ms, $m MB]")
     end
     println("----------------------------------------------------------------")
+end
+
 end

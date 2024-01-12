@@ -1,3 +1,5 @@
+module TestOperators
+
 using Test
 using SparseArrays
 using LinearAlgebra
@@ -188,4 +190,6 @@ end
 
         @test all(dec_wedge_product(Tuple{1, 1}, sd)(E_1, E_2) / 2 .== ∧(Tuple{1, 1}, sd, E_1, E_2))
     end
+end
+
 end

@@ -1,3 +1,5 @@
+module TestMeshes
+
 using Catlab, Catlab.CategoricalAlgebra
 using CombinatorialSpaces
 using Test
@@ -66,3 +68,4 @@ thermo_icosphere5 = loadmesh(Icosphere(5, thermosphere_radius))
 @test ρ == thermosphere_radius
 @test euler_characteristic(thermo_icosphere5) == 2
 
+end
