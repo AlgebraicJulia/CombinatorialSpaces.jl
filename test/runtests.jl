@@ -15,6 +15,7 @@ end
 end
 
 @testset "Meshes" begin
+  include("Meshes.jl")
   include("MeshInterop.jl")
   include("MeshGraphics.jl")
 end

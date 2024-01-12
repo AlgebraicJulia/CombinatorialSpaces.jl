@@ -7,6 +7,7 @@ using Base.Iterators
 using ACSets.DenseACSets: attrtype_type
 using Catlab, Catlab.CategoricalAlgebra.CSets
 using ..SimplicialSets, ..DiscreteExteriorCalculus
+
 export dec_boundary, dec_differential, dec_dual_derivative, dec_hodge_star, dec_inv_hodge_star, dec_wedge_product
 
 # TODO: This relies on the assumption of a well ordering of the 
@@ -23,7 +24,6 @@ end
 function dec_c_wedge_product!(::Type{Tuple{0,1}}, wedge_terms, f, α, val_pack)
     primal_vertices, simples = val_pack
 
-    # wedge_terms = Vector{Float64}(undef, last(simples))
     wedge_terms .= 0.5 .* α
     @inbounds for i in simples
         wedge_terms[i] *= (f[primal_vertices[i, 1]] + f[primal_vertices[i, 2]])
@@ -179,8 +179,6 @@ function dec_p_derivbound(::Type{Val{0}}, sd::HasDeltaSet; transpose=false, nega
 
     # TODO: This is assuming that meshes don't have too many entries
     # This type should be settable by the user and default set to Int32
-    # I = Vector{Int64}(undef, vec_size)
-    # J = Vector{Int64}(undef, vec_size)
     I = Vector{Int32}(undef, vec_size)
     J = Vector{Int32}(undef, vec_size)
 
@@ -224,8 +222,6 @@ function dec_p_derivbound(::Type{Val{1}}, sd::HasDeltaSet; transpose=false, nega
 
     # TODO: This is assuming that meshes don't have too many entries
     # This type should be settable by the user and default set to Int32
-    # I = Vector{Int64}(undef, vec_size)
-    # J = Vector{Int64}(undef, vec_size)
     I = Vector{Int32}(undef, vec_size)
     J = Vector{Int32}(undef, vec_size)
 
@@ -274,7 +270,7 @@ function dec_p_derivbound(::Type{Val{1}}, sd::HasDeltaSet; transpose=false, nega
     (I, J, V)
 end
 
-# These are Diagonal Hodges 
+# Diagonal Hodges 
 
 # TODO: Check this Hodge with a 1D mesh
 function dec_p_hodge_diag(::Type{Val{0}}, sd::AbstractDeltaDualComplex1D; float_type=Float64)
@@ -361,17 +357,6 @@ dec_hodge_star(::Type{Val{0}}, sd::AbstractDeltaDualComplex2D, ::GeometricHodge;
 dec_hodge_star(::Type{Val{2}}, sd::AbstractDeltaDualComplex2D, ::GeometricHodge; float_type=Float64) =
     dec_hodge_star(Val{2}, sd, DiagonalHodge(), float_type=float_type)
 
-#= function crossdot(a, b)
-    x, y, z = 1, 2, 3
-    c_x = a[y] * b[z] - a[z] * b[y]
-    c_y = a[z] * b[x] - a[x] * b[z]
-    c_z = a[x] * b[y] - a[y] * b[x]
-
-    flipbit = (c_z == 0 ? 1.0 : sign(c_z))
-    c_norm = sqrt(c_x^2 + c_y^2 + c_z^2)
-    return c_norm * flipbit
-end =#
-
 crossdot(v1, v2) = begin
     v1v2 = cross(v1, v2)
     norm(v1v2) * (last(v1v2) == 0 ? 1.0 : sign(last(v1v2)))
@@ -414,14 +399,7 @@ function dec_hodge_star(::Type{Val{1}}, sd::AbstractDeltaDualComplex2D, ::Geomet
 
     for t in triangles(sd)
         e = tri_edges[:, t]
-        # ev = points[tgts[e]] .- points[srcs[e]]
         ev = evt[:, t]
-        # tc = dual_points[tri_centers[t]]
-        # tc = tct[t]
-        
-        #= dv = map(enumerate(dual_points[edge_centers[e]])) do (i, v)
-            (tc - v) * (i == 2 ? -1 : 1)
-        end =#
         dv = dvt[:, t]
 
         diag_dot = map(1:3) do i
