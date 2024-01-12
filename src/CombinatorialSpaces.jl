@@ -9,9 +9,8 @@ include("ExteriorCalculus.jl")
 include("SimplicialSets.jl")
 include("DiscreteExteriorCalculus.jl")
 include("MeshInterop.jl")
-include("FastDEC.jl")
 
-# TODO: Would be best to only have these files be included if the user wants the meshes
+include("FastDEC.jl")
 include("Meshes.jl")
 
 @reexport using .SimplicialSets
