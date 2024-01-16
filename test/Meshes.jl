@@ -68,4 +68,22 @@ thermo_icosphere5 = loadmesh(Icosphere(5, thermosphere_radius))
 @test ρ == thermosphere_radius
 @test euler_characteristic(thermo_icosphere5) == 2
 
+# Tests for the SphericalMeshes
+ρ = 6371+90
+s, npi, spi = makeSphere(0, 180, 5, 0, 360, 5, ρ)
+magnitude = (sqrt ∘ (x -> foldl(+, x*x)))
+
+# The definition of a discretization of a sphere of unspecified radius.
+ρ′ = magnitude(s[:point][begin])
+@test all(isapprox.(magnitude.(s[:point]), ρ′))
+
+# The definition of a discretization of a sphere of radius ρ.
+@test all(isapprox.(magnitude.(s[:point]), ρ))
+
+# Some properties of a regular octahedron.
+◀▶, npi, spi = makeSphere(0, 180, 90, 0, 360, 90, 1)
+@test nv(◀▶) == 6
+@test ne(◀▶) == 12
+@test length(triangles(◀▶)) == 8
+
 end

@@ -10,17 +10,28 @@ using ..SimplicialSets, ..DiscreteExteriorCalculus
 
 export dec_boundary, dec_differential, dec_dual_derivative, dec_hodge_star, dec_inv_hodge_star, dec_wedge_product
 
-# TODO: This relies on the assumption of a well ordering of the 
-# the dual space simplices. If changed, use dec_p_wedge_product_zero
-function dec_p_wedge_product(::Type{Tuple{0,1}}, sd; float_type=Float64)
+"""
+    dec_p_wedge_product(::Type{Tuple{0,1}}, sd::hasDeltaSet; float_type=Float64)
+
+Precomputes values for the wedge product between a 0 and 1-form.
+The values are to be fed into the wedge_terms parameter for the computational "c" varient. 
+This relies on the assumption of a well ordering of the dual space simplices.
+Do NOT modify the mesh once it's dual mesh has been computed else this method may not function properly.
+"""
+function dec_p_wedge_product(::Type{Tuple{0,1}}, sd::HasDeltaSet; float_type=Float64)
     return (hcat(convert(Vector{Int32}, sd[:∂v0]), convert(Vector{Int32}, sd[:∂v1])), simplices(1, sd))
-    # return (hcat(sd[:∂v0], sd[:∂v1]), simplices(1, sd))
 end
 
-# TODO: This relies on the assumption of a well ordering of the 
-# the dual space simplices. If changed, use dec_c_wedge_product_zero
-# TODO: This assumes that the dual vertice on an edge is always the midpoint
+# XXX: This assumes that the dual vertice on an edge is always the midpoint
 # TODO: Add options to change 0.5 to a different float
+"""
+    dec_c_wedge_product!(::Type{Tuple{0,1}}, wedge_terms, f, α, val_pack)
+
+Computes the wedge product between a 0 and 1-form.
+Use the precomputational "p" varient for the wedge_terms parameter. 
+This relies on the assumption of a well ordering of the dual space simplices.
+Do NOT modify the mesh once it's dual mesh has been computed else this method may not function properly.
+"""
 function dec_c_wedge_product!(::Type{Tuple{0,1}}, wedge_terms, f, α, val_pack)
     primal_vertices, simples = val_pack
 
@@ -32,6 +43,14 @@ function dec_c_wedge_product!(::Type{Tuple{0,1}}, wedge_terms, f, α, val_pack)
     return wedge_terms
 end
 
+"""
+    dec_p_wedge_product(::Type{Tuple{0,2}}, sd::HasDeltaSet; float_type=Float64)
+
+Precomputes values for the wedge product between a 0 and 2-form.
+The values are to be fed into the wedge_terms parameter for the computational "c" varient. 
+This relies on the assumption of a well ordering of the dual space simplices.
+Do NOT modify the mesh once it's dual mesh has been computed else this method may not function properly.
+"""
 function dec_p_wedge_product(::Type{Tuple{0,2}}, sd::HasDeltaSet; float_type=Float64)
 
     simples = simplices(2, sd)
@@ -45,8 +64,8 @@ function dec_p_wedge_product(::Type{Tuple{0,2}}, sd::HasDeltaSet; float_type=Flo
     dv = @view sd[:dual_area]
     vols = @view sd[:area]
 
-    # TODO: This is assuming that meshes don't have too many entries
-    # This type should be settable by the user and default set to Int32
+    # XXX: This is assuming that meshes don't have too many entries
+    # TODO: This type should be settable by the user and default set to Int32
     primal_vertices = Array{Int32}(undef, 6, ntriangles(sd))
     coeffs = Array{float_type}(undef, 6, ntriangles(sd))
 
@@ -66,13 +85,16 @@ function dec_p_wedge_product(::Type{Tuple{0,2}}, sd::HasDeltaSet; float_type=Flo
     return (primal_vertices, coeffs, simples)
 end
 
+"""
+    dec_c_wedge_product!(::Type{Tuple{0,2}}, wedge_terms, f, α, val_pack)
+
+Computes the wedge product between a 0 and 2-form.
+Use the precomputational "p" varient for the wedge_terms parameter. 
+This relies on the assumption of a well ordering of the dual space simplices.
+Do NOT modify the mesh once it's dual mesh has been computed else this method may not function properly.
+"""
 function dec_c_wedge_product!(::Type{Tuple{0,2}}, wedge_terms, f, α, val_pack)
     pv, coeffs, simples = val_pack
-
-    # TODO: May want to move this to be in the loop in case the coeffs width does change
-    # Can use the below code in the preallocation to determine if we do have to recompute
-    # the width at every step or if we can just compute it once.
-    # all(map(x -> length(coeffs[x]), simples) .== length(coeffs[1]))
     @inbounds for i in simples
         wedge_terms[i] = α[i] * (coeffs[1, i] * f[pv[1, i]] + coeffs[2, i] * f[pv[2, i]]
                                  + coeffs[3, i] * f[pv[3, i]] + coeffs[4, i] * f[pv[4, i]]
@@ -82,9 +104,15 @@ function dec_c_wedge_product!(::Type{Tuple{0,2}}, wedge_terms, f, α, val_pack)
     return wedge_terms
 end
 
-# TODO: This relies on a well established ordering for 
-# the dual space simplices. If changed, use dec_p_wedge_product_ones_safe
-function dec_p_wedge_product(::Type{Tuple{1,1}}, sd; float_type=Float64)
+"""
+    dec_p_wedge_product(::Type{Tuple{1,1}}, sd::HasDeltaSet; float_type=Float64)
+
+Precomputes values for the wedge product between a 1 and 1-form.
+The values are to be fed into the wedge_terms parameter for the computational "c" varient. 
+This relies on the assumption of a well ordering of the dual space simplices.
+Do NOT modify the mesh once it's dual mesh has been computed else this method may not function properly.
+"""
+function dec_p_wedge_product(::Type{Tuple{1,1}}, sd::HasDeltaSet; float_type=Float64)
     simples = simplices(2, sd)
 
     areas = @view sd[:area]
@@ -99,9 +127,8 @@ function dec_p_wedge_product(::Type{Tuple{1,1}}, sd; float_type=Float64)
         coeffs[2, i] = (d_areas[i+2*shift] + d_areas[i+3*shift]) / area
         coeffs[3, i] = (d_areas[i+4*shift] + d_areas[i+5*shift]) / area
     end
-    # TODO: This is assuming that meshes don't have too many entries
-    # This type should be settable by the user and default set to Int32
-    # e = Array{Int64}(undef, 3, ntriangles(sd))
+    # XXX: This is assuming that meshes don't have too many entries
+    # TODO: This type should be settable by the user and default set to Int32
     e = Array{Int32}(undef, 3, ntriangles(sd))
 
     e[1, :] = ∂(2, 0, sd)
@@ -111,6 +138,14 @@ function dec_p_wedge_product(::Type{Tuple{1,1}}, sd; float_type=Float64)
     return (e, coeffs, simples)
 end
 
+"""
+    dec_c_wedge_product!(::Type{Tuple{1,1}}, wedge_terms, f, α, val_pack)
+
+Computes the wedge product between a 1 and 1-form.
+Use the precomputational "p" varient for the wedge_terms parameter. 
+This relies on the assumption of a well ordering of the dual space simplices.
+Do NOT modify the mesh once it's dual mesh has been computed else this method may not function properly.
+"""
 function dec_c_wedge_product!(::Type{Tuple{1,1}}, wedge_terms, α, β, val_pack)
     e, coeffs, simples = val_pack
 
@@ -126,28 +161,66 @@ function dec_c_wedge_product!(::Type{Tuple{1,1}}, wedge_terms, α, β, val_pack)
     return wedge_terms
 end
 
-function dec_c_wedge_product(::Type{Tuple{m,n}}, f, α, val_pack) where {m,n}
+"""
+    dec_c_wedge_product(::Type{Tuple{m,n}}, α, β, val_pack) where {m,n}
+
+Computes the wedge product between two forms.
+Use the precomputational "p" varient for the wedge_terms parameter. 
+This relies on the assumption of a well ordering of the dual space simplices.
+Do NOT modify the mesh once it's dual mesh has been computed else this method may not function properly.
+"""
+function dec_c_wedge_product(::Type{Tuple{m,n}}, α, β, val_pack) where {m,n}
     # The last item in the val_pack should always be the range of simplices
     wedge_terms = zeros(last(last(val_pack)))
-    return dec_c_wedge_product!(Tuple{m,n}, wedge_terms, f, α, val_pack)
+    return dec_c_wedge_product!(Tuple{m,n}, wedge_terms, α, β, val_pack)
 end
 
 dec_wedge_product(m::Int, n::Int, sd::HasDeltaSet) = dec_wedge_product(Tuple{m,n}, sd::HasDeltaSet)
 
+"""
+    dec_wedge_product(::Type{Tuple{0,0}}, sd::HasDeltaSet, float_type=Float64)
+
+Computes the wedge product between two 0-forms.
+This is just a wrapper for element-wise multiplication.
+"""
 function dec_wedge_product(::Type{Tuple{0,0}}, sd::HasDeltaSet, float_type=Float64)
     (f, g) -> f .* g
 end
 
+"""
+    dec_wedge_product(::Type{Tuple{k,0}}, sd::HasDeltaSet; float_type=Float64) where {k}
+
+Returns a function that computes wedge product between a k and a 0-form.
+This is just a wrapper for the "p" and "c" variants of a specific wedge product.
+This relies on the assumption of a well ordering of the dual space simplices.
+Do NOT modify the mesh once it's dual mesh has been computed else this method may not function properly.
+"""
 function dec_wedge_product(::Type{Tuple{k,0}}, sd::HasDeltaSet; float_type=Float64) where {k}
     val_pack = dec_p_wedge_product(Tuple{0,k}, sd, float_type=float_type)
     (α, g) -> dec_c_wedge_product(Tuple{0,k}, g, α, val_pack)
 end
 
+"""
+    dec_wedge_product(::Type{Tuple{0,k}}, sd::HasDeltaSet; float_type=Float64) where {k}
+
+Returns a function that computes the wedge product between a 0 and a k-form.
+This is just a wrapper for the "p" and "c" variants of a specific wedge product.
+This relies on the assumption of a well ordering of the dual space simplices.
+Do NOT modify the mesh once it's dual mesh has been computed else this method may not function properly.
+"""
 function dec_wedge_product(::Type{Tuple{0,k}}, sd::HasDeltaSet; float_type=Float64) where {k}
     val_pack = dec_p_wedge_product(Tuple{0,k}, sd, float_type=float_type)
     (f, β) -> dec_c_wedge_product(Tuple{0,k}, f, β, val_pack)
 end
 
+"""
+    dec_wedge_product(::Type{Tuple{1,1}}, sd::HasDeltaSet2D; float_type=Float64)
+
+Returns a function that computes the wedge product between a 1 and a 1-form.
+This is just a wrapper for the "p" and "c" variants of a specific wedge product.
+This relies on the assumption of a well ordering of the dual space simplices.
+Do NOT modify the mesh once it's dual mesh has been computed else this method may not function properly.
+"""
 function dec_wedge_product(::Type{Tuple{1,1}}, sd::HasDeltaSet2D; float_type=Float64)
     val_pack = dec_p_wedge_product(Tuple{1,1}, sd, float_type=float_type)
     (α, β) -> dec_c_wedge_product(Tuple{1,1}, α, β, val_pack)
@@ -177,8 +250,8 @@ dec_differential(n::Int, sd::HasDeltaSet) = sparse(dec_p_derivbound(Val{n}, sd).
 function dec_p_derivbound(::Type{Val{0}}, sd::HasDeltaSet; transpose=false, negate=false)
     vec_size = 2 * ne(sd)
 
-    # TODO: This is assuming that meshes don't have too many entries
-    # This type should be settable by the user and default set to Int32
+    # XXX: This is assuming that meshes don't have too many entries
+    # TODO: This type should be settable by the user and default set to Int32
     I = Vector{Int32}(undef, vec_size)
     J = Vector{Int32}(undef, vec_size)
 
@@ -220,8 +293,8 @@ end
 function dec_p_derivbound(::Type{Val{1}}, sd::HasDeltaSet; transpose=false, negate=false)
     vec_size = 3 * ntriangles(sd)
 
-    # TODO: This is assuming that meshes don't have too many entries
-    # This type should be settable by the user and default set to Int32
+    # XXX: This is assuming that meshes don't have too many entries
+    # TODO: This type should be settable by the user and default set to Int32
     I = Vector{Int32}(undef, vec_size)
     J = Vector{Int32}(undef, vec_size)
 
@@ -272,7 +345,6 @@ end
 
 # Diagonal Hodges 
 
-# TODO: Check this Hodge with a 1D mesh
 function dec_p_hodge_diag(::Type{Val{0}}, sd::AbstractDeltaDualComplex1D; float_type=Float64)
     num_v_sd = nv(sd)
 
@@ -281,8 +353,7 @@ function dec_p_hodge_diag(::Type{Val{0}}, sd::AbstractDeltaDualComplex1D; float_
     v1_list = @view sd[:D_∂v1]
     dual_lengths = @view sd[:dual_length]
 
-    for d_edge_idx in eachindex(v1_list)
-        v1 = v1_list[d_edge_idx]
+    for (d_edge_idx, v1) in enumerate(v1_list)
         if (1 <= v1 <= num_v_sd)
             hodge_diag_0[v1] += dual_lengths[d_edge_idx]
         end
@@ -290,7 +361,6 @@ function dec_p_hodge_diag(::Type{Val{0}}, sd::AbstractDeltaDualComplex1D; float_
     return hodge_diag_0
 end
 
-# TODO: Check this Hodge with a 1D mesh
 function dec_p_hodge_diag(::Type{Val{1}}, sd::AbstractDeltaDualComplex1D; float_type=Float64)
     vols::Vector{float_type} = volume(Val{1}, sd, edges(sd))
     return 1 ./ vols
@@ -304,8 +374,8 @@ function dec_p_hodge_diag(::Type{Val{0}}, sd::AbstractDeltaDualComplex2D; float_
     dual_v_1 = @view sd[:D_∂v1]
     dual_areas = @view sd[:dual_area]
 
-    for dual_tri in eachindex(dual_edges_1)
-        v = dual_v_1[dual_edges_1[dual_tri]]
+    for (dual_tri, dual_edges) in enumerate(dual_edges_1)
+        v = dual_v_1[dual_edges]
         hodge_diag_0[v] += dual_areas[dual_tri]
     end
     return hodge_diag_0
@@ -321,8 +391,8 @@ function dec_p_hodge_diag(::Type{Val{1}}, sd::AbstractDeltaDualComplex2D; float_
     dual_lengths = @view sd[:dual_length]
     lengths = @view sd[:length]
 
-    for d_edge_idx in eachindex(v1_list)
-        v1_shift = v1_list[d_edge_idx] - num_v_sd
+    for (d_edge_idx, v1) in enumerate(v1_list)
+        v1_shift = v1 - num_v_sd
         if (1 <= v1_shift <= num_e_sd)
             hodge_diag_1[v1_shift] += dual_lengths[d_edge_idx] / lengths[v1_shift]
         end
@@ -331,7 +401,6 @@ function dec_p_hodge_diag(::Type{Val{1}}, sd::AbstractDeltaDualComplex2D; float_
 end
 
 function dec_p_hodge_diag(::Type{Val{2}}, sd::AbstractDeltaDualComplex2D; float_type=Float64)
-    # tri_areas = @view sd[:area]
     tri_areas::Vector{float_type} = sd[:area]
     return 1 ./ tri_areas
 end
@@ -344,7 +413,7 @@ dec_hodge_star(::Type{Val{k}}, sd::HasDeltaSet, ::DiagonalHodge; float_type=Floa
     Diagonal(dec_p_hodge_diag(Val{k}, sd, float_type=float_type))
 
 # These are Geometric Hodges 
-# TODO: Still need implementation for Hodge 1 in 2D
+# TODO: Still need better implementation for Hodge 1 in 2D
 dec_hodge_star(::Type{Val{0}}, sd::AbstractDeltaDualComplex1D, ::GeometricHodge; float_type=Float64) =
     dec_hodge_star(Val{0}, sd, DiagonalHodge(), float_type=float_type)
 
