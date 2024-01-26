@@ -13,9 +13,10 @@ Point3D = Point3{Float64}
 begin 
     # TODO: Support larger meshes like Ico7
     mesh_size = 5
+    float_type::DataType = Float64
     primal_earth = loadmesh(Icosphere(mesh_size))
     orient!(primal_earth);
-    earth = EmbeddedDeltaDualComplex2D{Bool,Float64,Point3D}(primal_earth);
+    earth = EmbeddedDeltaDualComplex2D{Bool,float_type,Point3D}(primal_earth);
     subdivide_duals!(earth, Barycenter());
 end
 
@@ -102,9 +103,9 @@ end
 
 begin
     Random.seed!(7331)
-    V_1 = rand(nv(earth))
-    E_1, E_2 = rand(ne(earth)), rand(ne(earth))
-    T_2 = rand(ntriangles(earth))
+    V_1 = rand(float_type, nv(earth))
+    E_1, E_2 = rand(float_type, ne(earth)), rand(float_type, ne(earth))
+    T_2 = rand(float_type, ntriangles(earth))
 
     suite["Wedge Product"] = BenchmarkGroup()
 
@@ -117,6 +118,24 @@ begin
     suite["Wedge Product"]["New Form-0, Form-2"] = @benchmarkable dec_wedge_product(Tuple{0,2}, $earth)($V_1, $T_2)
     suite["Wedge Product"]["Old Form-0, Form-2"] = @benchmarkable wedge_product(Tuple{0,2}, $earth, $V_1, $T_2)
 end
+
+begin
+    Random.seed!(7331)
+    V_1 = rand(float_type, nv(earth))
+    E_1, E_2 = rand(float_type, ne(earth)), rand(float_type, ne(earth))
+    T_2 = rand(float_type, ntriangles(earth))
+
+    suite["Wedge Product Computation"] = BenchmarkGroup()
+
+    wdg01 = dec_wedge_product(Tuple{0,1}, earth)
+    wdg11 = dec_wedge_product(Tuple{1,1}, earth)
+    wdg02 = dec_wedge_product(Tuple{0,2}, earth)
+
+    suite["Wedge Product Computation"]["New Form-0, Form-1"] = @benchmarkable wdg01($V_1, $E_1)
+    suite["Wedge Product Computation"]["New Form-1, Form-1"] = @benchmarkable wdg11($E_1, $E_2)
+    suite["Wedge Product Computation"]["New Form-0, Form-2"] = @benchmarkable wdg02($V_1, $T_2)
+end
+
 
 
 # tune!(suite)
