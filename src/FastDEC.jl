@@ -39,9 +39,8 @@ Do NOT modify the mesh once it's dual mesh has been computed else this method ma
 function dec_c_wedge_product!(::Type{Tuple{0,1}}, wedge_terms, f, α, val_pack)
     primal_vertices, simples = val_pack
 
-    wedge_terms .= 0.5 .* α
     @inbounds for i in simples
-        wedge_terms[i] *= (f[primal_vertices[i, 1]] + f[primal_vertices[i, 2]])
+        wedge_terms[i] = 0.5 * α[i] * (f[primal_vertices[i, 1]] + f[primal_vertices[i, 2]])
     end
 
     return wedge_terms
@@ -435,18 +434,14 @@ dec_hodge_star(::Type{Val{2}}, sd::EmbeddedDeltaDualComplex2D, ::GeometricHodge)
 
 crossdot(v1, v2) = begin
     v1v2 = cross(v1, v2)
-    norm(v1v2) * (last(v1v2) == 0 ? 1.0 : sign(last(v1v2)))
+    norm(v1v2) * (last(v1v2) == 0 ? 1 : sign(last(v1v2)))
 end
 
 function dec_hodge_star(::Type{Val{1}}, sd::EmbeddedDeltaDualComplex2D{Bool, float_type, point_type}, ::GeometricHodge) where {float_type, point_type}
-
-    I = Vector{Int32}()
-    J = Vector{Int32}()
-    V = Vector{float_type}()
-
-    sizehint!(I, ntriangles(sd) * 9)
-    sizehint!(J, ntriangles(sd) * 9)
-    sizehint!(V, ntriangles(sd) * 9)
+    
+    I = Vector{Int32}(undef, ntriangles(sd) * 9)
+    J = Vector{Int32}(undef, ntriangles(sd) * 9)
+    V = Vector{float_type}(undef, ntriangles(sd) * 9)
 
     # Reversed by contruction
     tri_edges_1 = @view sd[:∂e2]
@@ -460,10 +455,13 @@ function dec_hodge_star(::Type{Val{1}}, sd::EmbeddedDeltaDualComplex2D{Bool, flo
     srcs = @view sd[:∂v1]
 
     # Regular points are contained in first nv(sd) spots
+    # TODO: Decide if to use view or not, using a view means less memory but slightly slower
     dual_points::Vector{point_type} = sd[:dual_point]
 
     evt = Vector{point_type}(undef, 3)
     dvt = Vector{point_type}(undef, 3)
+
+    idx = 0
 
     @inbounds for t in triangles(sd)
         dual_point_tct = dual_points[tri_centers[t]]
@@ -477,27 +475,34 @@ function dec_hodge_star(::Type{Val{1}}, sd::EmbeddedDeltaDualComplex2D{Bool, flo
         # This relative orientation needs to be redefined for each triangle in the
         # case that the mesh has multiple independent connected components
         cross_ev_dv = cross(evt[1], dvt[1])
-        rel_orient::float_type = (last(cross_ev_dv) == 0 ? 1.0 : sign(last(cross_ev_dv)))
+        rel_orient = (last(cross_ev_dv) == 0 ? 1 : sign(last(cross_ev_dv)))
         for i in 1:3
-            diag_cross::float_type = crossdot(evt[i], dvt[i])
+            diag_cross = crossdot(evt[i], dvt[i])
             if diag_cross != 0.0
-                push!(I, tri_edges[i][t])
-                push!(J, tri_edges[i][t])
-                push!(V, rel_orient * diag_cross / dot(evt[i], evt[i]))
+                idx += 1
+                I[idx] = tri_edges[i][t]
+                J[idx] = tri_edges[i][t]
+                V[idx] = rel_orient * diag_cross / dot(evt[i], evt[i])
             end
         end
 
         for p ∈ ((1, 2, 3), (1, 3, 2), (2, 1, 3), (2, 3, 1), (3, 1, 2), (3, 2, 1))
             diag_dot = dot(evt[p[1]], dvt[p[1]]) / dot(evt[p[1]], evt[p[1]])
-            val::float_type = rel_orient * diag_dot * dot(evt[p[1]], evt[p[3]]) / crossdot(evt[p[2]], evt[p[3]])
+            val = diag_dot * dot(evt[p[1]], evt[p[3]]) 
             if val != 0.0
-                push!(I, tri_edges[p[1]][t])
-                push!(J, tri_edges[p[2]][t])
-                push!(V, val)
+                idx += 1
+                I[idx] = tri_edges[p[1]][t]
+                J[idx] = tri_edges[p[2]][t]
+                V[idx] = rel_orient * val / crossdot(evt[p[2]], evt[p[3]])
             end
         end
     end
-    sparse(I, J, V)
+
+    view_I = @view I[1:idx]
+    view_J = @view J[1:idx]
+    view_V = @view V[1:idx]
+
+    sparse(view_I, view_J, view_V)
 end
 
 dec_inv_hodge_star(n::Int, sd::HasDeltaSet; hodge=GeometricHodge()) = dec_inv_hodge_star(Val{n}, sd, hodge)
