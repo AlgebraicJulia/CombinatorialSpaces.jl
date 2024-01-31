@@ -10,6 +10,14 @@ using ..SimplicialSets, ..DiscreteExteriorCalculus
 
 export dec_boundary, dec_differential, dec_dual_derivative, dec_hodge_star, dec_inv_hodge_star, dec_wedge_product
 
+"""
+    dec_p_wedge_product(::Type{Tuple{0,1}}, sd::EmbeddedDeltaDualComplex1D)
+
+Precomputes values for the wedge product between a 0 and 1-form.
+The values are to be fed into the wedge_terms parameter for the computational "c" varient. 
+This relies on the assumption of a well ordering of the dual space simplices.
+Do NOT modify the mesh once it's dual mesh has been computed else this method may not function properly.
+"""
 function dec_p_wedge_product(::Type{Tuple{0,1}}, sd::EmbeddedDeltaDualComplex1D)
     return (hcat(convert(Vector{Int32}, sd[:∂v0])::Vector{Int32}, convert(Vector{Int32}, sd[:∂v1])::Vector{Int32}), simplices(1, sd))
 end
@@ -184,22 +192,18 @@ end
 dec_wedge_product(m::Int, n::Int, sd::HasDeltaSet) = dec_wedge_product(Tuple{m,n}, sd::HasDeltaSet)
 
 """
-    dec_wedge_product(::Type{Tuple{0,0}}, sd::HasDeltaSet, float_type=Float64)
+    dec_wedge_product(::Type{Tuple{0,0}}, sd::HasDeltaSet)
 
-Computes the wedge product between two 0-forms.
-This is just a wrapper for element-wise multiplication.
+Returns a function that computes the wedge product between two 0-forms.
 """
 function dec_wedge_product(::Type{Tuple{0,0}}, sd::HasDeltaSet)
     (f, g) -> f .* g
 end
 
 """
-    dec_wedge_product(::Type{Tuple{k,0}}, sd::HasDeltaSet; float_type=Float64) where {k}
+    dec_wedge_product(::Type{Tuple{k,0}}, sd::HasDeltaSet) where {k}
 
 Returns a function that computes wedge product between a k and a 0-form.
-This is just a wrapper for the "p" and "c" variants of a specific wedge product.
-This relies on the assumption of a well ordering of the dual space simplices.
-Do NOT modify the mesh once it's dual mesh has been computed else this method may not function properly.
 """
 function dec_wedge_product(::Type{Tuple{k,0}}, sd::HasDeltaSet) where {k}
     val_pack = dec_p_wedge_product(Tuple{0,k}, sd)
@@ -207,12 +211,9 @@ function dec_wedge_product(::Type{Tuple{k,0}}, sd::HasDeltaSet) where {k}
 end
 
 """
-    dec_wedge_product(::Type{Tuple{0,k}}, sd::HasDeltaSet; float_type=Float64) where {k}
+    dec_wedge_product(::Type{Tuple{0,k}}, sd::HasDeltaSet) where {k}
 
 Returns a function that computes the wedge product between a 0 and a k-form.
-This is just a wrapper for the "p" and "c" variants of a specific wedge product.
-This relies on the assumption of a well ordering of the dual space simplices.
-Do NOT modify the mesh once it's dual mesh has been computed else this method may not function properly.
 """
 function dec_wedge_product(::Type{Tuple{0,k}}, sd::HasDeltaSet) where {k}
     val_pack = dec_p_wedge_product(Tuple{0,k}, sd)
@@ -220,12 +221,9 @@ function dec_wedge_product(::Type{Tuple{0,k}}, sd::HasDeltaSet) where {k}
 end
 
 """
-    dec_wedge_product(::Type{Tuple{1,1}}, sd::HasDeltaSet2D; float_type=Float64)
+    dec_wedge_product(::Type{Tuple{1,1}}, sd::HasDeltaSet2D)
 
 Returns a function that computes the wedge product between a 1 and a 1-form.
-This is just a wrapper for the "p" and "c" variants of a specific wedge product.
-This relies on the assumption of a well ordering of the dual space simplices.
-Do NOT modify the mesh once it's dual mesh has been computed else this method may not function properly.
 """
 function dec_wedge_product(::Type{Tuple{1,1}}, sd::HasDeltaSet2D)
     val_pack = dec_p_wedge_product(Tuple{1,1}, sd)
