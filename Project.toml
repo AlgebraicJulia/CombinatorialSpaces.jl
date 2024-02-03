@@ -22,7 +22,7 @@ StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
 
 [compat]
 ACSets = "0.2"
-Artifacts = "1.9"
+Artifacts = "1.9, 1"
 BenchmarkTools = "1.4.0"
 Catlab = "0.16"
 FileIO = "^1"
