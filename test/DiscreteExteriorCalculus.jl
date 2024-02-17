@@ -5,6 +5,8 @@ using LinearAlgebra: Diagonal, mul!, norm, dot
 using SparseArrays, StaticArrays
 
 using Catlab.CategoricalAlgebra.CSets
+using ACSets
+using ACSets.DenseACSets: attrtype_type
 using CombinatorialSpaces
 
 const Point2D = SVector{2,Float64}
@@ -365,12 +367,16 @@ vfs = [Point3D(1,0,0), Point3D(1,1,0), Point3D(-3,2,0), Point3D(0,0,0),
   Point3D(-0.07058313895389791, 0.5314767537831963, 0.0)]
 
 # 3,4,5 triangle.
-primal_s = EmbeddedDeltaSet2D{Bool,Point3D}()
-add_vertices!(primal_s, 3, point=[Point3D(0,0,0), Point3D(3,0,0), Point3D(3,4,0)])
-glue_triangle!(primal_s, 1, 2, 3, tri_orientation=true)
-primal_s[:edge_orientation] = true
-s = EmbeddedDeltaDualComplex2D{Bool,Float64,Point3D}(primal_s)
-subdivide_duals!(s, Barycenter())
+function tri_345()
+  primal_s = EmbeddedDeltaSet2D{Bool,Point3D}()
+  add_vertices!(primal_s, 3, point=[Point3D(0,0,0), Point3D(3,0,0), Point3D(3,4,0)])
+  glue_triangle!(primal_s, 1, 2, 3, tri_orientation=true)
+  primal_s[:edge_orientation] = true
+  s = EmbeddedDeltaDualComplex2D{Bool,Float64,Point3D}(primal_s)
+  subdivide_duals!(s, Barycenter())
+  (primal_s, s)
+end
+primal_s, s = tri_345()
 foreach(vf -> test_♯(s, vf), vfs)
 ♯_m = ♯_mat(s, DesbrunSharp())
 X = eval_constant_form(s, Point3D(1,0,0))
@@ -564,5 +570,101 @@ X = [SVector(2,3), SVector(5,7)]
 
 @test ♭(s, DualVectorField(X)) == ♭(s′, DualVectorField(X))
 @test ♭_mat(s) * DualVectorField(X) == ♭_mat(s′) * DualVectorField(X)
+
+# A right triangle with unit hypotenuse.
+function right_unit_hypot()
+  primal_s = EmbeddedDeltaSet2D{Bool,Point2D}()
+  add_vertices!(primal_s, 3,
+    point=[Point2D(0,0), Point2D(1/√2,0), Point2D(1/√2,1/√2)])
+  glue_sorted_triangle!(primal_s, 1, 2, 3)
+  primal_s[:edge_orientation] = true
+  s = EmbeddedDeltaDualComplex2D{Bool,Float64,Point2D}(primal_s)
+  subdivide_duals!(s, Barycenter())
+  (primal_s, s)
+end
+primal_s, s = tri_345()
+primal_s, s = right_unit_hypot()
+
+# Evaluate a constant primal form
+eval_constant_primal_form(s, α::SVector) = map(edges(s)) do e
+  dot(α, point(s, tgt(s,e)) - point(s, src(s,e))) * sign(1,s,e)
+end |> EForm
+
+# Evaluate a constant primal form
+eval_constant_dual_form(s, α::SVector) = map(edges(s)) do e
+  to_vec(x) = dual_point(s,s[x, :D_∂v0]) - dual_point(s,s[x, :D_∂v1])
+  sum(
+    map(elementary_duals(1,s,e)) do y
+      de_sign(s,y) * dot(α, to_vec(y))
+    end)
+end |> EForm
+
+# Test that this technique for evaluating 1-forms is consistent across primal
+# and dual forms.
+# ♭ᵈ_discrete(f_continuous) = ⋆₁_discrete∘♭ᵖ_discrete(⋆_continuous f_continuous)
+primal_s, s = tri_345()
+f′ = eval_constant_primal_form(s, SVector(1/√2,-1/√2,0))
+f̃ = eval_constant_dual_form(s, SVector(1/√2,1/√2,0))
+@test all(map(hodge_star(1,s) * f′, f̃) do x,y
+  isapprox(x,y,atol=eps(Float64))
+end)
+
+function all_are_approx(f, g; atol)
+  all(map(f) do f̂
+    all(isapprox.(f̂, g, atol=atol))
+  end)
+end
+
+for (primal_s,s) in [tri_345(), right_unit_hypot(), grid_345()]
+  # Test that the ♯ from dual vector fields to dual 1-forms preserves constant
+  # fields.
+  ♯_m = ♯_mat(s, LLSDDSharp())
+
+  # This tests that numerically raising indices is equivalent to analytically
+  # raising indices.
+  # X_continuous = ♯ᵖ_discrete∘♭ᵖ_discrete(X_continuous)
+  X♯ = length(attrtype_type(s,:Point)) == 2 ?
+    SVector(1/√2,1/√2) :
+    SVector(1/√2,1/√2,0)
+  X♭ = eval_constant_dual_form(s, X♯)
+  @test all_are_approx(♯_m * X♭, X♯;
+                       atol=2*eps(Float64))
+
+  # This tests that numerically raising-then-lowering indices is equivalent to
+  # evaluating a 1-form directly.
+  # Demonstrate how to cache the chained musical isomorphisms.
+  ♭_m = ♭_mat(s)
+  ♭_♯_m = ♭_m * ♯_m
+  @test all(isapprox.(only.(♭_♯_m * X♭), eval_constant_primal_form(s, X♯),
+                       atol=1e-14))
+
+  f_def = length(attrtype_type(s,:Point)) == 2 ?
+    SVector(2,7) :
+    SVector(2,7,0)
+  g_def = length(attrtype_type(s,:Point)) == 2 ?
+    SVector(8,1) :
+    SVector(8,1,0)
+  # This test shows how the musical isomorphism chaining lets you further
+  # define a primal-dual wedge that preserves properties from the continuous
+  # exterior calculus.
+  Λ_cached = dec_wedge_product(Tuple{1, 1}, s)
+  ♭♯_cached(x) = only.(♭_♯_m * x)
+  Λpd_cached(x_p,y_d) = dec_wedge_product(Tuple{1, 1}, s)(x_p, ♭♯_cached(y_d))
+  Λdp_cached(x_d,y_p) = dec_wedge_product(Tuple{1, 1}, s)(♭♯_cached(x_d), y_p)
+  f′ = eval_constant_primal_form(s, f_def)
+  g̃  = eval_constant_dual_form(s, g_def)
+  f̃  = eval_constant_dual_form(s, f_def)
+  g′ = eval_constant_primal_form(s, g_def)
+  # Antisymmetry:
+  all(Λpd_cached(f′, g̃) .≈ -1 * Λpd_cached(g′, f̃))
+  all(Λdp_cached(f̃, g′) .≈ -1 * Λdp_cached(g̃, f′))
+  # Antisymmetry (across Λpd and Λdp!):
+  all(Λpd_cached(f′, g̃) .== -1 * Λdp_cached(g̃, f′))
+  all(Λdp_cached(f̃, g′) .== -1 * Λpd_cached(g′, f̃))
+  # f∧f = 0 (implied by antisymmetry):
+  all(isapprox.(Λpd_cached(f′, f̃), 0, atol=1e-12))
+  all(isapprox.(Λpd_cached(g′, g̃), 0, atol=1e-13))
+  # TODO: Leibniz rule test?
+end
 
 end

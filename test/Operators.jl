@@ -186,7 +186,7 @@ end
         @test all(isapprox.(wdg01(V_1, E_2), ∧(Tuple{0, 1}, sd, V_1, E_2); rtol = 1e-14))
         @test all(wdg01(V_ones, E_ones) .== E_ones)
 
-        @test all(dec_wedge_product(Tuple{0, 2}, sd)(V_1, T_2) / 2 .== ∧(Tuple{0, 2}, sd, V_1, T_2))
+        @test all(dec_wedge_product(Tuple{0, 2}, sd)(V_1, T_2) .== ∧(Tuple{0, 2}, sd, V_1, T_2))
 
         @test all(dec_wedge_product(Tuple{1, 1}, sd)(E_1, E_2) / 2 .== ∧(Tuple{1, 1}, sd, E_1, E_2))
     end
