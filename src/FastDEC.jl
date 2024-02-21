@@ -133,7 +133,7 @@ function dec_p_wedge_product(::Type{Tuple{1,1}}, sd::EmbeddedDeltaDualComplex2D{
 
     shift = ntriangles(sd)
     @inbounds for i in 1:ntriangles(sd)
-        area = areas[i]
+        area = 2 * areas[i]
         coeffs[1, i] = (d_areas[i] + d_areas[i+shift]) / area
         coeffs[2, i] = (d_areas[i+2*shift] + d_areas[i+3*shift]) / area
         coeffs[3, i] = (d_areas[i+4*shift] + d_areas[i+5*shift]) / area
