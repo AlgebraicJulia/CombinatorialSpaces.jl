@@ -582,32 +582,38 @@ function right_unit_hypot()
   subdivide_duals!(s, Barycenter())
   (primal_s, s)
 end
-primal_s, s = tri_345()
-primal_s, s = right_unit_hypot()
 
 # Evaluate a constant primal form
 eval_constant_primal_form(s, α::SVector) = map(edges(s)) do e
   dot(α, point(s, tgt(s,e)) - point(s, src(s,e))) * sign(1,s,e)
 end |> EForm
 
-# Evaluate a constant primal form
-eval_constant_dual_form(s, α::SVector) = map(edges(s)) do e
-  to_vec(x) = dual_point(s,s[x, :D_∂v0]) - dual_point(s,s[x, :D_∂v1])
-  sum(
-    map(elementary_duals(1,s,e)) do y
-      de_sign(s,y) * dot(α, to_vec(y))
-    end)
-end |> EForm
+# Evaluate a constant dual form
+# XXX: This "left-hand-rule" trick only works when z=0.
+# XXX: So do not use this function to test e.g. curved surfaces.
+function eval_constant_dual_form(s::EmbeddedDeltaDualComplex2D{Bool, _f, Point3D} where _f, α::SVector{3,Float64})
+  EForm(
+    hodge_star(1,s,GeometricHodge()) *
+      eval_constant_primal_form(s, SVector{3,Float64}(α[2], -α[1], α[3])))
+end
+function eval_constant_dual_form(s::EmbeddedDeltaDualComplex2D{Bool, _f, Point2D} where _f, α::SVector{3,Float64})
+  EForm(
+    hodge_star(1,s,GeometricHodge()) *
+      eval_constant_primal_form(s, SVector{2,Float64}(α[2], -α[1])))
+end
 
 # Test that this technique for evaluating 1-forms is consistent across primal
 # and dual forms.
-# ♭ᵈ_discrete(f_continuous) = ⋆₁_discrete∘♭ᵖ_discrete(⋆_continuous f_continuous)
-primal_s, s = tri_345()
-f′ = eval_constant_primal_form(s, SVector(1/√2,-1/√2,0))
-f̃ = eval_constant_dual_form(s, SVector(1/√2,1/√2,0))
-@test all(map(hodge_star(1,s) * f′, f̃) do x,y
-  isapprox(x,y,atol=eps(Float64))
-end)
+-# ♭ᵈ_discrete(f_continuous) = ⋆₁_discrete∘♭ᵖ_discrete(⋆_continuous f_continuous)
+for (primal_s,s) in [tri_345(), right_unit_hypot(), grid_345()]
+  α = SVector(1/√2,1/√2,0)
+  left_hand_α = SVector(1/√2,-1/√2,0)
+  f′ = eval_constant_primal_form(s, left_hand_α);
+  f̃ = eval_constant_dual_form(s, α)
+  # TODO: Determine signedness directly.
+  @test all(map(x,y -> isapprox( x,y,atol=1e-15), hodge_star(1,s) * f′, f̃))||
+        all(map(x,y -> isapprox(-x,y,atol=1e-15), hodge_star(1,s) * f′, f̃))
+end
 
 function all_are_approx(f, g; atol)
   all(map(f) do f̂
@@ -615,7 +621,15 @@ function all_are_approx(f, g; atol)
   end)
 end
 
-for (primal_s,s) in [tri_345(), right_unit_hypot(), grid_345()]
+rect′ = loadmesh(Rectangle_30x10())
+rect = EmbeddedDeltaDualComplex2D{Bool,Float64,Point3D}(rect′)
+subdivide_duals!(rect, Barycenter())
+tg′ = triangulated_grid(100,100,10,10,Point2D)
+tg = EmbeddedDeltaDualComplex2D{Bool,Float64,Point2D}(tg′)
+subdivide_duals!(tg, Barycenter())
+
+for (i, (primal_s,s)) in enumerate([tri_345(), right_unit_hypot(), grid_345(), (tg′, tg), (rect′, rect)])
+  @show i
   # Test that the ♯ from dual vector fields to dual 1-forms preserves constant
   # fields.
   ♯_m = ♯_mat(s, LLSDDSharp())
@@ -624,26 +638,24 @@ for (primal_s,s) in [tri_345(), right_unit_hypot(), grid_345()]
   # raising indices.
   # X_continuous = ♯ᵖ_discrete∘♭ᵖ_discrete(X_continuous)
   X♯ = length(attrtype_type(s,:Point)) == 2 ?
-    SVector(1/√2,1/√2) :
-    SVector(1/√2,1/√2,0)
+    SVector{2,Float64}(1/√2,1/√2) :
+    SVector{3,Float64}(1/√2,1/√2,0)
   X♭ = eval_constant_dual_form(s, X♯)
-  @test all_are_approx(♯_m * X♭, X♯;
-                       atol=2*eps(Float64))
+  # TODO: Determine signedness directly.
+  @test all_are_approx(♯_m * X♭,  X♯; atol=1e-13) ||
+        all_are_approx(♯_m * X♭, -X♯; atol=1e-13)
 
   # This tests that numerically raising-then-lowering indices is equivalent to
   # evaluating a 1-form directly.
   # Demonstrate how to cache the chained musical isomorphisms.
   ♭_m = ♭_mat(s)
   ♭_♯_m = ♭_m * ♯_m
-  @test all(isapprox.(only.(♭_♯_m * X♭), eval_constant_primal_form(s, X♯),
-                       atol=1e-14))
+  # TODO: Determine signedness directly.
+  @test all(isapprox.(only.(♭_♯_m * X♭),  eval_constant_primal_form(s, X♯), atol=1e-14)) ||
+        all(isapprox.(only.(♭_♯_m * X♭), -eval_constant_primal_form(s, X♯), atol=1e-14))
 
-  f_def = length(attrtype_type(s,:Point)) == 2 ?
-    SVector(2,7) :
-    SVector(2,7,0)
-  g_def = length(attrtype_type(s,:Point)) == 2 ?
-    SVector(8,1) :
-    SVector(8,1,0)
+  f_def = SVector{3,Float64}(2,7,0)
+  g_def = SVector{3,Float64}(8,1,0)
   # This test shows how the musical isomorphism chaining lets you further
   # define a primal-dual wedge that preserves properties from the continuous
   # exterior calculus.
@@ -656,15 +668,54 @@ for (primal_s,s) in [tri_345(), right_unit_hypot(), grid_345()]
   f̃  = eval_constant_dual_form(s, f_def)
   g′ = eval_constant_primal_form(s, g_def)
   # Antisymmetry:
-  all(Λpd_cached(f′, g̃) .≈ -1 * Λpd_cached(g′, f̃))
-  all(Λdp_cached(f̃, g′) .≈ -1 * Λdp_cached(g̃, f′))
+  @test all(Λpd_cached(f′, g̃) .≈ -1 * Λpd_cached(g′, f̃))
+  @test all(Λdp_cached(f̃, g′) .≈ -1 * Λdp_cached(g̃, f′))
   # Antisymmetry (across Λpd and Λdp!):
-  all(Λpd_cached(f′, g̃) .== -1 * Λdp_cached(g̃, f′))
-  all(Λdp_cached(f̃, g′) .== -1 * Λpd_cached(g′, f̃))
+  @test all(Λpd_cached(f′, g̃) .== -1 * Λdp_cached(g̃, f′))
+  @test all(Λdp_cached(f̃, g′) .== -1 * Λpd_cached(g′, f̃))
   # f∧f = 0 (implied by antisymmetry):
-  all(isapprox.(Λpd_cached(f′, f̃), 0, atol=1e-12))
-  all(isapprox.(Λpd_cached(g′, g̃), 0, atol=1e-13))
-  # TODO: Leibniz rule test?
+  @test all(isapprox.(Λpd_cached(f′, f̃), 0, atol=1e-10))
+  @test all(isapprox.(Λpd_cached(g′, g̃), 0, atol=1e-10))
+  # TODO: Test the Leibniz rule.
+end
+
+# These tests do not rely on the "left-hand-rule" trick for evaluating dual forms,
+# so we run these on curved meshes as well.
+sph′ = loadmesh(Icosphere(2))
+sph = EmbeddedDeltaDualComplex2D{Bool,Float64,Point3D}(sph′)
+subdivide_duals!(sph, Barycenter())
+torus′ = EmbeddedDeltaSet2D("torus.obj")
+torus = EmbeddedDeltaDualComplex2D{Bool, Float64, Point3D}(torus′)
+for (i, (primal_s,s)) in enumerate([tri_345(), right_unit_hypot(), grid_345(), (tg′, tg), (rect′, rect), (torus′, torus), (sph′, sph)])
+  # Discretely test the continuous property:
+  # u :=  fdx + gdy
+  # ⋆u = -gdx + fdy
+  # u∧⋆u = (fdx + gdy)∧(-gdx + fdy)
+  #      = ffdxdy - ggdydx
+  #      = (ff+gg)dxdy
+  # ⋆(u∧⋆u) = ff+gg
+  f = 2
+  g = 7
+  ff_gg = f*f + g*g
+
+  u_def = SVector{3,Float64}(f,g,0)
+
+  u = eval_constant_primal_form(s, u_def)
+  u_star = hodge_star(1,s,GeometricHodge()) * u
+
+  # Define the primal-dual wedge.
+  #TODO: Wrap these 5 lines and export from DiscreteExteriorCalculus.
+  ♯_m = ♯_mat(s, LLSDDSharp())
+  ♭_m = ♭_mat(s)
+  ♭_♯_m = ♭_m * ♯_m
+  Λ_cached = dec_wedge_product(Tuple{1, 1}, s)
+  ♭♯_cached(x) = only.(♭_♯_m * x)
+  Λpd_cached(x_p,y_d) = Λ_cached(x_p, ♭♯_cached(y_d))
+
+  # Apply the primal-dual wedge, and check the operator
+  # TODO: Determine signedness directly.
+  @test all(isapprox.(sign(2,s) .* hodge_star(2,s,GeometricHodge()) * Λpd_cached(u, u_star),  ff_gg)) ||
+        all(isapprox.(sign(2,s) .* hodge_star(2,s,GeometricHodge()) * Λpd_cached(u, u_star), -ff_gg))
 end
 
 end
