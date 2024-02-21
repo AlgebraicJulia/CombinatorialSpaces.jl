@@ -188,7 +188,7 @@ end
 
         @test all(dec_wedge_product(Tuple{0, 2}, sd)(V_1, T_2) .== ∧(Tuple{0, 2}, sd, V_1, T_2))
 
-        @test all(dec_wedge_product(Tuple{1, 1}, sd)(E_1, E_2) / 2 .== ∧(Tuple{1, 1}, sd, E_1, E_2))
+        @test all(dec_wedge_product(Tuple{1, 1}, sd)(E_1, E_2) .== ∧(Tuple{1, 1}, sd, E_1, E_2))
     end
 end
 
