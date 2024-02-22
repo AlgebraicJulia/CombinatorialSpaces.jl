@@ -1,7 +1,7 @@
 module TestDiscreteExteriorCalculus
 using Test
 
-using LinearAlgebra: Diagonal
+using LinearAlgebra: Diagonal, mul!, norm, dot
 using SparseArrays, StaticArrays
 
 using Catlab.CategoricalAlgebra.CSets
@@ -29,6 +29,10 @@ dual_es = elementary_duals(0,s,5)
 @test s[dual_es, :D_∂v0] == edge_center(s, 1:4)
 @test elementary_duals(s, V(5)) == DualE(dual_es)
 
+primal_s′ = subdivide(primal_s)
+@test nv(primal_s′) == nv(primal_s) + ne(primal_s)
+@test ne(primal_s′) == 2*ne(primal_s)
+
 # 1D oriented dual complex
 #-------------------------
 
@@ -43,6 +47,11 @@ s = OrientedDeltaDualComplex1D{Bool}(primal_s)
 @test d(s, DualForm{0}([1,1])) isa DualForm{1}
 @test dual_boundary(1,s) == ∂(1,s)'
 @test dual_derivative(0,s) == -d(0,s)'
+
+primal_s′ = subdivide(primal_s)
+@test nv(primal_s′) == nv(primal_s) + ne(primal_s)
+@test ne(primal_s′) == 2*ne(primal_s)
+@test orient!(primal_s′)
 
 # 1D embedded dual complex
 #-------------------------
@@ -163,6 +172,56 @@ end
 # 2D embedded dual complex
 #-------------------------
 
+unit_vector(θ) = cos(θ), sin(θ), 0
+
+function get_regular_polygon(n::Int)
+  n < 3 && error("Cannot construct a polygon with fewer than 3 points.")
+  primal_s = EmbeddedDeltaSet2D{Bool,Point3D}()
+  exterior_points = map(Point3D∘unit_vector, range(0, 2pi-(pi/(n/2)), length=n))
+  add_vertices!(primal_s, n+1, point=[exterior_points..., Point3D(0, 0, 0)])
+  foreach(1:n-1) do x
+    glue_sorted_triangle!(primal_s, n+1, x, x+1)
+  end
+  glue_sorted_triangle!(primal_s, n+1, n, 1)
+  primal_s
+end
+
+# Triangulated hexagon in ℝ³,
+# from Hirani §5.5 Figure 5.5, showing ♭ᵈᵖᵖ(X) to be 0 for a non-trivial X.
+primal_s = get_regular_polygon(6)
+# Rotate counter-clockwise by pi/6 to match the Hirani figure.
+θ = -pi/6
+primal_s[:point] = [[[cos(θ), -sin(θ), 0];; [sin(θ), cos(θ), 0];; [0,0,1]] * p for p in primal_s[:point]]
+s = EmbeddedDeltaDualComplex2D{Bool,Float64,Point3D}(primal_s)
+subdivide_duals!(s, Circumcenter())
+X = map([8,4,0,8,4,0]) do i
+  SVector(unit_vector(i*(2pi/12)))
+end
+@test all(♭(s, DualVectorField(X))) do i
+  isapprox(i, 0.0; atol=1e-15)
+end
+♭_m = ♭_mat(s)
+@test all(reinterpret(Float64, ♭_m * X)) do i
+  isapprox(i, 0.0; atol=1e-15)
+end
+# Half of Proposition 5.5.3: ♭ᵈᵖᵖ is not injective:
+@test all(map(♭_m * X, ♭_m * 2X) do x♭, x2♭
+  isapprox(x♭, x2♭; atol=1e-15)
+end)
+
+#using Random
+#Random.seed!(1)
+#Y = map(1:6) do i
+#  10 .* SVector(randn(), randn(), randn())
+#end
+Y = SVector{3, Float64}[[-0.7058313895389791, 5.314767537831963, -8.06852326006714], [24.56991333983293, 11.648740735275195, 2.6756441862888507], [17.499336925282453, -8.260207919192975, -10.427524178910968], [-3.291338458564041, -4.822519154091156, 11.822427034001585], [4.806914145449797, -0.025581805543075972, 14.346125517139171], [5.320444346188966, 2.4384867352385236, 0.20245933893191853]]
+Y♭ = zeros(SVector{1, Float64}, ne(s))
+mul!(Y♭, ♭_m, Y)
+Y♭_floats = reinterpret(Float64, Y♭)
+@test all(map(♭(s, DualVectorField(Y)), Y♭_floats) do orig, new
+  isapprox(orig, new; atol=20*eps(Float64))
+end)
+
 # Single triangle: numerical example from Gillette's notes on DEC, §2.13.
 #
 # Compared with Gillette, edges #2 and #3 are swapped in the ordering, which
@@ -259,6 +318,97 @@ subdivide_duals!(s, Incenter())
                         -1.657  1.172 -1.172;
                         -1.172 -1.172 -1.657], atol=1e-3)
 
+# This plots a primal vector field over a simplicial complex.
+# This is helpful for debugging operators like sharp and flat.
+#using CairoMakie
+#""" Plot the primal vector field X♯ over the simplicial complex primal_s.
+#"""
+#function plot_pvf(primal_s, X♯; ls=1f0, title="Primal Vector Field")
+#  # Makie will throw an error if the colorrange end points are not unique:
+#  extX = extrema(norm.(X♯))
+#  range = extX[1] ≈ extX[2] ? (0,extX[2]) : extX
+#  f = Figure()
+#  ax = Axis(f[1, 1], title=title)
+#  wireframe!(ax, primal_s, color=:gray95)
+#  scatter!(ax, getindex.(primal_s[:point],1), getindex.(primal_s[:point],2), color = norm.(X♯), colorrange=range)
+#  arrows!(ax, getindex.(primal_s[:point],1), getindex.(primal_s[:point],2), getindex.(X♯,1), getindex.(X♯,2), lengthscale=ls)
+#  Colorbar(f[1,2], limits=range)
+#  hidedecorations!(ax)
+#  f
+#end
+#plot_pvf(primal_s, ♯(s, E))
+#plot_pvf(primal_s, ♯(s, E, AltPPSharp()))
+
+# Evaluate a constant 1-form α assuming Euclidean space. (Inner product is dot)
+eval_constant_form(s, α::SVector) = map(edges(s)) do e
+  dot(α, point(s, tgt(s,e)) - point(s, src(s,e))) * sign(1,s,e)
+end |> EForm
+
+function test_♯(s, covector::SVector; atol=1e-8)
+  X = eval_constant_form(s, covector)
+  # Test that the Hirani field is approximately parallel to the given field.
+  X♯ = ♯(s, X)
+  @test all(map(X♯) do x
+    isapprox(dot(x, covector), norm(x) * norm(covector), atol=atol)
+  end)
+  # Test that the Alternate field approximately equals the given field.
+  X♯ = ♯(s, X, AltPPSharp())
+  @test all(isapprox.(X♯, [covector]))
+  # Test that the matrix and non-matrix versions yield the same result.
+  @test all(isapprox.(♯_mat(s, PPSharp()) * X, ♯(s, X, PPSharp())))
+  @test all(isapprox.(♯_mat(s, AltPPSharp()) * X, ♯(s, X, AltPPSharp())))
+end
+#using Random
+#Random.seed!(1)
+#Point3D(randn(), randn(), 0)
+vfs = [Point3D(1,0,0), Point3D(1,1,0), Point3D(-3,2,0), Point3D(0,0,0),
+  Point3D(-0.07058313895389791, 0.5314767537831963, 0.0)]
+
+# 3,4,5 triangle.
+primal_s = EmbeddedDeltaSet2D{Bool,Point3D}()
+add_vertices!(primal_s, 3, point=[Point3D(0,0,0), Point3D(3,0,0), Point3D(3,4,0)])
+glue_triangle!(primal_s, 1, 2, 3, tri_orientation=true)
+primal_s[:edge_orientation] = true
+s = EmbeddedDeltaDualComplex2D{Bool,Float64,Point3D}(primal_s)
+subdivide_duals!(s, Barycenter())
+foreach(vf -> test_♯(s, vf), vfs)
+♯_m = ♯_mat(s, DesbrunSharp())
+X = eval_constant_form(s, Point3D(1,0,0))
+X♯ = ♯_m * X
+@test all(X♯ .≈ [Point3D(.8,.4,0), Point3D(0,-1,0), Point3D(-.8,.6,0)])
+
+# Grid of 3,4,5 triangles.
+function grid_345()
+  primal_s = EmbeddedDeltaSet2D{Bool,Point3D}()
+  add_vertices!(primal_s, 9,
+    point=[Point3D(0,+4,0), Point3D(3,+4,0), Point3D(6,+4,0),
+          Point3D(0, 0,0), Point3D(3, 0,0), Point3D(6, 0,0),
+          Point3D(0,-4,0), Point3D(3,-4,0), Point3D(6,-4,0)])
+  glue_sorted_triangle!(primal_s, 1, 2, 4)
+  glue_sorted_triangle!(primal_s, 5, 2, 4)
+  glue_sorted_triangle!(primal_s, 5, 2, 3)
+  glue_sorted_triangle!(primal_s, 5, 6, 3)
+  glue_sorted_triangle!(primal_s, 5, 7, 4)
+  glue_sorted_triangle!(primal_s, 5, 7, 8)
+  glue_sorted_triangle!(primal_s, 5, 6, 8)
+  glue_sorted_triangle!(primal_s, 9, 6, 8)
+  primal_s[:edge_orientation] = true
+  s = EmbeddedDeltaDualComplex2D{Bool,Float64,Point3D}(primal_s)
+  subdivide_duals!(s, Barycenter())
+  (primal_s, s)
+end
+primal_s, s = grid_345()
+foreach(vf -> test_♯(s, vf), vfs)
+# TODO: Compute results for Desbrun's ♯ by hand.
+
+# Triangulated regular dodecagon.
+primal_s = get_regular_polygon(12)
+primal_s[:point] = [Point3D(1/4,1/5,0) + p for p in primal_s[:point]]
+s = EmbeddedDeltaDualComplex2D{Bool,Float64,Point3D}(primal_s)
+subdivide_duals!(s, Circumcenter())
+foreach(vf -> test_♯(s, vf), vfs)
+# TODO: Compute results for Desbrun's ♯ by hand.
+
 # Triangulated square with consistent orientation.
 primal_s = EmbeddedDeltaSet2D{Bool,Point2D}()
 add_vertices!(primal_s, 4, point=[Point2D(-1,+1), Point2D(+1,+1),
@@ -268,18 +418,23 @@ glue_triangle!(primal_s, 1, 3, 4, tri_orientation=true)
 primal_s[:edge_orientation] = true
 s = EmbeddedDeltaDualComplex2D{Bool,Float64,Point2D}(primal_s)
 subdivide_duals!(s, Barycenter())
+♭_m = ♭_mat(s)
 
-x̂, ŷ, zero = @SVector([1,0]), @SVector([0,1]), @SVector([0,0])
+x̂, ŷ, ẑ = @SVector([1,0]), @SVector([0,1]), @SVector([0,0])
 @test ♭(s, DualVectorField([x̂, -x̂])) ≈ EForm([2,0,0,2,0])
 @test ♭(s, DualVectorField([ŷ, -ŷ])) ≈ EForm([0,-2,0,0,2])
 @test ♭(s, DualVectorField([(x̂-ŷ)/√2, (x̂-ŷ)/√2]))[3] ≈ 2*√2
-@test ♭(s, DualVectorField([(x̂-ŷ)/√2, zero]))[3] ≈ √2
+@test ♭(s, DualVectorField([(x̂-ŷ)/√2, ẑ]))[3] ≈ √2
+@test reinterpret(Float64, ♭_m * [x̂, -x̂]) ≈ EForm([2,0,0,2,0])
+@test reinterpret(Float64, ♭_m * [ŷ, -ŷ]) ≈ EForm([0,-2,0,0,2])
+@test reinterpret(Float64, ♭_m * [(x̂-ŷ)/√2, (x̂-ŷ)/√2])[3] ≈ 2*√2
+@test reinterpret(Float64, ♭_m * [(x̂-ŷ)/√2, ẑ])[3] ≈ √2
 X = ♯(s, EForm([2,0,0,2,0]))::PrimalVectorField
 @test X[2][1] > 0 && X[4][1] < 0
 X = ♯(s, EForm([0,-2,0,0,2]))
 @test X[2][2] > 0 && X[4][2] < 0
 
-@test ∧(s, VForm([2,2,2,2]), TriForm([2.5, 5]))::TriForm ≈ TriForm([2.5, 5])
+@test all(∧(s, VForm([2,2,2,2]), TriForm([2.5, 5]))::TriForm .≈ TriForm([5.0, 10.0]))
 vform, triform = VForm([1.5, 2, 2.5, 3]), TriForm([5, 7.5])
 @test ∧(s, vform, triform) ≈ ∧(s, triform, vform)
 eform1, eform2 = EForm([1.5, 2, 2.5, 3, 3.5]), EForm([3, 7, 10, 11, 15])
@@ -325,4 +480,230 @@ subdivide_duals!(s, Barycenter())
 @test isapprox(Δ(2, s), reshape([-24.0], (1,1)), atol=1e-3)
 @test isapprox(Δ(2, s; hodge=DiagonalHodge()), reshape([-24.0], (1,1)), atol=1e-3)
 
+# 3,4,5 triangle of unit area.
+# Unit area makes computing integrals by hand simple.
+primal_s = EmbeddedDeltaSet2D{Bool,Point2D}()
+add_vertices!(primal_s, 3, point=[Point2D(0,0), Point2D(6/8,0), Point2D(6/8,8/3)])
+glue_triangle!(primal_s, 1, 2, 3, tri_orientation=true)
+primal_s[:edge_orientation] = true
+s = EmbeddedDeltaDualComplex2D{Bool,Float64,Point2D}(primal_s)
+subdivide_duals!(s, Barycenter())
+#@assert only(s[:area]) == 1.0
+
+# The wedge product of 0-form and a 2-form "is multiplication."
+# α = 3
+# β = 5 dx ∧ dy
+# α ∧ β = 15 dx ∧ dy
+# We also write just αβ, when α is a 0-form.
+@test only(∧(s, VForm([3,3,3]), TriForm([only(s[:area])*5]))) ≈ 15
+
+# Grid of 3,4,5 triangles.
+primal_s, s = grid_345()
+
+# ∀ βᵏ ∧(α,βᵏ) = id(βᵏ), where α = 1.
+α = VForm(ones(nv(s)))
+for k = 0:2
+  βᵏ = SimplexForm{k}(collect(1:nsimplices(k,s)))
+  @test all(∧(s, α, βᵏ) .≈ βᵏ)
 end
+
+# 1dx ∧ 1dy = 1 dx∧dy
+onedx = eval_constant_form(s, @SVector [1.0,0.0,0.0])
+onedy = eval_constant_form(s, @SVector [0.0,1.0,0.0])
+@test ∧(s, onedx, onedy) == map(s[:tri_orientation], s[:area]) do o,a
+  # Note by the order of -1 and 1 here that 
+  a * (o ? -1 : 1)
+end
+
+# 1dx∧dy = -1dy∧dx
+@test ∧(s, onedx, onedy) == -∧(s, onedy, onedx)
+
+# 3dx ∧ 2dy = 2 dx ∧ 3dy
+@test ∧(s, EForm(3*onedx), EForm(2*onedy)) == ∧(s, EForm(2*onedx), EForm(3*onedy))
+
+# A triangulated quadrilateral where edges are all of distinct length.
+primal_s = EmbeddedDeltaSet2D{Bool,Point2D}()
+add_vertices!(primal_s, 4, point=[Point2D(0,0), Point2D(1,0), Point2D(0,2), Point2D(-2,5)])
+glue_triangle!(primal_s, 1, 2, 3)
+glue_triangle!(primal_s, 1, 3, 4)
+s = EmbeddedDeltaDualComplex2D{Bool,Float64,Point2D}(primal_s)
+subdivide_duals!(s, Barycenter())
+X = [SVector(2,3), SVector(5,7)]
+♭_m = ♭_mat(s)
+X♭ = zeros(ne(s))
+mul!(X♭, ♭_m,  DualVectorField(X))
+@test all(map(♭(s, DualVectorField(X)), X♭) do orig, new
+  isapprox(orig, new; atol=20*eps(Float64))
+end)
+@test all(map(♭(s, DualVectorField(X)), ♭_m * DualVectorField(X)) do orig, new
+  isapprox(orig, new; atol=20*eps(Float64))
+end)
+
+# Test whether the implementation of ♭ assumes that the DualVectorField vector
+# is indexed in the same order as Tri i.e. 1:ntriangles(s).
+primal_s = EmbeddedDeltaSet2D{Bool,Point2D}()
+add_vertices!(primal_s, 4, point=[Point2D(0,0), Point2D(1,0), Point2D(0,2), Point2D(-2,5)])
+glue_triangle!(primal_s, 1, 2, 3)
+glue_triangle!(primal_s, 1, 3, 4)
+s = EmbeddedDeltaDualComplex2D{Bool,Float64,Point2D}(primal_s)
+subdivide_duals!(s, Barycenter())
+
+primal_s′ = EmbeddedDeltaSet2D{Bool,Point2D}()
+add_vertices!(primal_s′, 4, point=[Point2D(0,0), Point2D(1,0), Point2D(0,2), Point2D(-2,5)])
+glue_triangle!(primal_s′, 1, 2, 3)
+glue_triangle!(primal_s′, 1, 3, 4)
+s′ = EmbeddedDeltaDualComplex2D{Bool,Float64,Point2D}(primal_s′)
+s′[1, :tri_center] = 11
+s′[2, :tri_center] = 10
+s′[[11,13,15,17,19,21], :D_∂v0] = 11
+s′[[12,14,16,18,20,22], :D_∂v0] = 10
+subdivide_duals!(s′, Barycenter())
+#@assert is_isomorphic(s,s′)
+
+X = [SVector(2,3), SVector(5,7)]
+
+@test ♭(s, DualVectorField(X)) == ♭(s′, DualVectorField(X))
+@test ♭_mat(s) * DualVectorField(X) == ♭_mat(s′) * DualVectorField(X)
+
+# 3D dual complex
+#################
+
+# Single tetrahedron.
+primal_s = DeltaSet3D()
+add_vertices!(primal_s, 4)
+glue_sorted_tetrahedron!(primal_s, 1, 2, 3, 4)
+s = DeltaDualComplex3D(primal_s)
+# This SO answer explains the expected number of cells:
+# https://math.stackexchange.com/a/3511873
+@test nparts(s, :DualV) == nv(primal_s) + ne(primal_s) + ntriangles(primal_s) + ntetrahedra(primal_s)
+@test nparts(s, :DualE) == 6*4 + 2*6 + 14 # 36 exterior and 14 interior
+@test nparts(s, :DualTri) == 60
+@test nparts(s, :DualTet) == 24 * ntetrahedra(primal_s)
+@test primal_vertex(s, subsimplices(s, Tet(1)))::V == V(repeat(1:4, inner=6))
+
+dual_v = elementary_duals(3,s,1)
+@test dual_v == [tetrahedron_center(s,1)]
+@test elementary_duals(s, Tet(1)) == DualV(dual_v)
+dual_e = elementary_duals(2,s,1)
+@test s[dual_e, :D_∂v0] == [tetrahedron_center(s,1)]
+@test s[dual_e, :D_∂v1] == [triangle_center(s,1)]
+@test elementary_duals(s, Tri(1)) == DualE(dual_e)
+dual_ts = elementary_duals(1,s,1)
+@test s[dual_ts, [:D_∂e0, :D_∂v0]] == [tetrahedron_center(s,1), tetrahedron_center(s,1)]
+@test elementary_duals(s, E(1)) == DualTri(dual_ts)
+dual_tets = elementary_duals(0,s,1)
+@test s[dual_tets, [:D_∂t0, :D_∂e0, :D_∂v0]] == fill(tetrahedron_center(s,1), 6)
+@test elementary_duals(s, V(1)) == DualTet(dual_tets)
+
+# Two tetrahedra forming a square pyramid.
+# The shared (internal) triangle is (2,3,5).
+primal_s = DeltaSet3D()
+add_vertices!(primal_s, 5)
+glue_tetrahedron!(primal_s, 1, 2, 3, 5)
+glue_tetrahedron!(primal_s, 2, 3, 4, 5)
+s = DeltaDualComplex3D(primal_s)
+@test nparts(s, :DualV) == 5 + 1 + 2 + 9 + 6
+@test nparts(s, :DualE) == (6*4 + 2*6 + 14)*2 - 12
+@test nparts(s, :DualTri) == 60*2 - 6
+@test nparts(s, :DualTet) == 24*2
+@test primal_vertex(s, subsimplices(s, Tet(1)))::V == V(repeat([1,2,3,5], inner=6))
+@test primal_vertex(s, subsimplices(s, Tet(2)))::V == V(repeat(2:5, inner=6))
+
+# 3D oriented dual complex
+#-------------------------
+
+# Oriented single tetrahedron.
+primal_s = OrientedDeltaSet3D{Bool}()
+add_vertices!(primal_s, 4)
+glue_tetrahedron!(primal_s, 1, 2, 3, 4, tet_orientation=true)
+primal_s[:tri_orientation] = true
+primal_s[:edge_orientation] = true
+tetrahedron_s = OrientedDeltaDualComplex3D{Bool}(primal_s)
+
+# Oriented cube.
+primal_s = OrientedDeltaSet3D{Bool}()
+add_vertices!(primal_s, 8)
+glue_sorted_tet_cube!(primal_s, 1:8..., tet_orientation=true)
+cube_s = OrientedDeltaDualComplex3D{Bool}(primal_s)
+
+for s in [tetrahedron_s, cube_s]
+  @test all(==(0), dual_derivative(1,s)*dual_derivative(0,s))
+  @test all(==(0), dual_derivative(2,s)*dual_derivative(1,s))
+
+  for k in 0:2
+    @test dual_boundary(3-k,s) == (-1)^k * ∂(k+1,s)'
+  end
+  for k in 1:3
+    # Desbrun, Kanso, Tong 2008, Equation 4.2.
+    @test dual_derivative(3-k,s) == (-1)^k * d(k-1,s)'
+  end
+end
+
+# 3D embedded dual complex
+#-------------------------
+
+# Regular tetrahedron with edge length 2√2 in ℝ³.
+primal_s = EmbeddedDeltaSet3D{Bool,Point3D}()
+add_vertices!(primal_s, 4, point=[Point3D(1,1,1), Point3D(1,-1,-1),
+  Point3D(-1,1,-1), Point3D(-1,-1,1)])
+glue_tetrahedron!(primal_s, 1, 2, 3, 4)
+s = EmbeddedDeltaDualComplex3D{Bool,Float64,Point3D}(primal_s)
+subdivide_duals!(s, Circumcenter())
+regular_tetrahedron_volume(len) = len^3/(6√2)
+@test all(dual_volume(3,s,1:24) .≈ regular_tetrahedron_volume(2√2)/24)
+@test dual_point(s,tetrahedron_center(s,1)) == sum(point(s)) / length(point(s))
+
+# Heat equation:
+d₀_mat = d(0,s)
+star₁_mat = hodge_star(1,s,DiagonalHodge())
+dual_d₀_mat = dual_derivative(2,s)
+inv_star₃_mat = inv_hodge_star(0,s,DiagonalHodge())
+
+lap_mat = inv_star₃_mat * dual_d₀_mat * star₁_mat * d₀_mat
+
+C = collect(1.0:4.0)
+C₀ = collect(1.0:4.0)
+D = 0.005
+for _ in 0:100_000
+  dt_C = D * lap_mat*C
+  C .+= dt_C
+end
+@test all(C .≈ sum(C₀)/length(C₀))
+
+# Six tetrahedra of equal volume forming a cube with edge length 1.
+# The connectivity is that of Blessent's 2009 thesis, Figure 3.2.
+primal_s = EmbeddedDeltaSet3D{Bool,Point3D}()
+add_vertices!(primal_s, 8, point=[
+  Point3D(0,1,0), Point3D(0,0,0), Point3D(1,1,0), Point3D(1,0,0),
+  Point3D(0,1,1), Point3D(0,0,1), Point3D(1,1,1), Point3D(1,0,1)])
+# See Table 3.1 "Mesh connectivity".
+glue_sorted_tetrahedron!(primal_s, 3, 5, 4, 2)
+glue_sorted_tetrahedron!(primal_s, 7, 6, 8, 4)
+glue_sorted_tetrahedron!(primal_s, 5, 6, 7, 4)
+glue_sorted_tetrahedron!(primal_s, 3, 5, 7, 4)
+glue_sorted_tetrahedron!(primal_s, 5, 6, 4, 2)
+glue_sorted_tetrahedron!(primal_s, 1, 5, 3, 2)
+primal_s[:edge_orientation] = true
+primal_s[:tri_orientation] = true
+primal_s[:tet_orientation] = true
+orient!(primal_s)
+
+# Note that under circumcentric subdivision, some dual simplices will be of 0
+# area or volume, because e.g. a tetrahedron and a face of that tetrahedron may
+# have the same circumcenter. So a dual tetrahedron associated with those will
+# have two dual vertices at the same coordinates, thus resulting in a 0-volume
+# dual tetrahedron.  e.g. circumcenter([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0,
+# 1.0, 1.0]) == circumcenter([0.0, 0.0, 0.0], [1.0, 1.0, 0.0], [1.0, 0.0, 0.0],
+# [0.0, 1.0, 1.0])
+#s = EmbeddedDeltaDualComplex3D{Bool,Float64,Point3D}(primal_s)
+#subdivide_duals!(s, Circumcenter())
+#@test_throws sum(dual_volume(3,s,parts(s,:DualTet))) ≈ 1
+
+# Barycentric subdivision avoids the above issue.
+s = EmbeddedDeltaDualComplex3D{Bool,Float64,Point3D}(primal_s)
+subdivide_duals!(s, Barycenter())
+@test sum(dual_volume(3,s,parts(s,:DualTet))) ≈ 1
+@test all(dual_volume(3,s,parts(s,:DualTet)) .≈ 1/nparts(s,:DualTet))
+
+end
+

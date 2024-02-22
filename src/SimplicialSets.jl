@@ -34,7 +34,8 @@ export Simplex, V, E, Tri, Tet, SimplexChain, VChain, EChain, TriChain, TetChain
   add_triangle!, glue_triangle!, glue_sorted_triangle!,
   tetrahedron_triangles, tetrahedron_edges, tetrahedron_vertices, ntetrahedra,
   tetrahedra, add_tetrahedron!, glue_tetrahedron!, glue_sorted_tetrahedron!,
-  is_manifold_like, nonboundaries, glue_sorted_tet_cube!
+  glue_sorted_tet_cube!, is_manifold_like, nonboundaries,
+  star, St, closed_star, St̄, link, Lk
 
 using LinearAlgebra: det
 using SparseArrays
@@ -904,5 +905,94 @@ function nonboundaries(s::HasDeltaSet, ::Type{Simplex{n}}) where n
     SimplexChain{k}(findall(iszero, eachcol(d(k,s))))
   end
 end
+
+# Topological helper functions
+##############################
+
+star(s::AbstractDeltaSet1D, v::Int) = star(s, v, E)
+star(s::AbstractDeltaSet2D, v::Int) = star(s, v, Tri)
+star(s::AbstractDeltaSet3D, v::Int) = star(s, v, Tet)
+
+""" Star of a vertex in a delta set.
+
+Munkres §2 ≈ "The union of the interiors of those simplices of s that have v as
+a vertex."
+
+Return a vector of simplices of dimensions 0 to n.
+
+Recall that interior(σ) = σ - boundary(σ), Munkres §1.
+
+Note that we are returning interiors alone. This means, e.g. a triangle may be
+returned without one or more of its edges. Consequentially, the output of this
+function may not be storable in an ACSet.
+
+This is not the Hodge star [`⋆`](@ref).
+
+See also [`closed_star`](@ref), [`link`](@ref).
+"""
+function star(s::HasDeltaSet, v::Int, ::Type{Simplex{n}}) where n
+  # Recursively compute cofaces, incrementing dimension.
+  cofaces_1n = accumulate(1:n; init=[v]) do c, p
+    Simplex{p}(union([Iterators.flatten(coface(p,i,s,c)) for i in 0:p]...))
+  end
+  pushfirst!(cofaces_1n, V([v]))
+end
+
+""" Alias for the star operator [`star`](@ref), not the Hodge star.
+"""
+St = star
+
+closed_star(s::AbstractDeltaSet1D, v::Int) = closed_star(s, v, star(s, v), E)
+closed_star(s::AbstractDeltaSet2D, v::Int) = closed_star(s, v, star(s, v), Tri)
+closed_star(s::AbstractDeltaSet3D, v::Int) = closed_star(s, v, star(s, v), Tet)
+
+""" Closed star of a vertex in a delta set.
+
+Munkres §2 ≈ "The union of all simplices of s having v as a vertex."
+
+Return a vector of simplices of dimensions 0 to n.
+
+Note that we do not return polytopes, but rather the simplices which together
+form such polytopes, in no particular order.
+
+This is not the Hodge star [`⋆`](@ref).
+
+See also [`star`](@ref), [`link`](@ref).
+"""
+function closed_star(s::HasDeltaSet, v::Int, Sts::Vector{Simplex}, ::Type{Simplex{n}}) where n
+  faces_0nminus1 = map(1:n, Sts, Sts[begin+1:end]) do p, cₚ, cₚ₊₁
+    Simplex{p-1}(union(cₚ, [∂(p,i,s,cₚ₊₁) for i in 0:p]...))
+  end
+  push!(faces_0nminus1, last(Sts))
+end
+
+""" Alias for the closed star operator [`closed_star`](@ref), not the Hodge star.
+"""
+St̄ = closed_star
+
+link(s::AbstractDeltaSet1D, v::Int) = link(s, v, E)
+link(s::AbstractDeltaSet2D, v::Int) = link(s, v, Tri)
+link(s::AbstractDeltaSet3D, v::Int) = link(s, v, Tet)
+
+""" Link of a vertex in a delta set.
+
+Munkres §2 ≈ "The set St̄(v) - St(v)."
+
+Return a vector of simplices of dimensions 0 to n.
+
+These are the simplices which are in the closed star of v, but not in the star
+of v.
+
+See also [`star`](@ref), [`closed_star`](@ref).
+"""
+function link(s::HasDeltaSet, v::Int, ::Type{Simplex{n}}) where n
+  map(closed_star(s,v), star(s,v)) do closed, interior
+    setdiff(closed, interior)
+  end
+end
+
+""" Alias for the link operator [`link`](@ref).
+"""
+Lk = link
 
 end
