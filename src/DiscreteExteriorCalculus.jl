@@ -22,7 +22,8 @@ export DualSimplex, DualV, DualE, DualTri, DualChain, DualForm,
   ℒ, lie_derivative, lie_derivative_flat,
   vertex_center, edge_center, triangle_center, dual_triangle_vertices,
   dual_point, dual_volume, subdivide_duals!, DiagonalHodge, GeometricHodge,
-  subdivide, PPSharp, AltPPSharp, DesbrunSharp, LLSDDSharp, de_sign
+  subdivide, PPSharp, AltPPSharp, DesbrunSharp, LLSDDSharp, de_sign,
+  ♭♯, ♭♯_mat, flat_sharp, flat_sharp_mat
 
 import Base: ndims
 import Base: *
@@ -678,6 +679,11 @@ function ♯(s::AbstractDeltaDualComplex2D, α::AbstractVector, DS::DiscreteShar
   α♯
 end
 
+function ♯(s::AbstractDeltaDualComplex2D, α::AbstractVector, ::LLSDDSharp)
+  ♯_m = ♯_mat(s, LLSDDSharp())
+  ♯_m * α
+end
+
 """ Divided weighted normals by | σⁿ | .
 
 This weighting is that used in equation 5.8.1 from Hirani.
@@ -1290,11 +1296,9 @@ See also: the sharp operator [`♯`](@ref).
 """
 const flat = ♭
 
-""" Sharp operator for converting 1-forms to vector fields.
+""" Sharp operator for converting primal 1-forms to primal vector fields.
 
-A generic function for discrete sharp operators. Currently only the
-primal-primal flat from (Hirani 2003, Definition 5.8.1 and Remark 2.7.2) is
-implemented.
+This the primal-primal sharp from Hirani 2003, Definition 5.8.1 and Remark 2.7.2.
 
 !!! note
 
@@ -1308,13 +1312,48 @@ implemented.
     knowledge, our implementation is the correct one and agrees with Hirani's
     description, if not his figure.
 
-See also: the flat operator [`♭`](@ref).
+See also: [`♭`](@ref) and [`♯_mat`](@ref), which returns a matrix that encodes this operator.
 """
 ♯(s::HasDeltaSet, α::EForm) = PrimalVectorField(♯(s, α.data, PPSharp()))
+
+""" Sharp operator for converting dual 1-forms to dual vector fields.
+
+This dual-dual sharp uses a method of local linear least squares to provide a
+tangent vector field.
+
+See also: [`♯_mat`](@ref), which returns a matrix that encodes this operator.
+"""
+♯(s::HasDeltaSet, α::DualForm{1}) = DualVectorField(♯(s, α.data, LLSDDSharp()))
 
 """ Alias for the sharp operator [`♯`](@ref).
 """
 const sharp = ♯
+
+"""    ♭♯_mat(s::HasDeltaSet)
+
+Make a dual 1-form primal by chaining ♭ᵈᵖ♯ᵈᵈ.
+
+This returns a matrix which can be multiplied by a dual 1-form.
+See also [`♭♯`](@ref).
+"""
+♭♯_mat(s::HasDeltaSet) = ♭_mat(s) * ♯_mat(s, LLSDDSharp())
+
+"""    ♭♯(s::HasDeltaSet, α::SimplexForm{1})
+
+Make a dual 1-form primal by chaining ♭ᵈᵖ♯ᵈᵈ.
+
+This returns the given dual 1-form as a primal 1-form.
+See also [`♭♯_mat`](@ref).
+"""
+♭♯(s::HasDeltaSet, α::SimplexForm{1}) = only.(♭♯_mat(s) * α)
+
+""" Alias for the flat-sharp dual-to-primal interpolation operator [`♭♯`](@ref).
+"""
+const flat_sharp = ♭♯
+
+""" Alias for the flat-sharp dual-to-primal interpolation matrix [`♭♯_mat`](@ref).
+"""
+const flat_sharp_mat = ♭♯_mat
 
 """ Wedge product of discrete forms.
 

@@ -7,8 +7,10 @@ using Base.Iterators
 using ACSets.DenseACSets: attrtype_type
 using Catlab, Catlab.CategoricalAlgebra.CSets
 using ..SimplicialSets, ..DiscreteExteriorCalculus
+import ..DiscreteExteriorCalculus: ∧
 
-export dec_boundary, dec_differential, dec_dual_derivative, dec_hodge_star, dec_inv_hodge_star, dec_wedge_product, dec_c_wedge_product, dec_p_wedge_product, dec_c_wedge_product!
+export dec_boundary, dec_differential, dec_dual_derivative, dec_hodge_star, dec_inv_hodge_star, dec_wedge_product, dec_c_wedge_product, dec_p_wedge_product, dec_c_wedge_product!,
+       dec_wedge_product_pd, dec_wedge_product_dp, ∧
 
 """
     dec_p_wedge_product(::Type{Tuple{0,1}}, sd::EmbeddedDeltaDualComplex1D)
@@ -229,6 +231,51 @@ function dec_wedge_product(::Type{Tuple{1,1}}, sd::HasDeltaSet2D)
     val_pack = dec_p_wedge_product(Tuple{1,1}, sd)
     (α, β) -> dec_c_wedge_product(Tuple{1,1}, α, β, val_pack)
 end
+
+"""
+    dec_wedge_product(::Type{Tuple{1,1}}, sd::HasDeltaSet)
+
+Returns a cached function that computes the wedge product between a primal
+1-form and a dual 1-form.
+"""
+function dec_wedge_product_pd(::Type{Tuple{1,1}}, sd::HasDeltaSet)
+  ♭♯_m = ♭♯_mat(sd)
+  ♭♯_cached(x) = only.(♭♯_m * x)
+  Λ_cached = dec_wedge_product(Tuple{1, 1}, sd)
+  (f, g) -> Λ_cached(f, ♭♯_cached(g))
+end
+
+"""
+    dec_wedge_product(::Type{Tuple{1,1}}, sd::HasDeltaSet)
+
+Returns a cached function that computes the wedge product between a dual 1-form
+and a primal 1-form.
+"""
+function dec_wedge_product_dp(::Type{Tuple{1,1}}, sd::HasDeltaSet)
+  ♭♯_m = ♭♯_mat(sd)
+  ♭♯_cached(x) = only.(♭♯_m * x)
+  Λ_cached = dec_wedge_product(Tuple{1, 1}, sd)
+  (f, g) -> Λ_cached(♭♯_cached(f), g)
+end
+
+""" Wedge product of a primal 1-form and a dual 1-form.
+
+Chain the musical isomorphisms to interpolate the dual 1-form to a primal
+1-form, using the linear least squares ♯. Then use the CombinatorialSpaces
+version of the Hirani primal-primal weddge.
+"""
+∧(s::HasDeltaSet, α::SimplexForm{1}, β::DualForm{1}) =
+  dec_wedge_product_pd(Tuple{1,1}, s)(α, β)
+
+""" Wedge product of a dual 1-form and a primal 1-form.
+
+Chain the musical isomorphisms to interpolate the dual 1-form to a primal
+1-form. Then use the CombinatorialSpaces version of the Hirani primal-primal
+weddge (without explicitly dividing by 2.)
+"""
+∧(s::HasDeltaSet, α::DualForm{1}, β::SimplexForm{1}) =
+  dec_wedge_product_dp(Tuple{1,1}, s)(α, β)
+
 
 # Boundary Operators
 dec_boundary(n::Int, sd::HasDeltaSet) = sparse(dec_p_boundary(Val{n}, sd)...)

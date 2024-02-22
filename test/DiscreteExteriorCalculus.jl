@@ -677,10 +677,8 @@ for (primal_s,s) in flat_meshes
   # This test shows how the musical isomorphism chaining lets you further
   # define a primal-dual wedge that preserves properties from the continuous
   # exterior calculus.
-  Λ_cached = dec_wedge_product(Tuple{1, 1}, s)
-  ♭♯_cached(x) = only.(♭_♯_m * x)
-  Λpd_cached(x_p,y_d) = dec_wedge_product(Tuple{1, 1}, s)(x_p, ♭♯_cached(y_d))
-  Λdp_cached(x_d,y_p) = dec_wedge_product(Tuple{1, 1}, s)(♭♯_cached(x_d), y_p)
+  Λpd = dec_wedge_product_pd(Tuple{1,1}, s)
+  Λdp = dec_wedge_product_dp(Tuple{1,1}, s)
 
   f_def = SVector{3,Float64}(2,7,0)
   g_def = SVector{3,Float64}(8,1,0)
@@ -690,16 +688,20 @@ for (primal_s,s) in flat_meshes
   g′ = eval_constant_primal_form(s, g_def)
 
   # Antisymmetry:
-  @test all(Λpd_cached(f′, g̃) .≈ -1 * Λpd_cached(g′, f̃))
-  @test all(Λdp_cached(f̃, g′) .≈ -1 * Λdp_cached(g̃, f′))
+  @test all(Λpd(f′, g̃) .≈ -1 * Λpd(g′, f̃))
+  @test all(Λdp(f̃, g′) .≈ -1 * Λdp(g̃, f′))
 
   # Antisymmetry (across Λpd and Λdp!):
-  @test all(Λpd_cached(f′, g̃) .== -1 * Λdp_cached(g̃, f′))
-  @test all(Λdp_cached(f̃, g′) .== -1 * Λpd_cached(g′, f̃))
+  @test all(Λpd(f′, g̃) .== -1 * Λdp(g̃, f′))
+  @test all(Λdp(f̃, g′) .== -1 * Λpd(g′, f̃))
 
   # f∧f = 0 (implied by antisymmetry):
-  @test all(isapprox.(Λpd_cached(f′, f̃), 0, atol=1e-10))
-  @test all(isapprox.(Λpd_cached(g′, g̃), 0, atol=1e-10))
+  @test all(isapprox.(Λpd(f′, f̃), 0, atol=1e-10))
+  @test all(isapprox.(Λpd(g′, g̃), 0, atol=1e-10))
+
+  # Test and demonstrate the convenience functions:
+  @test all(∧(s, SimplexForm{1}(f′), DualForm{1}(g̃)) .≈ -1 * ∧(s, SimplexForm{1}(g′), DualForm{1}(f̃)))
+  @test all(∧(s, DualForm{1}(f̃), SimplexForm{1}(g′)) .≈ -1 * ∧(s, DualForm{1}(g̃), SimplexForm{1}(f′)))
 
   # TODO: Test the Leibniz rule.
 end
@@ -721,17 +723,10 @@ for (primal_s,s) in flat_meshes
   u = eval_constant_primal_form(s, u_def)
   u_star = hodge_star(1,s) * u
 
-  # Define the primal-dual wedge.
-  #TODO: Wrap these 5 lines and export from DiscreteExteriorCalculus.
-  ♯_m = ♯_mat(s, LLSDDSharp())
-  ♭_m = ♭_mat(s)
-  ♭_♯_m = ♭_m * ♯_m
-  Λ_cached = dec_wedge_product(Tuple{1, 1}, s)
-  ♭♯_cached(x) = only.(♭_♯_m * x)
-  Λpd_cached(x_p,y_d) = Λ_cached(x_p, ♭♯_cached(y_d))
-
-  # Apply the primal-dual wedge, and check the operator
-  @test all(isapprox.(sign(2,s) .* hodge_star(2,s) * Λpd_cached(u, u_star),  ff_gg, atol=1e-10))
+  @test all(isapprox.(
+    sign(2,s) .* hodge_star(2,s) * ∧(s, SimplexForm{1}(u), DualForm{1}(u_star)),
+    ff_gg,
+    atol=1e-10))
 end
 
 end
