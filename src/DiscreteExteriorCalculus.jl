@@ -550,6 +550,60 @@ function precompute_volumes_2d!(s::HasDeltaSet2D)
   end
 end
 
+struct FastMesh end
+
+function subdivide_duals!(sd::EmbeddedDeltaDualComplex2D, gen::FastMesh, args...)
+  subdivide_duals_2d!(sd, gen, args...)
+  precompute_volumes_2d!(sd, gen)
+end
+
+function subdivide_duals_2d!(sd::HasDeltaSet2D, gen::FastMesh, alg)
+  subdivide_duals_1d!(sd, alg)
+
+  tri_centers = @view sd[:tri_center]
+
+  e1 = @view sd[:∂e1]
+  e2 = @view sd[:∂e2]
+
+  v0 = @view sd[:∂v0]
+  v1 = @view sd[:∂v1]
+
+  points::Vector{Point3{Float64}} = sd[:point]
+
+  for t in triangles(sd)
+    point_tup = (points[v1[e1[t]]], points[v0[e2[t]]], points[v0[e1[t]]])
+    sd[tri_centers[t], :dual_point] = geometric_center(point_tup, alg)
+  end
+end
+
+function precompute_volumes_2d!(sd::HasDeltaSet2D, gen::FastMesh)
+  precompute_volumes_1d!(sd)
+  set_volumes!(Val{2}, sd, CayleyMengerDet())
+  set_dual_volumes!(Val{2}, sd, CayleyMengerDet())
+end
+
+function set_volumes!(::Type{Val{2}}, sd::HasDeltaSet2D, ::CayleyMengerDet)
+  for t in triangles(sd)
+    sd[t, :area] = volume(2,sd,t,CayleyMengerDet())
+  end
+end
+
+function set_dual_volumes!(::Type{Val{2}}, sd::HasDeltaSet2D, ::CayleyMengerDet)
+  d_e0 = @view sd[:D_∂e0]
+  d_e1 = @view sd[:D_∂e1]
+  d_e2 = @view sd[:D_∂e2]
+
+  d_v0 = @view sd[:D_∂v0]
+  d_v1 = @view sd[:D_∂v1]
+
+  dual_points::Vector{Point3{Float64}} = sd[:dual_point]
+
+  for t in parts(sd, :DualTri)
+    idxs = SVector(d_v1[d_e1[t]], d_v0[d_e2[t]], d_v0[d_e0[t]])
+    sd[t, :dual_area] = volume((dual_points[idxs[1]], dual_points[idxs[2]], dual_points[idxs[3]]))
+  end
+end
+
 # General operators
 ###################
 
