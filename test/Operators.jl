@@ -266,10 +266,17 @@ end
     end
 end
 
+# TODO: Move all boundary helper functions into CombinatorialSpaces.
+function boundary_inds(::Type{Val{1}}, s)
+  collect(findall(x -> x != 0, boundary(Val{2},s) * fill(1,ntriangles(s))))
+end
+
 @testset "Primal-Dual Wedge Product 0-1" begin
+    # TODO: Test anti-symmetry across Λ10 and Λ01.
     for sd in flat_meshes
       # Allocate the cached wedge operator.
       Λ10 = dec_wedge_product_dp(Tuple{1,0}, sd)
+      ♯_m = ♯_mat(sd, LLSDDSharp())
 
       # Define test data
       X♯ = SVector{3,Float64}(1/√2,1/√2,0)
@@ -281,6 +288,42 @@ end
       # ⋆f = -1/√2dx + 1/√2dy
       # ⋆f∧g = 5(-1/√2dx + 1/√2dy) = -5/√2dx + 5/√2dy
       @test all(Λ10(f,g) .≈ hodge_star(1,sd) * eval_constant_primal_form(sd, SVector{3,Float64}(5/√2,5/√2,0)))
+    end
+    for sd in flat_meshes
+      # Here, We test only for matching values on interior edges, because the
+      # numerical solution assumes values past the boundary are 0, whereas the
+      # analytic solution has no such artifacting.  i.e. The numerical solution
+      # does not hold on boundary edges.
+      interior_edges = setdiff(edges(sd), boundary_inds(Val{1}, sd))
+      length(interior_edges) == 0 && continue
+
+      # Allocate the cached wedge operator.
+      Λ10 = dec_wedge_product_dp(Tuple{1,0}, sd)
+      ♯_m = ♯_mat(sd, LLSDDSharp())
+      # Define test data and the analytic solution.
+      a = map(point(sd)) do p
+        p[1] + 4*p[2]
+      end
+      f = hodge_star(1,sd) * d(0,sd) * a
+      g = map(point(sd)) do p
+        4*p[1] + 16*p[2]
+      end
+      h = map(point(sd)) do p
+        -p[1] - 4*p[2]
+      end
+      dx = eval_constant_primal_form(sd, SVector{3,Float64}(1,0,0))
+      dy = eval_constant_primal_form(sd, SVector{3,Float64}(0,1,0))
+      fΛa_analytic = hodge_star(1,sd) * (-dec_wedge_product(Tuple{0,1}, sd)(h, dx) .+ dec_wedge_product(Tuple{0,1}, sd)(g, dy))
+
+      # a := x + 4y
+      # f := ⋆da
+      # f = ⋆(∂a/∂x dx + ∂a/∂y dy)
+      #   = ⋆(dx + 4dy)
+      # f = 4dx - dy
+      # f∧a = (4dx - dy) ∧ (x + 4y)
+      #     = 4(x + 4y)dx -(x + 4y)dy
+      #     = (4x + 16y)dx + (-x - 4y)dy
+      @test all(isapprox.(Λ10(f,a)[interior_edges], fΛa_analytic[interior_edges], atol=1e-8))
     end
 end
 
