@@ -272,10 +272,10 @@ function boundary_inds(::Type{Val{1}}, s)
 end
 
 @testset "Primal-Dual Wedge Product 0-1" begin
-    # TODO: Test anti-symmetry across Λ10 and Λ01.
     for sd in flat_meshes
       # Allocate the cached wedge operator.
       Λ10 = dec_wedge_product_dp(Tuple{1,0}, sd)
+      Λ01 = dec_wedge_product_pd(Tuple{0,1}, sd)
       ♯_m = ♯_mat(sd, LLSDDSharp())
 
       # Define test data
@@ -288,6 +288,9 @@ end
       # ⋆f = -1/√2dx + 1/√2dy
       # ⋆f∧g = 5(-1/√2dx + 1/√2dy) = -5/√2dx + 5/√2dy
       @test all(Λ10(f,g) .≈ hodge_star(1,sd) * eval_constant_primal_form(sd, SVector{3,Float64}(5/√2,5/√2,0)))
+
+      # Test symmetry across Λ10 and Λ01.
+      @test all(Λ10(f,g) .== Λ01(g,f))
     end
     for sd in flat_meshes
       # Here, We test only for matching values on interior edges, because the

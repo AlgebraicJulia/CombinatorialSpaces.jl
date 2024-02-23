@@ -232,14 +232,16 @@ function dec_wedge_product(::Type{Tuple{1,1}}, sd::HasDeltaSet2D)
     (α, β) -> dec_c_wedge_product(Tuple{1,1}, α, β, val_pack)
 end
 
-# TODO: Add dec_wedge_product_pd(::Type{Tuple{0,1}}, sd::HasDeltaSet)
 """
-    dec_wedge_product_pd(::Type{Tuple{1,0}}, sd::HasDeltaSet)
+    function dec_wedge_product_mat(sd::HasDeltaSet)
 
-Returns a cached function that computes the wedge product between a dual
-1-form and a primal 0-form.
+Returns a matrix that can be multiplied to a primal 0-form, before being
+elementwise-multiplied by a dual 1-form, encoding the wedge product.
+
+This function assumes barycentric means and performs bilinear interpolation. It
+is not known if this definition has appeared in the literature or any code.
 """
-function dec_wedge_product_dp(::Type{Tuple{1,0}}, sd::HasDeltaSet)
+function wedge_pd_01_mat(sd::HasDeltaSet)
   m = spzeros(ne(sd), nv(sd))
   for e in edges(sd)
     α, β = edge_vertices(sd,e)
@@ -256,7 +258,35 @@ function dec_wedge_product_dp(::Type{Tuple{1,0}}, sd::HasDeltaSet)
       m[e,l] += w*2/12
     end
   end
+  m
+end
+
+"""
+    dec_wedge_product_pd(::Type{Tuple{1,0}}, sd::HasDeltaSet)
+
+Returns a cached function that computes the wedge product between a dual
+1-form and a primal 0-form.
+
+This function assumes barycentric means and performs bilinear interpolation. It
+is not known if this definition has appeared in the literature or any code.
+"""
+function dec_wedge_product_dp(::Type{Tuple{1,0}}, sd::HasDeltaSet)
+  m = wedge_pd_01_mat(sd)
   (f,g) -> f .* (m * g)
+end
+
+"""
+    function dec_wedge_product_pd(::Type{Tuple{0,1}}, sd::HasDeltaSet)
+
+Returns a cached function that computes the wedge product between a primal
+0-form and a dual 1-form.
+
+This function assumes barycentric means and performs bilinear interpolation. It
+is not known if this definition has appeared in the literature or any code.
+"""
+function dec_wedge_product_pd(::Type{Tuple{0,1}}, sd::HasDeltaSet)
+  m = wedge_pd_01_mat(sd)
+  (g,f) -> (m * g) .* f
 end
 
 """
