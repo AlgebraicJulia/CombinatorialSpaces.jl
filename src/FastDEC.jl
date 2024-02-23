@@ -1,7 +1,7 @@
 module FastDEC
 using LinearAlgebra: Diagonal, dot, norm, cross
 using StaticArrays: SVector
-using SparseArrays: sparse
+using SparseArrays: sparse, spzeros
 using LinearAlgebra
 using Base.Iterators
 using ACSets.DenseACSets: attrtype_type
@@ -232,8 +232,35 @@ function dec_wedge_product(::Type{Tuple{1,1}}, sd::HasDeltaSet2D)
     (α, β) -> dec_c_wedge_product(Tuple{1,1}, α, β, val_pack)
 end
 
+# TODO: Add dec_wedge_product_pd(::Type{Tuple{0,1}}, sd::HasDeltaSet)
 """
-    dec_wedge_product(::Type{Tuple{1,1}}, sd::HasDeltaSet)
+    dec_wedge_product_pd(::Type{Tuple{1,0}}, sd::HasDeltaSet)
+
+Returns a cached function that computes the wedge product between a dual
+1-form and a primal 0-form.
+"""
+function dec_wedge_product_dp(::Type{Tuple{1,0}}, sd::HasDeltaSet)
+  m = spzeros(ne(sd), nv(sd))
+  for e in edges(sd)
+    α, β = edge_vertices(sd,e)
+    des = elementary_duals(1,sd,e)
+    dvs = sd[des, :D_∂v0]
+    tris = only.(incident(sd, dvs, :tri_center))
+    γδ = map(tris) do t
+      only(filter(x -> x ∉ [α,β], triangle_vertices(sd,t)))
+    end
+    ws = sd[des, :dual_length] ./ sum(sd[des, :dual_length])
+    for (w,l) in zip(ws,γδ)
+      m[e,α] += w*5/12
+      m[e,β] += w*5/12
+      m[e,l] += w*2/12
+    end
+  end
+  (f,g) -> f .* (m * g)
+end
+
+"""
+    dec_wedge_product_pd(::Type{Tuple{1,1}}, sd::HasDeltaSet)
 
 Returns a cached function that computes the wedge product between a primal
 1-form and a dual 1-form.
@@ -246,7 +273,7 @@ function dec_wedge_product_pd(::Type{Tuple{1,1}}, sd::HasDeltaSet)
 end
 
 """
-    dec_wedge_product(::Type{Tuple{1,1}}, sd::HasDeltaSet)
+    dec_wedge_product_dp(::Type{Tuple{1,1}}, sd::HasDeltaSet)
 
 Returns a cached function that computes the wedge product between a dual 1-form
 and a primal 1-form.
