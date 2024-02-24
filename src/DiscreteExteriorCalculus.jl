@@ -31,6 +31,10 @@ import LinearAlgebra: mul!
 using LinearAlgebra: Diagonal, dot, norm, cross, pinv
 using SparseArrays
 using StaticArrays: @SVector, SVector, SMatrix
+using GeometryBasics: Point2, Point3
+
+const Point2D = SVector{2,Float64}
+const Point3D = SVector{3,Float64}
 
 using ACSets.DenseACSets: attrtype_type
 using Catlab, Catlab.CategoricalAlgebra.CSets
@@ -1457,5 +1461,27 @@ function lie_derivative_flat(::Type{Val{2}}, s::HasDeltaSet,
                              X♭::AbstractVector, α::AbstractVector; kw...)
   dual_derivative(1, s, interior_product_flat(2, s, X♭, α; kw...))
 end
+
+function eval_constant_primal_form(s::EmbeddedDeltaDualComplex2D{Bool, Float64, T} where T<:Union{Point3D, Point3{Float64}}, α::SVector{3,Float64})
+  EForm(map(edges(s)) do e
+          dot(α, point(s, tgt(s,e)) - point(s, src(s,e))) * sign(1,s,e)
+        end)
+end
+function eval_constant_primal_form(s::EmbeddedDeltaDualComplex2D{Bool, Float64, T} where T<:Union{Point2D, Point2{Float64}}, α::SVector{3,Float64})
+  α = SVector{2,Float64}(α[1],α[2])
+  EForm(map(edges(s)) do e
+          dot(α, point(s, tgt(s,e)) - point(s, src(s,e))) * sign(1,s,e)
+        end)
+end
+
+# Evaluate a constant dual form
+# XXX: This "left/right-hand-rule" trick only works when z=0.
+# XXX: So, do not use this function to test e.g. curved surfaces.
+function eval_constant_dual_form(s::EmbeddedDeltaDualComplex2D, α::SVector{3,Float64})
+  EForm(
+    hodge_star(1,s) *
+      eval_constant_primal_form(s, SVector{3,Float64}(α[2], -α[1], α[3])))
+end
+
 
 end

@@ -4,6 +4,8 @@ using Test
 using SparseArrays
 using LinearAlgebra
 using CombinatorialSpaces
+using CombinatorialSpaces.Meshes: tri_345, fri_345, grid_345, right_unit_hypot
+using CombinatorialSpaces.DiscreteExteriorCalculus: eval_constant_primal_form
 using Random
 using GeometryBasics: Point2, Point3
 using StaticArrays: SVector
@@ -51,57 +53,6 @@ dual_meshes_2D = [(generate_dual_mesh ∘ loadmesh ∘ Icosphere).(1:2)...,
                (generate_dual_mesh).([triangulated_grid(10,10,8,8,Point3D), makeSphere(5, 175, 5, 0, 360, 5, 6371+90)[1]])...,
                (loadmesh)(Torus_30x10())];
 
-function tri_345()
-  primal_s = EmbeddedDeltaSet2D{Bool,Point3D}()
-  add_vertices!(primal_s, 3, point=[Point3D(0,0,0), Point3D(3,0,0), Point3D(3,4,0)])
-  glue_triangle!(primal_s, 1, 2, 3, tri_orientation=true)
-  primal_s[:edge_orientation] = true
-  s = EmbeddedDeltaDualComplex2D{Bool,Float64,Point3D}(primal_s)
-  subdivide_duals!(s, Barycenter())
-  (primal_s, s)
-end
-
-function fri_345()
-  primal_s = EmbeddedDeltaSet2D{Bool,Point3D}()
-  add_vertices!(primal_s, 3, point=[Point3D(0,0,0), Point3D(3,0,0), Point3D(3,4,0)])
-  glue_triangle!(primal_s, 1, 2, 3, tri_orientation=false)
-  primal_s[:edge_orientation] = true
-  s = EmbeddedDeltaDualComplex2D{Bool,Float64,Point3D}(primal_s)
-  subdivide_duals!(s, Barycenter())
-  (primal_s, s)
-end
-
-function grid_345()
-  primal_s = EmbeddedDeltaSet2D{Bool,Point3D}()
-  add_vertices!(primal_s, 9,
-    point=[Point3D(0,+4,0), Point3D(3,+4,0), Point3D(6,+4,0),
-          Point3D(0, 0,0), Point3D(3, 0,0), Point3D(6, 0,0),
-          Point3D(0,-4,0), Point3D(3,-4,0), Point3D(6,-4,0)])
-  glue_sorted_triangle!(primal_s, 1, 2, 4)
-  glue_sorted_triangle!(primal_s, 5, 2, 4)
-  glue_sorted_triangle!(primal_s, 5, 2, 3)
-  glue_sorted_triangle!(primal_s, 5, 6, 3)
-  glue_sorted_triangle!(primal_s, 5, 7, 4)
-  glue_sorted_triangle!(primal_s, 5, 7, 8)
-  glue_sorted_triangle!(primal_s, 5, 6, 8)
-  glue_sorted_triangle!(primal_s, 9, 6, 8)
-  primal_s[:edge_orientation] = true
-  s = EmbeddedDeltaDualComplex2D{Bool,Float64,Point3D}(primal_s)
-  subdivide_duals!(s, Barycenter())
-  (primal_s, s)
-end
-
-function right_unit_hypot()
-  primal_s = EmbeddedDeltaSet2D{Bool,Point2D}()
-  add_vertices!(primal_s, 3,
-    point=[Point2D(0,0), Point2D(1/√2,0), Point2D(1/√2,1/√2)])
-  glue_sorted_triangle!(primal_s, 1, 2, 3)
-  primal_s[:edge_orientation] = true
-  s = EmbeddedDeltaDualComplex2D{Bool,Float64,Point2D}(primal_s)
-  subdivide_duals!(s, Barycenter())
-  (primal_s, s)
-end
-
 tg′ = triangulated_grid(100,100,10,10,Point2D);
 tg = EmbeddedDeltaDualComplex2D{Bool,Float64,Point2D}(tg′);
 subdivide_duals!(tg, Barycenter());
@@ -111,18 +62,6 @@ rect = EmbeddedDeltaDualComplex2D{Bool,Float64,Point3D}(rect′);
 subdivide_duals!(rect, Barycenter());
 
 flat_meshes = [tri_345()[2], fri_345()[2], right_unit_hypot()[2], grid_345()[2], tg, rect];
-
-function eval_constant_primal_form(s::EmbeddedDeltaDualComplex2D{Bool, _f, Point3D} where _f, α::SVector{3,Float64})
-  EForm(map(edges(s)) do e
-          dot(α, point(s, tgt(s,e)) - point(s, src(s,e))) * sign(1,s,e)
-        end)
-end
-function eval_constant_primal_form(s::EmbeddedDeltaDualComplex2D{Bool, _f, Point2D} where _f, α::SVector{3,Float64})
-  α = SVector{2,Float64}(α[1],α[2])
-  EForm(map(edges(s)) do e
-          dot(α, point(s, tgt(s,e)) - point(s, src(s,e))) * sign(1,s,e)
-        end)
-end
 
 @testset "Exterior Derivative" begin
     for i in 0:0 
