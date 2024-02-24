@@ -26,7 +26,7 @@ export DualSimplex, DualV, DualE, DualTri, DualChain, DualForm,
 import Base: ndims
 using LinearAlgebra: Diagonal, dot, norm, cross
 using SparseArrays
-using StaticArrays: @SVector, SVector
+using StaticArrays: @SVector, SVector, MVector
 using GeometryBasics: Point3
 
 using ACSets.DenseACSets: attrtype_type
@@ -558,17 +558,16 @@ function subdivide_duals!(sd::EmbeddedDeltaDualComplex2D, gen::FastMesh, args...
   precompute_volumes_2d!(sd, gen)
 end
 
-function subdivide_duals_1d!(sd::HasDeltaSet1D, gen::FastMesh, alg)
-  e_centers = @view sd[:edge_center]
+function subdivide_duals_1d!(sd::HasDeltaSet1D, ::FastMesh, alg)
 
   v1 = @view sd[:∂v0]
   v2 = @view sd[:∂v1]
 
+  e_centers = @view sd[:edge_center]
   dual_point_set = @view sd[:dual_point]
 
   points::Vector{Point3{Float64}} = sd[:point]
-
-  point_arr = Vector{Point3{Float64}}(undef, 2)
+  point_arr = MVector{2, Point3{Float64}}(undef)
 
   @inbounds for v in vertices(sd)
     dual_point_set[v] = points[v]
@@ -580,7 +579,10 @@ function subdivide_duals_1d!(sd::HasDeltaSet1D, gen::FastMesh, alg)
   end
 end
 
-function precompute_volumes_1d!(sd::HasDeltaSet1D, gen::FastMesh)
+function precompute_volumes_1d!(sd::HasDeltaSet1D, ::FastMesh)
+
+  v0 = @view sd[:∂v0]
+  v1 = @view sd[:∂v1]
 
   d_v0 = @view sd[:D_∂v0]
   d_v1 = @view sd[:D_∂v1]
@@ -589,11 +591,12 @@ function precompute_volumes_1d!(sd::HasDeltaSet1D, gen::FastMesh)
   dual_length_set = @view sd[:dual_length]
 
   dual_points::Vector{Point3{Float64}} = sd[:dual_point]
-
-  point_arr = Vector{Point3{Float64}}(undef, 2)
+  point_arr = MVector{2, Point3{Float64}}(undef)
 
   @inbounds for e in edges(sd)
-    length_set[e] = volume(1,sd,e,CayleyMengerDet())
+    point_arr[1] = dual_points[v0[e]]
+    point_arr[2] = dual_points[v1[e]]
+    length_set[e] = volume(point_arr)
   end
   @inbounds for e in parts(sd, :DualE)
     point_arr[1] = dual_points[d_v0[e]]
@@ -606,19 +609,17 @@ end
 function subdivide_duals_2d!(sd::HasDeltaSet2D, gen::FastMesh, alg)
   subdivide_duals_1d!(sd, gen, alg)
 
-  tri_centers = @view sd[:tri_center]
-
   e1 = @view sd[:∂e1]
   e2 = @view sd[:∂e2]
 
   v0 = @view sd[:∂v0]
   v1 = @view sd[:∂v1]
 
+  tri_centers = @view sd[:tri_center]
   dual_point_set = @view sd[:dual_point]
 
   points::Vector{Point3{Float64}} = sd[:point]
-
-  point_arr = Vector{Point3{Float64}}(undef, 3)
+  point_arr = MVector{3, Point3{Float64}}(undef)
 
   @inbounds for t in triangles(sd)
     point_arr[1] = points[v1[e1[t]]]
@@ -637,7 +638,6 @@ end
 
 function set_volumes!(::Type{Val{2}}, sd::HasDeltaSet2D, ::CayleyMengerDet)
 
-  points::Vector{Point3{Float64}} = sd[:point]
   area_set = @view sd[:area]
 
   e1 = @view sd[:∂e1]
@@ -646,7 +646,8 @@ function set_volumes!(::Type{Val{2}}, sd::HasDeltaSet2D, ::CayleyMengerDet)
   v0 = @view sd[:∂v0]
   v1 = @view sd[:∂v1]
 
-  point_arr = Vector{Point3{Float64}}(undef, 3)
+  points::Vector{Point3{Float64}} = sd[:point]
+  point_arr = MVector{3, Point3{Float64}}(undef)
 
   @inbounds for t in triangles(sd)
     point_arr[1] = points[v1[e1[t]]]
@@ -658,6 +659,9 @@ function set_volumes!(::Type{Val{2}}, sd::HasDeltaSet2D, ::CayleyMengerDet)
 end
 
 function set_dual_volumes!(::Type{Val{2}}, sd::HasDeltaSet2D, ::CayleyMengerDet)
+
+  dual_area_set = @view sd[:dual_area]
+
   d_e0 = @view sd[:D_∂e0]
   d_e1 = @view sd[:D_∂e1]
   d_e2 = @view sd[:D_∂e2]
@@ -665,16 +669,14 @@ function set_dual_volumes!(::Type{Val{2}}, sd::HasDeltaSet2D, ::CayleyMengerDet)
   d_v0 = @view sd[:D_∂v0]
   d_v1 = @view sd[:D_∂v1]
 
-  dual_area_set = @view sd[:dual_area]
-
   dual_points::Vector{Point3{Float64}} = sd[:dual_point]
-
-  point_arr = Vector{Point3{Float64}}(undef, 3)
+  point_arr = MVector{3, Point3{Float64}}(undef)
 
   @inbounds for t in parts(sd, :DualTri)
     point_arr[1] = dual_points[d_v1[d_e1[t]]]
     point_arr[2] = dual_points[d_v0[d_e2[t]]]
     point_arr[3] = dual_points[d_v0[d_e0[t]]]
+
     dual_area_set[t] = volume(point_arr)
   end
 end
