@@ -269,4 +269,26 @@ end
     end
 end
 
+@testset "Dual-Dual Wedge Product 0-1" begin
+    for sd in flat_meshes
+      # Allocate the cached wedge operator.
+      Λ10 = dec_wedge_product_dd(Tuple{1,0}, sd)
+      Λ01 = dec_wedge_product_dd(Tuple{0,1}, sd)
+
+      # Define test data
+      X♯ = SVector{3,Float64}(1/√2,1/√2,0)
+      f = hodge_star(1,sd) * eval_constant_primal_form(sd, X♯)
+      g = fill(5.0, ntriangles(sd))
+
+      # f := 1/√2dx + 1/√2dy:
+      # g := 5
+      # ⋆f = -1/√2dx + 1/√2dy
+      # ⋆f∧g = 5(-1/√2dx + 1/√2dy) = -5/√2dx + 5/√2dy
+      @test all(Λ10(f,g) .≈ hodge_star(1,sd) * eval_constant_primal_form(sd, SVector{3,Float64}(5/√2,5/√2,0)))
+
+      # Test symmetry across Λ10 and Λ01.
+      @test all(Λ10(f,g) .== Λ01(g,f))
+    end
+end
+
 end
