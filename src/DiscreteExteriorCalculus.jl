@@ -553,6 +553,115 @@ end
 
 struct FastMesh end
 
+make_dual_simplices_1d!(s::AbstractDeltaDualComplex1D, gen::FastMesh) = make_dual_simplices_1d!(s, E, gen)
+
+function make_dual_simplices_1d!(sd::HasDeltaSet1D, ::Type{Simplex{n}}, gen::FastMesh) where n
+  # Make dual vertices and edges.
+  # vcenters = @view sd[:vertex_center]
+
+  sd[:vertex_center] = add_parts!(sd, :DualV, nv(sd))
+  sd[:edge_center] = add_parts!(sd, :DualV, ne(sd))
+
+  v0 = @view sd[:∂v0]
+  v1 = @view sd[:∂v1]
+  ecenters = @view sd[:edge_center]
+
+  D_edges_1 = add_parts!(sd, :DualE, ne(sd))
+  D_edges_2 = add_parts!(sd, :DualE, ne(sd))
+
+  d_v0 = @view sd[:D_∂v0]
+  d_v1 = @view sd[:D_∂v1]
+
+  for i in edges(sd)
+    d_v0[D_edges_1[i]] = ecenters[i]
+    d_v1[D_edges_1[i]] = v0[i]
+
+    d_v0[D_edges_2[i]] = ecenters[i]
+    d_v1[D_edges_2[i]] = v1[i]
+  end
+
+  # Orient elementary dual edges.
+  if has_subpart(sd, :edge_orientation)
+    # If orientations are not set, then set them here.
+    if any(isnothing, sd[:edge_orientation])
+      # 1-simplices only need to be orientable if the delta set is 1D.
+      # (The 1-simplices in a 2D delta set need not represent a valid 1-Manifold.)
+      if n == 1
+        orient!(sd, E) || error("The 1-simplices of the given 1D delta set are non-orientable.")
+      else
+        sd[findall(isnothing, s[:edge_orientation]), :edge_orientation] = zero(attrtype_type(sd, :Orientation))
+      end
+    end
+    edge_orient = @view sd[:edge_orientation]
+    d_edge_orient = @view sd[:D_edge_orientation]
+
+    for i in edges(sd)
+      d_edge_orient[D_edges_1[i]] = CombinatorialSpaces.SimplicialSets.negate(edge_orient[i])
+      d_edge_orient[D_edges_2[i]] = edge_orient[i]
+    end
+  end
+
+  (D_edges_1, D_edges_2)
+end
+
+make_dual_simplices_1d!(s::AbstractDeltaDualComplex2D, gen::FastMesh) = make_dual_simplices_1d!(s, Tri, gen)
+
+make_dual_simplices_2d!(s::AbstractDeltaDualComplex2D, gen::FastMesh) = make_dual_simplices_2d!(s, Tri, gen)
+
+function make_dual_simplices_2d!(s::HasDeltaSet2D, ::Type{Simplex{n}}, gen::FastMesh) where n
+  # Make dual vertices and edges.
+  D_edges01 = make_dual_simplices_1d!(s)
+  s[:tri_center] = tri_centers = add_parts!(s, :DualV, ntriangles(s))
+  D_edges12 = map((0,1,2)) do e
+    add_parts!(s, :DualE, ntriangles(s);
+               D_∂v0=tri_centers, D_∂v1=edge_center(s, ∂(2,e,s)))
+  end
+  D_edges02 = map(triangle_vertices(s)) do vs
+    add_parts!(s, :DualE, ntriangles(s);
+               D_∂v0=tri_centers, D_∂v1=vertex_center(s, vs))
+  end
+
+  # Make dual triangles.
+  # Counterclockwise order in drawing with vertices 0, 1, 2 from left to right.
+  D_triangle_schemas = ((0,1,1),(0,2,1),(1,2,0),(1,0,1),(2,0,0),(2,1,0))
+  D_triangles = map(D_triangle_schemas) do (v,e,ev)
+    add_parts!(s, :DualTri, ntriangles(s);
+               D_∂e0=D_edges12[e+1], D_∂e1=D_edges02[v+1],
+               D_∂e2=view(D_edges01[ev+1], ∂(2,e,s)))
+  end
+
+  if has_subpart(s, :tri_orientation)
+    # If orientations are not set, then set them here.
+    if any(isnothing, s[:tri_orientation])
+      # 2-simplices only need to be orientable if the delta set is 2D.
+      # (The 2-simplices in a 3D delta set need not represent a valid 2-Manifold.)
+      if n == 2
+        orient!(s, Tri) || error("The 2-simplices of the given 2D delta set are non-orientable.")
+      else
+        s[findall(isnothing, s[:tri_orientation]), :tri_orientation] = zero(attrtype_type(s, :Orientation))
+      end
+    end
+    # Orient elementary dual triangles.
+    tri_orient = s[:tri_orientation]
+    rev_tri_orient = negate.(tri_orient)
+    for (i, D_tris) in enumerate(D_triangles)
+      s[D_tris, :D_tri_orientation] = isodd(i) ? rev_tri_orient : tri_orient
+    end
+
+    # Orient elementary dual edges.
+    for e in (0,1,2)
+      s[D_edges12[e+1], :D_edge_orientation] = relative_sign.(
+        s[∂(2,e,s), :edge_orientation],
+        isodd(e) ? rev_tri_orient : tri_orient)
+    end
+    # Remaining dual edges are oriented arbitrarily.
+    s[lazy(vcat, D_edges02...), :D_edge_orientation] = one(attrtype_type(s, :Orientation))
+  end
+
+  D_triangles
+end
+
+
 function subdivide_duals!(sd::EmbeddedDeltaDualComplex2D, gen::FastMesh, args...)
   subdivide_duals_2d!(sd, gen, args...)
   precompute_volumes_2d!(sd, gen)
