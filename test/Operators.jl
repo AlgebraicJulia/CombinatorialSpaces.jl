@@ -3,12 +3,14 @@ module TestOperators
 using Test
 using SparseArrays
 using LinearAlgebra
+using Catlab
 using CombinatorialSpaces
 using CombinatorialSpaces.Meshes: tri_345, fri_345, grid_345, right_unit_hypot
 using CombinatorialSpaces.DiscreteExteriorCalculus: eval_constant_primal_form
 using Random
 using GeometryBasics: Point2, Point3
 using StaticArrays: SVector
+using Statistics: mean, var
 
 Point2D = Point2{Float64}
 Point3D = Point3{Float64}
@@ -206,8 +208,19 @@ end
 end
 
 # TODO: Move all boundary helper functions into CombinatorialSpaces.
+function boundary_inds(::Type{Val{0}}, s)
+  ∂1_inds = boundary_inds(Val{1}, s)
+  unique(vcat(s[∂1_inds,:∂v0],s[∂1_inds,:∂v1]))
+end
 function boundary_inds(::Type{Val{1}}, s)
   collect(findall(x -> x != 0, boundary(Val{2},s) * fill(1,ntriangles(s))))
+end
+function boundary_inds(::Type{Val{2}}, s)
+  ∂1_inds = boundary_inds(Val{1}, s)
+  inds = map([:∂e0, :∂e1, :∂e2]) do esym
+    vcat(incident(s, ∂1_inds, esym)...)
+  end
+  unique(vcat(inds...))
 end
 
 @testset "Primal-Dual Wedge Product 0-1" begin
@@ -289,6 +302,68 @@ end
       # Test symmetry across Λ10 and Λ01.
       @test all(Λ10(f,g) .== Λ01(g,f))
     end
+end
+
+function euler_equation_test(X♯, sd)
+  # We are not interested in boundary conditions.
+  interior_edges = setdiff(edges(sd), boundary_inds(Val{1}, sd))
+  interior_points = setdiff(vertices(sd), boundary_inds(Val{0}, sd))
+  interior_tris = setdiff(triangles(sd), boundary_inds(Val{2}, sd))
+  # Allocate the cached operators.
+  d0 = dec_dual_derivative(0, sd)
+  ι1 = interior_product_dd(Tuple{1,1}, sd)
+  ι2 = interior_product_dd(Tuple{1,2}, sd)
+  ℒ1 = ℒ_dd(Tuple{1,1}, sd)
+
+  # This is a uniform, constant flow.
+  u = hodge_star(1,sd) * eval_constant_primal_form(sd, X♯)
+
+  # Recall Euler's Equation:
+  # ∂ₜu = ℒᵤu - 0.5dιᵤu = -1/ρdp + b.
+  # We expect for a uniform flow then that ∂ₜu = 0.
+  # (We ignore the pressure term, and only investigate the interior of the
+  # domain.)
+
+  dtu = ℒ1(u,u) - 0.5*d0*ι1(u,u)
+  error = (sign(2,sd) .* ι1(dtu,dtu))[interior_tris]
+  # Note that "error" accumulates in the region around the boundaries.
+  # That is not really error, but rather the effect of boundary conditions and
+  # the influence of pressure.
+  #scatter(sd[sd[:tri_center], :dual_point][interior_tris], color=abs.(error))
+  error
+end
+
+@testset "Dual-Dual Interior Product and Lie Derivative" begin
+  X♯ = SVector{3,Float64}(1/√2,1/√2,0)
+  error = euler_equation_test(X♯, rect)
+  @test abs(mean(error)) < 8e-2
+  @test var(error) < 9e-2
+  # Note that boundary conditions "bleed into" the interior of the domain
+  # somewhat. So this is not all "error" in the usual sense.
+  # TODO: Grab points that are distance X away from the interior.
+
+  X♯ = SVector{3,Float64}(1/√2,1/√2,0)
+  error = euler_equation_test(X♯, tg)
+  @test abs(mean(error)) < 7e-4
+  @test var(error) < 7e-6
+
+  X♯ = SVector{3,Float64}(3,3,0)
+  error = euler_equation_test(X♯, tg)
+  @test abs(mean(error)) < 3e-1
+  @test var(error) < 8e-1
+
+  # u := ⋆xdx
+  # ιᵤu = -x²
+  sd = rect
+  f = map(point(sd)) do p
+    p[1]
+  end
+  dx = eval_constant_primal_form(sd, SVector{3,Float64}(1,0,0))
+  u = hodge_star(1,sd) * dec_wedge_product(Tuple{0,1}, sd)(f, dx)
+  ι1 = interior_product_dd(Tuple{1,1}, sd)
+  @test all(<(8e-3), (sign(2,sd) .* ι1(u,u) .- map(sd[sd[:tri_center], :dual_point]) do (x,_,_)
+    -x*x
+  end)[interior_tris])
 end
 
 end

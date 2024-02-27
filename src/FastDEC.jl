@@ -681,6 +681,10 @@ end
 dec_inv_hodge_star(::Type{Val{2}}, sd::EmbeddedDeltaDualComplex2D, ::GeometricHodge) =
     dec_inv_hodge_star(Val{2}, sd, DiagonalHodge())
 
+"""    function interior_product_dd(::Type{Tuple{1,1}}, s::SimplicialSets.HasDeltaSet)
+
+Given a dual 1-form and a dual 1-form, return their interior product as a dual 0-form.
+"""
 function interior_product_dd(::Type{Tuple{1,1}}, s::SimplicialSets.HasDeltaSet)
   ihs1 = dec_inv_hodge_star(Val{1}, s, GeometricHodge())
   Λ11 = dec_wedge_product_pd(Tuple{1,1}, s)
@@ -689,34 +693,33 @@ function interior_product_dd(::Type{Tuple{1,1}}, s::SimplicialSets.HasDeltaSet)
   (f,g) -> hs2 * Λ11(ihs1(g), f)
 end
 
-function interior_product_dd(::Type{Tuple{1,2}}, s::SimplicialSets.HasDeltaSet)
-  #ihs2 = dec_inv_hodge_star(Val{2}, s, GeometricHodge())
-  #Λ01 = dec_wedge_product_pd(Tuple{0,1}, s)
-  #hs2 = dec_hodge_star(Val{2}, s, GeometricHodge())
-  #♭♯_m = ♭♯_mat(s)
+"""    function interior_product_dd(::Type{Tuple{1,1}}, s::SimplicialSets.HasDeltaSet)
 
-  #(f,g) -> hs1 * ♭♯_m * Λ01(ihs2 * g, f)
-  ihs2 = dec_inv_hodge_star(Val{2}, s, GeometricHodge())
-  hs2 = dec_hodge_star(Val{2}, s, GeometricHodge())
+Given a dual 1-form and a dual 2-form, return their interior product as a dual 1-form.
+"""
+function interior_product_dd(::Type{Tuple{1,2}}, s::SimplicialSets.HasDeltaSet)
+  ihs0 = dec_inv_hodge_star(Val{0}, s, GeometricHodge())
+  hs1 = dec_hodge_star(Val{1}, s, GeometricHodge())
   ♭♯_m = ♭♯_mat(s)
   Λ01_m = wedge_pd_01_mat(s)
-  (f,g) -> (hs1 * only.(♭♯_m * Λ01_m * ihs2(g))) .* f
+  (f,g) -> hs1 * only.(♭♯_m * ((Λ01_m * ihs0 * g) .* f))
 end
 
+"""    function ℒ_dd(::Type{Tuple{1,1}}, s::SimplicialSets.HasDeltaSet)
+
+Given a dual 1-form and a dual 1-form, return their lie derivative as a dual 1-form.
+"""
 function ℒ_dd(::Type{Tuple{1,1}}, s::SimplicialSets.HasDeltaSet)
   # TODO: Check signs.
   # ℒ := -diuv - iduv
-  ihs1 = dec_inv_hodge_star(Val{1}, s, GeometricHodge())
-  Λ11 = dec_wedge_product_pd(Tuple{1,1}, s)
-  hs2 = dec_hodge_star(Val{2}, s, GeometricHodge())
-  ihs2 = dec_inv_hodge_star(Val{2}, s, GeometricHodge())
-  hs2 = dec_hodge_star(Val{2}, s, GeometricHodge())
-  ♭♯_m = ♭♯_mat(s)
-  Λ01_m = wedge_pd_01_mat(s)
+  d0 = dec_dual_derivative(0, s)
+  d1 = dec_dual_derivative(1, s)
+  i1 = interior_product_dd(Tuple{1,1}, s)
+  i2 = interior_product_dd(Tuple{1,2}, s)
 
   (f,g) ->
-    -(hs1 * only.(♭♯_m * Λ01_m * ihs2(g))) .* f -
-      hs2 * Λ11(ihs1(g), f)
+    -(d0 * i1(f,g)) -
+      i2(f,d1 * g)
 end
 
 const lie_derivative_dd = ℒ_dd
