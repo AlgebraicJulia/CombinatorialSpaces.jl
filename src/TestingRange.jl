@@ -2,6 +2,7 @@ using CombinatorialSpaces
 using CombinatorialSpaces: CombinatorialSpaces.DiscreteExteriorCalculus.FastMesh, CombinatorialSpaces.SimplicialSets.CayleyMengerDet
 import CombinatorialSpaces: CombinatorialSpaces.DiscreteExteriorCalculus.make_dual_simplices_1d!, CombinatorialSpaces.DiscreteExteriorCalculus.make_dual_simplices_2d!
 import CombinatorialSpaces: CombinatorialSpaces.SimplicialSets.negate
+using ACSets.DenseACSets: attrtype_type
 
 using GeometryBasics: Point3, Point2
 using BenchmarkTools

@@ -557,32 +557,38 @@ make_dual_simplices_1d!(s::AbstractDeltaDualComplex1D, gen::FastMesh) = make_dua
 
 function make_dual_simplices_1d!(sd::HasDeltaSet1D, ::Type{Simplex{n}}, gen::FastMesh) where n
   # Make dual vertices and edges.
-  # vcenters = @view sd[:vertex_center]
+  vc_range = add_parts!(sd, :DualV, nv(sd))
+  ec_range = add_parts!(sd, :DualV, ne(sd))
 
-  sd[:vertex_center] = add_parts!(sd, :DualV, nv(sd))
-  sd[:edge_center] = add_parts!(sd, :DualV, ne(sd))
+  vcenter = @view sd[:vertex_center]
+  ecenter = @view sd[:edge_center]
+
+  vcenter .= vc_range
+  ecenter .= ec_range
 
   v0 = @view sd[:∂v0]
   v1 = @view sd[:∂v1]
-  ecenters = @view sd[:edge_center]
 
   D_edges_1 = add_parts!(sd, :DualE, ne(sd))
   D_edges_2 = add_parts!(sd, :DualE, ne(sd))
 
-  d_v0 = @view sd[:D_∂v0]
+  d_v0_1 = @view sd[D_edges_1, :D_∂v0]
+  d_v0_2 = @view sd[D_edges_2, :D_∂v0]
+
+  d_v0_1 .= ec_range
+  d_v0_2 .= ec_range
+
   d_v1 = @view sd[:D_∂v1]
 
   for i in edges(sd)
-    d_v0[D_edges_1[i]] = ecenters[i]
     d_v1[D_edges_1[i]] = v0[i]
-
-    d_v0[D_edges_2[i]] = ecenters[i]
     d_v1[D_edges_2[i]] = v1[i]
   end
-
+  
   # Orient elementary dual edges.
   if has_subpart(sd, :edge_orientation)
     # If orientations are not set, then set them here.
+
     if any(isnothing, sd[:edge_orientation])
       # 1-simplices only need to be orientable if the delta set is 1D.
       # (The 1-simplices in a 2D delta set need not represent a valid 1-Manifold.)
@@ -592,9 +598,11 @@ function make_dual_simplices_1d!(sd::HasDeltaSet1D, ::Type{Simplex{n}}, gen::Fas
         sd[findall(isnothing, s[:edge_orientation]), :edge_orientation] = zero(attrtype_type(sd, :Orientation))
       end
     end
+
+    # TODO: Need to use for-loop here since orientations are by default "nothing"
+    # Need to find a way around this
     edge_orient = @view sd[:edge_orientation]
     d_edge_orient = @view sd[:D_edge_orientation]
-
     for i in edges(sd)
       d_edge_orient[D_edges_1[i]] = CombinatorialSpaces.SimplicialSets.negate(edge_orient[i])
       d_edge_orient[D_edges_2[i]] = edge_orient[i]
@@ -610,7 +618,7 @@ make_dual_simplices_2d!(s::AbstractDeltaDualComplex2D, gen::FastMesh) = make_dua
 
 function make_dual_simplices_2d!(s::HasDeltaSet2D, ::Type{Simplex{n}}, gen::FastMesh) where n
   # Make dual vertices and edges.
-  D_edges01 = make_dual_simplices_1d!(s)
+  D_edges01 = make_dual_simplices_1d!(s, gen)
   s[:tri_center] = tri_centers = add_parts!(s, :DualV, ntriangles(s))
   D_edges12 = map((0,1,2)) do e
     add_parts!(s, :DualE, ntriangles(s);
