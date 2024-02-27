@@ -12,7 +12,8 @@ import ..DiscreteExteriorCalculus: ∧
 export dec_boundary, dec_differential, dec_dual_derivative, dec_hodge_star, dec_inv_hodge_star, dec_wedge_product, dec_c_wedge_product, dec_p_wedge_product, dec_c_wedge_product!,
        dec_wedge_product_pd, dec_wedge_product_dp, ∧,
        interior_product_dd, ℒ_dd,
-       dec_wedge_product_dd
+       dec_wedge_product_dd,
+       Δᵈ
 
 """
     dec_p_wedge_product(::Type{Tuple{0,1}}, sd::EmbeddedDeltaDualComplex1D)
@@ -723,5 +724,39 @@ function ℒ_dd(::Type{Tuple{1,1}}, s::SimplicialSets.HasDeltaSet)
 end
 
 const lie_derivative_dd = ℒ_dd
+
+"""    function Δᵈ_mat(::Type{Val{0}}, s::SimplicialSets.HasDeltaSet)
+
+Return a function matrix encoding the dual 0-form Laplacian.
+"""
+function Δᵈ(::Type{Val{0}}, s::SimplicialSets.HasDeltaSet)
+  dd0 = dec_dual_derivative(0, s);
+  ihs1 = dec_inv_hodge_star(1, s, GeometricHodge());
+  d1 = dec_differential(1,s);
+  hs2 = dec_hodge_star(2, s, GeometricHodge());
+  m = hs2 * d1
+  x -> hs2 * d1 * ihs1(dd0 * x)
+end
+
+"""    function Δᵈ_mat(::Type{Val{2}}, s::SimplicialSets.HasDeltaSet)
+
+Return a function matrix encoding the dual 1-form Laplacian.
+"""
+function Δᵈ(::Type{Val{1}}, s::SimplicialSets.HasDeltaSet)
+  dd0 = dec_dual_derivative(0, s);
+  ihs1 = dec_inv_hodge_star(1, s, GeometricHodge());
+  d1 = dec_differential(1,s);
+  hs2 = dec_hodge_star(2, s, GeometricHodge());
+  dd1 = dec_dual_derivative(1, s);
+  ihs0 = dec_inv_hodge_star(0, s, GeometricHodge());
+  d0 = dec_differential(0,s);
+  hs1 = dec_hodge_star(1, s, GeometricHodge());
+  m = hs1 * d0 * ihs0 * dd1
+  n = dd0 * hs2 * d1
+  x -> begin
+    m * x +
+    n * ihs1(x)
+  end
+end
 
 end
