@@ -361,6 +361,7 @@ end
   dx = eval_constant_primal_form(sd, SVector{3,Float64}(1,0,0))
   u = hodge_star(1,sd) * dec_wedge_product(Tuple{0,1}, sd)(f, dx)
   ι1 = interior_product_dd(Tuple{1,1}, sd)
+  interior_tris = setdiff(triangles(sd), boundary_inds(Val{2}, sd))
   @test all(<(8e-3), (sign(2,sd) .* ι1(u,u) .- map(sd[sd[:tri_center], :dual_point]) do (x,_,_)
     -x*x
   end)[interior_tris])
