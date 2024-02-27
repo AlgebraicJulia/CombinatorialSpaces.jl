@@ -1,14 +1,19 @@
 module FastDEC
 using LinearAlgebra: Diagonal, dot, norm, cross
 using StaticArrays: SVector
-using SparseArrays: sparse
+using SparseArrays: sparse, spzeros
 using LinearAlgebra
 using Base.Iterators
 using ACSets.DenseACSets: attrtype_type
 using Catlab, Catlab.CategoricalAlgebra.CSets
 using ..SimplicialSets, ..DiscreteExteriorCalculus
+import ..DiscreteExteriorCalculus: ∧
 
-export dec_boundary, dec_differential, dec_dual_derivative, dec_hodge_star, dec_inv_hodge_star, dec_wedge_product, dec_c_wedge_product, dec_p_wedge_product, dec_c_wedge_product!
+export dec_boundary, dec_differential, dec_dual_derivative, dec_hodge_star, dec_inv_hodge_star, dec_wedge_product, dec_c_wedge_product, dec_p_wedge_product, dec_c_wedge_product!,
+       dec_wedge_product_pd, dec_wedge_product_dp, ∧,
+       interior_product_dd, ℒ_dd,
+       dec_wedge_product_dd,
+       Δᵈ
 
 """
     dec_p_wedge_product(::Type{Tuple{0,1}}, sd::EmbeddedDeltaDualComplex1D)
@@ -229,6 +234,150 @@ function dec_wedge_product(::Type{Tuple{1,1}}, sd::HasDeltaSet2D)
     val_pack = dec_p_wedge_product(Tuple{1,1}, sd)
     (α, β) -> dec_c_wedge_product(Tuple{1,1}, α, β, val_pack)
 end
+
+"""
+    function wedge_dd_01_mat(sd::HasDeltaSet)
+
+Returns a matrix that can be multiplied to a dual 0-form, before being
+elementwise-multiplied by a dual 1-form, encoding the wedge product.
+"""
+function wedge_dd_01_mat(sd::HasDeltaSet)
+  m = spzeros(ne(sd), ntriangles(sd))
+  for e in edges(sd)
+    des = elementary_duals(1,sd,e)
+    dvs = sd[des, :D_∂v0]
+    tris = only.(incident(sd, dvs, :tri_center))
+    ws = sd[des, :dual_length] ./ sum(sd[des, :dual_length])
+    for (w,t) in zip(ws,tris)
+      m[e,t] = w
+    end
+  end
+  m
+end
+
+"""
+    dec_wedge_product_dd(::Type{Tuple{0,1}}, sd::HasDeltaSet)
+
+Returns a cached function that computes the wedge product between a dual
+0-form and a dual 1-form.
+"""
+function dec_wedge_product_dd(::Type{Tuple{0,1}}, sd::HasDeltaSet)
+  m = wedge_dd_01_mat(sd)
+  (f,g) -> (m * f) .* g
+end
+
+"""
+    dec_wedge_product_dd(::Type{Tuple{1,0}}, sd::HasDeltaSet)
+
+Returns a cached function that computes the wedge product between a dual
+1-form and a dual 0-form.
+"""
+function dec_wedge_product_dd(::Type{Tuple{1,0}}, sd::HasDeltaSet)
+  m = wedge_dd_01_mat(sd)
+  (f,g) -> f .* (m * g)
+end
+
+"""
+    function wedge_pd_01_mat(sd::HasDeltaSet)
+
+Returns a matrix that can be multiplied to a primal 0-form, before being
+elementwise-multiplied by a dual 1-form, encoding the wedge product.
+
+This function assumes barycentric means and performs bilinear interpolation. It
+is not known if this definition has appeared in the literature or any code.
+"""
+function wedge_pd_01_mat(sd::HasDeltaSet)
+  m = spzeros(ne(sd), nv(sd))
+  for e in edges(sd)
+    α, β = edge_vertices(sd,e)
+    des = elementary_duals(1,sd,e)
+    dvs = sd[des, :D_∂v0]
+    tris = only.(incident(sd, dvs, :tri_center))
+    γδ = map(tris) do t
+      only(filter(x -> x ∉ [α,β], triangle_vertices(sd,t)))
+    end
+    ws = sd[des, :dual_length] ./ sum(sd[des, :dual_length])
+    for (w,l) in zip(ws,γδ)
+      m[e,α] += w*5/12
+      m[e,β] += w*5/12
+      m[e,l] += w*2/12
+    end
+  end
+  m
+end
+
+"""
+    dec_wedge_product_pd(::Type{Tuple{1,0}}, sd::HasDeltaSet)
+
+Returns a cached function that computes the wedge product between a dual
+1-form and a primal 0-form.
+
+This function assumes barycentric means and performs bilinear interpolation. It
+is not known if this definition has appeared in the literature or any code.
+"""
+function dec_wedge_product_dp(::Type{Tuple{1,0}}, sd::HasDeltaSet)
+  m = wedge_pd_01_mat(sd)
+  (f,g) -> f .* (m * g)
+end
+
+"""
+    function dec_wedge_product_pd(::Type{Tuple{0,1}}, sd::HasDeltaSet)
+
+Returns a cached function that computes the wedge product between a primal
+0-form and a dual 1-form.
+
+This function assumes barycentric means and performs bilinear interpolation. It
+is not known if this definition has appeared in the literature or any code.
+"""
+function dec_wedge_product_pd(::Type{Tuple{0,1}}, sd::HasDeltaSet)
+  m = wedge_pd_01_mat(sd)
+  (g,f) -> (m * g) .* f
+end
+
+"""
+    dec_wedge_product_pd(::Type{Tuple{1,1}}, sd::HasDeltaSet)
+
+Returns a cached function that computes the wedge product between a primal
+1-form and a dual 1-form.
+"""
+function dec_wedge_product_pd(::Type{Tuple{1,1}}, sd::HasDeltaSet)
+  ♭♯_m = ♭♯_mat(sd)
+  ♭♯_cached(x) = only.(♭♯_m * x)
+  Λ_cached = dec_wedge_product(Tuple{1, 1}, sd)
+  (f, g) -> Λ_cached(f, ♭♯_cached(g))
+end
+
+"""
+    dec_wedge_product_dp(::Type{Tuple{1,1}}, sd::HasDeltaSet)
+
+Returns a cached function that computes the wedge product between a dual 1-form
+and a primal 1-form.
+"""
+function dec_wedge_product_dp(::Type{Tuple{1,1}}, sd::HasDeltaSet)
+  ♭♯_m = ♭♯_mat(sd)
+  ♭♯_cached(x) = only.(♭♯_m * x)
+  Λ_cached = dec_wedge_product(Tuple{1, 1}, sd)
+  (f, g) -> Λ_cached(♭♯_cached(f), g)
+end
+
+""" Wedge product of a primal 1-form and a dual 1-form.
+
+Chain the musical isomorphisms to interpolate the dual 1-form to a primal
+1-form, using the linear least squares ♯. Then use the CombinatorialSpaces
+version of the Hirani primal-primal weddge.
+"""
+∧(s::HasDeltaSet, α::SimplexForm{1}, β::DualForm{1}) =
+  dec_wedge_product_pd(Tuple{1,1}, s)(α, β)
+
+""" Wedge product of a dual 1-form and a primal 1-form.
+
+Chain the musical isomorphisms to interpolate the dual 1-form to a primal
+1-form. Then use the CombinatorialSpaces version of the Hirani primal-primal
+weddge (without explicitly dividing by 2.)
+"""
+∧(s::HasDeltaSet, α::DualForm{1}, β::SimplexForm{1}) =
+  dec_wedge_product_dp(Tuple{1,1}, s)(α, β)
+
 
 # Boundary Operators
 dec_boundary(n::Int, sd::HasDeltaSet) = sparse(dec_p_boundary(Val{n}, sd)...)
@@ -532,4 +681,82 @@ end
 
 dec_inv_hodge_star(::Type{Val{2}}, sd::EmbeddedDeltaDualComplex2D, ::GeometricHodge) =
     dec_inv_hodge_star(Val{2}, sd, DiagonalHodge())
+
+"""    function interior_product_dd(::Type{Tuple{1,1}}, s::SimplicialSets.HasDeltaSet)
+
+Given a dual 1-form and a dual 1-form, return their interior product as a dual 0-form.
+"""
+function interior_product_dd(::Type{Tuple{1,1}}, s::SimplicialSets.HasDeltaSet)
+  ihs1 = dec_inv_hodge_star(Val{1}, s, GeometricHodge())
+  Λ11 = dec_wedge_product_pd(Tuple{1,1}, s)
+  hs2 = dec_hodge_star(Val{2}, s, GeometricHodge())
+
+  (f,g) -> hs2 * Λ11(ihs1(g), f)
+end
+
+"""    function interior_product_dd(::Type{Tuple{1,1}}, s::SimplicialSets.HasDeltaSet)
+
+Given a dual 1-form and a dual 2-form, return their interior product as a dual 1-form.
+"""
+function interior_product_dd(::Type{Tuple{1,2}}, s::SimplicialSets.HasDeltaSet)
+  ihs0 = dec_inv_hodge_star(Val{0}, s, GeometricHodge())
+  hs1 = dec_hodge_star(Val{1}, s, GeometricHodge())
+  ♭♯_m = ♭♯_mat(s)
+  Λ01_m = wedge_pd_01_mat(s)
+  (f,g) -> hs1 * only.(♭♯_m * ((Λ01_m * ihs0 * g) .* f))
+end
+
+"""    function ℒ_dd(::Type{Tuple{1,1}}, s::SimplicialSets.HasDeltaSet)
+
+Given a dual 1-form and a dual 1-form, return their lie derivative as a dual 1-form.
+"""
+function ℒ_dd(::Type{Tuple{1,1}}, s::SimplicialSets.HasDeltaSet)
+  # TODO: Check signs.
+  # ℒ := -diuv - iduv
+  d0 = dec_dual_derivative(0, s)
+  d1 = dec_dual_derivative(1, s)
+  i1 = interior_product_dd(Tuple{1,1}, s)
+  i2 = interior_product_dd(Tuple{1,2}, s)
+
+  (f,g) ->
+    -(d0 * i1(f,g)) -
+      i2(f,d1 * g)
+end
+
+const lie_derivative_dd = ℒ_dd
+
+"""    function Δᵈ_mat(::Type{Val{0}}, s::SimplicialSets.HasDeltaSet)
+
+Return a function matrix encoding the dual 0-form Laplacian.
+"""
+function Δᵈ(::Type{Val{0}}, s::SimplicialSets.HasDeltaSet)
+  dd0 = dec_dual_derivative(0, s);
+  ihs1 = dec_inv_hodge_star(1, s, GeometricHodge());
+  d1 = dec_differential(1,s);
+  hs2 = dec_hodge_star(2, s, GeometricHodge());
+  m = hs2 * d1
+  x -> hs2 * d1 * ihs1(dd0 * x)
+end
+
+"""    function Δᵈ_mat(::Type{Val{2}}, s::SimplicialSets.HasDeltaSet)
+
+Return a function matrix encoding the dual 1-form Laplacian.
+"""
+function Δᵈ(::Type{Val{1}}, s::SimplicialSets.HasDeltaSet)
+  dd0 = dec_dual_derivative(0, s);
+  ihs1 = dec_inv_hodge_star(1, s, GeometricHodge());
+  d1 = dec_differential(1,s);
+  hs2 = dec_hodge_star(2, s, GeometricHodge());
+  dd1 = dec_dual_derivative(1, s);
+  ihs0 = dec_inv_hodge_star(0, s, GeometricHodge());
+  d0 = dec_differential(0,s);
+  hs1 = dec_hodge_star(1, s, GeometricHodge());
+  m = hs1 * d0 * ihs0 * dd1
+  n = dd0 * hs2 * d1
+  x -> begin
+    m * x +
+    n * ihs1(x)
+  end
+end
+
 end
