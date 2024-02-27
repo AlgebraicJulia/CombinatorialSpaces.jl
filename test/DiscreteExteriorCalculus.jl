@@ -8,7 +8,7 @@ using Catlab.CategoricalAlgebra.CSets
 using ACSets
 using ACSets.DenseACSets: attrtype_type
 using CombinatorialSpaces
-using CombinatorialSpaces.Meshes: tri_345, fri_345, grid_345, right_unit_hypot
+using CombinatorialSpaces.Meshes: tri_345, tri_345_false, grid_345, right_scalene_unit_hypot
 using CombinatorialSpaces.DiscreteExteriorCalculus: eval_constant_primal_form, eval_constant_dual_form
 using GeometryBasics: Point2, Point3
 
@@ -554,7 +554,7 @@ rect′ = loadmesh(Rectangle_30x10());
 rect = EmbeddedDeltaDualComplex2D{Bool,Float64,Point3D}(rect′);
 subdivide_duals!(rect, Barycenter());
 
-flat_meshes = [tri_345(), fri_345(), right_unit_hypot(), grid_345(), (tg′, tg), (rect′, rect)];
+flat_meshes = [tri_345(), tri_345_false(), right_scalene_unit_hypot(), grid_345(), (tg′, tg), (rect′, rect)];
 
 # Test that the technique for evaluating 1-forms is consistent across primal
 # and dual forms.

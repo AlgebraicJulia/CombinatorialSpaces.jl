@@ -5,7 +5,7 @@ using SparseArrays
 using LinearAlgebra
 using Catlab
 using CombinatorialSpaces
-using CombinatorialSpaces.Meshes: tri_345, fri_345, grid_345, right_unit_hypot
+using CombinatorialSpaces.Meshes: tri_345, tri_345_false, grid_345, right_scalene_unit_hypot
 using CombinatorialSpaces.DiscreteExteriorCalculus: eval_constant_primal_form
 using Random
 using GeometryBasics: Point2, Point3
@@ -63,7 +63,7 @@ rect′ = loadmesh(Rectangle_30x10());
 rect = EmbeddedDeltaDualComplex2D{Bool,Float64,Point3D}(rect′);
 subdivide_duals!(rect, Barycenter());
 
-flat_meshes = [tri_345()[2], fri_345()[2], right_unit_hypot()[2], grid_345()[2], tg, rect];
+flat_meshes = [tri_345()[2], tri_345_false()[2], right_scalene_unit_hypot()[2], grid_345()[2], tg, rect];
 
 @testset "Exterior Derivative" begin
     for i in 0:0 

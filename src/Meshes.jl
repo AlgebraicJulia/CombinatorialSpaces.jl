@@ -294,7 +294,8 @@ end
 
 """    function tri_345()
 
-Return the primal and dual mesh of a 3-4-5 triangle with + orientation.
+Return the primal and dual mesh of a triangle with edge lengths 3,4,5 and with true orientation.
+See also: [`tri_345_false`](@ref)
 """
 function tri_345()
   primal_s = EmbeddedDeltaSet2D{Bool,Point3D}()
@@ -306,11 +307,12 @@ function tri_345()
   (primal_s, s)
 end
 
-"""    function fri_345()
+"""    function tri_345_false()
 
-Return the primal and dual mesh of a 3-4-5 triangle with - orientation.
+Return the primal and dual mesh of a triangle with edge lengths 3,4,5 and with false orientation.
+See also: [`tri_345`](@ref)
 """
-function fri_345()
+function tri_345_false()
   primal_s = EmbeddedDeltaSet2D{Bool,Point3D}()
   add_vertices!(primal_s, 3, point=[Point3D(0,0,0), Point3D(3,0,0), Point3D(3,4,0)])
   glue_triangle!(primal_s, 1, 2, 3, tri_orientation=false)
@@ -323,6 +325,7 @@ end
 """    function grid_345()
 
 Return the primal and dual mesh of a grid of 3-4-5 triangles.
+See also: [`tri_345`](@ref)
 """
 function grid_345()
   primal_s = EmbeddedDeltaSet2D{Bool,Point3D}()
@@ -344,11 +347,11 @@ function grid_345()
   (primal_s, s)
 end
 
-"""    function right_unit_hypot()
+"""    function right_scalene_unit_hypot()
 
-Return the primal and dual mesh of a right triangle with unit hypotenuse.
+Return the primal and dual mesh of a right scalene triangle with unit hypotenuse.
 """
-function right_unit_hypot()
+function right_scalene_unit_hypot()
   primal_s = EmbeddedDeltaSet2D{Bool,Point2D}()
   add_vertices!(primal_s, 3,
     point=[Point2D(0,0), Point2D(1/√2,0), Point2D(1/√2,1/√2)])
