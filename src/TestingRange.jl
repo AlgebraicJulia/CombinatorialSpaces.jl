@@ -1,7 +1,8 @@
 using CombinatorialSpaces
 using CombinatorialSpaces: CombinatorialSpaces.DiscreteExteriorCalculus.FastMesh, CombinatorialSpaces.SimplicialSets.CayleyMengerDet
 import CombinatorialSpaces: CombinatorialSpaces.DiscreteExteriorCalculus.make_dual_simplices_1d!, CombinatorialSpaces.DiscreteExteriorCalculus.make_dual_simplices_2d!
-import CombinatorialSpaces: CombinatorialSpaces.SimplicialSets.negate
+import CombinatorialSpaces: CombinatorialSpaces.SimplicialSets.negate, CombinatorialSpaces.DiscreteExteriorCalculus.relative_sign
+using CombinatorialSpaces: CombinatorialSpaces.ArrayUtils.lazy
 using ACSets.DenseACSets: attrtype_type
 
 using GeometryBasics: Point3, Point2

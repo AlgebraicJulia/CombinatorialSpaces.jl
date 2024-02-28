@@ -619,23 +619,67 @@ make_dual_simplices_2d!(s::AbstractDeltaDualComplex2D, gen::FastMesh) = make_dua
 function make_dual_simplices_2d!(s::HasDeltaSet2D, ::Type{Simplex{n}}, gen::FastMesh) where n
   # Make dual vertices and edges.
   D_edges01 = make_dual_simplices_1d!(s, gen)
-  s[:tri_center] = tri_centers = add_parts!(s, :DualV, ntriangles(s))
+
+  tric_range = add_parts!(s, :DualV, ntriangles(s))
+  tri_centers = @view s[:tri_center]
+  tri_centers .= tric_range
+
+  e0 = @view s[:∂e0]
+  e1 = @view s[:∂e1]
+  e2 = @view s[:∂e2]
+
+  edge_centers = @view s[:edge_center]
+
   D_edges12 = map((0,1,2)) do e
-    add_parts!(s, :DualE, ntriangles(s);
-               D_∂v0=tri_centers, D_∂v1=edge_center(s, ∂(2,e,s)))
+    add_parts!(s, :DualE, ntriangles(s))
   end
-  D_edges02 = map(triangle_vertices(s)) do vs
-    add_parts!(s, :DualE, ntriangles(s);
-               D_∂v0=tri_centers, D_∂v1=vertex_center(s, vs))
+
+  D_edges02 = map((0,1,2)) do vs
+    add_parts!(s, :DualE, ntriangles(s))
+  end
+
+  d_v0 = @view s[:D_∂v0]
+  d_v1 = @view s[:D_∂v1]
+
+  for (i, de_12_0, de_12_1, de_12_2) in zip(triangles(s), D_edges12...)
+    d_v0[de_12_0] = tri_centers[i]
+    d_v0[de_12_1] = tri_centers[i]
+    d_v0[de_12_2] = tri_centers[i]
+
+    d_v1[de_12_0] = edge_centers[e0[i]]
+    d_v1[de_12_1] = edge_centers[e1[i]]
+    d_v1[de_12_2] = edge_centers[e2[i]]
+  end
+
+  v0 = @view sd[:∂v0]
+  v1 = @view sd[:∂v1]
+
+  for (i, de_02_0, de_02_1, de_02_2) in zip(triangles(s), D_edges02...)
+    d_v0[de_02_0] = tri_centers[i]
+    d_v0[de_02_1] = tri_centers[i]
+    d_v0[de_02_2] = tri_centers[i]
+
+    d_v1[de_02_0] = v1[e1[i]]
+    d_v1[de_02_1] = v0[e2[i]]
+    d_v1[de_02_2] = v0[e1[i]]
   end
 
   # Make dual triangles.
   # Counterclockwise order in drawing with vertices 0, 1, 2 from left to right.
   D_triangle_schemas = ((0,1,1),(0,2,1),(1,2,0),(1,0,1),(2,0,0),(2,1,0))
-  D_triangles = map(D_triangle_schemas) do (v,e,ev)
-    add_parts!(s, :DualTri, ntriangles(s);
-               D_∂e0=D_edges12[e+1], D_∂e1=D_edges02[v+1],
-               D_∂e2=view(D_edges01[ev+1], ∂(2,e,s)))
+  D_triangles = map((0,1,2,3,4,5)) do e
+    add_parts!(s, :DualTri, ntriangles(s))
+  end
+
+  d_e0 = @view s[:D_∂e0]
+  d_e1 = @view s[:D_∂e1]
+  d_e2 = @view s[:D_∂e2]
+
+  for (i, schema) in enumerate(D_triangle_schemas)
+    v,e,ev = schema
+    d_e0[D_triangles[i]] .= D_edges12[e+1]
+    d_e1[D_triangles[i]] .= D_edges02[v+1]
+    d_e2[D_triangles[i]] .= view(D_edges01[ev+1], ∂(2,e,s))
   end
 
   if has_subpart(s, :tri_orientation)
@@ -649,18 +693,24 @@ function make_dual_simplices_2d!(s::HasDeltaSet2D, ::Type{Simplex{n}}, gen::Fast
         s[findall(isnothing, s[:tri_orientation]), :tri_orientation] = zero(attrtype_type(s, :Orientation))
       end
     end
+    
     # Orient elementary dual triangles.
-    tri_orient = s[:tri_orientation]
-    rev_tri_orient = negate.(tri_orient)
+    tri_orient = @view s[:tri_orientation]
+    D_tri_orient = @view s[:D_tri_orientation]
     for (i, D_tris) in enumerate(D_triangles)
-      s[D_tris, :D_tri_orientation] = isodd(i) ? rev_tri_orient : tri_orient
+      for (j, D_tri) in enumerate(D_tris)
+        D_tri_orient[D_tri] = isodd(i) ? negate(tri_orient[j]) : tri_orient[j]
+      end
     end
 
     # Orient elementary dual edges.
-    for e in (0,1,2)
-      s[D_edges12[e+1], :D_edge_orientation] = relative_sign.(
-        s[∂(2,e,s), :edge_orientation],
-        isodd(e) ? rev_tri_orient : tri_orient)
+    D_edge_orient = @view s[:D_edge_orientation]
+    for (e, D_edges) in enumerate(D_edges12)
+      tri_edge_view = @view s[∂(2,e-1,s), :edge_orientation]
+      for (j, D_edge) in enumerate(D_edges)
+        D_edge_orient[D_edge] = relative_sign(
+          tri_edge_view[j], isodd(e-1) ? negate(tri_orient[j]) : tri_orient[j])
+      end
     end
     # Remaining dual edges are oriented arbitrarily.
     s[lazy(vcat, D_edges02...), :D_edge_orientation] = one(attrtype_type(s, :Orientation))
