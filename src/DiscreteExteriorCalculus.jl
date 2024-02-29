@@ -21,7 +21,8 @@ export DualSimplex, DualV, DualE, DualTri, DualChain, DualForm,
   ♭, flat, ♯, sharp, ∧, wedge_product, interior_product, interior_product_flat,
   ℒ, lie_derivative, lie_derivative_flat,
   vertex_center, edge_center, triangle_center, dual_triangle_vertices,
-  dual_point, dual_volume, subdivide_duals!, DiagonalHodge, GeometricHodge
+  dual_point, dual_volume, subdivide_duals!, DiagonalHodge, GeometricHodge,
+  FastMesh
 
 import Base: ndims
 using LinearAlgebra: Diagonal, dot, norm, cross
@@ -551,7 +552,22 @@ function precompute_volumes_2d!(s::HasDeltaSet2D)
   end
 end
 
+### Begin faster dual mesh generation ###
 struct FastMesh end
+
+function (::Type{S})(t::AbstractDeltaSet1D, gen::FastMesh) where S <: AbstractDeltaDualComplex1D
+  s = S()
+  copy_parts!(s, t)
+  make_dual_simplices_1d!(s, gen)
+  return s
+end
+
+function (::Type{S})(t::AbstractDeltaSet2D, gen::FastMesh) where S <: AbstractDeltaDualComplex2D
+  s = S()
+  copy_parts!(s, t)
+  make_dual_simplices_2d!(s, gen)
+  return s
+end
 
 make_dual_simplices_1d!(s::AbstractDeltaDualComplex1D, gen::FastMesh) = make_dual_simplices_1d!(s, E, gen)
 
@@ -595,7 +611,7 @@ function make_dual_simplices_1d!(sd::HasDeltaSet1D, ::Type{Simplex{n}}, gen::Fas
       if n == 1
         orient!(sd, E) || error("The 1-simplices of the given 1D delta set are non-orientable.")
       else
-        sd[findall(isnothing, s[:edge_orientation]), :edge_orientation] = zero(attrtype_type(sd, :Orientation))
+        sd[findall(isnothing, sd[:edge_orientation]), :edge_orientation] = zero(attrtype_type(sd, :Orientation))
       end
     end
 
@@ -604,7 +620,7 @@ function make_dual_simplices_1d!(sd::HasDeltaSet1D, ::Type{Simplex{n}}, gen::Fas
     edge_orient = @view sd[:edge_orientation]
     d_edge_orient = @view sd[:D_edge_orientation]
     for i in edges(sd)
-      d_edge_orient[D_edges_1[i]] = CombinatorialSpaces.SimplicialSets.negate(edge_orient[i])
+      d_edge_orient[D_edges_1[i]] = negate(edge_orient[i])
       d_edge_orient[D_edges_2[i]] = edge_orient[i]
     end
   end
@@ -612,36 +628,36 @@ function make_dual_simplices_1d!(sd::HasDeltaSet1D, ::Type{Simplex{n}}, gen::Fas
   (D_edges_1, D_edges_2)
 end
 
-make_dual_simplices_1d!(s::AbstractDeltaDualComplex2D, gen::FastMesh) = make_dual_simplices_1d!(s, Tri, gen)
+make_dual_simplices_1d!(sd::AbstractDeltaDualComplex2D, gen::FastMesh) = make_dual_simplices_1d!(sd, Tri, gen)
 
-make_dual_simplices_2d!(s::AbstractDeltaDualComplex2D, gen::FastMesh) = make_dual_simplices_2d!(s, Tri, gen)
+make_dual_simplices_2d!(sd::AbstractDeltaDualComplex2D, gen::FastMesh) = make_dual_simplices_2d!(sd, Tri, gen)
 
-function make_dual_simplices_2d!(s::HasDeltaSet2D, ::Type{Simplex{n}}, gen::FastMesh) where n
+function make_dual_simplices_2d!(sd::HasDeltaSet2D, ::Type{Simplex{n}}, gen::FastMesh) where n
   # Make dual vertices and edges.
-  D_edges01 = make_dual_simplices_1d!(s, gen)
+  D_edges01 = make_dual_simplices_1d!(sd, gen)
 
-  tric_range = add_parts!(s, :DualV, ntriangles(s))
-  tri_centers = @view s[:tri_center]
+  tric_range = add_parts!(sd, :DualV, ntriangles(sd))
+  tri_centers = @view sd[:tri_center]
   tri_centers .= tric_range
 
-  e0 = @view s[:∂e0]
-  e1 = @view s[:∂e1]
-  e2 = @view s[:∂e2]
+  e0 = @view sd[:∂e0]
+  e1 = @view sd[:∂e1]
+  e2 = @view sd[:∂e2]
 
-  edge_centers = @view s[:edge_center]
+  edge_centers = @view sd[:edge_center]
 
   D_edges12 = map((0,1,2)) do e
-    add_parts!(s, :DualE, ntriangles(s))
+    add_parts!(sd, :DualE, ntriangles(sd))
   end
 
   D_edges02 = map((0,1,2)) do vs
-    add_parts!(s, :DualE, ntriangles(s))
+    add_parts!(sd, :DualE, ntriangles(sd))
   end
 
-  d_v0 = @view s[:D_∂v0]
-  d_v1 = @view s[:D_∂v1]
+  d_v0 = @view sd[:D_∂v0]
+  d_v1 = @view sd[:D_∂v1]
 
-  for (i, de_12_0, de_12_1, de_12_2) in zip(triangles(s), D_edges12...)
+  for (i, de_12_0, de_12_1, de_12_2) in zip(triangles(sd), D_edges12...)
     d_v0[de_12_0] = tri_centers[i]
     d_v0[de_12_1] = tri_centers[i]
     d_v0[de_12_2] = tri_centers[i]
@@ -654,7 +670,7 @@ function make_dual_simplices_2d!(s::HasDeltaSet2D, ::Type{Simplex{n}}, gen::Fast
   v0 = @view sd[:∂v0]
   v1 = @view sd[:∂v1]
 
-  for (i, de_02_0, de_02_1, de_02_2) in zip(triangles(s), D_edges02...)
+  for (i, de_02_0, de_02_1, de_02_2) in zip(triangles(sd), D_edges02...)
     d_v0[de_02_0] = tri_centers[i]
     d_v0[de_02_1] = tri_centers[i]
     d_v0[de_02_2] = tri_centers[i]
@@ -668,35 +684,35 @@ function make_dual_simplices_2d!(s::HasDeltaSet2D, ::Type{Simplex{n}}, gen::Fast
   # Counterclockwise order in drawing with vertices 0, 1, 2 from left to right.
   D_triangle_schemas = ((0,1,1),(0,2,1),(1,2,0),(1,0,1),(2,0,0),(2,1,0))
   D_triangles = map((0,1,2,3,4,5)) do e
-    add_parts!(s, :DualTri, ntriangles(s))
+    add_parts!(sd, :DualTri, ntriangles(sd))
   end
 
-  d_e0 = @view s[:D_∂e0]
-  d_e1 = @view s[:D_∂e1]
-  d_e2 = @view s[:D_∂e2]
+  d_e0 = @view sd[:D_∂e0]
+  d_e1 = @view sd[:D_∂e1]
+  d_e2 = @view sd[:D_∂e2]
 
   for (i, schema) in enumerate(D_triangle_schemas)
     v,e,ev = schema
     d_e0[D_triangles[i]] .= D_edges12[e+1]
     d_e1[D_triangles[i]] .= D_edges02[v+1]
-    d_e2[D_triangles[i]] .= view(D_edges01[ev+1], ∂(2,e,s))
+    d_e2[D_triangles[i]] .= view(D_edges01[ev+1], ∂(2,e,sd))
   end
 
-  if has_subpart(s, :tri_orientation)
+  if has_subpart(sd, :tri_orientation)
     # If orientations are not set, then set them here.
-    if any(isnothing, s[:tri_orientation])
+    if any(isnothing, sd[:tri_orientation])
       # 2-simplices only need to be orientable if the delta set is 2D.
       # (The 2-simplices in a 3D delta set need not represent a valid 2-Manifold.)
       if n == 2
-        orient!(s, Tri) || error("The 2-simplices of the given 2D delta set are non-orientable.")
+        orient!(sd, Tri) || error("The 2-simplices of the given 2D delta set are non-orientable.")
       else
-        s[findall(isnothing, s[:tri_orientation]), :tri_orientation] = zero(attrtype_type(s, :Orientation))
+        sd[findall(isnothing, sd[:tri_orientation]), :tri_orientation] = zero(attrtype_type(sd, :Orientation))
       end
     end
-    
+
     # Orient elementary dual triangles.
-    tri_orient = @view s[:tri_orientation]
-    D_tri_orient = @view s[:D_tri_orientation]
+    tri_orient = @view sd[:tri_orientation]
+    D_tri_orient = @view sd[:D_tri_orientation]
     for (i, D_tris) in enumerate(D_triangles)
       for (j, D_tri) in enumerate(D_tris)
         D_tri_orient[D_tri] = isodd(i) ? negate(tri_orient[j]) : tri_orient[j]
@@ -704,28 +720,46 @@ function make_dual_simplices_2d!(s::HasDeltaSet2D, ::Type{Simplex{n}}, gen::Fast
     end
 
     # Orient elementary dual edges.
-    D_edge_orient = @view s[:D_edge_orientation]
+    D_edge_orient = @view sd[:D_edge_orientation]
     for (e, D_edges) in enumerate(D_edges12)
-      tri_edge_view = @view s[∂(2,e-1,s), :edge_orientation]
+      tri_edge_view = @view sd[∂(2,e-1,sd), :edge_orientation]
       for (j, D_edge) in enumerate(D_edges)
         D_edge_orient[D_edge] = relative_sign(
           tri_edge_view[j], isodd(e-1) ? negate(tri_orient[j]) : tri_orient[j])
       end
     end
     # Remaining dual edges are oriented arbitrarily.
-    s[lazy(vcat, D_edges02...), :D_edge_orientation] = one(attrtype_type(s, :Orientation))
+    sd[lazy(vcat, D_edges02...), :D_edge_orientation] = one(attrtype_type(sd, :Orientation))
   end
 
   D_triangles
 end
 
+function subdivide_duals!(sd::EmbeddedDeltaDualComplex1D, gen::FastMesh, args...)
+  subdivide_duals_1d!(sd, gen, args...)
+  precompute_volumes_1d!(sd, gen)
+end
 
 function subdivide_duals!(sd::EmbeddedDeltaDualComplex2D, gen::FastMesh, args...)
   subdivide_duals_2d!(sd, gen, args...)
   precompute_volumes_2d!(sd, gen)
 end
 
-function subdivide_duals_1d!(sd::HasDeltaSet1D, ::FastMesh, alg)
+struct PointType{T}
+  point_type::T
+end
+
+point_wrapper(sd::EmbeddedDeltaDualComplex1D{_o, _l, point_type} where {_o, _l}) where point_type = return PointType{point_type}
+point_wrapper(sd::EmbeddedDeltaDualComplex2D{_o, _l, point_type} where {_o, _l}) where point_type = return PointType{point_type}
+
+subdivide_duals_1d!(sd::EmbeddedDeltaDualComplex1D, fm::FastMesh, alg) = subdivide_duals_1d!(sd, fm, point_wrapper(sd), alg)
+subdivide_duals_1d!(sd::EmbeddedDeltaDualComplex2D, fm::FastMesh, alg) = subdivide_duals_1d!(sd, fm, point_wrapper(sd), alg)
+subdivide_duals_2d!(sd::EmbeddedDeltaDualComplex2D, fm::FastMesh, alg) = subdivide_duals_2d!(sd, fm, point_wrapper(sd), alg)
+
+precompute_volumes_1d!(sd::HasDeltaSet1D, fm::FastMesh) = precompute_volumes_1d!(sd, fm, point_wrapper(sd))
+precompute_volumes_2d!(sd::HasDeltaSet2D, fm::FastMesh) = precompute_volumes_2d!(sd, fm, point_wrapper(sd))
+
+function subdivide_duals_1d!(sd::HasDeltaSet1D, ::FastMesh, ::Type{PointType{point_type}}, alg) where point_type
 
   v1 = @view sd[:∂v0]
   v2 = @view sd[:∂v1]
@@ -733,8 +767,8 @@ function subdivide_duals_1d!(sd::HasDeltaSet1D, ::FastMesh, alg)
   e_centers = @view sd[:edge_center]
   dual_point_set = @view sd[:dual_point]
 
-  points::Vector{Point3{Float64}} = sd[:point]
-  point_arr = MVector{2, Point3{Float64}}(undef)
+  points::Vector{point_type} = sd[:point]
+  point_arr = MVector{2, point_type}(undef)
 
   @inbounds for v in vertices(sd)
     dual_point_set[v] = points[v]
@@ -746,7 +780,7 @@ function subdivide_duals_1d!(sd::HasDeltaSet1D, ::FastMesh, alg)
   end
 end
 
-function precompute_volumes_1d!(sd::HasDeltaSet1D, ::FastMesh)
+function precompute_volumes_1d!(sd::HasDeltaSet1D, ::FastMesh, ::Type{PointType{point_type}}) where point_type
 
   v0 = @view sd[:∂v0]
   v1 = @view sd[:∂v1]
@@ -757,8 +791,8 @@ function precompute_volumes_1d!(sd::HasDeltaSet1D, ::FastMesh)
   length_set = @view sd[:length]
   dual_length_set = @view sd[:dual_length]
 
-  dual_points::Vector{Point3{Float64}} = sd[:dual_point]
-  point_arr = MVector{2, Point3{Float64}}(undef)
+  dual_points::Vector{point_type} = sd[:dual_point]
+  point_arr = MVector{2, point_type}(undef)
 
   @inbounds for e in edges(sd)
     point_arr[1] = dual_points[v0[e]]
@@ -772,8 +806,7 @@ function precompute_volumes_1d!(sd::HasDeltaSet1D, ::FastMesh)
   end
 end
 
-
-function subdivide_duals_2d!(sd::HasDeltaSet2D, gen::FastMesh, alg)
+function subdivide_duals_2d!(sd::HasDeltaSet2D, gen::FastMesh, ::Type{PointType{point_type}}, alg) where point_type
   subdivide_duals_1d!(sd, gen, alg)
 
   e1 = @view sd[:∂e1]
@@ -785,8 +818,8 @@ function subdivide_duals_2d!(sd::HasDeltaSet2D, gen::FastMesh, alg)
   tri_centers = @view sd[:tri_center]
   dual_point_set = @view sd[:dual_point]
 
-  points::Vector{Point3{Float64}} = sd[:point]
-  point_arr = MVector{3, Point3{Float64}}(undef)
+  points::Vector{point_type} = sd[:point]
+  point_arr = MVector{3, point_type}(undef)
 
   @inbounds for t in triangles(sd)
     point_arr[1] = points[v1[e1[t]]]
@@ -797,13 +830,13 @@ function subdivide_duals_2d!(sd::HasDeltaSet2D, gen::FastMesh, alg)
   end
 end
 
-function precompute_volumes_2d!(sd::HasDeltaSet2D, gen::FastMesh)
+function precompute_volumes_2d!(sd::HasDeltaSet2D, gen::FastMesh, p::Type{PointType{point_type}}) where point_type
   precompute_volumes_1d!(sd, gen)
-  set_volumes!(Val{2}, sd, CayleyMengerDet())
-  set_dual_volumes!(Val{2}, sd, CayleyMengerDet())
+  set_volumes!(Val{2}, sd, p)
+  set_dual_volumes!(Val{2}, sd, p)
 end
 
-function set_volumes!(::Type{Val{2}}, sd::HasDeltaSet2D, ::CayleyMengerDet)
+function set_volumes!(::Type{Val{2}}, sd::HasDeltaSet2D, ::Type{PointType{point_type}}) where point_type
 
   area_set = @view sd[:area]
 
@@ -813,8 +846,8 @@ function set_volumes!(::Type{Val{2}}, sd::HasDeltaSet2D, ::CayleyMengerDet)
   v0 = @view sd[:∂v0]
   v1 = @view sd[:∂v1]
 
-  points::Vector{Point3{Float64}} = sd[:point]
-  point_arr = MVector{3, Point3{Float64}}(undef)
+  points::Vector{point_type} = sd[:point]
+  point_arr = MVector{3, point_type}(undef)
 
   @inbounds for t in triangles(sd)
     point_arr[1] = points[v1[e1[t]]]
@@ -825,7 +858,7 @@ function set_volumes!(::Type{Val{2}}, sd::HasDeltaSet2D, ::CayleyMengerDet)
   end
 end
 
-function set_dual_volumes!(::Type{Val{2}}, sd::HasDeltaSet2D, ::CayleyMengerDet)
+function set_dual_volumes!(::Type{Val{2}}, sd::HasDeltaSet2D, ::Type{PointType{point_type}}) where point_type
 
   dual_area_set = @view sd[:dual_area]
 
@@ -836,8 +869,8 @@ function set_dual_volumes!(::Type{Val{2}}, sd::HasDeltaSet2D, ::CayleyMengerDet)
   d_v0 = @view sd[:D_∂v0]
   d_v1 = @view sd[:D_∂v1]
 
-  dual_points::Vector{Point3{Float64}} = sd[:dual_point]
-  point_arr = MVector{3, Point3{Float64}}(undef)
+  dual_points::Vector{point_type} = sd[:dual_point]
+  point_arr = MVector{3, point_type}(undef)
 
   @inbounds for t in parts(sd, :DualTri)
     point_arr[1] = dual_points[d_v1[d_e1[t]]]
@@ -847,6 +880,8 @@ function set_dual_volumes!(::Type{Val{2}}, sd::HasDeltaSet2D, ::CayleyMengerDet)
     dual_area_set[t] = volume(point_arr)
   end
 end
+
+### End faster dual mesh generation ###
 
 # General operators
 ###################
