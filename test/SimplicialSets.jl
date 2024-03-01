@@ -417,6 +417,71 @@ for t in tetrahedra(s)
 end
 @test sum([volume(s, Tet(t)) for t in tetrahedra(s)]) == 8*2
 
+# Six tetrahedra of equal volume forming a cube with edge length 1.
+# The connectivity is that of Blessent's 2009 thesis, Figure 3.2.
+s = EmbeddedDeltaSet3D{Bool,Point3D}()
+add_vertices!(s, 8, point=[
+  Point3D(0,1,0), Point3D(0,0,0), Point3D(1,1,0), Point3D(1,0,0),
+  Point3D(0,1,1), Point3D(0,0,1), Point3D(1,1,1), Point3D(1,0,1)])
+# See Table 3.1 "Mesh connectivity".
+glue_sorted_tetrahedron!(s, 3, 5, 4, 2)
+glue_sorted_tetrahedron!(s, 7, 6, 8, 4)
+glue_sorted_tetrahedron!(s, 5, 6, 7, 4)
+glue_sorted_tetrahedron!(s, 3, 5, 7, 4)
+glue_sorted_tetrahedron!(s, 5, 6, 4, 2)
+glue_sorted_tetrahedron!(s, 1, 5, 3, 2)
+@test ntetrahedra(s) == 6
+@test tetrahedra(s) == 1:6
+@test ntriangles(s) == 18
+@test triangles(s) == 1:18 # (2 * num cube faces) + (2 * num "cuts" into cube)
+@test ne(s) == 19 # (num cube edges) + (num cube faces) + (internal diagonal)
+@test is_semi_simplicial(s, 2)
+@test is_semi_simplicial(s, 3)
+s[:edge_orientation] = true
+s[:tri_orientation] = true
+s[:tet_orientation] = true
+orient!(s)
+for t in tetrahedra(s)
+  @test volume(s, Tet(t)) ≈ 1/6
+end
+@test is_manifold_like(s)
+for i in 1:3
+  @test isempty(nonboundaries(s)[i])
+end
+@test d(1, s) * d(0, s) * vertices(s) == zeros(ntriangles(s))
+@test d(2, s) * d(1, s) * edges(s) == zeros(ntetrahedra(s))
+
+# Five tetrahedra example from Letniowski 1992, as given by Blessent Table 3.3b.
+s = EmbeddedDeltaSet3D{Bool,Point3D}()
+add_vertices!(s, 6, point=[
+  # See Table 3.3a "Nodal coordinates"
+  Point3D(-2, -2,   0.5),
+  Point3D( 0, -2,   0.1),
+  Point3D(-2,  0,   0.1),
+  Point3D( 0,  0.1, 0),
+  Point3D(-2, -2,  -0.25),
+  Point3D(-2, -2,   1.5)])
+# See Table 3.3b "Connectivity list for Letniowski's example"
+glue_sorted_tetrahedron!(s, 1, 2, 4, 6)
+glue_sorted_tetrahedron!(s, 1, 3, 4, 6)
+glue_sorted_tetrahedron!(s, 1, 2, 3, 5)
+glue_sorted_tetrahedron!(s, 2, 3, 4, 5)
+glue_sorted_tetrahedron!(s, 1, 2, 3, 4)
+@test ntetrahedra(s) == 5
+@test tetrahedra(s) == 1:5
+@test is_semi_simplicial(s, 2)
+@test is_semi_simplicial(s, 3)
+s[:edge_orientation] = true
+s[:tri_orientation] = true
+s[:tet_orientation] = true
+orient!(s)
+@test is_manifold_like(s)
+for i in 1:3
+  @test isempty(nonboundaries(s)[i])
+end
+@test d(1, s) * d(0, s) * vertices(s) == zeros(ntriangles(s))
+@test d(2, s) * d(1, s) * edges(s) == zeros(ntetrahedra(s))
+
 # Euclidean geometry
 ####################
 
@@ -430,5 +495,62 @@ p1, p2, p3 = Point3D(1,0,0), Point3D(0,1,0), Point3D(0,0,1)
 
 p1, p2, p3, p4 = SVector(1,0,0,0), SVector(0,1,0,0), SVector(0,0,1,0), SVector(0,0,0,1)
 @test volume([p1, p2, p3, p4]) ≈ std_simplex_volume(3)
+
+# Topological helper functions
+##############################
+
+# §62 Example 1 Figure 62.1 from Munkres 1984:
+s = DeltaSet2D()
+# 6 adjacent triangles forming a hexagon, with a stand-alone edge at the center.
+g, h = 7, 8
+add_vertices!(s, 8)
+foreach(1:5, 2:6) do x,y
+  glue_sorted_triangle!(s, g,x,y)
+end
+glue_sorted_triangle!(s, g,6,1)
+add_sorted_edge!(s, g,h)
+
+Stg = star(s, g)
+@test issetequal(Stg[1], [g])
+@test issetequal(Stg[2], union(coface(1,0,s,g), union(coface(1,1,s,g))))
+@test issetequal(Stg[3], triangles(s))
+
+St̄g = closed_star(s, g)
+@test issetequal(St̄g[1], vertices(s))
+@test issetequal(St̄g[2], edges(s))
+@test issetequal(St̄g[3], triangles(s))
+
+# "The link of the vertex g consists of the hexagon ... and the vertex h."
+Lkg = link(s, g)
+@test issetequal(Lkg[1], [1,2,3,4,5,6, 8])
+@test issetequal(Lkg[2], setdiff(St̄g[2], Stg[2]))
+@test isempty(Lkg[3])
+
+# "The link of the vertex h is the vertex g."
+Lkh = link(s, h)
+@test issetequal(Lkh[1], [g])
+@test isempty(Lkh[2])
+@test isempty(Lkh[3])
+
+# §62 Example 1 Figure 62.2 from Munkres 1984:
+s = DeltaSet3D()
+# 5 adjacent tetrahedra forming a pentagonal bipyramid.
+add_vertices!(s, 7)
+foreach(1:4, 2:5) do x,y
+  glue_sorted_tetrahedron!(s, 6,7, x,y)
+end
+glue_sorted_tetrahedron!(s, 6,7, 5,1)
+
+# "The link of the vertex a is the union of the 2-simplices bfg and efg."
+# bfg=[267], efg=[567]
+@test link(s,1)[3] == [1, 11]
+
+# "The link of the vertex f is the cone: abcdea * g
+Lkf = link(s,6)
+es = union(∂(0, s, Tri(Lkf[3])), ∂(1, s, Tri(Lkf[3])), ∂(2, s, Tri(Lkf[3])))
+vs = union(∂(0, s, E(es)), ∂(1, s, E(es)))
+@test Set(es) == Set(Lkf[2])
+@test Set(vs) == Set(Lkf[1])
+@test Set(Lkf[1]) == Set([1,2,3,4,5,7])
 
 end

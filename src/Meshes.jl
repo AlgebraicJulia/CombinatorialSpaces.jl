@@ -73,10 +73,15 @@ Load in a mesh from the Artifacts.jl system and automatically subdivide it.
 """
 loadmesh(s, subdivision=Circumcenter()) = subdivide_duals!(loadmesh(s), subdivision)
 
-# Once part of GridMeshes
 
-# Note that dx will be slightly less than what is given, since points are
-# compressed to lie within max_x.
+# This function was once the gridmeshes.jl file from Decapodes.jl.
+"""    function triangulated_grid(max_x, max_y, dx, dy, point_type)
+
+Return a grid of (near) equilateral triangles.
+
+Note that dx will be slightly less than what is given, since points are
+compressed to lie within max_x.
+"""
 function triangulated_grid(max_x, max_y, dx, dy, point_type)
 
   s = EmbeddedDeltaSet2D{Bool, point_type}()
@@ -125,14 +130,17 @@ function triangulated_grid(max_x, max_y, dx, dy, point_type)
   s
 end
 
-# Once part of SphericalMeshes
-
+# This function was once the sphericalmeshes.jl file from Decapodes.jl.
 """
     makeSphere(minLat, maxLat, dLat, minLong, maxLong, dLong, radius)
 
 Construct a spherical mesh (inclusively) bounded by the given latitudes and
 longitudes, discretized at dLat and dLong intervals, at the given radius from
 Earth's center.
+
+Note that this construction returns a UV-sphere. DEC simulations are more
+accurate on meshes with (near) equilateral triangles, such as the icospheres
+available through [`loadmesh`](@ref).
 
 We say that:
 - 90°N is 0
@@ -283,5 +291,76 @@ function makeSphere(minLat, maxLat, dLat, minLong, maxLong, dLong, radius)
   end
   return s, north_pole_idx, south_pole_idx
 end
+
+"""    function tri_345()
+
+Return the primal and dual mesh of a triangle with edge lengths 3,4,5 and with true orientation.
+See also: [`tri_345_false`](@ref)
+"""
+function tri_345()
+  primal_s = EmbeddedDeltaSet2D{Bool,Point3D}()
+  add_vertices!(primal_s, 3, point=[Point3D(0,0,0), Point3D(3,0,0), Point3D(3,4,0)])
+  glue_triangle!(primal_s, 1, 2, 3, tri_orientation=true)
+  primal_s[:edge_orientation] = true
+  s = EmbeddedDeltaDualComplex2D{Bool,Float64,Point3D}(primal_s)
+  subdivide_duals!(s, Barycenter())
+  (primal_s, s)
+end
+
+"""    function tri_345_false()
+
+Return the primal and dual mesh of a triangle with edge lengths 3,4,5 and with false orientation.
+See also: [`tri_345`](@ref)
+"""
+function tri_345_false()
+  primal_s = EmbeddedDeltaSet2D{Bool,Point3D}()
+  add_vertices!(primal_s, 3, point=[Point3D(0,0,0), Point3D(3,0,0), Point3D(3,4,0)])
+  glue_triangle!(primal_s, 1, 2, 3, tri_orientation=false)
+  primal_s[:edge_orientation] = true
+  s = EmbeddedDeltaDualComplex2D{Bool,Float64,Point3D}(primal_s)
+  subdivide_duals!(s, Barycenter())
+  (primal_s, s)
+end
+
+"""    function grid_345()
+
+Return the primal and dual mesh of a grid of 3-4-5 triangles.
+See also: [`tri_345`](@ref)
+"""
+function grid_345()
+  primal_s = EmbeddedDeltaSet2D{Bool,Point3D}()
+  add_vertices!(primal_s, 9,
+    point=[Point3D(0,+4,0), Point3D(3,+4,0), Point3D(6,+4,0),
+          Point3D(0, 0,0), Point3D(3, 0,0), Point3D(6, 0,0),
+          Point3D(0,-4,0), Point3D(3,-4,0), Point3D(6,-4,0)])
+  glue_sorted_triangle!(primal_s, 1, 2, 4)
+  glue_sorted_triangle!(primal_s, 5, 2, 4)
+  glue_sorted_triangle!(primal_s, 5, 2, 3)
+  glue_sorted_triangle!(primal_s, 5, 6, 3)
+  glue_sorted_triangle!(primal_s, 5, 7, 4)
+  glue_sorted_triangle!(primal_s, 5, 7, 8)
+  glue_sorted_triangle!(primal_s, 5, 6, 8)
+  glue_sorted_triangle!(primal_s, 9, 6, 8)
+  primal_s[:edge_orientation] = true
+  s = EmbeddedDeltaDualComplex2D{Bool,Float64,Point3D}(primal_s)
+  subdivide_duals!(s, Barycenter())
+  (primal_s, s)
+end
+
+"""    function right_scalene_unit_hypot()
+
+Return the primal and dual mesh of a right scalene triangle with unit hypotenuse.
+"""
+function right_scalene_unit_hypot()
+  primal_s = EmbeddedDeltaSet2D{Bool,Point2D}()
+  add_vertices!(primal_s, 3,
+    point=[Point2D(0,0), Point2D(1/√2,0), Point2D(1/√2,1/√2)])
+  glue_sorted_triangle!(primal_s, 1, 2, 3)
+  primal_s[:edge_orientation] = true
+  s = EmbeddedDeltaDualComplex2D{Bool,Float64,Point2D}(primal_s)
+  subdivide_duals!(s, Barycenter())
+  (primal_s, s)
+end
+
 
 end
