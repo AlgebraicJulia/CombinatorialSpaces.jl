@@ -12,8 +12,34 @@ using StaticArrays
 
 s = triangulated_grid(100, 100, 1, 1, Point3{Float64})
 
-sd = EmbeddedDeltaDualComplex2D{Bool, Float64, Point3{Float64}}()
-copy_parts!(sd, s)
+begin
+    sd = EmbeddedDeltaDualComplex2D{Bool, Float64, Point3{Float64}}()
+    copy_parts!(sd, s)
+end
+
+#= 
+function test(s)
+    sd = EmbeddedDeltaDualComplex2D{Bool,Float64,Point3{Float64}}(s)
+    subdivide_duals!(sd, Barycenter())
+    sd
+end
+
+function fast_test(s)
+    sd_c = EmbeddedDeltaDualComplex2D{Bool,Float64,Point3{Float64}}(s, FastMesh())
+    subdivide_duals!(sd_c, FastMesh(), Barycenter())
+    sd_c
+end
+
+@info "Original Dual Mesh Generation"
+test(s);
+@time sd = test(s);
+
+@info "New Dual Mesh Generation"
+fast_test(s);
+@time sd_c = fast_test(s);
+
+sd == sd_c =#
+    
 
 # sd = EmbeddedDeltaDualComplex2D{Bool, Float64, Point3{Float64}}(s)
 # sd_c = EmbeddedDeltaDualComplex2D{Bool, Float64, Point3{Float64}}(s)

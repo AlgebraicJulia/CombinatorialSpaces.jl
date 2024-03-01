@@ -691,11 +691,13 @@ function make_dual_simplices_2d!(sd::HasDeltaSet2D, ::Type{Simplex{n}}, gen::Fas
   d_e1 = @view sd[:D_∂e1]
   d_e2 = @view sd[:D_∂e2]
 
+  triangle_edges = (e0, e1, e2)
+
   for (i, schema) in enumerate(D_triangle_schemas)
     v,e,ev = schema
     d_e0[D_triangles[i]] .= D_edges12[e+1]
     d_e1[D_triangles[i]] .= D_edges02[v+1]
-    d_e2[D_triangles[i]] .= view(D_edges01[ev+1], ∂(2,e,sd))
+    d_e2[D_triangles[i]] .= view(D_edges01[ev+1], triangle_edges[e+1])
   end
 
   if has_subpart(sd, :tri_orientation)
@@ -713,6 +715,7 @@ function make_dual_simplices_2d!(sd::HasDeltaSet2D, ::Type{Simplex{n}}, gen::Fas
     # Orient elementary dual triangles.
     tri_orient = @view sd[:tri_orientation]
     D_tri_orient = @view sd[:D_tri_orientation]
+
     for (i, D_tris) in enumerate(D_triangles)
       for (j, D_tri) in enumerate(D_tris)
         D_tri_orient[D_tri] = isodd(i) ? negate(tri_orient[j]) : tri_orient[j]
@@ -722,14 +725,15 @@ function make_dual_simplices_2d!(sd::HasDeltaSet2D, ::Type{Simplex{n}}, gen::Fas
     # Orient elementary dual edges.
     D_edge_orient = @view sd[:D_edge_orientation]
     for (e, D_edges) in enumerate(D_edges12)
-      tri_edge_view = @view sd[∂(2,e-1,sd), :edge_orientation]
+      tri_edge_view = @view sd[triangle_edges[e], :edge_orientation]
       for (j, D_edge) in enumerate(D_edges)
         D_edge_orient[D_edge] = relative_sign(
           tri_edge_view[j], isodd(e-1) ? negate(tri_orient[j]) : tri_orient[j])
       end
     end
     # Remaining dual edges are oriented arbitrarily.
-    sd[lazy(vcat, D_edges02...), :D_edge_orientation] = one(attrtype_type(sd, :Orientation))
+    lazy_edge_orient = @view sd[lazy(vcat, D_edges02...), :D_edge_orientation]
+    lazy_edge_orient .= one(Bool)
   end
 
   D_triangles
