@@ -1049,21 +1049,15 @@ function subdivide_duals!(sd::EmbeddedDeltaDualComplex2D, gen::FastMesh, args...
   precompute_volumes_2d!(sd, gen)
 end
 
-struct PointType{T}
-  point_type::T
-end
+subdivide_duals_1d!(sd::EmbeddedDeltaDualComplex1D{_o, _l, point_type} where {_o, _l}, fm::FastMesh, alg) where point_type = subdivide_duals_1d!(sd, fm, point_type, alg)
+subdivide_duals_1d!(sd::EmbeddedDeltaDualComplex2D{_o, _l, point_type} where {_o, _l}, fm::FastMesh, alg) where point_type = subdivide_duals_1d!(sd, fm, point_type, alg)
+subdivide_duals_2d!(sd::EmbeddedDeltaDualComplex2D{_o, _l, point_type} where {_o, _l}, fm::FastMesh, alg) where point_type = subdivide_duals_2d!(sd, fm, point_type, alg)
 
-point_wrapper(sd::EmbeddedDeltaDualComplex1D{_o, _l, point_type} where {_o, _l}) where point_type = return PointType{point_type}
-point_wrapper(sd::EmbeddedDeltaDualComplex2D{_o, _l, point_type} where {_o, _l}) where point_type = return PointType{point_type}
+precompute_volumes_1d!(sd::EmbeddedDeltaDualComplex1D{_o, _l, point_type} where {_o, _l}, fm::FastMesh) where point_type = precompute_volumes_1d!(sd, fm, point_type)
+precompute_volumes_1d!(sd::EmbeddedDeltaDualComplex2D{_o, _l, point_type} where {_o, _l}, fm::FastMesh) where point_type = precompute_volumes_1d!(sd, fm, point_type)
+precompute_volumes_2d!(sd::EmbeddedDeltaDualComplex2D{_o, _l, point_type} where {_o, _l}, fm::FastMesh) where point_type = precompute_volumes_2d!(sd, fm, point_type)
 
-subdivide_duals_1d!(sd::EmbeddedDeltaDualComplex1D, fm::FastMesh, alg) = subdivide_duals_1d!(sd, fm, point_wrapper(sd), alg)
-subdivide_duals_1d!(sd::EmbeddedDeltaDualComplex2D, fm::FastMesh, alg) = subdivide_duals_1d!(sd, fm, point_wrapper(sd), alg)
-subdivide_duals_2d!(sd::EmbeddedDeltaDualComplex2D, fm::FastMesh, alg) = subdivide_duals_2d!(sd, fm, point_wrapper(sd), alg)
-
-precompute_volumes_1d!(sd::HasDeltaSet1D, fm::FastMesh) = precompute_volumes_1d!(sd, fm, point_wrapper(sd))
-precompute_volumes_2d!(sd::HasDeltaSet2D, fm::FastMesh) = precompute_volumes_2d!(sd, fm, point_wrapper(sd))
-
-function subdivide_duals_1d!(sd::HasDeltaSet1D, ::FastMesh, ::Type{PointType{point_type}}, alg) where point_type
+function subdivide_duals_1d!(sd::HasDeltaSet1D, ::FastMesh, ::Type{point_type}, alg) where point_type
 
   v1 = @view sd[:∂v0]
   v2 = @view sd[:∂v1]
@@ -1084,7 +1078,7 @@ function subdivide_duals_1d!(sd::HasDeltaSet1D, ::FastMesh, ::Type{PointType{poi
   end
 end
 
-function precompute_volumes_1d!(sd::HasDeltaSet1D, ::FastMesh, ::Type{PointType{point_type}}) where point_type
+function precompute_volumes_1d!(sd::HasDeltaSet1D, ::FastMesh, ::Type{point_type}) where point_type
 
   v0 = @view sd[:∂v0]
   v1 = @view sd[:∂v1]
@@ -1110,7 +1104,7 @@ function precompute_volumes_1d!(sd::HasDeltaSet1D, ::FastMesh, ::Type{PointType{
   end
 end
 
-function subdivide_duals_2d!(sd::HasDeltaSet2D, gen::FastMesh, ::Type{PointType{point_type}}, alg) where point_type
+function subdivide_duals_2d!(sd::HasDeltaSet2D, gen::FastMesh, ::Type{point_type}, alg) where point_type
   subdivide_duals_1d!(sd, gen, alg)
 
   e1 = @view sd[:∂e1]
@@ -1134,13 +1128,13 @@ function subdivide_duals_2d!(sd::HasDeltaSet2D, gen::FastMesh, ::Type{PointType{
   end
 end
 
-function precompute_volumes_2d!(sd::HasDeltaSet2D, gen::FastMesh, p::Type{PointType{point_type}}) where point_type
+function precompute_volumes_2d!(sd::HasDeltaSet2D, gen::FastMesh, p::Type{point_type}) where point_type
   precompute_volumes_1d!(sd, gen)
   set_volumes!(Val{2}, sd, p)
   set_dual_volumes!(Val{2}, sd, p)
 end
 
-function set_volumes!(::Type{Val{2}}, sd::HasDeltaSet2D, ::Type{PointType{point_type}}) where point_type
+function set_volumes!(::Type{Val{2}}, sd::HasDeltaSet2D, ::Type{point_type}) where point_type
 
   area_set = @view sd[:area]
 
@@ -1162,7 +1156,7 @@ function set_volumes!(::Type{Val{2}}, sd::HasDeltaSet2D, ::Type{PointType{point_
   end
 end
 
-function set_dual_volumes!(::Type{Val{2}}, sd::HasDeltaSet2D, ::Type{PointType{point_type}}) where point_type
+function set_dual_volumes!(::Type{Val{2}}, sd::HasDeltaSet2D, ::Type{point_type}) where point_type
 
   dual_area_set = @view sd[:dual_area]
 
