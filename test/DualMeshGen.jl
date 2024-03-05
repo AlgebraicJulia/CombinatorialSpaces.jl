@@ -13,13 +13,6 @@ Point3D = Point3{Float64}
 
 Random.seed!(0)
 
-function generate_dual_mesh(s::HasDeltaSet1D)
-    orient!(s)
-    sd = EmbeddedDeltaDualComplex1D{Bool,Float64,Point2D}(s)
-    subdivide_duals!(sd, Barycenter())
-    sd
-end
-
 primal_line = EmbeddedDeltaSet1D{Bool,Point2D}()
 add_vertices!(primal_line, 3, point=[Point2D(1,0), Point2D(0,0), Point2D(0,2)])
 add_edges!(primal_line, [1,2], [2,3])
@@ -27,11 +20,6 @@ add_edges!(primal_line, [1,2], [2,3])
 primal_cycle = EmbeddedDeltaSet1D{Bool,Point2D}()
 add_vertices!(primal_cycle, 3, point=[Point2D(1,0), Point2D(0,0), Point2D(0,1)])
 add_edges!(primal_cycle, [1,2,3], [2,3,1])
-
-primal_plus = EmbeddedDeltaSet1D{Bool,Point2D}()
-add_vertices!(primal_plus, 5, point=[Point2D(0,0), Point2D(1,0), Point2D(-1,0), Point2D(0,1), Point2D(0, -1)])
-add_edges!(primal_plus, [1,1,3,5], [2,4,1,1])
-
 
 dual_meshes_1D = [primal_line, primal_cycle]
 

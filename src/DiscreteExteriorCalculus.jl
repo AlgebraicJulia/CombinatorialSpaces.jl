@@ -857,16 +857,81 @@ struct FastMesh end
 
 function (::Type{S})(t::AbstractDeltaSet1D, gen::FastMesh) where S <: AbstractDeltaDualComplex1D
   s = S()
-  copy_parts!(s, t)
+  copy_primal_1D!(s, t)
   make_dual_simplices_1d!(s, gen)
   return s
 end
 
 function (::Type{S})(t::AbstractDeltaSet2D, gen::FastMesh) where S <: AbstractDeltaDualComplex2D
   s = S()
-  copy_parts!(s, t)
+  copy_primal_2D!(s, t)
   make_dual_simplices_2d!(s, gen)
   return s
+end
+
+copy_primal_1D!(t::EmbeddedDeltaDualComplex1D{_o, _l, point_type} where {_o, _l}, s) where point_type = copy_primal_1D!(t, s, point_type)
+copy_primal_1D!(t::EmbeddedDeltaDualComplex2D{_o, _l, point_type} where {_o, _l}, s) where point_type = copy_primal_1D!(t, s, point_type)
+
+function copy_primal_1D!(t::HasDeltaSet1D, s::HasDeltaSet1D, ::Type{point_type}) where point_type
+  v_range = add_parts!(t, :V, nv(s))
+  e_range = add_parts!(t, :E, ne(s))
+
+  src_point::Vector{point_type} = s[:point]
+  tgt_point = @view t[:point]
+
+  for (i, v) in enumerate(v_range)
+    tgt_point[v] = src_point[i]
+  end
+
+  src_v0 = @view s[:∂v0]
+  src_v1 = @view s[:∂v1]
+
+  tgt_v0 = @view t[:∂v0]
+  tgt_v1 = @view t[:∂v1]
+
+  for (i, e) in enumerate(e_range)
+    tgt_v0[e] = src_v0[i]
+    tgt_v1[e] = src_v1[i]
+  end
+
+  if has_subpart(s, :edge_orientation)
+    src_edge_orient = @view s[:edge_orientation]
+    tgt_edge_orient = @view t[:edge_orientation]
+
+    for (i, e) in enumerate(e_range)
+      tgt_edge_orient[e] = src_edge_orient[i]
+    end
+  end
+end
+
+function copy_primal_2D!(t::HasDeltaSet2D, s::HasDeltaSet2D)
+
+  copy_primal_1D!(t, s)
+  tri_range = add_parts!(t, :Tri, ntriangles(s))
+
+  src_e0 = @view s[:∂e0]
+  src_e1 = @view s[:∂e1]
+  src_e2 = @view s[:∂e2]
+
+  tgt_e0 = @view t[:∂e0]
+  tgt_e1 = @view t[:∂e1]
+  tgt_e2 = @view t[:∂e2]
+
+  for (i, tri) in enumerate(tri_range)
+    tgt_e0[tri] = src_e0[i]
+    tgt_e1[tri] = src_e1[i]
+    tgt_e2[tri] = src_e2[i]
+  end
+
+  if has_subpart(s, :tri_orientation)
+    src_tri_orient = @view s[:tri_orientation]
+    tgt_tri_orient = @view t[:tri_orientation]
+
+    for (i, tri) in enumerate(tri_range)
+      tgt_tri_orient[tri] = src_tri_orient[i]
+    end
+  end
+
 end
 
 make_dual_simplices_1d!(s::AbstractDeltaDualComplex1D, gen::FastMesh) = make_dual_simplices_1d!(s, E, gen)
