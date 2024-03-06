@@ -67,12 +67,6 @@ end
 loadmesh_helper(obj_file_name) = EmbeddedDeltaSet2D(
   joinpath(artifact"all_meshes2", obj_file_name))
 
-"""    loadmesh(s, subdivision=Circumcenter())
-
-Load in a mesh from the Artifacts.jl system and automatically subdivide it.
-"""
-loadmesh(s, subdivision=Circumcenter()) = subdivide_duals!(loadmesh(s), subdivision)
-
 
 # This function was once the gridmeshes.jl file from Decapodes.jl.
 """    function triangulated_grid(max_x, max_y, dx, dy, point_type)
