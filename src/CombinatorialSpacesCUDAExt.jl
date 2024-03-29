@@ -1,73 +1,44 @@
-begin
-    using Decapodes
-    using DiagrammaticEquations
-    using CombinatorialSpaces
-    using GeometryBasics
-    using CUDA
-    using LinearAlgebra
-    using SparseArrays
-    using BenchmarkTools
-    Point2D = Point2{Float64}
-    Point3D = Point3{Float64}
-    CUDA.allowscalar(false)
+  using Decapodes
+  using DiagrammaticEquations
+  using CombinatorialSpaces
+  using GeometryBasics
+  using CUDA
+  using LinearAlgebra
+  using SparseArrays
+  using BenchmarkTools
+  Point2D = Point2{Float64}
+  Point3D = Point3{Float64}
 
-  T = Float64
-  
-  # rect = loadmesh(Rectangle_30x10())
-  rect = triangulated_grid(400, 400, 1, 1, Point3D)
-  d_rect = EmbeddedDeltaDualComplex2D{Bool, T, Point3D}(rect)
-  subdivide_duals!(d_rect, Circumcenter())
-  
-  R = zeros(T, ne(d_rect));
-  R2 = zeros(T, ntriangles(d_rect));
-  R3 = zeros(T, ntriangles(d_rect));
-
-  A = rand(T, nv(d_rect));
-  B = rand(T, ne(d_rect));
-  B2 = rand(T, ne(d_rect));
-  C = rand(T, ntriangles(d_rect))
-  
-  cuR = CuArray(R)
-  cuR2 = CuArray(R2)
-  cuR3 = CuArray(R3)
-  cuA = CuArray(A)
-  cuB = CuArray(B)
-  cuB2 = CuArray(B2)
-  cuC = CuArray(C)
-
-  val_pack_01 = dec_p_wedge_product(Tuple{0,1}, d_rect)
-  primal_vertices_01 = CuArray(val_pack_01[1])
-
-  val_pack_02 = dec_p_wedge_product(Tuple{0,2}, d_rect)
-  primal_vertices_02 = CuArray(val_pack_02[1])
-  coeffs_02 = CuArray(val_pack_02[2])
-
-  val_pack_11 = dec_p_wedge_product(Tuple{1,1}, d_rect)
-  primal_vertices_11 = CuArray(val_pack_11[1])
-  coeffs_11 = CuArray(val_pack_11[2])
-end
-  
-  # Figure out a way to do atomic adds so we can split the addition across threads.y
-
-  function dec_cu_c_wedge_product!(::Type{Tuple{0,1}}, wedge_terms, f, α, primal_vertices)
-    num_threads = CUDA.max_block_size.x
-    num_blocks = min(ceil(Int, length(wedge_terms) / num_threads), CUDA.max_grid_size.x)
-
-    @cuda threads=num_threads blocks=num_blocks dec_cu_ker_c_wedge_product_01!(wedge_terms, f, α, primal_vertices)
+  dec_cu_p_wedge_product(::Type{Tuple{m,n}}, sd) where {m,n} = begin
+    val_pack = dec_p_wedge_product(Tuple{m,n}, sd)
+    cuda_val_pack = (CuArray.(val_pack[1:end-1]), val_pack[end]) 
   end
 
-  function dec_cu_c_wedge_product!(::Type{Tuple{0,2}}, wedge_terms, f, α, primal_vertices, coeffs)
-    num_threads = CUDA.max_block_size.x
-    num_blocks = min(ceil(Int, length(wedge_terms) / num_threads), CUDA.max_grid_size.x)
-
-    @cuda threads=num_threads blocks=num_blocks dec_cu_ker_c_wedge_product_02!(wedge_terms, f, α, primal_vertices, coeffs)
+  # TODO: Should add typing to the zeros call
+  dec_cu_c_wedge_product(::Type{Tuple{m,n}}, wedge_terms, α, β, val_pack) where {m,n} = begin
+    wedge_terms = CUDA.zeros(last(last(val_pack)))
+    return dec_cu_c_wedge_product!(Tuple{m,n}, wedge_terms, α, β, val_pack)
   end
 
-  function dec_cu_c_wedge_product!(::Type{Tuple{1,1}}, wedge_terms, f, α, primal_vertices, coeffs)
+  function dec_cu_c_wedge_product!(::Type{Tuple{0,1}}, wedge_terms, f, α, val_pack)
     num_threads = CUDA.max_block_size.x
     num_blocks = min(ceil(Int, length(wedge_terms) / num_threads), CUDA.max_grid_size.x)
 
-    @cuda threads=num_threads blocks=num_blocks dec_cu_ker_c_wedge_product_11!(wedge_terms, f, α, primal_vertices, coeffs)
+    @cuda threads=num_threads blocks=num_blocks dec_cu_ker_c_wedge_product_01!(wedge_terms, f, α, val_pack[1])
+  end
+
+  function dec_cu_c_wedge_product!(::Type{Tuple{0,2}}, wedge_terms, f, α, val_pack)
+    num_threads = CUDA.max_block_size.x
+    num_blocks = min(ceil(Int, length(wedge_terms) / num_threads), CUDA.max_grid_size.x)
+
+    @cuda threads=num_threads blocks=num_blocks dec_cu_ker_c_wedge_product_02!(wedge_terms, f, α, val_pack[1], val_pack[2])
+  end
+
+  function dec_cu_c_wedge_product!(::Type{Tuple{1,1}}, wedge_terms, f, α, val_pack)
+    num_threads = CUDA.max_block_size.x
+    num_blocks = min(ceil(Int, length(wedge_terms) / num_threads), CUDA.max_grid_size.x)
+
+    @cuda threads=num_threads blocks=num_blocks dec_cu_ker_c_wedge_product_11!(wedge_terms, f, α, val_pack[1], val_pack[2])
   end
 
   function dec_cu_ker_c_wedge_product_01!(wedge_terms::CuDeviceArray{T}, f, α, primal_vertices) where T
@@ -234,79 +205,3 @@ function dec_cu_ker_c_differential_same!(res, f, indices)
 
   return nothing
 end
-
-
-
-  #= 
-  function dec_cu_atom_c_wedge_product_01!(wedge_terms::CuDeviceArray{T}, f, α, primal_vertices) where T
-    index = (blockIdx().x - Int32(1)) * blockDim().x + threadIdx().x   
-    stride = Int32(1024) * blockDim().x
-    j = threadIdx().y
-  
-    i = index
-    @inbounds while i <= length(wedge_terms)
-      if(j == Int32(1))
-        wedge_terms[i] = Int32(0)
-      end
-      sync_threads()
-  
-      temp = T(0.5) * α[i] * f[primal_vertices[i, j]]
-      CUDA.atomic_add!(pointer(wedge_terms) + sizeof(T) * (i - Int32(1)), temp)
-      sync_threads()
-      
-      i += stride
-    end
-    return nothing
-  end
-    
-  function dec_cu_atom_share_c_wedge_product_01!(wedge_terms::CuDeviceArray{T}, f, α, primal_vertices) where T
-    index = (blockIdx().x - Int32(1)) * blockDim().x + threadIdx().x   
-    stride = Int32(1024) * blockDim().x
-    j = threadIdx().y
-  
-    shared_arr = CUDA.CuDynamicSharedArray(T, blockDim().x)
-  
-    i = index
-    @inbounds while i <= length(wedge_terms)
-      if(threadIdx().y == Int32(1))
-        shared_arr[threadIdx().x] = Int32(0)
-      end
-      sync_threads()
-  
-      temp = T(0.5) * α[i] * f[primal_vertices[i, j]]
-      CUDA.atomic_add!(pointer(shared_arr) + sizeof(T) * (threadIdx().x - Int32(1)), temp)
-      sync_threads()
-      
-      if(threadIdx().y == Int32(1))
-        wedge_terms[i] = shared_arr[threadIdx().x]
-      end
-      sync_threads()
-  
-      i += stride
-    end
-    return nothing
-  end
-  
-  function dec_cu_shuffle_c_wedge_product_01!(wedge_terms::CuDeviceArray{T}, f, α, primal_vertices) where T
-    index = ((blockIdx().x - Int32(1)) * blockDim().x + threadIdx().x)
-    stride = Int32(512) * blockDim().x    
-  
-    i = index
-    j = laneid() % Int32(2)
-    @inbounds while i <= Int32(2 * length(wedge_terms))
-        r_i = (i >> Int32(1)) + j
-        val = T(0.5) * α[r_i] * f[primal_vertices[r_i, j + Int32(1)]]
-        # @cuprintln("$(threadIdx().x), $(laneid()): ($(r_i),$(j+1)), $val")
-        # mask = vote_ballot_sync(CUDA.FULL_MASK, (j == Int32(1)))
-        val += shfl_up_sync(CUDA.FULL_MASK, val, Int32(1))
-        # @cuprintln("$(threadIdx().x), $(laneid()): $val")
-
-        if(j == Int32(0))
-            wedge_terms[r_i] = val
-        end
-
-        i += stride
-    end
-    return nothing
-  end
-  =#
