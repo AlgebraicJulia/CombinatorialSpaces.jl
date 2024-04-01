@@ -20,7 +20,7 @@ include("Meshes.jl")
 
 function __init__()
   @require Makie="ee78f7c6-11fb-53f2-987a-cfe4a2b5a57a" include("MeshGraphics.jl")
-  @require CUDA="052768ef-5323-5732-b1bb-66c8b64840ba" include("../src/GPU/Wedge_GPU.jl")
+  @require CUDA="052768ef-5323-5732-b1bb-66c8b64840ba" include("CombinatorialSpacesCUDAExt.jl")
 end
 
 end

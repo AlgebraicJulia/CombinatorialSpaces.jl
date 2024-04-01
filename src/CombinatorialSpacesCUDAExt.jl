@@ -25,6 +25,7 @@
     num_blocks = min(ceil(Int, length(wedge_terms) / num_threads), CUDA.max_grid_size.x)
 
     @cuda threads=num_threads blocks=num_blocks dec_cu_ker_c_wedge_product_01!(wedge_terms, f, α, val_pack[1])
+    return wedge_terms
   end
 
   function dec_cu_c_wedge_product!(::Type{Tuple{0,2}}, wedge_terms, f, α, val_pack)
@@ -32,6 +33,7 @@
     num_blocks = min(ceil(Int, length(wedge_terms) / num_threads), CUDA.max_grid_size.x)
 
     @cuda threads=num_threads blocks=num_blocks dec_cu_ker_c_wedge_product_02!(wedge_terms, f, α, val_pack[1], val_pack[2])
+    return wedge_terms
   end
 
   function dec_cu_c_wedge_product!(::Type{Tuple{1,1}}, wedge_terms, f, α, val_pack)
@@ -39,6 +41,7 @@
     num_blocks = min(ceil(Int, length(wedge_terms) / num_threads), CUDA.max_grid_size.x)
 
     @cuda threads=num_threads blocks=num_blocks dec_cu_ker_c_wedge_product_11!(wedge_terms, f, α, val_pack[1], val_pack[2])
+    return wedge_terms
   end
 
   function dec_cu_ker_c_wedge_product_01!(wedge_terms::CuDeviceArray{T}, f, α, primal_vertices) where T

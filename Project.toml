@@ -4,6 +4,9 @@ license = "MIT"
 authors = ["Evan Patterson <evan@epatters.org>"]
 version = "0.6.3"
 
+[weakdeps]
+CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
+
 [deps]
 ACSets = "227ef7b5-1206-438b-ac65-934d6da304b8"
 Artifacts = "56f22d72-fd6d-98f1-02f0-08ddc0907c33"
@@ -25,6 +28,7 @@ StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
 ACSets = "0.2"
 Artifacts = "1.9, 1"
 BenchmarkTools = "1.4.0"
+CUDA = "5.2"
 Catlab = "0.16"
 DataMigrations = "0.0.3"
 FileIO = "^1"
@@ -37,7 +41,7 @@ Reexport = "0.2, 1.0"
 Requires = "^1"
 SparseArrays = "1.9"
 StaticArrays = "0.12, 1.0"
-julia = "1.9"
+julia = "1.9, 1.10"
 
 [extras]
 CairoMakie = "13f3f980-e62b-5c42-98c6-ff1f3baf88f0"
