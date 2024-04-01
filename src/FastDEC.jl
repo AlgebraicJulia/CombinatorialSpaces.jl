@@ -13,7 +13,15 @@ export dec_boundary, dec_differential, dec_dual_derivative, dec_hodge_star, dec_
        dec_wedge_product_pd, dec_wedge_product_dp, ∧,
        interior_product_dd, ℒ_dd,
        dec_wedge_product_dd,
-       Δᵈ
+       Δᵈ, 
+       dec_cu_c_wedge_product!, dec_cu_c_wedge_product, dec_cu_p_wedge_product, dec_cu_wedge_product
+
+# TODO: These along with the exports should be cleaned up, extension should really be 
+# overloading the CPU wedge_products with multiple-dispatch
+function dec_cu_wedge_product() end
+function dec_cu_c_wedge_product!() end
+function dec_cu_c_wedge_product() end
+function dec_cu_p_wedge_product() end
 
 """    dec_p_wedge_product(::Type{Tuple{0,1}}, sd::EmbeddedDeltaDualComplex1D)
 

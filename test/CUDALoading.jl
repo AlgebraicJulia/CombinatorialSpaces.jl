@@ -1,5 +1,5 @@
 module testGPU
-
+#TODO: Should probably remove this test, moved to runtests itself
 using Test
 using CombinatorialSpaces
 using Pkg

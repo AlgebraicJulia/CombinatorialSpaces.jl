@@ -1,17 +1,14 @@
-module TestOperators
+module TestOperatorsCUDA
 
-using Tests
+using Test
 using SparseArrays
 using LinearAlgebra
 using CUDA
 using Catlab
 using CombinatorialSpaces
-using CombinatorialSpaces.Meshes: tri_345, tri_345_false, grid_345, right_scalene_unit_hypot
-using CombinatorialSpaces.DiscreteExteriorCalculus: eval_constant_primal_form
 using Random
 using GeometryBasics: Point2, Point3
 using StaticArrays: SVector
-using Statistics: mean, var
 
 Point2D = Point2{Float64}
 Point3D = Point3{Float64}
@@ -48,23 +45,12 @@ add_edges!(primal_plus, [1,1,3,5], [2,4,1,1])
 primal_plus[:edge_orientation] = true
 plus = generate_dual_mesh(primal_plus)
 
-
 dual_meshes_1D = [line, cycle, plus]
 
 dual_meshes_2D = [(generate_dual_mesh ∘ loadmesh ∘ Icosphere).(1:2)...,
                (generate_dual_mesh ∘ loadmesh)(Rectangle_30x10()),
                (generate_dual_mesh).([triangulated_grid(10,10,8,8,Point3D), makeSphere(5, 175, 5, 0, 360, 5, 6371+90)[1]])...,
                (loadmesh)(Torus_30x10())];
-
-tg′ = triangulated_grid(100,100,10,10,Point2D);
-tg = EmbeddedDeltaDualComplex2D{Bool,Float64,Point2D}(tg′);
-subdivide_duals!(tg, Barycenter());
-
-rect′ = loadmesh(Rectangle_30x10());
-rect = EmbeddedDeltaDualComplex2D{Bool,Float64,Point3D}(rect′);
-subdivide_duals!(rect, Barycenter());
-
-flat_meshes = [tri_345()[2], tri_345_false()[2], right_scalene_unit_hypot()[2], grid_345()[2], tg, rect];
 
 @testset "Inverse Geometric Hodge" begin
     for i in 1:1
@@ -77,26 +63,28 @@ end
 
 @testset "Wedge Product" begin
     for sd in dual_meshes_1D
-        V_1, V_2 = CuVector(rand(nv(sd))), CuVector(rand(nv(sd)))
-        E_1 = CuVector(rand(ne(sd)))
-        @test all(Array(dec_cu_wedge_product(Tuple{0, 0}, sd)(V_1, V_2)) .== ∧(Tuple{0, 0}, sd, V_1, V_2))
-        @test all(Array(dec_wedge_product(Tuple{0, 1}, sd)(V_1, E_1)) .== ∧(Tuple{0, 1}, sd, V_1, E_1))
+        V_1, V_2 = rand(nv(sd)), rand(nv(sd))
+        E_1 = rand(ne(sd))
+        @test all(Array(dec_cu_wedge_product(Tuple{0, 0}, sd)(CuArray(V_1), CuArray(V_2))) .== ∧(Tuple{0, 0}, sd, V_1, V_2))
+        @test all(isapprox.(Array(dec_cu_wedge_product(Tuple{0, 1}, sd)(CuArray(V_1), CuArray(E_1))), ∧(Tuple{0, 1}, sd, V_1, E_1); rtol = 1e-14))
     end
 
     for sd in dual_meshes_2D
-        V_1, V_2 = CuVector(rand(nv(sd))), CuVector(rand(nv(sd)))
-        E_1, E_2 = CuVector(rand(ne(sd))), CuVector(rand(ne(sd)))
-        T_2 = CuVector(rand(ntriangles(sd)))
-        V_ones = CUDA.ones(nv(sd))
-        E_ones = CUDA.ones(ne(sd))
-        @test all(dec_wedge_product(Tuple{0, 0}, sd)(V_1, V_2) .== ∧(Tuple{0, 0}, sd, V_1, V_2))
+        V_1, V_2 = rand(nv(sd)), rand(nv(sd))
+        E_1, E_2 = rand(ne(sd)), rand(ne(sd))
+        T_2 = rand(ntriangles(sd))
+        V_ones = ones(nv(sd))
+        E_ones = ones(ne(sd))
+        @test all(Array(dec_cu_wedge_product(Tuple{0, 0}, sd)(CuArray(V_1), CuArray(V_2))) .== ∧(Tuple{0, 0}, sd, V_1, V_2))
 
-        wdg01 = dec_wedge_product(Tuple{0, 1}, sd)
-        @test all(isapprox.(wdg01(V_1, E_2), ∧(Tuple{0, 1}, sd, V_1, E_2); rtol = 1e-14))
-        @test all(wdg01(V_ones, E_ones) .== E_ones)
+        wdg01 = dec_cu_wedge_product(Tuple{0, 1}, sd)
+        @test all(isapprox.(Array(wdg01(CuArray(V_1), CuArray(E_2))), ∧(Tuple{0, 1}, sd, V_1, E_2); rtol = 1e-14))
+        @test all(Array(wdg01(CuArray(V_ones), CuArray(E_ones))) .== E_ones)
 
-        @test all(dec_wedge_product(Tuple{0, 2}, sd)(V_1, T_2) .== ∧(Tuple{0, 2}, sd, V_1, T_2))
+        @test all(isapprox.(Array(dec_cu_wedge_product(Tuple{0, 2}, sd)(CuArray(V_1), CuArray(T_2))), ∧(Tuple{0, 2}, sd, V_1, T_2); rtol = 1e-14))
 
-        @test all(dec_wedge_product(Tuple{1, 1}, sd)(E_1, E_2) .== ∧(Tuple{1, 1}, sd, E_1, E_2))
+        @test all(isapprox.(Array(dec_cu_wedge_product(Tuple{1, 1}, sd)(CuArray(E_1), CuArray(E_2))), ∧(Tuple{1, 1}, sd, E_1, E_2); rtol = 1e-12))
     end
+end
+
 end

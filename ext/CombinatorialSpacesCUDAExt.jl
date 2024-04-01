@@ -7,16 +7,35 @@ using LinearAlgebra
 using SparseArrays
 Point2D = Point2{Float64}
 Point3D = Point3{Float64}
-export dec_cu_c_wedge_product!, dec_cu_c_wedge_product, dec_cu_p_wedge_product
+import CombinatorialSpaces: dec_cu_c_wedge_product!, dec_cu_c_wedge_product, dec_cu_p_wedge_product, dec_cu_wedge_product
+
+function dec_cu_wedge_product(::Type{Tuple{0,0}}, sd::HasDeltaSet)
+  (f, g) -> f .* g
+end
+
+function dec_cu_wedge_product(::Type{Tuple{k,0}}, sd::HasDeltaSet) where {k}
+  val_pack = dec_cu_p_wedge_product(Tuple{0,k}, sd)
+  (α, g) -> dec_cu_c_wedge_product(Tuple{0,k}, g, α, val_pack)
+end
+
+function dec_cu_wedge_product(::Type{Tuple{0,k}}, sd::HasDeltaSet) where {k}
+  val_pack = dec_cu_p_wedge_product(Tuple{0,k}, sd)
+  (f, β) -> dec_cu_c_wedge_product(Tuple{0,k}, f, β, val_pack)
+end
+
+function dec_cu_wedge_product(::Type{Tuple{1,1}}, sd::HasDeltaSet2D)
+  val_pack = dec_cu_p_wedge_product(Tuple{1,1}, sd)
+  (α, β) -> dec_cu_c_wedge_product(Tuple{1,1}, α, β, val_pack)
+end
 
 dec_cu_p_wedge_product(::Type{Tuple{m,n}}, sd) where {m,n} = begin
   val_pack = dec_p_wedge_product(Tuple{m,n}, sd)
-  cuda_val_pack = (CuArray.(val_pack[1:end-1]), val_pack[end]) 
+  (CuArray.(val_pack[1:end-1])..., val_pack[end]) 
 end
 
 # TODO: Should add typing to the zeros call
-dec_cu_c_wedge_product(::Type{Tuple{m,n}}, wedge_terms, α, β, val_pack) where {m,n} = begin
-  wedge_terms = CUDA.zeros(last(last(val_pack)))
+dec_cu_c_wedge_product(::Type{Tuple{m,n}}, α, β, val_pack) where {m,n} = begin
+  wedge_terms = CUDA.zeros(Float64, last(last(val_pack)))
   return dec_cu_c_wedge_product!(Tuple{m,n}, wedge_terms, α, β, val_pack)
 end
 
