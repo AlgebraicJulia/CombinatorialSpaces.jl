@@ -1,11 +1,8 @@
-  using Decapodes
-  using DiagrammaticEquations
   using CombinatorialSpaces
   using GeometryBasics
   using CUDA
   using LinearAlgebra
   using SparseArrays
-  using BenchmarkTools
   Point2D = Point2{Float64}
   Point3D = Point3{Float64}
 
