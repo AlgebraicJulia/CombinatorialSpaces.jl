@@ -4,12 +4,6 @@ license = "MIT"
 authors = ["Evan Patterson <evan@epatters.org>"]
 version = "0.6.3"
 
-[weakdeps]
-CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
-
-[extensions]
-CombinatorialSpacesCUDAExt = "CUDA"
-
 [deps]
 ACSets = "227ef7b5-1206-438b-ac65-934d6da304b8"
 Artifacts = "56f22d72-fd6d-98f1-02f0-08ddc0907c33"
@@ -27,6 +21,12 @@ Reexport = "189a3867-3050-52da-a836-e630ba90ab69"
 Requires = "ae029012-a4dd-5104-9daa-d747884805df"
 SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
 StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
+
+[weakdeps]
+CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
+
+[extensions]
+CombinatorialSpacesCUDAExt = "CUDA"
 
 [compat]
 ACSets = "0.2"

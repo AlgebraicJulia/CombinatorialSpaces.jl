@@ -1,92 +1,94 @@
-  using CombinatorialSpaces
-  using GeometryBasics
-  using CUDA
-  using LinearAlgebra
-  using SparseArrays
-  Point2D = Point2{Float64}
-  Point3D = Point3{Float64}
+module CombinatorialSpacesCUDAExt
 
-  export dec_cu_c_wedge_product!, dec_cu_c_wedge_product, dec_cu_p_wedge_product
+using CombinatorialSpaces
+using GeometryBasics
+using CUDA
+using LinearAlgebra
+using SparseArrays
+Point2D = Point2{Float64}
+Point3D = Point3{Float64}
 
-  dec_cu_p_wedge_product(::Type{Tuple{m,n}}, sd) where {m,n} = begin
-    val_pack = dec_p_wedge_product(Tuple{m,n}, sd)
-    cuda_val_pack = (CuArray.(val_pack[1:end-1]), val_pack[end]) 
+export dec_cu_c_wedge_product!, dec_cu_c_wedge_product, dec_cu_p_wedge_product
+
+dec_cu_p_wedge_product(::Type{Tuple{m,n}}, sd) where {m,n} = begin
+  val_pack = dec_p_wedge_product(Tuple{m,n}, sd)
+  cuda_val_pack = (CuArray.(val_pack[1:end-1]), val_pack[end]) 
+end
+
+# TODO: Should add typing to the zeros call
+dec_cu_c_wedge_product(::Type{Tuple{m,n}}, wedge_terms, α, β, val_pack) where {m,n} = begin
+  wedge_terms = CUDA.zeros(last(last(val_pack)))
+  return dec_cu_c_wedge_product!(Tuple{m,n}, wedge_terms, α, β, val_pack)
+end
+
+function dec_cu_c_wedge_product!(::Type{Tuple{0,1}}, wedge_terms, f, α, val_pack)
+  num_threads = CUDA.max_block_size.x
+  num_blocks = min(ceil(Int, length(wedge_terms) / num_threads), CUDA.max_grid_size.x)
+
+  @cuda threads=num_threads blocks=num_blocks dec_cu_ker_c_wedge_product_01!(wedge_terms, f, α, val_pack[1])
+  return wedge_terms
+end
+
+function dec_cu_c_wedge_product!(::Type{Tuple{0,2}}, wedge_terms, f, α, val_pack)
+  num_threads = CUDA.max_block_size.x
+  num_blocks = min(ceil(Int, length(wedge_terms) / num_threads), CUDA.max_grid_size.x)
+
+  @cuda threads=num_threads blocks=num_blocks dec_cu_ker_c_wedge_product_02!(wedge_terms, f, α, val_pack[1], val_pack[2])
+  return wedge_terms
+end
+
+function dec_cu_c_wedge_product!(::Type{Tuple{1,1}}, wedge_terms, f, α, val_pack)
+  num_threads = CUDA.max_block_size.x
+  num_blocks = min(ceil(Int, length(wedge_terms) / num_threads), CUDA.max_grid_size.x)
+
+  @cuda threads=num_threads blocks=num_blocks dec_cu_ker_c_wedge_product_11!(wedge_terms, f, α, val_pack[1], val_pack[2])
+  return wedge_terms
+end
+
+function dec_cu_ker_c_wedge_product_01!(wedge_terms::CuDeviceArray{T}, f, α, primal_vertices) where T
+  index = (blockIdx().x - Int32(1)) * blockDim().x + threadIdx().x   
+  stride = gridDim().x * blockDim().x
+  i = index
+  @inbounds while i <= Int32(length(wedge_terms))
+    wedge_terms[i] = T(0.5) * α[i] * (f[primal_vertices[i, Int32(1)]] + f[primal_vertices[i, Int32(2)]])
+    i += stride
   end
+  return nothing
+end
 
-  # TODO: Should add typing to the zeros call
-  dec_cu_c_wedge_product(::Type{Tuple{m,n}}, wedge_terms, α, β, val_pack) where {m,n} = begin
-    wedge_terms = CUDA.zeros(last(last(val_pack)))
-    return dec_cu_c_wedge_product!(Tuple{m,n}, wedge_terms, α, β, val_pack)
+function dec_cu_ker_c_wedge_product_02!(wedge_terms::CuDeviceArray{T}, f, α, pv, coeffs) where T
+  index = (blockIdx().x - Int32(1)) * blockDim().x + threadIdx().x   
+  stride = gridDim().x * blockDim().x
+  i = index
+
+  @inbounds while i <= Int32(length(wedge_terms))
+    wedge_terms[i] = α[i] * (coeffs[Int32(1), i] * f[pv[Int32(1), i]] + coeffs[Int32(2), i] * f[pv[Int32(2), i]]
+                                + coeffs[Int32(3), i] * f[pv[Int32(3), i]] + coeffs[Int32(4), i] * f[pv[Int32(4), i]]
+                                + coeffs[Int32(5), i] * f[pv[Int32(5), i]] + coeffs[Int32(6), i] * f[pv[Int32(6), i]])
+    i += stride
   end
+  return nothing
+end
 
-  function dec_cu_c_wedge_product!(::Type{Tuple{0,1}}, wedge_terms, f, α, val_pack)
-    num_threads = CUDA.max_block_size.x
-    num_blocks = min(ceil(Int, length(wedge_terms) / num_threads), CUDA.max_grid_size.x)
+function dec_cu_ker_c_wedge_product_11!(wedge_terms, α, β, e, coeffs)
+  index = (blockIdx().x - Int32(1)) * blockDim().x + threadIdx().x   
+  stride = gridDim().x * blockDim().x
+  i = index
 
-    @cuda threads=num_threads blocks=num_blocks dec_cu_ker_c_wedge_product_01!(wedge_terms, f, α, val_pack[1])
-    return wedge_terms
-  end
+  @inbounds while i <= Int32(length(wedge_terms))
+      e0, e1, e2 = e[Int32(1), i], e[Int32(2), i], e[Int32(3), i]
+      ae0, ae1, ae2 = α[e0], α[e1], α[e2]
+      be0, be1, be2 = β[e0], β[e1], β[e2]
 
-  function dec_cu_c_wedge_product!(::Type{Tuple{0,2}}, wedge_terms, f, α, val_pack)
-    num_threads = CUDA.max_block_size.x
-    num_blocks = min(ceil(Int, length(wedge_terms) / num_threads), CUDA.max_grid_size.x)
+      c1, c2, c3 = coeffs[Int32(1), i], coeffs[Int32(2), i], coeffs[Int32(3), i]
 
-    @cuda threads=num_threads blocks=num_blocks dec_cu_ker_c_wedge_product_02!(wedge_terms, f, α, val_pack[1], val_pack[2])
-    return wedge_terms
-  end
-
-  function dec_cu_c_wedge_product!(::Type{Tuple{1,1}}, wedge_terms, f, α, val_pack)
-    num_threads = CUDA.max_block_size.x
-    num_blocks = min(ceil(Int, length(wedge_terms) / num_threads), CUDA.max_grid_size.x)
-
-    @cuda threads=num_threads blocks=num_blocks dec_cu_ker_c_wedge_product_11!(wedge_terms, f, α, val_pack[1], val_pack[2])
-    return wedge_terms
-  end
-
-  function dec_cu_ker_c_wedge_product_01!(wedge_terms::CuDeviceArray{T}, f, α, primal_vertices) where T
-    index = (blockIdx().x - Int32(1)) * blockDim().x + threadIdx().x   
-    stride = gridDim().x * blockDim().x
-    i = index
-    @inbounds while i <= Int32(length(wedge_terms))
-      wedge_terms[i] = T(0.5) * α[i] * (f[primal_vertices[i, Int32(1)]] + f[primal_vertices[i, Int32(2)]])
+      wedge_terms[i] = (c1 * (ae2 * be1 - ae1 * be2)
+                      + c2 * (ae2 * be0 - ae0 * be2)
+                      + c3 * (ae1 * be0 - ae0 * be1))
       i += stride
-    end
-    return nothing
   end
 
-  function dec_cu_ker_c_wedge_product_02!(wedge_terms::CuDeviceArray{T}, f, α, pv, coeffs) where T
-    index = (blockIdx().x - Int32(1)) * blockDim().x + threadIdx().x   
-    stride = gridDim().x * blockDim().x
-    i = index
-
-    @inbounds while i <= Int32(length(wedge_terms))
-      wedge_terms[i] = α[i] * (coeffs[Int32(1), i] * f[pv[Int32(1), i]] + coeffs[Int32(2), i] * f[pv[Int32(2), i]]
-                                 + coeffs[Int32(3), i] * f[pv[Int32(3), i]] + coeffs[Int32(4), i] * f[pv[Int32(4), i]]
-                                 + coeffs[Int32(5), i] * f[pv[Int32(5), i]] + coeffs[Int32(6), i] * f[pv[Int32(6), i]])
-      i += stride
-    end
-    return nothing
-  end
-
-  function dec_cu_ker_c_wedge_product_11!(wedge_terms, α, β, e, coeffs)
-    index = (blockIdx().x - Int32(1)) * blockDim().x + threadIdx().x   
-    stride = gridDim().x * blockDim().x
-    i = index
-
-    @inbounds while i <= Int32(length(wedge_terms))
-        e0, e1, e2 = e[Int32(1), i], e[Int32(2), i], e[Int32(3), i]
-        ae0, ae1, ae2 = α[e0], α[e1], α[e2]
-        be0, be1, be2 = β[e0], β[e1], β[e2]
-
-        c1, c2, c3 = coeffs[Int32(1), i], coeffs[Int32(2), i], coeffs[Int32(3), i]
-
-        wedge_terms[i] = (c1 * (ae2 * be1 - ae1 * be2)
-                        + c2 * (ae2 * be0 - ae0 * be2)
-                        + c3 * (ae1 * be0 - ae0 * be1))
-        i += stride
-    end
-
-    return nothing
+  return nothing
 end
 
 ### Exterior Derivatives Here ###
@@ -206,4 +208,6 @@ function dec_cu_ker_c_differential_same!(res, f, indices)
   end
 
   return nothing
+end
+
 end
