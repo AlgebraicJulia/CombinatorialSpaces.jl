@@ -9,6 +9,8 @@
   Point2D = Point2{Float64}
   Point3D = Point3{Float64}
 
+  export dec_cu_c_wedge_product!, dec_cu_c_wedge_product, dec_cu_p_wedge_product
+
   dec_cu_p_wedge_product(::Type{Tuple{m,n}}, sd) where {m,n} = begin
     val_pack = dec_p_wedge_product(Tuple{m,n}, sd)
     cuda_val_pack = (CuArray.(val_pack[1:end-1]), val_pack[end]) 
