@@ -246,8 +246,7 @@ function dec_cu_ker_c_differential_same!(res, f, indices)
   end
 
   return nothing
-end
+end =#
 
 end
 
-=#
