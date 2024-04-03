@@ -3,11 +3,13 @@ module CombinatorialSpacesCUDAExt
 using CombinatorialSpaces
 using GeometryBasics
 using CUDA
+using CUDA.CUSPARSE
 using LinearAlgebra
 using SparseArrays
 Point2D = Point2{Float64}
 Point3D = Point3{Float64}
-import CombinatorialSpaces: dec_cu_c_wedge_product!, dec_cu_c_wedge_product, dec_cu_p_wedge_product, dec_cu_wedge_product
+import CombinatorialSpaces: dec_cu_c_wedge_product!, dec_cu_c_wedge_product, dec_cu_p_wedge_product, dec_cu_wedge_product,
+dec_boundary, dec_differential, dec_dual_derivative, dec_hodge_star, dec_inv_hodge_star
 
 function dec_cu_wedge_product(::Type{Tuple{0,0}}, sd::HasDeltaSet)
   (f, g) -> f .* g
@@ -109,6 +111,24 @@ function dec_cu_ker_c_wedge_product_11!(wedge_terms, α, β, e, coeffs)
   return nothing
 end
 
+dec_boundary(n::Int, sd::HasDeltaSet, ::Type{Val{CUDA}}) = CuSparseMatrixCSC(dec_boundary(n, sd))
+dec_dual_derivative(n::Int, sd::HasDeltaSet, ::Type{Val{CUDA}}) = CuSparseMatrixCSC(dec_dual_derivative(n, sd))
+dec_differential(n::Int, sd::HasDeltaSet, ::Type{Val{CUDA}}) = CuSparseMatrixCSC(dec_differential(n, sd))
+
+dec_hodge_star(n::Int, sd::HasDeltaSet, ::DiagonalHodge, ::Type{Val{CUDA}}) = CuArray(dec_hodge_star(n, sd, DiagonalHodge()))
+dec_hodge_star(n::Int, sd::HasDeltaSet, ::GeometricHodge, ::Type{Val{CUDA}}) = CuArray(dec_hodge_star(n, sd, GeometricHodge()))
+dec_hodge_star(::Type{Val{1}}, sd::HasDeltaSet, ::GeometricHodge, ::Type{Val{CUDA}}) = CuSparseMatrixCSC(dec_hodge_star(Val{1}, sd, GeometricHodge()))
+
+dec_inv_hodge_star(n::Int, sd::HasDeltaSet, ::DiagonalHodge, ::Type{Val{CUDA}}) = CuArray(dec_inv_hodge_star(n, sd, DiagonalHodge()))
+dec_inv_hodge_star(n::Int, sd::HasDeltaSet, ::GeometricHodge, ::Type{Val{CUDA}}) = CuArray(dec_inv_hodge_star(n, sd, GeometricHodge()))
+
+#= function dec_inv_hodge_star(::Type{Val{1}}, sd::EmbeddedDeltaDualComplex2D, ::GeometricHodge, ::Type{Val{CUDA}})
+  hdg = -1 * dec_hodge_star(1, sd, GeometricHodge(), Val{CUDA})
+  x -> Krylov.gmres(hdg, x)[1]
+end =#
+
+# TODO: Revisit this exterior derivative kernel code later
+#= 
 ### Exterior Derivatives Here ###
 
 function dec_p_derivbound(::Type{Val{0}}, sd::HasDeltaSet; transpose::Bool=false, negate::Bool=false)
@@ -229,3 +249,5 @@ function dec_cu_ker_c_differential_same!(res, f, indices)
 end
 
 end
+
+=#
