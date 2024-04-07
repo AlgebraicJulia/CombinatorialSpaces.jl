@@ -111,19 +111,28 @@ function dec_cu_ker_c_wedge_product_11!(wedge_terms, α, β, e, coeffs)
   return nothing
 end
 
-dec_boundary(n::Int, sd::HasDeltaSet, ::Type{Val{CUDA}}) = CuSparseMatrixCSC(dec_boundary(n, sd))
-dec_dual_derivative(n::Int, sd::HasDeltaSet, ::Type{Val{CUDA}}) = CuSparseMatrixCSC(dec_dual_derivative(n, sd))
-dec_differential(n::Int, sd::HasDeltaSet, ::Type{Val{CUDA}}) = CuSparseMatrixCSC(dec_differential(n, sd))
+# TODO: This should be cleaned up
+dec_boundary(n::Int, sd::EmbeddedDeltaDualComplex1D{Bool, float_type, _p} where _p, ::Type{Val{:CUDA}}) where float_type = CuSparseMatrixCSC{float_type}(dec_boundary(n, sd))
+dec_dual_derivative(n::Int, sd::EmbeddedDeltaDualComplex1D{Bool, float_type, _p} where _p, ::Type{Val{:CUDA}}) where float_type = CuSparseMatrixCSC{float_type}(dec_dual_derivative(n, sd))
+dec_differential(n::Int, sd::EmbeddedDeltaDualComplex1D{Bool, float_type, _p} where _p, ::Type{Val{:CUDA}}) where float_type = CuSparseMatrixCSC{float_type}(dec_differential(n, sd))
 
-dec_hodge_star(n::Int, sd::HasDeltaSet, ::DiagonalHodge, ::Type{Val{CUDA}}) = CuArray(dec_hodge_star(n, sd, DiagonalHodge()))
-dec_hodge_star(n::Int, sd::HasDeltaSet, ::GeometricHodge, ::Type{Val{CUDA}}) = CuArray(dec_hodge_star(n, sd, GeometricHodge()))
-dec_hodge_star(::Type{Val{1}}, sd::HasDeltaSet, ::GeometricHodge, ::Type{Val{CUDA}}) = CuSparseMatrixCSC(dec_hodge_star(Val{1}, sd, GeometricHodge()))
+dec_boundary(n::Int, sd::EmbeddedDeltaDualComplex2D{Bool, float_type, _p} where _p, ::Type{Val{:CUDA}}) where float_type = CuSparseMatrixCSC{float_type}(dec_boundary(n, sd))
+dec_dual_derivative(n::Int, sd::EmbeddedDeltaDualComplex2D{Bool, float_type, _p} where _p, ::Type{Val{:CUDA}}) where float_type = CuSparseMatrixCSC{float_type}(dec_dual_derivative(n, sd))
+dec_differential(n::Int, sd::EmbeddedDeltaDualComplex2D{Bool, float_type, _p} where _p, ::Type{Val{:CUDA}}) where float_type = CuSparseMatrixCSC{float_type}(dec_differential(n, sd))
 
-dec_inv_hodge_star(n::Int, sd::HasDeltaSet, ::DiagonalHodge, ::Type{Val{CUDA}}) = CuArray(dec_inv_hodge_star(n, sd, DiagonalHodge()))
-dec_inv_hodge_star(n::Int, sd::HasDeltaSet, ::GeometricHodge, ::Type{Val{CUDA}}) = CuArray(dec_inv_hodge_star(n, sd, GeometricHodge()))
+dec_boundary(n::Int, sd::HasDeltaSet, ::Type{Val{:CUDA}}) = CuSparseMatrixCSC(dec_boundary(n, sd))
+dec_dual_derivative(n::Int, sd::HasDeltaSet, ::Type{Val{:CUDA}}) = CuSparseMatrixCSC(dec_dual_derivative(n, sd))
+dec_differential(n::Int, sd::HasDeltaSet, ::Type{Val{:CUDA}}) = CuSparseMatrixCSC(dec_differential(n, sd))
 
-#= function dec_inv_hodge_star(::Type{Val{1}}, sd::EmbeddedDeltaDualComplex2D, ::GeometricHodge, ::Type{Val{CUDA}})
-  hdg = -1 * dec_hodge_star(1, sd, GeometricHodge(), Val{CUDA})
+dec_hodge_star(n::Int, sd::HasDeltaSet, ::DiagonalHodge, ::Type{Val{:CUDA}}) = CuArray(dec_hodge_star(n, sd, DiagonalHodge()))
+dec_hodge_star(n::Int, sd::HasDeltaSet, ::GeometricHodge, ::Type{Val{:CUDA}}) = CuArray(dec_hodge_star(n, sd, GeometricHodge()))
+dec_hodge_star(::Type{Val{1}}, sd::HasDeltaSet, ::GeometricHodge, ::Type{Val{:CUDA}}) = CuSparseMatrixCSC(dec_hodge_star(Val{1}, sd, GeometricHodge()))
+
+dec_inv_hodge_star(n::Int, sd::HasDeltaSet, ::DiagonalHodge, ::Type{Val{:CUDA}}) = CuArray(dec_inv_hodge_star(n, sd, DiagonalHodge()))
+dec_inv_hodge_star(n::Int, sd::HasDeltaSet, ::GeometricHodge, ::Type{Val{:CUDA}}) = CuArray(dec_inv_hodge_star(n, sd, GeometricHodge()))
+
+#= function dec_inv_hodge_star(::Type{Val{1}}, sd::EmbeddedDeltaDualComplex2D, ::GeometricHodge, ::Type{Val{:CUDA}})
+  hdg = -1 * dec_hodge_star(1, sd, GeometricHodge(), Val{:CUDA})
   x -> Krylov.gmres(hdg, x)[1]
 end =#
 
