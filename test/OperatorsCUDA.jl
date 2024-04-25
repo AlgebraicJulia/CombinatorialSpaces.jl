@@ -52,11 +52,105 @@ dual_meshes_2D = [(generate_dual_mesh ∘ loadmesh ∘ Icosphere).(1:2)...,
                (generate_dual_mesh).([triangulated_grid(10,10,8,8,Point3D), makeSphere(5, 175, 5, 0, 360, 5, 6371+90)[1]])...,
                (loadmesh)(Torus_30x10())];
 
+@testset "Exterior Derivative" begin
+    for i in 0:0 
+        for sd in dual_meshes_1D
+            @test all(dec_differential(i, sd) .== sparse(dec_differential(i, sd, Val{:CUDA})))
+        end
+    end
+
+    for i in 0:1 
+        for sd in dual_meshes_2D
+            @test all(dec_differential(i, sd) .== sparse(dec_differential(i, sd, Val{:CUDA})))
+        end
+    end
+end
+
+@testset "Boundary" begin
+    for i in 1:1 
+        for sd in dual_meshes_1D
+            @test all(dec_boundary(i, sd) .== sparse(dec_boundary(i, sd, Val{:CUDA})))
+        end
+    end
+
+    for i in 1:2
+        for sd in dual_meshes_2D
+            @test all(dec_boundary(i, sd) .== sparse(dec_boundary(i, sd, Val{:CUDA})))
+        end
+    end
+end
+
+@testset "Dual Derivative" begin
+    for i in 0:0 
+        for sd in dual_meshes_1D
+            @test all(dec_dual_derivative(i, sd) .== sparse(dual_derivative(i, sd, Val{:CUDA})))
+        end
+    end
+
+    for i in 0:1
+        for sd in dual_meshes_2D
+            @test all(dec_dual_derivative(i, sd) .== sparse(dual_derivative(i, sd, Val{:CUDA})))
+        end
+    end
+end
+
+#TODO: For hodge star 1, the values seems to be extremely close yet not quite equal
+@testset "Diagonal Hodge" begin
+    for i in 0:1
+        for sd in dual_meshes_1D
+            @test all(dec_hodge_star(Val{i}, sd, DiagonalHodge()) .== Array(dec_hodge_star(i, sd, DiagonalHodge(), Val{:CUDA})))
+        end
+    end
+
+    for i in 0:2
+        for sd in dual_meshes_2D
+            @test all(dec_hodge_star(Val{i}, sd, DiagonalHodge()) .== Array(dec_hodge_star(i, sd, DiagonalHodge(), Val{:CUDA})))
+        end
+    end
+end
+
+#TODO: For inv hodge star 1, the values seems to be extremely close yet not quite equal
+@testset "Inverse Diagonal Hodge" begin
+    for i in 0:1
+        for sd in dual_meshes_1D
+            @test all(dec_inv_hodge_star(Val{i}, sd, DiagonalHodge()) .== Array(dec_inv_hodge_star(i, sd, DiagonalHodge(), Val{:CUDA})))
+        end
+    end
+
+    for i in 0:2
+        for sd in dual_meshes_2D
+            @test all(dec_inv_hodge_star(Val{i}, sd, DiagonalHodge()) .== Array(dec_inv_hodge_star(i, sd, DiagonalHodge(), Val{:CUDA})))
+        end
+    end
+end
+
+@testset "Geometric Hodge" begin
+    for i in 0:1
+        for sd in dual_meshes_1D
+            @test all(dec_hodge_star(Val{i}, sd, GeometricHodge()) .== Array(hodge_star(i, sd, GeometricHodge(), Val{:CUDA})))
+        end
+    end
+
+    for i in [0, 2]
+        for sd in dual_meshes_2D
+            @test all(dec_hodge_star(Val{i}, sd, GeometricHodge()) .== Array(hodge_star(i, sd, GeometricHodge(), Val{:CUDA})))
+        end
+    end
+
+    # TODO: Why does this test require atol, not rtol, to reasonably pass?
+    for i in [1]
+        for sd in dual_meshes_2D
+            @test all(dec_hodge_star(Val{i}, sd, GeometricHodge()) .== sparse(dec_hodge_star(i, sd, GeometricHodge(), Val{:CUDA})))
+        end
+    end
+
+end
+            
 @testset "Inverse Geometric Hodge" begin
     for i in 1:1
         for sd in dual_meshes_2D[1:end-1]
             V_1 = rand(ne(sd))
-            @test all(isapprox.(dec_inv_hodge_star(Val{i}, sd, GeometricHodge())(V_1), inv_hodge_star(i, sd, GeometricHodge()) * V_1; rtol = 1e-12))
+            @test all(isapprox.(dec_inv_hodge_star(Val{i}, sd, GeometricHodge())(V_1), Array(dec_inv_hodge_star(i, sd, GeometricHodge(), Val{:CUDA})(CuArray(V_1)); rtol = 1e-12)))
         end
     end
 end
