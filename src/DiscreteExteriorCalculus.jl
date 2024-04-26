@@ -25,20 +25,26 @@ export DualSimplex, DualV, DualE, DualTri, DualTet, DualChain, DualForm,
   ℒ, lie_derivative, lie_derivative_flat,
   vertex_center, edge_center, triangle_center, tetrahedron_center, dual_triangle_vertices,
   dual_point, dual_volume, subdivide_duals!, DiagonalHodge, GeometricHodge,
-  subdivide, PPSharp, AltPPSharp, DesbrunSharp
+  subdivide, PPSharp, AltPPSharp, DesbrunSharp, LLSDDSharp, de_sign,
+  ♭♯, ♭♯_mat, flat_sharp, flat_sharp_mat
 
 import Base: ndims
 import Base: *
 import LinearAlgebra: mul!
-using LinearAlgebra: Diagonal, dot, norm, cross
+using LinearAlgebra: Diagonal, dot, norm, cross, pinv
 using SparseArrays
 using StaticArrays: @SVector, SVector, SMatrix
+using GeometryBasics: Point2, Point3
+
+const Point2D = SVector{2,Float64}
+const Point3D = SVector{3,Float64}
 
 using ACSets.DenseACSets: attrtype_type
 using Catlab, Catlab.CategoricalAlgebra.CSets
 using Catlab.CategoricalAlgebra.FinSets: deleteat
 import Catlab.CategoricalAlgebra.CSets: ∧
 import Catlab.Theories: Δ
+using DataMigrations: @migrate
 
 using ..ArrayUtils, ..SimplicialSets
 using ..SimplicialSets: CayleyMengerDet, operator_nz, ∂_nz, d_nz,
@@ -52,6 +58,7 @@ abstract type DiscreteSharp end
 struct PPSharp <: DiscreteSharp end
 struct AltPPSharp <: DiscreteSharp end
 struct DesbrunSharp <: DiscreteSharp end
+struct LLSDDSharp <: DiscreteSharp end
 
 abstract type DiscreteHodge end
 struct GeometricHodge <: DiscreteHodge end
@@ -679,6 +686,11 @@ function ♯(s::AbstractDeltaDualComplex2D, α::AbstractVector, DS::DiscreteShar
   α♯
 end
 
+function ♯(s::AbstractDeltaDualComplex2D, α::AbstractVector, ::LLSDDSharp)
+  ♯_m = ♯_mat(s, LLSDDSharp())
+  ♯_m * α
+end
+
 """ Divided weighted normals by | σⁿ | .
 
 This weighting is that used in equation 5.8.1 from Hirani.
@@ -700,7 +712,9 @@ See Hirani §5.8.
 ♯_denominator(s::AbstractDeltaDualComplex2D, v::Int, _::Int, ::AltPPSharp) =
   sum(dual_volume(2,s, elementary_duals(0,s,v)))
 
-""" Find a vector orthogonal to e pointing into the triangle shared with v.
+"""    function get_orthogonal_vector(s::AbstractDeltaDualComplex2D, v::Int, e::Int)
+
+Find a vector orthogonal to e pointing into the triangle shared with v.
 """
 function get_orthogonal_vector(s::AbstractDeltaDualComplex2D, v::Int, e::Int)
   e_vec = point(s, tgt(s, e)) - point(s, src(s, e))
@@ -735,6 +749,14 @@ function ♯_assign!(♯_mat::AbstractSparseMatrix, s::AbstractDeltaDualComplex2
   end
 end
 
+"""    function ♯_mat(s::AbstractDeltaDualComplex2D, DS::DiscreteSharp)
+
+Sharpen a 1-form into a vector field.
+
+3 primal-primal methods are supported. See [`♯_denominator`](@ref) for the distinction between Hirani's method and and an "Alternative" method. Desbrun's definition is selected with `DesbrunSharp`, and is like Hirani's, save for dividing by the norm twice.
+
+A dual-dual method which uses linear least squares to estimate a vector field is selected with `LLSDDSharp`.
+"""
 function ♯_mat(s::AbstractDeltaDualComplex2D, DS::DiscreteSharp)
   ♯_mat = spzeros(attrtype_type(s, :Point), (nv(s), ne(s)))
   for t in triangles(s)
@@ -747,6 +769,47 @@ function ♯_mat(s::AbstractDeltaDualComplex2D, DS::DiscreteSharp)
     end
   end
   ♯_mat
+end
+
+de_sign(s,de) = s[de, :D_edge_orientation] ? +1 : -1
+
+"""    function ♯_mat(s::AbstractDeltaDualComplex2D, ::LLSDDSharp)
+
+Sharpen a dual 1-form into a DualVectorField, using linear least squares.
+
+Up to floating point error, this method perfectly produces fields which are constant over any triangle in the domain. Assume that the contribution of each half-edge to the value stored on the entire dual edge is proportional to their lengths. Since this least squares method does not perform pre-normalization, the contribution of each half-edge value is proportional to its length on the given triangle. Satisfying the continuous exterior calculus, sharpened vectors are constrained to lie on their triangle (i.e. they are indeed tangent).
+
+It is not known whether this method has been exploited previously in the DEC literature, or defined in code elsewhere.
+"""
+function ♯_mat(s::AbstractDeltaDualComplex2D, ::LLSDDSharp)
+  # TODO: Grab point information out of s at the type level.
+  pt = attrtype_type(s, :Point)
+  ♯_m = spzeros(SVector{length(pt), eltype(pt)},
+                findnz(d(1,s))[[1,2]]...)
+  for t in triangles(s)
+    tri_center, tri_edges = triangle_center(s,t), sort(triangle_edges(s,t))
+    # | ⋆eₓ ∩ σⁿ |
+    star_e_cap_t = map(tri_edges) do e
+      only(filter(elementary_duals(1,s,e)) do de
+        s[de, :D_∂v0] == tri_center
+      end)
+    end
+    de_vecs = map(star_e_cap_t) do de
+      de_sign(s,de) *
+        (dual_point(s,s[de, :D_∂v0]) - dual_point(s,s[de, :D_∂v1]))
+    end
+    weights = s[star_e_cap_t, :dual_length] ./
+      map(tri_edges) do e
+        sum(s[elementary_duals(1,s,e), :dual_length])
+      end
+    # TODO: Move around ' as appropriate to minimize transposing.
+    X = stack(de_vecs)'
+    LLS = pinv(X'*(X))*(X')
+    for (i,e) in enumerate(tri_edges)
+      ♯_m[t, e] = LLS[:,i]'*weights[i]
+    end
+  end
+  ♯_m
 end
 
 function ∧(::Type{Tuple{1,1}}, s::HasDeltaSet2D, α, β, x::Int)
@@ -1576,11 +1639,9 @@ See also: the sharp operator [`♯`](@ref).
 """
 const flat = ♭
 
-""" Sharp operator for converting 1-forms to vector fields.
+""" Sharp operator for converting primal 1-forms to primal vector fields.
 
-A generic function for discrete sharp operators. Currently only the
-primal-primal flat from (Hirani 2003, Definition 5.8.1 and Remark 2.7.2) is
-implemented.
+This the primal-primal sharp from Hirani 2003, Definition 5.8.1 and Remark 2.7.2.
 
 !!! note
 
@@ -1594,13 +1655,48 @@ implemented.
     knowledge, our implementation is the correct one and agrees with Hirani's
     description, if not his figure.
 
-See also: the flat operator [`♭`](@ref).
+See also: [`♭`](@ref) and [`♯_mat`](@ref), which returns a matrix that encodes this operator.
 """
 ♯(s::HasDeltaSet, α::EForm) = PrimalVectorField(♯(s, α.data, PPSharp()))
+
+""" Sharp operator for converting dual 1-forms to dual vector fields.
+
+This dual-dual sharp uses a method of local linear least squares to provide a
+tangent vector field.
+
+See also: [`♯_mat`](@ref), which returns a matrix that encodes this operator.
+"""
+♯(s::HasDeltaSet, α::DualForm{1}) = DualVectorField(♯(s, α.data, LLSDDSharp()))
 
 """ Alias for the sharp operator [`♯`](@ref).
 """
 const sharp = ♯
+
+"""    ♭♯_mat(s::HasDeltaSet)
+
+Make a dual 1-form primal by chaining ♭ᵈᵖ♯ᵈᵈ.
+
+This returns a matrix which can be multiplied by a dual 1-form.
+See also [`♭♯`](@ref).
+"""
+♭♯_mat(s::HasDeltaSet) = ♭_mat(s) * ♯_mat(s, LLSDDSharp())
+
+"""    ♭♯(s::HasDeltaSet, α::SimplexForm{1})
+
+Make a dual 1-form primal by chaining ♭ᵈᵖ♯ᵈᵈ.
+
+This returns the given dual 1-form as a primal 1-form.
+See also [`♭♯_mat`](@ref).
+"""
+♭♯(s::HasDeltaSet, α::SimplexForm{1}) = only.(♭♯_mat(s) * α)
+
+""" Alias for the flat-sharp dual-to-primal interpolation operator [`♭♯`](@ref).
+"""
+const flat_sharp = ♭♯
+
+""" Alias for the flat-sharp dual-to-primal interpolation matrix [`♭♯_mat`](@ref).
+"""
+const flat_sharp_mat = ♭♯_mat
 
 """ Wedge product of discrete forms.
 
@@ -1703,6 +1799,27 @@ end
 function lie_derivative_flat(::Type{Val{2}}, s::HasDeltaSet,
                              X♭::AbstractVector, α::AbstractVector; kw...)
   dual_derivative(1, s, interior_product_flat(2, s, X♭, α; kw...))
+end
+
+function eval_constant_primal_form(s::EmbeddedDeltaDualComplex2D{Bool, Float64, T} where T<:Union{Point3D, Point3{Float64}}, α::SVector{3,Float64})
+  EForm(map(edges(s)) do e
+          dot(α, point(s, tgt(s,e)) - point(s, src(s,e))) * sign(1,s,e)
+        end)
+end
+function eval_constant_primal_form(s::EmbeddedDeltaDualComplex2D{Bool, Float64, T} where T<:Union{Point2D, Point2{Float64}}, α::SVector{3,Float64})
+  α = SVector{2,Float64}(α[1],α[2])
+  EForm(map(edges(s)) do e
+          dot(α, point(s, tgt(s,e)) - point(s, src(s,e))) * sign(1,s,e)
+        end)
+end
+
+# Evaluate a constant dual form
+# XXX: This "left/right-hand-rule" trick only works when z=0.
+# XXX: So, do not use this function to test e.g. curved surfaces.
+function eval_constant_dual_form(s::EmbeddedDeltaDualComplex2D, α::SVector{3,Float64})
+  EForm(
+    hodge_star(1,s) *
+      eval_constant_primal_form(s, SVector{3,Float64}(α[2], -α[1], α[3])))
 end
 
 end

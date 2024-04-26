@@ -5,7 +5,12 @@ using LinearAlgebra: Diagonal, mul!, norm, dot
 using SparseArrays, StaticArrays
 
 using Catlab.CategoricalAlgebra.CSets
+using ACSets
+using ACSets.DenseACSets: attrtype_type
 using CombinatorialSpaces
+using CombinatorialSpaces.Meshes: tri_345, tri_345_false, grid_345, right_scalene_unit_hypot
+using CombinatorialSpaces.DiscreteExteriorCalculus: eval_constant_primal_form, eval_constant_dual_form
+using GeometryBasics: Point2, Point3
 
 const Point2D = SVector{2,Float64}
 const Point3D = SVector{3,Float64}
@@ -365,12 +370,7 @@ vfs = [Point3D(1,0,0), Point3D(1,1,0), Point3D(-3,2,0), Point3D(0,0,0),
   Point3D(-0.07058313895389791, 0.5314767537831963, 0.0)]
 
 # 3,4,5 triangle.
-primal_s = EmbeddedDeltaSet2D{Bool,Point3D}()
-add_vertices!(primal_s, 3, point=[Point3D(0,0,0), Point3D(3,0,0), Point3D(3,4,0)])
-glue_triangle!(primal_s, 1, 2, 3, tri_orientation=true)
-primal_s[:edge_orientation] = true
-s = EmbeddedDeltaDualComplex2D{Bool,Float64,Point3D}(primal_s)
-subdivide_duals!(s, Barycenter())
+primal_s, s = tri_345()
 foreach(vf -> test_♯(s, vf), vfs)
 ♯_m = ♯_mat(s, DesbrunSharp())
 X = eval_constant_form(s, Point3D(1,0,0))
@@ -378,25 +378,6 @@ X♯ = ♯_m * X
 @test all(X♯ .≈ [Point3D(.8,.4,0), Point3D(0,-1,0), Point3D(-.8,.6,0)])
 
 # Grid of 3,4,5 triangles.
-function grid_345()
-  primal_s = EmbeddedDeltaSet2D{Bool,Point3D}()
-  add_vertices!(primal_s, 9,
-    point=[Point3D(0,+4,0), Point3D(3,+4,0), Point3D(6,+4,0),
-          Point3D(0, 0,0), Point3D(3, 0,0), Point3D(6, 0,0),
-          Point3D(0,-4,0), Point3D(3,-4,0), Point3D(6,-4,0)])
-  glue_sorted_triangle!(primal_s, 1, 2, 4)
-  glue_sorted_triangle!(primal_s, 5, 2, 4)
-  glue_sorted_triangle!(primal_s, 5, 2, 3)
-  glue_sorted_triangle!(primal_s, 5, 6, 3)
-  glue_sorted_triangle!(primal_s, 5, 7, 4)
-  glue_sorted_triangle!(primal_s, 5, 7, 8)
-  glue_sorted_triangle!(primal_s, 5, 6, 8)
-  glue_sorted_triangle!(primal_s, 9, 6, 8)
-  primal_s[:edge_orientation] = true
-  s = EmbeddedDeltaDualComplex2D{Bool,Float64,Point3D}(primal_s)
-  subdivide_duals!(s, Barycenter())
-  (primal_s, s)
-end
 primal_s, s = grid_345()
 foreach(vf -> test_♯(s, vf), vfs)
 # TODO: Compute results for Desbrun's ♯ by hand.
@@ -564,6 +545,118 @@ X = [SVector(2,3), SVector(5,7)]
 
 @test ♭(s, DualVectorField(X)) == ♭(s′, DualVectorField(X))
 @test ♭_mat(s) * DualVectorField(X) == ♭_mat(s′) * DualVectorField(X)
+
+tg′ = triangulated_grid(100,100,10,10,Point2D);
+tg = EmbeddedDeltaDualComplex2D{Bool,Float64,Point2D}(tg′);
+subdivide_duals!(tg, Barycenter());
+
+rect′ = loadmesh(Rectangle_30x10());
+rect = EmbeddedDeltaDualComplex2D{Bool,Float64,Point3D}(rect′);
+subdivide_duals!(rect, Barycenter());
+
+flat_meshes = [tri_345(), tri_345_false(), right_scalene_unit_hypot(), grid_345(), (tg′, tg), (rect′, rect)];
+
+# Test that the technique for evaluating 1-forms is consistent across primal
+# and dual forms.
+-# ♭ᵈ_discrete(f_continuous) = ⋆₁_discrete∘♭ᵖ_discrete(⋆_continuous f_continuous)
+for (primal_s,s) in flat_meshes
+  α = SVector(1/√2,1/√2,0)
+  left_hand_α = SVector(1/√2,-1/√2,0)
+  f′ = eval_constant_primal_form(s, left_hand_α)
+  f̃ = eval_constant_dual_form(s, α)
+  @test all(map((x,y) -> isapprox( x,y,atol=1e-15), hodge_star(1,s) * f′, f̃))
+end
+
+function all_are_approx(f::Vector{SVector{3,Float64}}, g::SVector{3,Float64}; atol)
+  all(map(f) do f̂
+    all(isapprox.(f̂, g, atol=atol))
+  end)
+end
+function all_are_approx(f::Vector{SVector{2,Float64}}, g::SVector{3,Float64}; atol)
+  all(map(f) do f̂
+        all(isapprox.(f̂, SVector{2,Float64}(g[1],g[2]), atol=atol))
+  end)
+end
+
+for (primal_s,s) in flat_meshes
+  # Test that the least-squares ♯ from dual vector fields to dual 1-forms
+  # preserves constant fields.
+  ♯_m = ♯_mat(s, LLSDDSharp())
+
+  # This tests that numerically raising indices is equivalent to analytically
+  # raising indices.
+  # X_continuous = ♯ᵖ_discrete∘♭ᵖ_discrete(X_continuous)
+  X♯ = SVector{3,Float64}(1/√2,1/√2,0)
+  X♭ = eval_constant_dual_form(s, X♯)
+  @test all_are_approx(♯_m * X♭,  X♯; atol=1e-13) ||
+        all_are_approx(♯_m * X♭, -X♯; atol=1e-13)
+
+  # This tests that numerically raising-then-lowering indices is equivalent to
+  # evaluating a 1-form directly.
+  # Demonstrate how to cache the chained musical isomorphisms.
+  ♭_m = ♭_mat(s)
+  ♭_♯_m = ♭_m * ♯_m
+  # Note that we check explicitly both cases of signedness, because orient!
+  # picks in/outside without regard to the embedding.
+  # This is the "right/left-hand-rule trick."
+  @test all(isapprox.(only.(♭_♯_m * X♭),  eval_constant_primal_form(s, X♯), atol=1e-12)) ||
+        all(isapprox.(only.(♭_♯_m * X♭), -eval_constant_primal_form(s, X♯), atol=1e-12))
+
+  # This test shows how the musical isomorphism chaining lets you further
+  # define a primal-dual wedge that preserves properties from the continuous
+  # exterior calculus.
+  Λpd = dec_wedge_product_pd(Tuple{1,1}, s)
+  Λdp = dec_wedge_product_dp(Tuple{1,1}, s)
+
+  f_def = SVector{3,Float64}(2,7,0)
+  g_def = SVector{3,Float64}(8,1,0)
+  f′ = eval_constant_primal_form(s, f_def)
+  g̃  = eval_constant_dual_form(s, g_def)
+  f̃  = eval_constant_dual_form(s, f_def)
+  g′ = eval_constant_primal_form(s, g_def)
+
+  # Antisymmetry:
+  @test all(Λpd(f′, g̃) .≈ -1 * Λpd(g′, f̃))
+  @test all(Λdp(f̃, g′) .≈ -1 * Λdp(g̃, f′))
+
+  # Antisymmetry (across Λpd and Λdp!):
+  @test all(Λpd(f′, g̃) .== -1 * Λdp(g̃, f′))
+  @test all(Λdp(f̃, g′) .== -1 * Λpd(g′, f̃))
+
+  # f∧f = 0 (implied by antisymmetry):
+  @test all(isapprox.(Λpd(f′, f̃), 0, atol=1e-10))
+  @test all(isapprox.(Λpd(g′, g̃), 0, atol=1e-10))
+
+  # Test and demonstrate the convenience functions:
+  @test all(∧(s, SimplexForm{1}(f′), DualForm{1}(g̃)) .≈ -1 * ∧(s, SimplexForm{1}(g′), DualForm{1}(f̃)))
+  @test all(∧(s, DualForm{1}(f̃), SimplexForm{1}(g′)) .≈ -1 * ∧(s, DualForm{1}(g̃), SimplexForm{1}(f′)))
+
+  # TODO: Test the Leibniz rule.
+end
+
+# Discretely test the continuous property:
+# u :=  fdx + gdy
+# ⋆u = -gdx + fdy
+# u∧⋆u = (fdx + gdy)∧(-gdx + fdy)
+#      = ffdxdy - ggdydx
+#      = (ff+gg)dxdy
+# ⋆(u∧⋆u) = ff+gg
+for (primal_s,s) in flat_meshes
+  f = 2
+  g = 7
+  ff_gg = f*f + g*g
+
+  u_def = SVector{3,Float64}(f,g,0)
+
+  u = eval_constant_primal_form(s, u_def)
+  u_star = hodge_star(1,s) * u
+
+  @test all(isapprox.(
+    sign(2,s) .* hodge_star(2,s) * ∧(s, SimplexForm{1}(u), DualForm{1}(u_star)),
+    ff_gg,
+    atol=1e-10))
+end
+
 
 # 3D dual complex
 #################
