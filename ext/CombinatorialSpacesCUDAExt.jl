@@ -6,6 +6,7 @@ using CUDA
 using CUDA.CUSPARSE
 using LinearAlgebra
 using SparseArrays
+using Krylov
 Point2D = Point2{Float64}
 Point3D = Point3{Float64}
 import CombinatorialSpaces: dec_cu_c_wedge_product!, dec_cu_c_wedge_product, dec_cu_p_wedge_product, dec_cu_wedge_product,
@@ -131,10 +132,10 @@ dec_hodge_star(::Type{Val{1}}, sd::HasDeltaSet, ::GeometricHodge, ::Type{Val{:CU
 dec_inv_hodge_star(n::Int, sd::HasDeltaSet, ::DiagonalHodge, ::Type{Val{:CUDA}}) = CuArray(dec_inv_hodge_star(n, sd, DiagonalHodge()))
 dec_inv_hodge_star(n::Int, sd::HasDeltaSet, ::GeometricHodge, ::Type{Val{:CUDA}}) = CuArray(dec_inv_hodge_star(n, sd, GeometricHodge()))
 
-#= function dec_inv_hodge_star(::Type{Val{1}}, sd::EmbeddedDeltaDualComplex2D, ::GeometricHodge, ::Type{Val{:CUDA}})
+function dec_inv_hodge_star(::Type{Val{1}}, sd::EmbeddedDeltaDualComplex2D, ::GeometricHodge, ::Type{Val{:CUDA}})
   hdg = -1 * dec_hodge_star(1, sd, GeometricHodge(), Val{:CUDA})
-  x -> Krylov.gmres(hdg, x)[1]
-end =#
+  x -> Krylov.gmres(hdg, x, atol = 1e-14)[1]
+end
 
 # TODO: Revisit this exterior derivative kernel code later
 #= 
