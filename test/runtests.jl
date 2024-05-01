@@ -21,20 +21,14 @@ end
   include("MeshGraphics.jl")
 end
 
-import Pkg
-Pkg.add("CUDA")
-
-try
-  using CUDA
-catch exception
-  @info "CUDA tests were not run."
-  @info CUDA.functional(true)
-end
-
+using CUDA
 if CUDA.functional()
   @testset "CUDA" begin
     include("OperatorsCUDA.jl")
   end
+else
+  @info "CUDA tests were not run."
+  @info CUDA.functional(true)
 end
 
 end
