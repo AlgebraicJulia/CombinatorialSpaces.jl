@@ -3,6 +3,6 @@
 ## API docs
 
 ```@autodocs
-Modules = [ DiscreteExteriorCalculus ]
+Modules = [ DiscreteExteriorCalculus, FastDEC ]
 Private = false
 ```

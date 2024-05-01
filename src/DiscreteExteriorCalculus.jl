@@ -1340,7 +1340,7 @@ Make a dual 1-form primal by chaining ♭ᵈᵖ♯ᵈᵈ.
 This returns a matrix which can be multiplied by a dual 1-form.
 See also [`♭♯`](@ref).
 """
-♭♯_mat(s::HasDeltaSet) = ♭_mat(s) * ♯_mat(s, LLSDDSharp())
+♭♯_mat(s::HasDeltaSet) = only.(♭_mat(s) * ♯_mat(s, LLSDDSharp()))
 
 """    ♭♯(s::HasDeltaSet, α::SimplexForm{1})
 
@@ -1349,7 +1349,7 @@ Make a dual 1-form primal by chaining ♭ᵈᵖ♯ᵈᵈ.
 This returns the given dual 1-form as a primal 1-form.
 See also [`♭♯_mat`](@ref).
 """
-♭♯(s::HasDeltaSet, α::SimplexForm{1}) = only.(♭♯_mat(s) * α)
+♭♯(s::HasDeltaSet, α::SimplexForm{1}) = ♭♯_mat(s) * α
 
 """ Alias for the flat-sharp dual-to-primal interpolation operator [`♭♯`](@ref).
 """

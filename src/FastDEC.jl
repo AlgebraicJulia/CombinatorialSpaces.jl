@@ -15,8 +15,7 @@ export dec_boundary, dec_differential, dec_dual_derivative, dec_hodge_star, dec_
        dec_wedge_product_dd,
        Δᵈ
 
-"""
-    dec_p_wedge_product(::Type{Tuple{0,1}}, sd::EmbeddedDeltaDualComplex1D)
+"""    dec_p_wedge_product(::Type{Tuple{0,1}}, sd::EmbeddedDeltaDualComplex1D)
 
 Precomputes values for the wedge product between a 0 and 1-form.
 The values are to be fed into the wedge_terms parameter for the computational "c" varient. 
@@ -27,8 +26,7 @@ function dec_p_wedge_product(::Type{Tuple{0,1}}, sd::EmbeddedDeltaDualComplex1D)
     return (hcat(convert(Vector{Int32}, sd[:∂v0])::Vector{Int32}, convert(Vector{Int32}, sd[:∂v1])::Vector{Int32}), simplices(1, sd))
 end
 
-"""
-    dec_p_wedge_product(::Type{Tuple{0,1}}, sd::EmbeddedDeltaDualComplex2D)
+"""    dec_p_wedge_product(::Type{Tuple{0,1}}, sd::EmbeddedDeltaDualComplex2D)
 
 Precomputes values for the wedge product between a 0 and 1-form.
 The values are to be fed into the wedge_terms parameter for the computational "c" varient. 
@@ -41,8 +39,7 @@ end
 
 # XXX: This assumes that the dual vertice on an edge is always the midpoint
 # TODO: Add options to change 0.5 to a different float
-"""
-    dec_c_wedge_product!(::Type{Tuple{0,1}}, wedge_terms, f, α, val_pack)
+"""    dec_c_wedge_product!(::Type{Tuple{0,1}}, wedge_terms, f, α, val_pack)
 
 Computes the wedge product between a 0 and 1-form.
 Use the precomputational "p" varient for the wedge_terms parameter. 
@@ -59,8 +56,7 @@ function dec_c_wedge_product!(::Type{Tuple{0,1}}, wedge_terms, f, α, val_pack)
     return wedge_terms
 end
 
-"""
-    dec_p_wedge_product(::Type{Tuple{0,2}}, sd::EmbeddedDeltaDualComplex2D{Bool, float_type, _p} where _p) where float_type
+"""    dec_p_wedge_product(::Type{Tuple{0,2}}, sd::EmbeddedDeltaDualComplex2D{Bool, float_type, _p} where _p) where float_type
 
 Precomputes values for the wedge product between a 0 and 2-form.
 The values are to be fed into the wedge_terms parameter for the computational "c" varient. 
@@ -101,8 +97,7 @@ function dec_p_wedge_product(::Type{Tuple{0,2}}, sd::EmbeddedDeltaDualComplex2D{
     return (primal_vertices, coeffs, simples)
 end
 
-"""
-    dec_c_wedge_product!(::Type{Tuple{0,2}}, wedge_terms, f, α, val_pack)
+"""    dec_c_wedge_product!(::Type{Tuple{0,2}}, wedge_terms, f, α, val_pack)
 
 Computes the wedge product between a 0 and 2-form.
 Use the precomputational "p" varient for the wedge_terms parameter. 
@@ -120,8 +115,7 @@ function dec_c_wedge_product!(::Type{Tuple{0,2}}, wedge_terms, f, α, val_pack)
     return wedge_terms
 end
 
-"""
-    dec_p_wedge_product(::Type{Tuple{1,1}}, sd::EmbeddedDeltaDualComplex2D{Bool, float_type, _p} where _p) where float_type
+"""    dec_p_wedge_product(::Type{Tuple{1,1}}, sd::EmbeddedDeltaDualComplex2D{Bool, float_type, _p} where _p) where float_type
 
 Precomputes values for the wedge product between a 1 and 1-form.
 The values are to be fed into the wedge_terms parameter for the computational "c" varient. 
@@ -154,8 +148,7 @@ function dec_p_wedge_product(::Type{Tuple{1,1}}, sd::EmbeddedDeltaDualComplex2D{
     return (e, coeffs, simples)
 end
 
-"""
-    dec_c_wedge_product!(::Type{Tuple{1,1}}, wedge_terms, f, α, val_pack)
+"""    dec_c_wedge_product!(::Type{Tuple{1,1}}, wedge_terms, f, α, val_pack)
 
 Computes the wedge product between a 1 and 1-form.
 Use the precomputational "p" varient for the wedge_terms parameter. 
@@ -180,8 +173,7 @@ function dec_c_wedge_product!(::Type{Tuple{1,1}}, wedge_terms, α, β, val_pack)
     return wedge_terms
 end
 
-"""
-    dec_c_wedge_product(::Type{Tuple{m,n}}, α, β, val_pack) where {m,n}
+"""    dec_c_wedge_product(::Type{Tuple{m,n}}, α, β, val_pack) where {m,n}
 
 Computes the wedge product between two forms.
 Use the precomputational "p" varient for the wedge_terms parameter. 
@@ -196,8 +188,7 @@ end
 
 dec_wedge_product(m::Int, n::Int, sd::HasDeltaSet) = dec_wedge_product(Tuple{m,n}, sd::HasDeltaSet)
 
-"""
-    dec_wedge_product(::Type{Tuple{0,0}}, sd::HasDeltaSet)
+"""    dec_wedge_product(::Type{Tuple{0,0}}, sd::HasDeltaSet)
 
 Returns a function that computes the wedge product between two 0-forms.
 """
@@ -205,8 +196,7 @@ function dec_wedge_product(::Type{Tuple{0,0}}, sd::HasDeltaSet)
     (f, g) -> f .* g
 end
 
-"""
-    dec_wedge_product(::Type{Tuple{k,0}}, sd::HasDeltaSet) where {k}
+"""    dec_wedge_product(::Type{Tuple{k,0}}, sd::HasDeltaSet) where {k}
 
 Returns a function that computes wedge product between a k and a 0-form.
 """
@@ -215,8 +205,7 @@ function dec_wedge_product(::Type{Tuple{k,0}}, sd::HasDeltaSet) where {k}
     (α, g) -> dec_c_wedge_product(Tuple{0,k}, g, α, val_pack)
 end
 
-"""
-    dec_wedge_product(::Type{Tuple{0,k}}, sd::HasDeltaSet) where {k}
+"""    dec_wedge_product(::Type{Tuple{0,k}}, sd::HasDeltaSet) where {k}
 
 Returns a function that computes the wedge product between a 0 and a k-form.
 """
@@ -225,8 +214,7 @@ function dec_wedge_product(::Type{Tuple{0,k}}, sd::HasDeltaSet) where {k}
     (f, β) -> dec_c_wedge_product(Tuple{0,k}, f, β, val_pack)
 end
 
-"""
-    dec_wedge_product(::Type{Tuple{1,1}}, sd::HasDeltaSet2D)
+"""    dec_wedge_product(::Type{Tuple{1,1}}, sd::HasDeltaSet2D)
 
 Returns a function that computes the wedge product between a 1 and a 1-form.
 """
@@ -235,8 +223,7 @@ function dec_wedge_product(::Type{Tuple{1,1}}, sd::HasDeltaSet2D)
     (α, β) -> dec_c_wedge_product(Tuple{1,1}, α, β, val_pack)
 end
 
-"""
-    function wedge_dd_01_mat(sd::HasDeltaSet)
+"""    function wedge_dd_01_mat(sd::HasDeltaSet)
 
 Returns a matrix that can be multiplied to a dual 0-form, before being
 elementwise-multiplied by a dual 1-form, encoding the wedge product.
@@ -255,8 +242,7 @@ function wedge_dd_01_mat(sd::HasDeltaSet)
   m
 end
 
-"""
-    dec_wedge_product_dd(::Type{Tuple{0,1}}, sd::HasDeltaSet)
+"""    dec_wedge_product_dd(::Type{Tuple{0,1}}, sd::HasDeltaSet)
 
 Returns a cached function that computes the wedge product between a dual
 0-form and a dual 1-form.
@@ -266,8 +252,7 @@ function dec_wedge_product_dd(::Type{Tuple{0,1}}, sd::HasDeltaSet)
   (f,g) -> (m * f) .* g
 end
 
-"""
-    dec_wedge_product_dd(::Type{Tuple{1,0}}, sd::HasDeltaSet)
+"""    dec_wedge_product_dd(::Type{Tuple{1,0}}, sd::HasDeltaSet)
 
 Returns a cached function that computes the wedge product between a dual
 1-form and a dual 0-form.
@@ -277,8 +262,7 @@ function dec_wedge_product_dd(::Type{Tuple{1,0}}, sd::HasDeltaSet)
   (f,g) -> f .* (m * g)
 end
 
-"""
-    function wedge_pd_01_mat(sd::HasDeltaSet)
+"""    function wedge_pd_01_mat(sd::HasDeltaSet)
 
 Returns a matrix that can be multiplied to a primal 0-form, before being
 elementwise-multiplied by a dual 1-form, encoding the wedge product.
@@ -306,8 +290,7 @@ function wedge_pd_01_mat(sd::HasDeltaSet)
   m
 end
 
-"""
-    dec_wedge_product_pd(::Type{Tuple{1,0}}, sd::HasDeltaSet)
+"""    dec_wedge_product_dp(::Type{Tuple{1,0}}, sd::HasDeltaSet)
 
 Returns a cached function that computes the wedge product between a dual
 1-form and a primal 0-form.
@@ -320,8 +303,7 @@ function dec_wedge_product_dp(::Type{Tuple{1,0}}, sd::HasDeltaSet)
   (f,g) -> f .* (m * g)
 end
 
-"""
-    function dec_wedge_product_pd(::Type{Tuple{0,1}}, sd::HasDeltaSet)
+"""    function dec_wedge_product_pd(::Type{Tuple{0,1}}, sd::HasDeltaSet)
 
 Returns a cached function that computes the wedge product between a primal
 0-form and a dual 1-form.
@@ -334,33 +316,31 @@ function dec_wedge_product_pd(::Type{Tuple{0,1}}, sd::HasDeltaSet)
   (g,f) -> (m * g) .* f
 end
 
-"""
-    dec_wedge_product_pd(::Type{Tuple{1,1}}, sd::HasDeltaSet)
+"""    dec_wedge_product_pd(::Type{Tuple{1,1}}, sd::HasDeltaSet)
 
 Returns a cached function that computes the wedge product between a primal
 1-form and a dual 1-form.
 """
 function dec_wedge_product_pd(::Type{Tuple{1,1}}, sd::HasDeltaSet)
   ♭♯_m = ♭♯_mat(sd)
-  ♭♯_cached(x) = only.(♭♯_m * x)
   Λ_cached = dec_wedge_product(Tuple{1, 1}, sd)
-  (f, g) -> sign(2,sd) .* Λ_cached(f, ♭♯_cached(g))
+  (f, g) -> sign(2,sd) .* Λ_cached(f, ♭♯_m * g)
 end
 
-"""
-    dec_wedge_product_dp(::Type{Tuple{1,1}}, sd::HasDeltaSet)
+"""    dec_wedge_product_dp(::Type{Tuple{1,1}}, sd::HasDeltaSet)
 
 Returns a cached function that computes the wedge product between a dual 1-form
 and a primal 1-form.
 """
 function dec_wedge_product_dp(::Type{Tuple{1,1}}, sd::HasDeltaSet)
   ♭♯_m = ♭♯_mat(sd)
-  ♭♯_cached(x) = only.(♭♯_m * x)
   Λ_cached = dec_wedge_product(Tuple{1, 1}, sd)
-  (f, g) -> sign(2,sd) .* Λ_cached(♭♯_cached(f), g)
+  (f, g) -> sign(2,sd) .* Λ_cached(♭♯_m * f, g)
 end
 
-""" Wedge product of a primal 1-form and a dual 1-form.
+"""    ∧(s::HasDeltaSet, α::SimplexForm{1}, β::DualForm{1})
+
+Wedge product of a primal 1-form and a dual 1-form.
 
 Chain the musical isomorphisms to interpolate the dual 1-form to a primal
 1-form, using the linear least squares ♯. Then use the CombinatorialSpaces
@@ -369,7 +349,9 @@ version of the Hirani primal-primal weddge.
 ∧(s::HasDeltaSet, α::SimplexForm{1}, β::DualForm{1}) =
   dec_wedge_product_pd(Tuple{1,1}, s)(α, β)
 
-""" Wedge product of a dual 1-form and a primal 1-form.
+"""    ∧(s::HasDeltaSet, α::DualForm{1}, β::SimplexForm{1})
+
+Wedge product of a dual 1-form and a primal 1-form.
 
 Chain the musical isomorphisms to interpolate the dual 1-form to a primal
 1-form. Then use the CombinatorialSpaces version of the Hirani primal-primal
