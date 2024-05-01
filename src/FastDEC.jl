@@ -344,7 +344,7 @@ function dec_wedge_product_pd(::Type{Tuple{1,1}}, sd::HasDeltaSet)
   ♭♯_m = ♭♯_mat(sd)
   ♭♯_cached(x) = only.(♭♯_m * x)
   Λ_cached = dec_wedge_product(Tuple{1, 1}, sd)
-  (f, g) -> Λ_cached(f, ♭♯_cached(g))
+  (f, g) -> sign(2,sd) .* Λ_cached(f, ♭♯_cached(g))
 end
 
 """
@@ -357,7 +357,7 @@ function dec_wedge_product_dp(::Type{Tuple{1,1}}, sd::HasDeltaSet)
   ♭♯_m = ♭♯_mat(sd)
   ♭♯_cached(x) = only.(♭♯_m * x)
   Λ_cached = dec_wedge_product(Tuple{1, 1}, sd)
-  (f, g) -> Λ_cached(♭♯_cached(f), g)
+  (f, g) -> sign(2,sd) .* Λ_cached(♭♯_cached(f), g)
 end
 
 """ Wedge product of a primal 1-form and a dual 1-form.
@@ -711,7 +711,6 @@ end
 Given a dual 1-form and a dual 1-form, return their lie derivative as a dual 1-form.
 """
 function ℒ_dd(::Type{Tuple{1,1}}, s::SimplicialSets.HasDeltaSet)
-  # TODO: Check signs.
   # ℒ := -diuv - iduv
   d0 = dec_dual_derivative(0, s)
   d1 = dec_dual_derivative(1, s)

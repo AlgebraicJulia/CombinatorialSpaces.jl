@@ -304,13 +304,46 @@ end
     end
 end
 
+@testset "Interior Product Dual-Dual 1-1" begin
+    for sd in flat_meshes
+      interior_edges = setdiff(edges(sd), boundary_inds(Val{1}, sd))
+      isempty(interior_edges) && continue
+      # Allocate the cached operators.
+      d0 = dec_dual_derivative(0, sd)
+      ι1 = interior_product_dd(Tuple{1,1}, sd)
+
+      # Define test data
+      X♯ = SVector{3,Float64}(1/√2,1/√2,0)
+      u = hodge_star(1,sd) * eval_constant_primal_form(sd, X♯)
+
+      # u := ⋆(1/√2dx + 1/√2dy)
+      # iᵤu = -⋆(⋆u∧u)
+      #     = -⋆(-1 dx∧dy)
+      #     = 1
+      # d1 = 0
+      diᵤu = d0 * ι1(u,u);
+
+      @test all(isapprox.(diᵤu[interior_edges], 0.0, atol=1e-13))
+    end
+end
+
+function plot_dual0form(sd, f0)
+  ps  = (stack(sd[sd[:tri_center], :dual_point])[[1,2],:])'
+  f = Figure(); ax = CairoMakie.Axis(f[1,1]);
+  sct = scatter!(ax, ps,
+      color=f0);
+  Colorbar(f[1,2], sct)
+  f
+end
+
 function euler_equation_test(X♯, sd)
-  # We are not interested in boundary conditions.
-  interior_edges = setdiff(edges(sd), boundary_inds(Val{1}, sd))
-  interior_points = setdiff(vertices(sd), boundary_inds(Val{0}, sd))
   interior_tris = setdiff(triangles(sd), boundary_inds(Val{2}, sd))
+
   # Allocate the cached operators.
   d0 = dec_dual_derivative(0, sd)
+  d1 = dec_differential(1, sd);
+  s1 = dec_hodge_star(1, sd);
+  s2 = dec_hodge_star(2, sd);
   ι1 = interior_product_dd(Tuple{1,1}, sd)
   ι2 = interior_product_dd(Tuple{1,2}, sd)
   ℒ1 = ℒ_dd(Tuple{1,1}, sd)
@@ -319,42 +352,60 @@ function euler_equation_test(X♯, sd)
   u = hodge_star(1,sd) * eval_constant_primal_form(sd, X♯)
 
   # Recall Euler's Equation:
-  # ∂ₜu = ℒᵤu - 0.5dιᵤu = -1/ρdp + b.
+  # ∂ₜu = ℒᵤu - 0.5dιᵤu  - 1/ρdp + b.
   # We expect for a uniform flow then that ∂ₜu = 0.
-  # (We ignore the pressure term, and only investigate the interior of the
-  # domain.)
+  # We will not explicitly set boundary conditions for this test.
 
-  dtu = ℒ1(u,u) - 0.5*d0*ι1(u,u)
-  error = (sign(2,sd) .* ι1(dtu,dtu))[interior_tris]
-  # Note that "error" accumulates in the region around the boundaries.
-  # That is not really error, but rather the effect of boundary conditions and
-  # the influence of pressure.
-  #scatter(sd[sd[:tri_center], :dual_point][interior_tris], color=abs.(error))
-  error
+  mag(x) = (sqrt ∘ abs).(ι1(x,x))
+
+  # Test that the advection term is 0.
+  selfadv = ℒ1(u,u) - 0.5*d0*ι1(u,u)
+  mag_selfadv = mag(selfadv)[interior_tris]
+
+  # Solve for pressure
+  div(x) = s2 * d1 * (s1 \ x);
+  solveΔ(x) = float.(d0) \ (s1 * (float.(d1) \ (s2 \ x)))
+
+  p = (solveΔ ∘ div)(selfadv)
+  dp = d0*p
+  mag_dp = mag(dp)[interior_tris]
+
+  # Observe the derivative of u w.r.t time.
+  ∂ₜu = -selfadv - dp;
+  mag_∂ₜu = mag(∂ₜu)[interior_tris]
+
+  mag_selfadv, mag_dp, mag_∂ₜu
 end
 
 @testset "Dual-Dual Interior Product and Lie Derivative" begin
   X♯ = SVector{3,Float64}(1/√2,1/√2,0)
-  error = euler_equation_test(X♯, rect)
-  @test abs(mean(error)) < 8e-2
-  @test var(error) < 9e-2
-  # Note that boundary conditions "bleed into" the interior of the domain
-  # somewhat. So this is not all "error" in the usual sense.
-  # TODO: Grab points that are distance X away from the interior.
+  mag_selfadv, mag_dp, mag_∂ₜu = euler_equation_test(X♯, rect)
+  # Note that "error" accumulates in the first two layers around ∂Ω.
+  # That is not really error, but rather the effect of boundary conditions.
+  #mag(x) = (sqrt ∘ abs).(ι1(x,x))
+  #plot_dual0form(sd, mag(selfadv))
+  #plot_dual0form(sd, mag(dp))
+  #plot_dual0form(sd, mag(∂ₜu))
+  @test .75 < (count(mag_selfadv .< 1e-8) / length(mag_selfadv))
+  @test .80 < (count(mag_dp .< 1e-2) / length(mag_dp))
+  @test .75 < (count(mag_∂ₜu .< 1e-2) / length(mag_∂ₜu))
 
+  # This smaller mesh is proportionally more affected by boundary conditions.
   X♯ = SVector{3,Float64}(1/√2,1/√2,0)
-  error = euler_equation_test(X♯, tg)
-  @test abs(mean(error)) < 7e-4
-  @test var(error) < 7e-6
+  mag_selfadv, mag_dp, mag_∂ₜu  = euler_equation_test(X♯, tg)
+  @test .60 < (count(mag_selfadv .< 1e-2) / length(mag_selfadv))
+  @test .64 < (count(mag_dp .< 1e-2) / length(mag_dp))
+  @test .60 < (count(mag_∂ₜu .< 1e-2) / length(mag_∂ₜu))
 
   X♯ = SVector{3,Float64}(3,3,0)
-  error = euler_equation_test(X♯, tg)
-  @test abs(mean(error)) < 3e-1
-  @test var(error) < 8e-1
+  mag_selfadv, mag_dp, mag_∂ₜu  = euler_equation_test(X♯, tg)
+  @test .60 < (count(mag_selfadv .< 1e-1) / length(mag_selfadv))
+  @test .60 < (count(mag_dp .< 1e-1) / length(mag_dp))
+  @test .60 < (count(mag_∂ₜu .< 1e-1) / length(mag_∂ₜu))
 
   # u := ⋆xdx
-  # ιᵤu = -x²
-  sd = rect
+  # ιᵤu = x²
+  sd = rect;
   f = map(point(sd)) do p
     p[1]
   end
@@ -362,8 +413,8 @@ end
   u = hodge_star(1,sd) * dec_wedge_product(Tuple{0,1}, sd)(f, dx)
   ι1 = interior_product_dd(Tuple{1,1}, sd)
   interior_tris = setdiff(triangles(sd), boundary_inds(Val{2}, sd))
-  @test all(<(8e-3), (sign(2,sd) .* ι1(u,u) .- map(sd[sd[:tri_center], :dual_point]) do (x,_,_)
-    -x*x
+  @test all(<(8e-3), (ι1(u,u) .- map(sd[sd[:tri_center], :dual_point]) do (x,_,_)
+    x*x
   end)[interior_tris])
 end
 
