@@ -352,7 +352,7 @@ function euler_equation_test(X♯, sd)
   u = hodge_star(1,sd) * eval_constant_primal_form(sd, X♯)
 
   # Recall Euler's Equation:
-  # ∂ₜu = ℒᵤu - 0.5dιᵤu  - 1/ρdp + b.
+  # ∂ₜu = -ℒᵤu + 0.5dιᵤu  - 1/ρdp + b.
   # We expect for a uniform flow then that ∂ₜu = 0.
   # We will not explicitly set boundary conditions for this test.
 
