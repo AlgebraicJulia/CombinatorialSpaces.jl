@@ -53,7 +53,7 @@ using ..ArrayUtils
 @present SchDeltaSet0D(FreeSchema) begin
   V::Ob
 end
-
+#nsimplices,face,coface,∂
 """ Abstract type for C-sets that contain a delta set of some dimension.
 
 This dimension could be zero, in which case the delta set consists only of
@@ -63,7 +63,7 @@ vertices (0-simplices).
 
 vertices(s::HasDeltaSet) = parts(s, :V)
 nv(s::HasDeltaSet) = nparts(s, :V)
-nsimplices(::Type{Val{0}}, s::HasDeltaSet) = nv(s)
+nsimplices(::Val{0}, s::HasDeltaSet) = nv(s)
 
 has_vertex(s::HasDeltaSet, v) = has_part(s, :V, v)
 add_vertex!(s::HasDeltaSet; kw...) = add_part!(s, :V; kw...)
@@ -99,7 +99,7 @@ edges(s::HasDeltaSet1D, src::Int, tgt::Int) =
   (e for e in coface(1,1,s,src) if ∂(1,0,s,e) == tgt)
 
 ne(s::HasDeltaSet1D) = nparts(s, :E)
-nsimplices(::Type{Val{1}}, s::HasDeltaSet1D) = ne(s)
+nsimplices(::Val{1}, s::HasDeltaSet1D) = ne(s)
 
 has_edge(s::HasDeltaSet1D, e) = has_part(s, :E, e)
 has_edge(s::HasDeltaSet1D, src::Int, tgt::Int) =
@@ -107,11 +107,11 @@ has_edge(s::HasDeltaSet1D, src::Int, tgt::Int) =
 
 src(s::HasDeltaSet1D, args...) = subpart(s, args..., :∂v1)
 tgt(s::HasDeltaSet1D, args...) = subpart(s, args..., :∂v0)
-face(::Type{Val{(1,0)}}, s::HasDeltaSet1D, args...) = subpart(s, args..., :∂v0)
-face(::Type{Val{(1,1)}}, s::HasDeltaSet1D, args...) = subpart(s, args..., :∂v1)
+face(::Val{(1,0)}, s::HasDeltaSet1D, args...) = subpart(s, args..., :∂v0)
+face(::Val{(1,1)}, s::HasDeltaSet1D, args...) = subpart(s, args..., :∂v1)
 
-coface(::Type{Val{(1,0)}}, s::HasDeltaSet1D, args...) = incident(s, args..., :∂v0)
-coface(::Type{Val{(1,1)}}, s::HasDeltaSet1D, args...) = incident(s, args..., :∂v1)
+coface(::Val{(1,0)}, s::HasDeltaSet1D, args...) = incident(s, args..., :∂v0)
+coface(::Val{(1,1)}, s::HasDeltaSet1D, args...) = incident(s, args..., :∂v1)
 
 """ Boundary vertices of an edge.
 """
@@ -154,16 +154,16 @@ true/positive and from target to source when it is false/negative.
 @acset_type OrientedDeltaSet1D(SchOrientedDeltaSet1D,
                                index=[:∂v0,:∂v1]) <: AbstractDeltaSet1D
 
-orientation(::Type{Val{1}}, s::HasDeltaSet1D, args...) =
+orientation(::Val{1}, s::HasDeltaSet1D, args...) =
   s[args..., :edge_orientation]
-set_orientation!(::Type{Val{1}}, s::HasDeltaSet1D, e, orientation) =
+set_orientation!(::Val{1}, s::HasDeltaSet1D, e, orientation) =
   (s[e, :edge_orientation] = orientation)
 
-function ∂_nz(::Type{Val{1}}, s::HasDeltaSet1D, e::Int)
+function ∂_nz(::Val{1}, s::HasDeltaSet1D, e::Int)
   (edge_vertices(s, e), sign(1,s,e) * @SVector([1,-1]))
 end
 
-function d_nz(::Type{Val{0}}, s::HasDeltaSet1D, v::Int)
+function d_nz(::Val{0}, s::HasDeltaSet1D, v::Int)
   e₀, e₁ = coface(1,0,s,v), coface(1,1,s,v)
   (lazy(vcat, e₀, e₁), lazy(vcat, sign(1,s,e₀), -sign(1,s,e₁)))
 end
@@ -187,9 +187,9 @@ point(s::HasDeltaSet, args...) = s[args..., :point]
 
 struct CayleyMengerDet end
 
-volume(::Type{Val{n}}, s::EmbeddedDeltaSet1D, x) where n =
-  volume(Val{n}, s, x, CayleyMengerDet())
-volume(::Type{Val{1}}, s::HasDeltaSet1D, e::Int, ::CayleyMengerDet) =
+volume(::Val{n}, s::EmbeddedDeltaSet1D, x) where n =
+  volume(Val(n), s, x, CayleyMengerDet())
+volume(::Val{1}, s::HasDeltaSet1D, e::Int, ::CayleyMengerDet) =
   volume(point(s, edge_vertices(s, e)))
 
 # 2D simplicial sets
@@ -258,15 +258,15 @@ function triangles(s::HasDeltaSet2D, v₀::Int, v₁::Int, v₂::Int)
 end
 
 ntriangles(s::HasDeltaSet2D) = nparts(s, :Tri)
-nsimplices(::Type{Val{2}}, s::HasDeltaSet2D) = ntriangles(s)
+nsimplices(::Val{2}, s::HasDeltaSet2D) = ntriangles(s)
 
-face(::Type{Val{(2,0)}}, s::HasDeltaSet2D, args...) = subpart(s, args..., :∂e0)
-face(::Type{Val{(2,1)}}, s::HasDeltaSet2D, args...) = subpart(s, args..., :∂e1)
-face(::Type{Val{(2,2)}}, s::HasDeltaSet2D, args...) = subpart(s, args..., :∂e2)
+face(::Val{(2,0)}, s::HasDeltaSet2D, args...) = subpart(s, args..., :∂e0)
+face(::Val{(2,1)}, s::HasDeltaSet2D, args...) = subpart(s, args..., :∂e1)
+face(::Val{(2,2)}, s::HasDeltaSet2D, args...) = subpart(s, args..., :∂e2)
 
-coface(::Type{Val{(2,0)}}, s::HasDeltaSet2D, args...) = incident(s, args..., :∂e0)
-coface(::Type{Val{(2,1)}}, s::HasDeltaSet2D, args...) = incident(s, args..., :∂e1)
-coface(::Type{Val{(2,2)}}, s::HasDeltaSet2D, args...) = incident(s, args..., :∂e2)
+coface(::Val{(2,0)}, s::HasDeltaSet2D, args...) = incident(s, args..., :∂e0)
+coface(::Val{(2,1)}, s::HasDeltaSet2D, args...) = incident(s, args..., :∂e1)
+coface(::Val{(2,2)}, s::HasDeltaSet2D, args...) = incident(s, args..., :∂e2)
 
 """ Boundary edges of a triangle.
 """
@@ -350,17 +350,17 @@ true/positive and in the reverse order when it is false/negative.
 @acset_type OrientedDeltaSet2D(SchOrientedDeltaSet2D,
                                index=[:∂v0,:∂v1,:∂e0,:∂e1,:∂e2]) <: AbstractDeltaSet2D
 
-orientation(::Type{Val{2}}, s::HasDeltaSet2D, args...) =
+orientation(::Val{2}, s::HasDeltaSet2D, args...) =
   s[args..., :tri_orientation]
-set_orientation!(::Type{Val{2}}, s::HasDeltaSet2D, t, orientation) =
+set_orientation!(::Val{2}, s::HasDeltaSet2D, t, orientation) =
   (s[t, :tri_orientation] = orientation)
 
-function ∂_nz(::Type{Val{2}}, s::HasDeltaSet2D, t::Int)
+function ∂_nz(::Val{2}, s::HasDeltaSet2D, t::Int)
   edges = triangle_edges(s,t)
   (edges, sign(2,s,t) * sign(1,s,edges) .* @SVector([1,-1,1]))
 end
 
-function d_nz(::Type{Val{1}}, s::HasDeltaSet2D, e::Int)
+function d_nz(::Val{1}, s::HasDeltaSet2D, e::Int)
   sgn = sign(1, s, e)
   t₀, t₁, t₂ = coface(2,0,s,e), coface(2,1,s,e), coface(2,2,s,e)
   (lazy(vcat, t₀, t₁, t₂),
@@ -380,9 +380,9 @@ end
 @acset_type EmbeddedDeltaSet2D(SchEmbeddedDeltaSet2D,
                                index=[:∂v0,:∂v1,:∂e0,:∂e1,:∂e2]) <: AbstractDeltaSet2D
 
-volume(::Type{Val{n}}, s::EmbeddedDeltaSet2D, x) where n =
-  volume(Val{n}, s, x, CayleyMengerDet())
-volume(::Type{Val{2}}, s::HasDeltaSet2D, t::Int, ::CayleyMengerDet) =
+volume(::Val{n}, s::EmbeddedDeltaSet2D, x) where n =
+  volume(Val(n), s, x, CayleyMengerDet())
+volume(::Val{2}, s::HasDeltaSet2D, t::Int, ::CayleyMengerDet) =
   volume(point(s, triangle_vertices(s,t)))
 
 # 3D simplicial sets
@@ -419,17 +419,17 @@ end
 
 tetrahedra(s::HasDeltaSet3D) = parts(s, :Tet)
 ntetrahedra(s::HasDeltaSet3D) = nparts(s, :Tet)
-nsimplices(::Type{Val{3}}, s::HasDeltaSet3D) = ntetrahedra(s)
+nsimplices(::Val{3}, s::HasDeltaSet3D) = ntetrahedra(s)
 
-face(::Type{Val{(3,0)}}, s::HasDeltaSet3D, args...) = subpart(s, args..., :∂t0)
-face(::Type{Val{(3,1)}}, s::HasDeltaSet3D, args...) = subpart(s, args..., :∂t1)
-face(::Type{Val{(3,2)}}, s::HasDeltaSet3D, args...) = subpart(s, args..., :∂t2)
-face(::Type{Val{(3,3)}}, s::HasDeltaSet3D, args...) = subpart(s, args..., :∂t3)
+face(::Val{(3,0)}, s::HasDeltaSet3D, args...) = subpart(s, args..., :∂t0)
+face(::Val{(3,1)}, s::HasDeltaSet3D, args...) = subpart(s, args..., :∂t1)
+face(::Val{(3,2)}, s::HasDeltaSet3D, args...) = subpart(s, args..., :∂t2)
+face(::Val{(3,3)}, s::HasDeltaSet3D, args...) = subpart(s, args..., :∂t3)
 
-coface(::Type{Val{(3,0)}}, s::HasDeltaSet3D, args...) = incident(s, args..., :∂t0)
-coface(::Type{Val{(3,1)}}, s::HasDeltaSet3D, args...) = incident(s, args..., :∂t1)
-coface(::Type{Val{(3,2)}}, s::HasDeltaSet3D, args...) = incident(s, args..., :∂t2)
-coface(::Type{Val{(3,3)}}, s::HasDeltaSet3D, args...) = incident(s, args..., :∂t3)
+coface(::Val{(3,0)}, s::HasDeltaSet3D, args...) = incident(s, args..., :∂t0)
+coface(::Val{(3,1)}, s::HasDeltaSet3D, args...) = incident(s, args..., :∂t1)
+coface(::Val{(3,2)}, s::HasDeltaSet3D, args...) = incident(s, args..., :∂t2)
+coface(::Val{(3,3)}, s::HasDeltaSet3D, args...) = incident(s, args..., :∂t3)
 
 """ Boundary triangles of a tetrahedron.
 """
@@ -541,17 +541,17 @@ end
 @acset_type OrientedDeltaSet3D(SchOrientedDeltaSet3D,
                                index=[:∂v0,:∂v1,:∂e0,:∂e1,:∂e2,:∂t0,:∂t1,:∂t2,:∂t3]) <: AbstractDeltaSet3D
 
-orientation(::Type{Val{3}}, s::HasDeltaSet3D, args...) =
+orientation(::Val{3}, s::HasDeltaSet3D, args...) =
   s[args..., :tet_orientation]
-set_orientation!(::Type{Val{3}}, s::HasDeltaSet3D, t, orientation) =
+set_orientation!(::Val{3}, s::HasDeltaSet3D, t, orientation) =
   (s[t, :tet_orientation] = orientation)
 
-function ∂_nz(::Type{Val{3}}, s::HasDeltaSet3D, tet::Int)
+function ∂_nz(::Val{3}, s::HasDeltaSet3D, tet::Int)
   tris = tetrahedron_triangles(s, tet)
   (tris, sign(3,s,tet) * sign(2,s,tris) .* @SVector([1,-1,1,-1]))
 end
 
-function d_nz(::Type{Val{2}}, s::HasDeltaSet3D, tri::Int)
+function d_nz(::Val{2}, s::HasDeltaSet3D, tri::Int)
   t₀, t₁, t₂, t₃ = map(x -> coface(3,x,s,tri), 0:3)
   sgn = sign(2, s, tri)
   (lazy(vcat, t₀, t₁, t₂, t₃),
@@ -572,9 +572,9 @@ end
 @acset_type EmbeddedDeltaSet3D(SchEmbeddedDeltaSet3D,
                                index=[:∂v0,:∂v1,:∂e0,:∂e1,:∂e2,:∂t0,:∂t1,:∂t2,:∂t3]) <: AbstractDeltaSet3D
 
-volume(::Type{Val{n}}, s::EmbeddedDeltaSet3D, x) where n =
-  volume(Val{n}, s, x, CayleyMengerDet())
-volume(::Type{Val{3}}, s::HasDeltaSet3D, t::Int, ::CayleyMengerDet) =
+volume(::Val{n}, s::EmbeddedDeltaSet3D, x) where n =
+  volume(Val(n), s, x, CayleyMengerDet())
+volume(::Val{3}, s::HasDeltaSet3D, t::Int, ::CayleyMengerDet) =
   volume(point(s, tetrahedron_vertices(s,t)))
 
 # General operators
@@ -622,11 +622,11 @@ const TetForm = SimplexForm{3}
 
 """ Simplices of given dimension in a simplicial set.
 """
-@inline simplices(n::Int, s::HasDeltaSet) = 1:nsimplices(Val{n}, s)
+@inline simplices(n::Int, s::HasDeltaSet) = 1:nsimplices(Val(n), s)
 
 """ Number of simplices of given dimension in a simplicial set.
 """
-@inline nsimplices(n::Int, s::HasDeltaSet) = nsimplices(Val{n}, s)
+@inline nsimplices(n::Int, s::HasDeltaSet) = nsimplices(Val(n), s)
 
 """ Face map and boundary operator on simplicial sets.
 
@@ -647,22 +647,22 @@ Note that the face map returns *simplices*, while the boundary operator returns
 *chains* (vectors in the free vector space spanned by oriented simplices).
 """
 @inline ∂(i::Int, s::HasDeltaSet, x::Simplex{n}) where n =
-  Simplex{n-1}(face(Val{(n,i)}, s, x.data))
+  Simplex{n-1}(face(Val((n,i)), s, x.data))
 @inline ∂(n::Int, i::Int, s::HasDeltaSet, args...) =
-  face(Val{(n,i)}, s, args...)
+  face(Val((n,i)), s, args...)
 
 @inline coface(i::Int, s::HasDeltaSet, x::Simplex{n}) where n =
-  Simplex{n+1}(coface(Val{(n+1,i)}, s, x.data))
+  Simplex{n+1}(coface(Val((n+1,i)), s, x.data))
 @inline coface(n::Int, i::Int, s::HasDeltaSet, args...) =
-  coface(Val{(n,i)}, s, args...)
+  coface(Val((n,i)), s, args...)
 
 ∂(s::HasDeltaSet, x::SimplexChain{n}) where n =
-  SimplexChain{n-1}(∂(Val{n}, s, x.data))
-@inline ∂(n::Int, s::HasDeltaSet, args...) = ∂(Val{n}, s, args...)
+  SimplexChain{n-1}(∂(Val(n), s, x.data))
+@inline ∂(n::Int, s::HasDeltaSet, args...) = ∂(Val(n), s, args...)
 
-function ∂(::Type{Val{n}}, s::HasDeltaSet, args...) where n
+function ∂(::Val{n}, s::HasDeltaSet, args...) where n
   operator_nz(Int, nsimplices(n-1,s), nsimplices(n,s), args...) do x
-    ∂_nz(Val{n}, s, x)
+    ∂_nz(Val(n), s, x)
   end
 end
 
@@ -673,12 +673,12 @@ const boundary = ∂
 """ The discrete exterior derivative, aka the coboundary operator.
 """
 d(s::HasDeltaSet, x::SimplexForm{n}) where n =
-  SimplexForm{n+1}(d(Val{n}, s, x.data))
-@inline d(n::Int, s::HasDeltaSet, args...) = d(Val{n}, s, args...)
+  SimplexForm{n+1}(d(Val(n), s, x.data))
+@inline d(n::Int, s::HasDeltaSet, args...) = d(Val(n), s, args...)
 
-function d(::Type{Val{n}}, s::HasDeltaSet, args...) where n
+function d(::Val{n}, s::HasDeltaSet, args...) where n
   operator_nz(Int, nsimplices(n+1,s), nsimplices(n,s), args...) do x
-    d_nz(Val{n}, s, x)
+    d_nz(Val(n), s, x)
   end
 end
 
@@ -693,13 +693,13 @@ const exterior_derivative = d
 """ Orientation of simplex.
 """
 orientation(s::HasDeltaSet, x::Simplex{n}) where n =
-  orientation(Val{n}, s, x.data)
+  orientation(Val(n), s, x.data)
 @inline orientation(n::Int, s::HasDeltaSet, args...) =
-  orientation(Val{n}, s, args...)
+  orientation(Val(n), s, args...)
 
-@inline Base.sign(n::Int, s::HasDeltaSet, args...) = sign(Val{n}, s, args...)
-Base.sign(::Type{Val{n}}, s::HasDeltaSet, args...) where n =
-  numeric_sign.(orientation(Val{n}, s, args...))
+@inline Base.sign(n::Int, s::HasDeltaSet, args...) = sign(Val(n), s, args...)
+Base.sign(::Val{n}, s::HasDeltaSet, args...) where n =
+  numeric_sign.(orientation(Val(n), s, args...))
 
 numeric_sign(x) = sign(x)
 numeric_sign(x::Bool) = x ? +1 : -1
@@ -707,13 +707,13 @@ numeric_sign(x::Bool) = x ? +1 : -1
 """ Set orientation of simplex.
 """
 @inline set_orientation!(n::Int, s::HasDeltaSet, args...) =
-  set_orientation!(Val{n}, s, args...)
+  set_orientation!(Val(n), s, args...)
 
 """ ``n``-dimensional volume of ``n``-simplex in an embedded simplicial set.
 """
 volume(s::HasDeltaSet, x::Simplex{n}, args...) where n =
-  volume(Val{n}, s, x.data, args...)
-@inline volume(n::Int, s::HasDeltaSet, args...) = volume(Val{n}, s, args...)
+  volume(Val(n), s, x.data, args...)
+@inline volume(n::Int, s::HasDeltaSet, args...) = volume(Val(n), s, args...)
 
 """ Convenience function for linear operator based on structural nonzero values.
 """
