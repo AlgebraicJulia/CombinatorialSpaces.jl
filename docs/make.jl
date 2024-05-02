@@ -14,6 +14,7 @@ makedocs(
   pages = [
     "simplicial_sets.md",
     "discrete_exterior_calculus.md",
+    "fast_dec.md",
     "combinatorial_maps.md",
     "meshes.md"
   ]

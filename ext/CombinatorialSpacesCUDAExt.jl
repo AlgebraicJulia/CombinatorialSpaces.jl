@@ -12,30 +12,54 @@ Point3D = Point3{Float64}
 import CombinatorialSpaces: dec_wedge_product, dec_c_wedge_product, dec_c_wedge_product!, dec_p_wedge_product, 
 dec_boundary, dec_differential, dec_dual_derivative, dec_hodge_star, dec_inv_hodge_star
 
+""" dec_wedge_product(::Type{Tuple{0,0}}, sd::HasDeltaSet, ::Type{Val{:CUDA}})
+
+Wedge Primal 0, 0 for CUDA
+"""
 function dec_wedge_product(::Type{Tuple{0,0}}, sd::HasDeltaSet, ::Type{Val{:CUDA}})
   (f, g) -> f .* g
 end
 
+""" function dec_wedge_product(::Type{Tuple{k,0}}, sd::HasDeltaSet, ::Type{Val{:CUDA}})
+
+Wedge Primal K, 0 for CUDA
+"""
 function dec_wedge_product(::Type{Tuple{k,0}}, sd::HasDeltaSet, ::Type{Val{:CUDA}}) where {k}
   val_pack = dec_p_wedge_product(Tuple{0,k}, sd, Val{:CUDA})
   (α, g) -> dec_c_wedge_product(Tuple{0,k}, g, α, val_pack, Val{:CUDA})
 end
 
+""" function dec_wedge_product(::Type{Tuple{0,k}}, sd::HasDeltaSet, ::Type{Val{:CUDA}})
+
+Wedge Primal 0, K for CUDA
+"""
 function dec_wedge_product(::Type{Tuple{0,k}}, sd::HasDeltaSet, ::Type{Val{:CUDA}}) where {k}
   val_pack = dec_p_wedge_product(Tuple{0,k}, sd, Val{:CUDA})
   (f, β) -> dec_c_wedge_product(Tuple{0,k}, f, β, val_pack, Val{:CUDA})
 end
 
+""" function dec_wedge_product(::Type{Tuple{1,1}}, sd::HasDeltaSet2D, ::Type{Val{:CUDA}})
+
+Wedge Primal 1, 1 for CUDA
+"""
 function dec_wedge_product(::Type{Tuple{1,1}}, sd::HasDeltaSet2D, ::Type{Val{:CUDA}})
   val_pack = dec_p_wedge_product(Tuple{1,1}, sd, Val{:CUDA})
   (α, β) -> dec_c_wedge_product(Tuple{1,1}, α, β, val_pack, Val{:CUDA})
 end
 
+""" function dec_p_wedge_product(::Type{Tuple{m,n}}, sd, ::Type{Val{:CUDA}})
+
+Preallocation for CUDA Wedges
+"""
 function dec_p_wedge_product(::Type{Tuple{m,n}}, sd, ::Type{Val{:CUDA}}) where {m,n}
   val_pack = dec_p_wedge_product(Tuple{m,n}, sd)
   (CuArray.(val_pack[1:end-1])..., val_pack[end]) 
 end
 
+""" function dec_c_wedge_product(::Type{Tuple{m,n}}, α, β, val_pack, ::Type{Val{:CUDA}})
+
+Computation for CUDA Wedges
+"""
 function dec_c_wedge_product(::Type{Tuple{m,n}}, α, β, val_pack, ::Type{Val{:CUDA}}) where {m,n}
   wedge_terms = CUDA.zeros(eltype(α), last(last(val_pack)))
   return dec_c_wedge_product!(Tuple{m,n}, wedge_terms, α, β, val_pack, Val{:CUDA})
@@ -111,8 +135,22 @@ function dec_cu_ker_c_wedge_product_11!(wedge_terms, α, β, e, coeffs)
   return nothing
 end
 
+""" dec_boundary(n::Int, sd::EmbeddedDeltaDualComplex, ::Type{Val{:CUDA}})
+
+Boundary matrix as a sparse CUDA matrix
+"""
 dec_boundary(n::Int, sd::EmbeddedDeltaDualComplex1D{Bool, float_type, _p} where _p, ::Type{Val{:CUDA}}) where float_type = CuSparseMatrixCSC{float_type}(dec_boundary(n, sd))
+
+""" dec_dual_derivative(n::Int, sd::EmbeddedDeltaDualComplex, ::Type{Val{:CUDA}})
+
+Dual derivative matrix as a sparse CUDA matrix
+"""
 dec_dual_derivative(n::Int, sd::EmbeddedDeltaDualComplex1D{Bool, float_type, _p} where _p, ::Type{Val{:CUDA}}) where float_type = CuSparseMatrixCSC{float_type}(dec_dual_derivative(n, sd))
+
+""" dec_differential(n::Int, sd::EmbeddedDeltaDualComplex, ::Type{Val{:CUDA}})
+
+Exterior derivative matrix as a sparse CUDA matrix
+"""
 dec_differential(n::Int, sd::EmbeddedDeltaDualComplex1D{Bool, float_type, _p} where _p, ::Type{Val{:CUDA}}) where float_type = CuSparseMatrixCSC{float_type}(dec_differential(n, sd))
 
 dec_boundary(n::Int, sd::EmbeddedDeltaDualComplex2D{Bool, float_type, _p} where _p, ::Type{Val{:CUDA}}) where float_type = CuSparseMatrixCSC{float_type}(dec_boundary(n, sd))
@@ -123,15 +161,28 @@ dec_boundary(n::Int, sd::HasDeltaSet, ::Type{Val{:CUDA}}) = CuSparseMatrixCSC(de
 dec_dual_derivative(n::Int, sd::HasDeltaSet, ::Type{Val{:CUDA}}) = CuSparseMatrixCSC(dec_dual_derivative(n, sd))
 dec_differential(n::Int, sd::HasDeltaSet, ::Type{Val{:CUDA}}) = CuSparseMatrixCSC(dec_differential(n, sd))
 
+""" dec_hodge_star(n::Int, sd::HasDeltaSet, ::HodgeType, ::Type{Val{:CUDA}})
+
+Hodge matrices as appropriate diagonal or sparse CUDA matrices
+"""
 dec_hodge_star(n::Int, sd::HasDeltaSet, ::DiagonalHodge, ::Type{Val{:CUDA}}) = CuArray(dec_hodge_star(n, sd, DiagonalHodge()))
 dec_hodge_star(n::Int, sd::HasDeltaSet, ::GeometricHodge, ::Type{Val{:CUDA}}) = dec_hodge_star(Val{n}, sd, GeometricHodge(), Val{:CUDA})
 dec_hodge_star(::Type{Val{n}}, sd::HasDeltaSet, ::GeometricHodge, ::Type{Val{:CUDA}}) where n = CuArray(dec_hodge_star(Val{n}, sd, GeometricHodge()))
 dec_hodge_star(::Type{Val{1}}, sd::EmbeddedDeltaDualComplex2D, ::GeometricHodge, ::Type{Val{:CUDA}}) = CuSparseMatrixCSC(dec_hodge_star(Val{1}, sd, GeometricHodge()))
 
+""" dec_inv_hodge_star(n::Int, sd::HasDeltaSet, ::HodgeType, ::Type{Val{:CUDA}})
+
+Inverse Hodge matrices as diagonal matrices
+"""
 dec_inv_hodge_star(n::Int, sd::HasDeltaSet, ::DiagonalHodge, ::Type{Val{:CUDA}}) = CuArray(dec_inv_hodge_star(n, sd, DiagonalHodge()))
 dec_inv_hodge_star(n::Int, sd::HasDeltaSet, ::GeometricHodge, ::Type{Val{:CUDA}}) = dec_inv_hodge_star(Val{n}, sd, GeometricHodge(), Val{:CUDA})
 dec_inv_hodge_star(::Type{Val{n}}, sd::HasDeltaSet, ::GeometricHodge, ::Type{Val{:CUDA}}) where n = CuArray(dec_inv_hodge_star(Val{n}, sd, GeometricHodge()))
 
+""" function dec_inv_hodge_star(::Type{Val{1}}, sd::EmbeddedDeltaDualComplex2D, ::GeometricHodge, ::Type{Val{:CUDA}})
+
+Inverse Geometric Hodge for Primal 1 implemented as a GMRES solver. This returns a function that
+will compute the result.
+"""
 function dec_inv_hodge_star(::Type{Val{1}}, sd::EmbeddedDeltaDualComplex2D, ::GeometricHodge, ::Type{Val{:CUDA}})
   hdg = -1 * dec_hodge_star(1, sd, GeometricHodge(), Val{:CUDA})
   x -> Krylov.gmres(hdg, x, atol = 1e-14)[1]

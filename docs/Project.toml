@@ -1,4 +1,5 @@
 [deps]
+CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
 CombinatorialSpaces = "b1c52339-7909-45ad-8b6a-6e388f7c67f2"
 Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
 FileIO = "5789e2e9-d7fb-5bc7-8068-2c6fae9b9549"

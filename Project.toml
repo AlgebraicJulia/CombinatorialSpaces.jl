@@ -46,7 +46,7 @@ MeshIO = "0.4"
 Reexport = "0.2, 1.0"
 SparseArrays = "1.9"
 StaticArrays = "0.12, 1.0"
-julia = "1.9, 1.10"
+julia = "1.10"
 
 [extras]
 CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
