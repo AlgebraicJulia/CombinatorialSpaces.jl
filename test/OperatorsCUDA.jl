@@ -113,9 +113,9 @@ end
     for sd in dual_meshes_1D
         V_1, V_2 = rand(nv(sd)), rand(nv(sd))
         E_1 = rand(ne(sd))
-        @test all(Array(dec_cu_wedge_product(Tuple{0, 0}, sd)(CuArray(V_1), CuArray(V_2))) .== ∧(Tuple{0, 0}, sd, V_1, V_2))
-        @test all(isapprox.(Array(dec_cu_wedge_product(Tuple{0, 1}, sd)(CuArray(V_1), CuArray(E_1))), ∧(Tuple{0, 1}, sd, V_1, E_1); atol = 1e-14))
-        @test all(isapprox.(Array(dec_cu_wedge_product(Tuple{1, 0}, sd)(CuArray(E_1), CuArray(V_1))), ∧(Tuple{1, 0}, sd, E_1, V_1); atol = 1e-14))
+        @test all(Array(dec_wedge_product(Tuple{0, 0}, sd, Val{:CUDA})(CuArray(V_1), CuArray(V_2))) .== ∧(Tuple{0, 0}, sd, V_1, V_2))
+        @test all(isapprox.(Array(dec_wedge_product(Tuple{0, 1}, sd, Val{:CUDA})(CuArray(V_1), CuArray(E_1))), ∧(Tuple{0, 1}, sd, V_1, E_1); atol = 1e-14))
+        @test all(isapprox.(Array(dec_wedge_product(Tuple{1, 0}, sd, Val{:CUDA})(CuArray(E_1), CuArray(V_1))), ∧(Tuple{1, 0}, sd, E_1, V_1); atol = 1e-14))
     end
 
     for sd in dual_meshes_2D
@@ -124,16 +124,16 @@ end
         T_2 = rand(ntriangles(sd))
         V_ones = ones(nv(sd))
         E_ones = ones(ne(sd))
-        @test all(Array(dec_cu_wedge_product(Tuple{0, 0}, sd)(CuArray(V_1), CuArray(V_2))) .== ∧(Tuple{0, 0}, sd, V_1, V_2))
+        @test all(Array(dec_wedge_product(Tuple{0, 0}, sd, Val{:CUDA})(CuArray(V_1), CuArray(V_2))) .== ∧(Tuple{0, 0}, sd, V_1, V_2))
 
-        wdg01 = dec_cu_wedge_product(Tuple{0, 1}, sd)
+        wdg01 = dec_wedge_product(Tuple{0, 1}, sd, Val{:CUDA})
         @test all(isapprox.(Array(wdg01(CuArray(V_1), CuArray(E_2))), ∧(Tuple{0, 1}, sd, V_1, E_2); atol = 1e-14))
         @test all(Array(wdg01(CuArray(V_ones), CuArray(E_ones))) .== E_ones)
-        @test all(isapprox.(Array(dec_cu_wedge_product(Tuple{1, 0}, sd)(CuArray(E_1), CuArray(V_2))), ∧(Tuple{1,0}, sd, E_1, V_2); atol = 1e-14))
+        @test all(isapprox.(Array(dec_wedge_product(Tuple{1, 0}, sd, Val{:CUDA})(CuArray(E_1), CuArray(V_2))), ∧(Tuple{1,0}, sd, E_1, V_2); atol = 1e-14))
 
-        @test all(isapprox.(Array(dec_cu_wedge_product(Tuple{0, 2}, sd)(CuArray(V_1), CuArray(T_2))), ∧(Tuple{0, 2}, sd, V_1, T_2); atol = 1e-14))
+        @test all(isapprox.(Array(dec_wedge_product(Tuple{0, 2}, sd, Val{:CUDA})(CuArray(V_1), CuArray(T_2))), ∧(Tuple{0, 2}, sd, V_1, T_2); atol = 1e-14))
 
-        @test all(isapprox.(Array(dec_cu_wedge_product(Tuple{1, 1}, sd)(CuArray(E_1), CuArray(E_2))), ∧(Tuple{1, 1}, sd, E_1, E_2); atol = 1e-12))
+        @test all(isapprox.(Array(dec_wedge_product(Tuple{1, 1}, sd, Val{:CUDA})(CuArray(E_1), CuArray(E_2))), ∧(Tuple{1, 1}, sd, E_1, E_2); atol = 1e-12))
     end
 end
 

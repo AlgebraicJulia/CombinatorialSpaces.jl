@@ -9,40 +9,39 @@ using SparseArrays
 using Krylov
 Point2D = Point2{Float64}
 Point3D = Point3{Float64}
-import CombinatorialSpaces: dec_cu_c_wedge_product!, dec_cu_c_wedge_product, dec_cu_p_wedge_product, dec_cu_wedge_product,
+import CombinatorialSpaces: dec_wedge_product!, dec_c_wedge_product, dec_c_wedge_product!, dec_p_wedge_product, 
 dec_boundary, dec_differential, dec_dual_derivative, dec_hodge_star, dec_inv_hodge_star
 
-function dec_cu_wedge_product(::Type{Tuple{0,0}}, sd::HasDeltaSet)
+function dec_wedge_product(::Type{Tuple{0,0}}, sd::HasDeltaSet, ::Type{Val{:CUDA}})
   (f, g) -> f .* g
 end
 
-function dec_cu_wedge_product(::Type{Tuple{k,0}}, sd::HasDeltaSet) where {k}
-  val_pack = dec_cu_p_wedge_product(Tuple{0,k}, sd)
-  (α, g) -> dec_cu_c_wedge_product(Tuple{0,k}, g, α, val_pack)
+function dec_wedge_product(::Type{Tuple{k,0}}, sd::HasDeltaSet, ::Type{Val{:CUDA}}) where {k}
+  val_pack = dec_p_wedge_product(Tuple{0,k}, sd, Val{:CUDA})
+  (α, g) -> dec_c_wedge_product(Tuple{0,k}, g, α, val_pack, Val{:CUDA})
 end
 
-function dec_cu_wedge_product(::Type{Tuple{0,k}}, sd::HasDeltaSet) where {k}
-  val_pack = dec_cu_p_wedge_product(Tuple{0,k}, sd)
-  (f, β) -> dec_cu_c_wedge_product(Tuple{0,k}, f, β, val_pack)
+function dec_wedge_product(::Type{Tuple{0,k}}, sd::HasDeltaSet, ::Type{Val{:CUDA}}) where {k}
+  val_pack = dec_p_wedge_product(Tuple{0,k}, sd, Val{:CUDA})
+  (f, β) -> dec_c_wedge_product(Tuple{0,k}, f, β, val_pack, Val{:CUDA})
 end
 
-function dec_cu_wedge_product(::Type{Tuple{1,1}}, sd::HasDeltaSet2D)
-  val_pack = dec_cu_p_wedge_product(Tuple{1,1}, sd)
-  (α, β) -> dec_cu_c_wedge_product(Tuple{1,1}, α, β, val_pack)
+function dec_wedge_product(::Type{Tuple{1,1}}, sd::HasDeltaSet2D, ::Type{Val{:CUDA}})
+  val_pack = dec_p_wedge_product(Tuple{1,1}, sd, Val{:CUDA})
+  (α, β) -> dec_c_wedge_product(Tuple{1,1}, α, β, val_pack, Val{:CUDA})
 end
 
-dec_cu_p_wedge_product(::Type{Tuple{m,n}}, sd) where {m,n} = begin
+dec_p_wedge_product(::Type{Tuple{m,n}}, sd, ::Type{Val{:CUDA}}) where {m,n} = begin
   val_pack = dec_p_wedge_product(Tuple{m,n}, sd)
   (CuArray.(val_pack[1:end-1])..., val_pack[end]) 
 end
 
-# TODO: Should add typing to the zeros call
-dec_cu_c_wedge_product(::Type{Tuple{m,n}}, α, β, val_pack) where {m,n} = begin
+dec_c_wedge_product(::Type{Tuple{m,n}}, α, β, val_pack, ::Type{Val{:CUDA}}) where {m,n} = begin
   wedge_terms = CUDA.zeros(eltype(α), last(last(val_pack)))
-  return dec_cu_c_wedge_product!(Tuple{m,n}, wedge_terms, α, β, val_pack)
+  return dec_c_wedge_product!(Tuple{m,n}, wedge_terms, α, β, val_pack, Val{:CUDA})
 end
 
-function dec_cu_c_wedge_product!(::Type{Tuple{0,1}}, wedge_terms, f, α, val_pack)
+function dec_c_wedge_product!(::Type{Tuple{0,1}}, wedge_terms, f, α, val_pack, ::Type{Val{:CUDA}})
   num_threads = CUDA.max_block_size.x
   num_blocks = min(ceil(Int, length(wedge_terms) / num_threads), CUDA.max_grid_size.x)
 
@@ -50,7 +49,7 @@ function dec_cu_c_wedge_product!(::Type{Tuple{0,1}}, wedge_terms, f, α, val_pac
   return wedge_terms
 end
 
-function dec_cu_c_wedge_product!(::Type{Tuple{0,2}}, wedge_terms, f, α, val_pack)
+function dec_c_wedge_product!(::Type{Tuple{0,2}}, wedge_terms, f, α, val_pack, ::Type{Val{:CUDA}})
   num_threads = CUDA.max_block_size.x
   num_blocks = min(ceil(Int, length(wedge_terms) / num_threads), CUDA.max_grid_size.x)
 
@@ -58,7 +57,7 @@ function dec_cu_c_wedge_product!(::Type{Tuple{0,2}}, wedge_terms, f, α, val_pac
   return wedge_terms
 end
 
-function dec_cu_c_wedge_product!(::Type{Tuple{1,1}}, wedge_terms, f, α, val_pack)
+function dec_c_wedge_product!(::Type{Tuple{1,1}}, wedge_terms, f, α, val_pack, ::Type{Val{:CUDA}})
   num_threads = CUDA.max_block_size.x
   num_blocks = min(ceil(Int, length(wedge_terms) / num_threads), CUDA.max_grid_size.x)
 

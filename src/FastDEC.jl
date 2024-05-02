@@ -16,14 +16,8 @@ export dec_boundary, dec_differential, dec_dual_derivative, dec_hodge_star, dec_
        Δᵈ, 
        dec_cu_c_wedge_product!, dec_cu_c_wedge_product, dec_cu_p_wedge_product, dec_cu_wedge_product
 
-# TODO: These along with the exports should be cleaned up, extension should really be 
-# overloading the CPU wedge_products with multiple-dispatch
-function dec_cu_wedge_product() end
-function dec_cu_c_wedge_product!() end
-function dec_cu_c_wedge_product() end
-function dec_cu_p_wedge_product() end
-
-"""    dec_p_wedge_product(::Type{Tuple{0,1}}, sd::EmbeddedDeltaDualComplex1D)
+"""
+    dec_p_wedge_product(::Type{Tuple{0,1}}, sd::EmbeddedDeltaDualComplex1D)
 
 Precomputes values for the wedge product between a 0 and 1-form.
 The values are to be fed into the wedge_terms parameter for the computational "c" varient. 
