@@ -31,7 +31,7 @@ git-tree-sha1 = "4ef534dec522a68186220622f91db37c2e552117"
 
     [[icospheres1.download]]
 		sha256 = "5f644886bc5c1bf3bde780e6f0738c89dd02eea83fe40653446ae9eaf1e18236"
-		url = "https://raw.githubusercontent.com/AlgebraicJulia/DecapodesMeshes.jl/ico678/meshes/icospheres1.tar.gz"
+		url = "https://raw.githubusercontent.com/AlgebraicJulia/DecapodesMeshes.jl/main/meshes/icospheres1.tar.gz"
 
 [point_map]
 git-tree-sha1 = "926b99fcce23b7e01e19921f157a48a2fb3f458c"
