@@ -53,98 +53,51 @@ dual_meshes_2D = [(generate_dual_mesh ∘ loadmesh ∘ Icosphere).(1:2)...,
                (generate_dual_mesh).([triangulated_grid(10,10,8,8,Point3D), makeSphere(5, 175, 5, 0, 360, 5, 6371+90)[1]])...,
                (loadmesh)(Torus_30x10())];
 
-@testset "Exterior Derivative" begin
-    for i in 0:0 
-        for sd in dual_meshes_1D
-            @test all(dec_differential(i, sd) .== SparseMatrixCSC(dec_differential(i, sd, Val{:CUDA})))
+function test_cpu_gpu_equality(meshes, range, operator, conversion)
+    for i in range
+        for sd in meshes
+            @test all(operator(i, sd) .== conversion(operator(i, sd, Val{:CUDA})))
         end
     end
+end
 
-    for i in 0:1 
-        for sd in dual_meshes_2D
-            @test all(dec_differential(i, sd) .== SparseMatrixCSC(dec_differential(i, sd, Val{:CUDA})))
+function test_cpu_gpu_equality(meshes, range, operator, conversion, hodge)
+    for i in range
+        for sd in meshes
+            @test all(operator(i, sd, hodge) .== conversion(operator(i, sd, hodge, Val{:CUDA})))
         end
     end
+end
+
+@testset "Exterior Derivative" begin
+    test_cpu_gpu_equality(dual_meshes_1D, [0], dec_differential, SparseMatrixCSC)
+    test_cpu_gpu_equality(dual_meshes_2D, [0,1], dec_differential, SparseMatrixCSC)
 end
 
 @testset "Boundary" begin
-    for i in 1:1 
-        for sd in dual_meshes_1D
-            @test all(dec_boundary(i, sd) .== SparseMatrixCSC(dec_boundary(i, sd, Val{:CUDA})))
-        end
-    end
-
-    for i in 1:2
-        for sd in dual_meshes_2D
-            @test all(dec_boundary(i, sd) .== SparseMatrixCSC(dec_boundary(i, sd, Val{:CUDA})))
-        end
-    end
+    test_cpu_gpu_equality(dual_meshes_1D, [1], dec_boundary, SparseMatrixCSC)
+    test_cpu_gpu_equality(dual_meshes_2D, [1,2], dec_boundary, SparseMatrixCSC)
 end
 
 @testset "Dual Derivative" begin
-    for i in 0:0 
-        for sd in dual_meshes_1D
-            @test all(dec_dual_derivative(i, sd) .== SparseMatrixCSC(dec_dual_derivative(i, sd, Val{:CUDA})))
-        end
-    end
-
-    for i in 0:1
-        for sd in dual_meshes_2D
-            @test all(dec_dual_derivative(i, sd) .== SparseMatrixCSC(dec_dual_derivative(i, sd, Val{:CUDA})))
-        end
-    end
+    test_cpu_gpu_equality(dual_meshes_1D, [0], dec_dual_derivative, SparseMatrixCSC)
+    test_cpu_gpu_equality(dual_meshes_2D, [0,1], dec_dual_derivative, SparseMatrixCSC)
 end
 
-#TODO: For hodge star 1, the values seems to be extremely close yet not quite equal
 @testset "Diagonal Hodge" begin
-    for i in 0:1
-        for sd in dual_meshes_1D
-            @test all(dec_hodge_star(Val{i}, sd, DiagonalHodge()) .== Array(dec_hodge_star(i, sd, DiagonalHodge(), Val{:CUDA})))
-        end
-    end
-
-    for i in 0:2
-        for sd in dual_meshes_2D
-            @test all(dec_hodge_star(Val{i}, sd, DiagonalHodge()) .== Array(dec_hodge_star(i, sd, DiagonalHodge(), Val{:CUDA})))
-        end
-    end
+    test_cpu_gpu_equality(dual_meshes_1D, [0,1], dec_hodge_star, Array, DiagonalHodge())
+    test_cpu_gpu_equality(dual_meshes_2D, [0,1,2], dec_hodge_star, Array, DiagonalHodge())
 end
 
-#TODO: For inv hodge star 1, the values seems to be extremely close yet not quite equal
 @testset "Inverse Diagonal Hodge" begin
-    for i in 0:1
-        for sd in dual_meshes_1D
-            @test all(dec_inv_hodge_star(Val{i}, sd, DiagonalHodge()) .== Array(dec_inv_hodge_star(i, sd, DiagonalHodge(), Val{:CUDA})))
-        end
-    end
-
-    for i in 0:2
-        for sd in dual_meshes_2D
-            @test all(dec_inv_hodge_star(Val{i}, sd, DiagonalHodge()) .== Array(dec_inv_hodge_star(i, sd, DiagonalHodge(), Val{:CUDA})))
-        end
-    end
+    test_cpu_gpu_equality(dual_meshes_1D, [0,1], dec_inv_hodge_star, Array, DiagonalHodge())
+    test_cpu_gpu_equality(dual_meshes_2D, [0,1,2], dec_inv_hodge_star, Array, DiagonalHodge())
 end
 
 @testset "Geometric Hodge" begin
-    for i in 0:1
-        for sd in dual_meshes_1D
-            @test all(dec_hodge_star(Val{i}, sd, GeometricHodge()) .== Array(dec_hodge_star(i, sd, GeometricHodge(), Val{:CUDA})))
-        end
-    end
-
-    for i in [0, 2]
-        for sd in dual_meshes_2D
-            @test all(dec_hodge_star(Val{i}, sd, GeometricHodge()) .== Array(dec_hodge_star(i, sd, GeometricHodge(), Val{:CUDA})))
-        end
-    end
-
-    # TODO: Why does this test require atol, not rtol, to reasonably pass?
-    for i in [1]
-        for sd in dual_meshes_2D
-            @test all(dec_hodge_star(Val{i}, sd, GeometricHodge()) .== SparseMatrixCSC(dec_hodge_star(Val{i}, sd, GeometricHodge(), Val{:CUDA})))
-        end
-    end
-
+    test_cpu_gpu_equality(dual_meshes_1D, [0,1], dec_hodge_star, Array, GeometricHodge())
+    test_cpu_gpu_equality(dual_meshes_2D, [0,2], dec_hodge_star, Array, GeometricHodge())
+    test_cpu_gpu_equality(dual_meshes_2D, [1], dec_hodge_star, SparseMatrixCSC, GeometricHodge())
 end
             
 @testset "Inverse Geometric Hodge" begin
@@ -161,7 +114,8 @@ end
         V_1, V_2 = rand(nv(sd)), rand(nv(sd))
         E_1 = rand(ne(sd))
         @test all(Array(dec_cu_wedge_product(Tuple{0, 0}, sd)(CuArray(V_1), CuArray(V_2))) .== ∧(Tuple{0, 0}, sd, V_1, V_2))
-        @test all(isapprox.(Array(dec_cu_wedge_product(Tuple{0, 1}, sd)(CuArray(V_1), CuArray(E_1))), ∧(Tuple{0, 1}, sd, V_1, E_1); rtol = 1e-14))
+        @test all(isapprox.(Array(dec_cu_wedge_product(Tuple{0, 1}, sd)(CuArray(V_1), CuArray(E_1))), ∧(Tuple{0, 1}, sd, V_1, E_1); atol = 1e-14))
+        @test all(isapprox.(Array(dec_cu_wedge_product(Tuple{1, 0}, sd)(CuArray(E_1), CuArray(V_1))), ∧(Tuple{1, 0}, sd, E_1, V_1); atol = 1e-14))
     end
 
     for sd in dual_meshes_2D
@@ -173,12 +127,13 @@ end
         @test all(Array(dec_cu_wedge_product(Tuple{0, 0}, sd)(CuArray(V_1), CuArray(V_2))) .== ∧(Tuple{0, 0}, sd, V_1, V_2))
 
         wdg01 = dec_cu_wedge_product(Tuple{0, 1}, sd)
-        @test all(isapprox.(Array(wdg01(CuArray(V_1), CuArray(E_2))), ∧(Tuple{0, 1}, sd, V_1, E_2); rtol = 1e-14))
+        @test all(isapprox.(Array(wdg01(CuArray(V_1), CuArray(E_2))), ∧(Tuple{0, 1}, sd, V_1, E_2); atol = 1e-14))
         @test all(Array(wdg01(CuArray(V_ones), CuArray(E_ones))) .== E_ones)
+        @test all(isapprox.(Array(dec_cu_wedge_product(Tuple{1, 0}, sd)(CuArray(E_1), CuArray(V_2))), ∧(Tuple{1,0}, sd, E_1, V_2); atol = 1e-14))
 
-        @test all(isapprox.(Array(dec_cu_wedge_product(Tuple{0, 2}, sd)(CuArray(V_1), CuArray(T_2))), ∧(Tuple{0, 2}, sd, V_1, T_2); rtol = 1e-14))
+        @test all(isapprox.(Array(dec_cu_wedge_product(Tuple{0, 2}, sd)(CuArray(V_1), CuArray(T_2))), ∧(Tuple{0, 2}, sd, V_1, T_2); atol = 1e-14))
 
-        @test all(isapprox.(Array(dec_cu_wedge_product(Tuple{1, 1}, sd)(CuArray(E_1), CuArray(E_2))), ∧(Tuple{1, 1}, sd, E_1, E_2); rtol = 1e-12))
+        @test all(isapprox.(Array(dec_cu_wedge_product(Tuple{1, 1}, sd)(CuArray(E_1), CuArray(E_2))), ∧(Tuple{1, 1}, sd, E_1, E_2); atol = 1e-12))
     end
 end
 

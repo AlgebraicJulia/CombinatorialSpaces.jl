@@ -190,7 +190,7 @@ Do NOT modify the mesh once it's dual mesh has been computed else this method ma
 """
 function dec_c_wedge_product(::Type{Tuple{m,n}}, α, β, val_pack) where {m,n}
     # The last item in the val_pack should always be the range of simplices
-    wedge_terms = zeros(last(last(val_pack)))
+    wedge_terms = zeros(eltype(α), last(last(val_pack)))
     return dec_c_wedge_product!(Tuple{m,n}, wedge_terms, α, β, val_pack)
 end
 
