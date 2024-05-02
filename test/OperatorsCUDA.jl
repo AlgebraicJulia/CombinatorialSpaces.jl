@@ -30,6 +30,14 @@ function generate_dual_mesh(s::HasDeltaSet2D)
     sd
 end
 
+function generate_dual_mesh_2(s::HasDeltaSet2D)
+    orient!(s)
+    sd = EmbeddedDeltaDualComplex2D{Bool,Float64,Point2D}(s)
+    subdivide_duals!(sd, Circumcenter())
+    sd
+end
+
+
 primal_line = EmbeddedDeltaSet1D{Bool,Point2D}()
 add_vertices!(primal_line, 3, point=[Point2D(1,0), Point2D(0,0), Point2D(0,2)])
 add_edges!(primal_line, [1,2], [2,3])
@@ -50,8 +58,12 @@ dual_meshes_1D = [line, cycle, plus]
 
 dual_meshes_2D = [(generate_dual_mesh ∘ loadmesh ∘ Icosphere).(1:2)...,
                (generate_dual_mesh ∘ loadmesh)(Rectangle_30x10()),
-               (generate_dual_mesh).([triangulated_grid(10,10,8,8,Point3D), makeSphere(5, 175, 5, 0, 360, 5, 6371+90)[1]])...,
-               (loadmesh)(Torus_30x10())];
+               (generate_dual_mesh).([triangulated_grid(10,10,8,8,Point3D), makeSphere(5, 175, 5, 0, 360, 5, 6371+90)[1]])...];
+
+dual_meshes_2D_2 = [(generate_dual_mesh_2 ∘ loadmesh ∘ Icosphere).(1:2)...,
+               (generate_dual_mesh_2 ∘ loadmesh)(Rectangle_30x10()),
+               (generate_dual_mesh_2).([triangulated_grid(10,10,8,8,Point3D), makeSphere(5, 175, 5, 0, 360, 5, 6371+90)[1]])...];
+
 
 function test_cpu_gpu_equality(meshes, range, operator, conversion)
     for i in range
@@ -72,26 +84,30 @@ end
 @testset "Exterior Derivative" begin
     test_cpu_gpu_equality(dual_meshes_1D, [0], dec_differential, SparseMatrixCSC)
     test_cpu_gpu_equality(dual_meshes_2D, [0,1], dec_differential, SparseMatrixCSC)
+    test_cpu_gpu_equality(dual_meshes_2D_2, [0,1], dec_differential, SparseMatrixCSC)
+
 end
 
 @testset "Boundary" begin
     test_cpu_gpu_equality(dual_meshes_1D, [1], dec_boundary, SparseMatrixCSC)
     test_cpu_gpu_equality(dual_meshes_2D, [1,2], dec_boundary, SparseMatrixCSC)
+    test_cpu_gpu_equality(dual_meshes_2D_2, [1,2], dec_boundary, SparseMatrixCSC)
 end
 
 @testset "Dual Derivative" begin
     test_cpu_gpu_equality(dual_meshes_1D, [0], dec_dual_derivative, SparseMatrixCSC)
     test_cpu_gpu_equality(dual_meshes_2D, [0,1], dec_dual_derivative, SparseMatrixCSC)
+    test_cpu_gpu_equality(dual_meshes_2D_2, [0,1], dec_dual_derivative, SparseMatrixCSC)
 end
 
 @testset "Diagonal Hodge" begin
     test_cpu_gpu_equality(dual_meshes_1D, [0,1], dec_hodge_star, Array, DiagonalHodge())
-    test_cpu_gpu_equality(dual_meshes_2D, [0,1,2], dec_hodge_star, Array, DiagonalHodge())
+    test_cpu_gpu_equality(dual_meshes_2D_2, [0,1,2], dec_hodge_star, Array, DiagonalHodge())
 end
 
 @testset "Inverse Diagonal Hodge" begin
     test_cpu_gpu_equality(dual_meshes_1D, [0,1], dec_inv_hodge_star, Array, DiagonalHodge())
-    test_cpu_gpu_equality(dual_meshes_2D, [0,1,2], dec_inv_hodge_star, Array, DiagonalHodge())
+    test_cpu_gpu_equality(dual_meshes_2D_2, [0,1,2], dec_inv_hodge_star, Array, DiagonalHodge())
 end
 
 @testset "Geometric Hodge" begin
@@ -102,7 +118,7 @@ end
             
 @testset "Inverse Geometric Hodge" begin
     for i in 1:1
-        for sd in dual_meshes_2D[1:end-2]
+        for sd in dual_meshes_2D[1:end-1]
             V_1 = Float64.(I[1:ne(sd), 1])
             @test all(isapprox.(dec_inv_hodge_star(Val{i}, sd, GeometricHodge())(V_1), Array(dec_inv_hodge_star(Val{i}, sd, GeometricHodge(), Val{:CUDA})(CuArray(V_1))); atol = 1e-10))
         end

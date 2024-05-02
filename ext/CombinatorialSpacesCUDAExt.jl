@@ -9,7 +9,7 @@ using SparseArrays
 using Krylov
 Point2D = Point2{Float64}
 Point3D = Point3{Float64}
-import CombinatorialSpaces: dec_wedge_product!, dec_c_wedge_product, dec_c_wedge_product!, dec_p_wedge_product, 
+import CombinatorialSpaces: dec_wedge_product, dec_c_wedge_product, dec_c_wedge_product!, dec_p_wedge_product, 
 dec_boundary, dec_differential, dec_dual_derivative, dec_hodge_star, dec_inv_hodge_star
 
 function dec_wedge_product(::Type{Tuple{0,0}}, sd::HasDeltaSet, ::Type{Val{:CUDA}})
