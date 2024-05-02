@@ -31,12 +31,12 @@ function dec_wedge_product(::Type{Tuple{1,1}}, sd::HasDeltaSet2D, ::Type{Val{:CU
   (α, β) -> dec_c_wedge_product(Tuple{1,1}, α, β, val_pack, Val{:CUDA})
 end
 
-dec_p_wedge_product(::Type{Tuple{m,n}}, sd, ::Type{Val{:CUDA}}) where {m,n} = begin
+function dec_p_wedge_product(::Type{Tuple{m,n}}, sd, ::Type{Val{:CUDA}}) where {m,n}
   val_pack = dec_p_wedge_product(Tuple{m,n}, sd)
   (CuArray.(val_pack[1:end-1])..., val_pack[end]) 
 end
 
-dec_c_wedge_product(::Type{Tuple{m,n}}, α, β, val_pack, ::Type{Val{:CUDA}}) where {m,n} = begin
+function dec_c_wedge_product(::Type{Tuple{m,n}}, α, β, val_pack, ::Type{Val{:CUDA}}) where {m,n}
   wedge_terms = CUDA.zeros(eltype(α), last(last(val_pack)))
   return dec_c_wedge_product!(Tuple{m,n}, wedge_terms, α, β, val_pack, Val{:CUDA})
 end
@@ -96,16 +96,16 @@ function dec_cu_ker_c_wedge_product_11!(wedge_terms, α, β, e, coeffs)
   i = index
 
   @inbounds while i <= Int32(length(wedge_terms))
-      e0, e1, e2 = e[Int32(1), i], e[Int32(2), i], e[Int32(3), i]
-      ae0, ae1, ae2 = α[e0], α[e1], α[e2]
-      be0, be1, be2 = β[e0], β[e1], β[e2]
+    e0, e1, e2 = e[Int32(1), i], e[Int32(2), i], e[Int32(3), i]
+    ae0, ae1, ae2 = α[e0], α[e1], α[e2]
+    be0, be1, be2 = β[e0], β[e1], β[e2]
 
-      c1, c2, c3 = coeffs[Int32(1), i], coeffs[Int32(2), i], coeffs[Int32(3), i]
+    c1, c2, c3 = coeffs[Int32(1), i], coeffs[Int32(2), i], coeffs[Int32(3), i]
 
-      wedge_terms[i] = (c1 * (ae2 * be1 - ae1 * be2)
-                      + c2 * (ae2 * be0 - ae0 * be2)
-                      + c3 * (ae1 * be0 - ae0 * be1))
-      i += stride
+    wedge_terms[i] = (c1 * (ae2 * be1 - ae1 * be2)
+                    + c2 * (ae2 * be0 - ae0 * be2)
+                    + c3 * (ae1 * be0 - ae0 * be1))
+    i += stride
   end
 
   return nothing
