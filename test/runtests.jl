@@ -12,6 +12,7 @@ end
   include("ExteriorCalculus.jl")
   include("DiscreteExteriorCalculus.jl")
   include("Operators.jl")
+  include("SimplicialSetMorphisms.jl")
 end
 
 @testset "Meshes" begin
