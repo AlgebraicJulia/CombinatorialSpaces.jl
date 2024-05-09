@@ -30,8 +30,8 @@ Icosphere(n) = Icosphere(n, 1.0)
 Load in a icosphere mesh.
 """
 function loadmesh(s::Icosphere)
-  1 <= s.n <= 5 || error("The only icosphere divisions supported are 1-5")
-  m = loadmesh_helper("UnitIcosphere$(s.n).obj")
+  1 <= s.n <= 8 || error("The only icosphere divisions supported are 1-8")
+  m = loadmesh_icosphere_helper("UnitIcosphere$(s.n).obj")
   m[:point] = m[:point]*s.r
   return m
 end
@@ -64,8 +64,8 @@ end
 
 #loadmesh(meshkey::AbstractMeshKey)::EmbeddedDeltaSet2D
 
-loadmesh_helper(obj_file_name) = EmbeddedDeltaSet2D(
-  joinpath(artifact"all_meshes2", obj_file_name))
+loadmesh_icosphere_helper(obj_file_name) = EmbeddedDeltaSet2D(
+  joinpath(artifact"icospheres1", obj_file_name))
 
 
 # This function was once the gridmeshes.jl file from Decapodes.jl.
