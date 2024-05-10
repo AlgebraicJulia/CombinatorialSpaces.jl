@@ -652,9 +652,10 @@ for (primal_s,s) in flat_meshes
   u_star = hodge_star(1,s) * u
 
   @test all(isapprox.(
-    sign(2,s) .* hodge_star(2,s) * ∧(s, SimplexForm{1}(u), DualForm{1}(u_star)),
+    dec_hodge_star(2,s) * ∧(s, SimplexForm{1}(u), DualForm{1}(u_star)),
     ff_gg,
     atol=1e-10))
 end
 
 end
+
