@@ -685,7 +685,7 @@ function interior_product_dd(::Type{Tuple{1,2}}, s::SimplicialSets.HasDeltaSet)
   hs1 = dec_hodge_star(Val{1}, s, GeometricHodge())
   ♭♯_m = ♭♯_mat(s)
   Λ01_m = wedge_pd_01_mat(s)
-  (f,g) -> hs1 * only.(♭♯_m * ((Λ01_m * ihs0 * g) .* f))
+  (f,g) -> hs1 * ♭♯_m * ((Λ01_m * ihs0 * g) .* f)
 end
 
 """    function ℒ_dd(::Type{Tuple{1,1}}, s::SimplicialSets.HasDeltaSet)
