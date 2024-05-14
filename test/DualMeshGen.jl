@@ -28,9 +28,16 @@ add_vertices!(primal_triangle, 3, point=[Point2D(1,0), Point2D(0,0), Point2D(0,1
 add_edges!(primal_triangle, [1,2,1], [2,3,3])
 glue_triangle!(primal_triangle, 1, 2, 3)
 
+primal_fin = EmbeddedDeltaSet2D{Bool,Point3D}()
+add_vertices!(primal_fin, 5, point=[Point3D(1,0,0), Point3D(0,0,0), Point3D(0,1,0), Point3D(0,0,1), Point3D(-1,0,0)])
+add_edges!(primal_fin, [1,1,2,5,5,4,4], [2,3,3,2,3,2,3])
+glue_triangle!(primal_fin, 1, 2, 3)
+glue_triangle!(primal_fin, 4, 2, 3)
+glue_triangle!(primal_fin, 5, 2, 3)
+
 dual_meshes_2D = [(loadmesh ∘ Icosphere).(1:2)...,
                loadmesh(Rectangle_30x10()),
-               triangulated_grid(10,10,8,8,Point3D), primal_triangle];
+               triangulated_grid(10,10,8,8,Point3D), primal_triangle, primal_fin];
 
 for s in dual_meshes_1D
     sd_c = EmbeddedDeltaDualComplex1D{Bool,Float64,Point2D}(s, FastMesh())
