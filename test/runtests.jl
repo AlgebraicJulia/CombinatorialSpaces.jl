@@ -1,3 +1,4 @@
+module RunTests
 using Test
 
 @testset "CombinatorialMaps" begin
@@ -18,4 +19,16 @@ end
   include("Meshes.jl")
   include("MeshInterop.jl")
   include("MeshGraphics.jl")
+end
+
+using CUDA
+if CUDA.functional()
+  @testset "CUDA" begin
+    include("OperatorsCUDA.jl")
+  end
+else
+  @info "CUDA tests were not run."
+  @info CUDA.functional(true)
+end
+
 end

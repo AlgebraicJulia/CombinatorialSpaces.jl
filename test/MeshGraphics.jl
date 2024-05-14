@@ -3,7 +3,6 @@ using Test
 
 using CairoMakie
 using CombinatorialSpaces
-using CombinatorialSpaces.MeshGraphics
 using StaticArrays: SVector
 
 const Point3D = SVector{3,Float64}

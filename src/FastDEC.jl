@@ -13,9 +13,11 @@ export dec_boundary, dec_differential, dec_dual_derivative, dec_hodge_star, dec_
        dec_wedge_product_pd, dec_wedge_product_dp, ∧,
        interior_product_dd, ℒ_dd,
        dec_wedge_product_dd,
-       Δᵈ
+       Δᵈ, 
+       dec_cu_c_wedge_product!, dec_cu_c_wedge_product, dec_cu_p_wedge_product, dec_cu_wedge_product
 
-"""    dec_p_wedge_product(::Type{Tuple{0,1}}, sd::EmbeddedDeltaDualComplex1D)
+"""
+    dec_p_wedge_product(::Type{Tuple{0,1}}, sd::EmbeddedDeltaDualComplex1D)
 
 Precomputes values for the wedge product between a 0 and 1-form.
 The values are to be fed into the wedge_terms parameter for the computational "c" varient. 
@@ -182,7 +184,7 @@ Do NOT modify the mesh once it's dual mesh has been computed else this method ma
 """
 function dec_c_wedge_product(::Type{Tuple{m,n}}, α, β, val_pack) where {m,n}
     # The last item in the val_pack should always be the range of simplices
-    wedge_terms = zeros(last(last(val_pack)))
+    wedge_terms = zeros(eltype(α), last(last(val_pack)))
     return dec_c_wedge_product!(Tuple{m,n}, wedge_terms, α, β, val_pack)
 end
 
