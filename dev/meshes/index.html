@@ -6,25 +6,25 @@ catmesh = FileIO.load(File{format&quot;OBJ&quot;}(download(
 
 catmesh_dset = EmbeddedDeltaSet2D(catmesh)
 mesh(catmesh_dset, shading=false)</code></pre><div>
-  <div class="bonito-fragment" id="9d7793c4-b7bf-4609-b10d-5260d9900b87" data-jscall-id="root">
+  <div class="bonito-fragment" id="635a6505-b649-4a68-a32c-aad913684c2b" data-jscall-id="root">
     <div>
       <script src="../../../../.julia/packages/Bonito/mxgrs/js_dependencies/Bonito.bundled.js" type="module"></script>
       <style></style>
       <div></div>
     </div>
     <div>
-      <script type="module">Bonito.lock_loading(() => Bonito.init_session('9d7793c4-b7bf-4609-b10d-5260d9900b87', null, 'root'))</script>
+      <script type="module">Bonito.lock_loading(() => Bonito.init_session('635a6505-b649-4a68-a32c-aad913684c2b', null, 'root'))</script>
       <span></span>
     </div>
   </div>
-  <div class="bonito-fragment" id="2ea746f0-79fb-4870-a482-eadf734e8dbc" data-jscall-id="subsession-application-dom">
+  <div class="bonito-fragment" id="f5464fa4-adce-4926-afdd-a0efaea935ab" data-jscall-id="subsession-application-dom">
     <div>
       <style></style>
       <div></div>
     </div>
     <div>
       <script type="module">    Bonito.lock_loading(() => {
-        return Bonito.fetch_binary('bonito/bin/5e2d6d6900048d388b32296eb9788b7cae598c4c-10832766887798050865.bin').then(msgs=> Bonito.init_session('2ea746f0-79fb-4870-a482-eadf734e8dbc', msgs, 'sub'));
+        return Bonito.fetch_binary('bonito/bin/9e74ac1971f4636eb01457f9753974bf65ade8d5-9844864773195277634.bin').then(msgs=> Bonito.init_session('f5464fa4-adce-4926-afdd-a0efaea935ab', msgs, 'sub'));
     })
 </script>
       <div style="width: 100%; height: 100%" data-jscall-id="1">
@@ -32,14 +32,14 @@ mesh(catmesh_dset, shading=false)</code></pre><div>
       </div>
     </div>
   </div>
-</div><p>Alterntively, the embedded delta set can be visualized as a wireframe:</p><pre><code class="language-julia hljs">wireframe(catmesh_dset)</code></pre><div class="bonito-fragment" id="bcacd19a-0a0f-4fd2-a9b5-96434f9940d5" data-jscall-id="subsession-application-dom">
+</div><p>Alterntively, the embedded delta set can be visualized as a wireframe:</p><pre><code class="language-julia hljs">wireframe(catmesh_dset)</code></pre><div class="bonito-fragment" id="c3cfee7e-c165-4f07-a108-8b99cf12a09d" data-jscall-id="subsession-application-dom">
   <div>
     <style></style>
     <div></div>
   </div>
   <div>
     <script type="module">    Bonito.lock_loading(() => {
-        return Bonito.fetch_binary('bonito/bin/107ce492fd56fb7fa068e652e4bd3cd1258e1f9c-14214778347656827973.bin').then(msgs=> Bonito.init_session('bcacd19a-0a0f-4fd2-a9b5-96434f9940d5', msgs, 'sub'));
+        return Bonito.fetch_binary('bonito/bin/24b83845c0041bef5c2780f92c337ca0504239a4-17145343900872011419.bin').then(msgs=> Bonito.init_session('c3cfee7e-c165-4f07-a108-8b99cf12a09d', msgs, 'sub'));
     })
 </script>
     <div style="width: 100%; height: 100%" data-jscall-id="3">
@@ -48,18 +48,18 @@ mesh(catmesh_dset, shading=false)</code></pre><div>
   </div>
 </div><p>We can also construct and plot the dual complex for this mesh:</p><pre><code class="language-julia hljs">dual = EmbeddedDeltaDualComplex2D{Bool, Float32, Point{3,Float32}}(catmesh_dset)
 subdivide_duals!(dual, Barycenter())
-wireframe(dual)</code></pre><div class="bonito-fragment" id="30593e9d-73ae-4ab5-a9db-fd5ec1129b28" data-jscall-id="subsession-application-dom">
+wireframe(dual)</code></pre><div class="bonito-fragment" id="ac0ab8d9-65dd-46c8-9512-5f6f143cf726" data-jscall-id="subsession-application-dom">
   <div>
     <style></style>
     <div></div>
   </div>
   <div>
     <script type="module">    Bonito.lock_loading(() => {
-        return Bonito.fetch_binary('bonito/bin/58423447f44b515ab304748096a78cbe21200615-8424280547507507561.bin').then(msgs=> Bonito.init_session('30593e9d-73ae-4ab5-a9db-fd5ec1129b28', msgs, 'sub'));
+        return Bonito.fetch_binary('bonito/bin/958e320aee29cf8849338157af6e118030292481-10239279839613631468.bin').then(msgs=> Bonito.init_session('ac0ab8d9-65dd-46c8-9512-5f6f143cf726', msgs, 'sub'));
     })
 </script>
     <div style="width: 100%; height: 100%" data-jscall-id="5">
       <canvas style="display: block" data-jscall-id="6" tabindex="0"></canvas>
     </div>
   </div>
-</div><h2 id="API-docs"><a class="docs-heading-anchor" href="#API-docs">API docs</a><a id="API-docs-1"></a><a class="docs-heading-anchor-permalink" href="#API-docs" title="Permalink"></a></h2><article class="docstring"><header><a class="docstring-article-toggle-button fa-solid fa-chevron-down" href="javascript:;" title="Collapse docstring"></a><a class="docstring-binding" id="CombinatorialSpaces.MeshInterop" href="#CombinatorialSpaces.MeshInterop"><code>CombinatorialSpaces.MeshInterop</code></a> — <span class="docstring-category">Module</span></header><section><div><p>Interoperation with mesh files.</p><p>This module enables delta sets to be imported from mesh files supported by MeshIO.jl and for delta sets to be converted to meshes, mainly for the purposes of plotting. Meshes are represented by the <code>GeometryBasics.Mesh</code> type.</p></div><a class="docs-sourcelink" target="_blank" href="https://github.com/AlgebraicJulia/CombinatorialSpaces.jl/blob/51685e1106d3014d50c47f3fc714bc028072b4b7/src/MeshInterop.jl#L1-L7">source</a></section></article></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../combinatorial_maps/">« Combinatorial maps</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.4.1 on <span class="colophon-date" title="Tuesday 14 May 2024 21:26">Tuesday 14 May 2024</span>. Using Julia version 1.10.3.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
+</div><h2 id="API-docs"><a class="docs-heading-anchor" href="#API-docs">API docs</a><a id="API-docs-1"></a><a class="docs-heading-anchor-permalink" href="#API-docs" title="Permalink"></a></h2><article class="docstring"><header><a class="docstring-article-toggle-button fa-solid fa-chevron-down" href="javascript:;" title="Collapse docstring"></a><a class="docstring-binding" id="CombinatorialSpaces.MeshInterop" href="#CombinatorialSpaces.MeshInterop"><code>CombinatorialSpaces.MeshInterop</code></a> — <span class="docstring-category">Module</span></header><section><div><p>Interoperation with mesh files.</p><p>This module enables delta sets to be imported from mesh files supported by MeshIO.jl and for delta sets to be converted to meshes, mainly for the purposes of plotting. Meshes are represented by the <code>GeometryBasics.Mesh</code> type.</p></div><a class="docs-sourcelink" target="_blank" href="https://github.com/AlgebraicJulia/CombinatorialSpaces.jl/blob/9a4e538a587fd6e46056c3bb7a3a3db078e8baba/src/MeshInterop.jl#L1-L7">source</a></section></article></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../combinatorial_maps/">« Combinatorial maps</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.4.1 on <span class="colophon-date" title="Tuesday 14 May 2024 21:50">Tuesday 14 May 2024</span>. Using Julia version 1.10.3.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
