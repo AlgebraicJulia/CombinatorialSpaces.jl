@@ -4,14 +4,10 @@ using Test
 using SparseArrays
 using LinearAlgebra
 using CombinatorialSpaces
-using Random
-using GeometryBasics: Point2, Point3
+using GeometryBasics: Point2
 using Catlab: copy_parts!
 
 Point2D = Point2{Float64}
-Point3D = Point3{Float64}
-
-Random.seed!(0)
 
 primal_line = EmbeddedDeltaSet1D{Bool,Point2D}()
 add_vertices!(primal_line, 3, point=[Point2D(1,0), Point2D(0,0), Point2D(0,2)])
