@@ -1,11 +1,8 @@
 module TestDualMeshGen
 
 using Test
-using SparseArrays
-using LinearAlgebra
 using CombinatorialSpaces
 using GeometryBasics: Point2
-using Catlab: copy_parts!
 
 Point2D = Point2{Float64}
 
