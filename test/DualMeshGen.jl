@@ -26,7 +26,7 @@ glue_triangle!(primal_triangle, 1, 2, 3)
 
 dual_meshes_2D = [(loadmesh ∘ Icosphere).(1:2)...,
                loadmesh(Rectangle_30x10()),
-               triangulated_grid(10,10,8,8,Point3D), primal_triangle];
+               triangulated_grid(10,10,8,8,Point2D), primal_triangle];
 
 for s in dual_meshes_1D
     sd_c = EmbeddedDeltaDualComplex1D{Bool,Float64,Point2D}(s, FastMesh())

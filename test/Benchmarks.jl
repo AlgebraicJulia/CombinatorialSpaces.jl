@@ -10,8 +10,8 @@ using GeometryBasics: Point2, Point3
 Point2D = Point2{Float64}
 Point3D = Point3{Float64}
 
+@info "Beginning DEC Operator Benchmarks"
 begin 
-    # TODO: Support larger meshes like Ico7
     mesh_size = 5
     float_type::DataType = Float64
     primal_earth = loadmesh(Icosphere(mesh_size))
@@ -136,9 +136,9 @@ begin
     suite["Wedge Product Computation"]["New Form-0, Form-2"] = @benchmarkable wdg02($V_1, $T_2)
 end
 
-
-
 # tune!(suite)
+
+@info "Running DEC Operator Benchmarks"
 
 results = run(suite, verbose = true, seconds = 1)
 
@@ -153,5 +153,35 @@ for op in sort(collect(keys(results)))
     end
     println("----------------------------------------------------------------")
 end
+
+@info "Beginning Dual Mesh Generation Benchmarks"
+
+s_precom = triangulated_grid(100, 100, 100, 100, Point3{Float64});
+s = triangulated_grid(100, 100, 0.5, 0.5, Point3{Float64});
+@info "Generated Primal Mesh"
+
+function test(s)
+    sd = EmbeddedDeltaDualComplex2D{Bool,Float64,Point3{Float64}}(s)
+    subdivide_duals!(sd, Barycenter())
+    sd;
+end
+
+function fast_test(s)
+    sd_c = EmbeddedDeltaDualComplex2D{Bool,Float64,Point3{Float64}}(s, FastMesh())
+    subdivide_duals!(sd_c, FastMesh(), Barycenter())
+    sd_c;
+end
+
+@info "Original Dual Mesh Generation"
+test(s_precom);
+@time test(s);
+
+GC.gc(true)
+
+@info "New Dual Mesh Generation"
+fast_test(s_precom);
+@time fast_test(s);
+
+@info "Done"
 
 end
