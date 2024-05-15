@@ -41,7 +41,7 @@ function copy_primal_1D!(t::HasDeltaSet1D, s::HasDeltaSet1D, ::Type{point_type})
   src_point::Vector{point_type} = s[:point]
   tgt_point = @view t[:point]
 
-  for (i, v) in enumerate(v_range)
+  @inbounds for (i, v) in enumerate(v_range)
     tgt_point[v] = src_point[i]
   end
 
@@ -51,7 +51,7 @@ function copy_primal_1D!(t::HasDeltaSet1D, s::HasDeltaSet1D, ::Type{point_type})
   tgt_v0 = @view t[:∂v0]
   tgt_v1 = @view t[:∂v1]
 
-  for (i, e) in enumerate(e_range)
+  @inbounds for (i, e) in enumerate(e_range)
     tgt_v0[e] = src_v0[i]
     tgt_v1[e] = src_v1[i]
   end
@@ -60,7 +60,7 @@ function copy_primal_1D!(t::HasDeltaSet1D, s::HasDeltaSet1D, ::Type{point_type})
     src_edge_orient = @view s[:edge_orientation]
     tgt_edge_orient = @view t[:edge_orientation]
 
-    for (i, e) in enumerate(e_range)
+    @inbounds for (i, e) in enumerate(e_range)
       tgt_edge_orient[e] = src_edge_orient[i]
     end
   end
@@ -79,7 +79,7 @@ function copy_primal_2D!(t::HasDeltaSet2D, s::HasDeltaSet2D)
   tgt_e1 = @view t[:∂e1]
   tgt_e2 = @view t[:∂e2]
 
-  for (i, tri) in enumerate(tri_range)
+  @inbounds for (i, tri) in enumerate(tri_range)
     tgt_e0[tri] = src_e0[i]
     tgt_e1[tri] = src_e1[i]
     tgt_e2[tri] = src_e2[i]
@@ -89,7 +89,7 @@ function copy_primal_2D!(t::HasDeltaSet2D, s::HasDeltaSet2D)
     src_tri_orient = @view s[:tri_orientation]
     tgt_tri_orient = @view t[:tri_orientation]
 
-    for (i, tri) in enumerate(tri_range)
+    @inbounds for (i, tri) in enumerate(tri_range)
       tgt_tri_orient[tri] = src_tri_orient[i]
     end
   end
@@ -123,7 +123,7 @@ function make_dual_simplices_1d!(sd::HasDeltaSet1D, ::Type{Simplex{n}}, gen::Fas
 
   d_v1 = @view sd[:D_∂v1]
 
-  for i in edges(sd)
+  @inbounds for i in edges(sd)
     d_v1[D_edges_1[i]] = v0[i]
     d_v1[D_edges_2[i]] = v1[i]
   end
@@ -146,7 +146,7 @@ function make_dual_simplices_1d!(sd::HasDeltaSet1D, ::Type{Simplex{n}}, gen::Fas
     # Need to find a way around this
     edge_orient = @view sd[:edge_orientation]
     d_edge_orient = @view sd[:D_edge_orientation]
-    for i in edges(sd)
+    @inbounds for i in edges(sd)
       d_edge_orient[D_edges_1[i]] = negate(edge_orient[i])
       d_edge_orient[D_edges_2[i]] = edge_orient[i]
     end
@@ -184,7 +184,7 @@ function make_dual_simplices_2d!(sd::HasDeltaSet2D, ::Type{Simplex{n}}, gen::Fas
   d_v0 = @view sd[:D_∂v0]
   d_v1 = @view sd[:D_∂v1]
 
-  for (i, de_12_0, de_12_1, de_12_2) in zip(triangles(sd), D_edges12...)
+  @inbounds for (i, de_12_0, de_12_1, de_12_2) in zip(triangles(sd), D_edges12...)
     d_v0[de_12_0] = tri_centers[i]
     d_v0[de_12_1] = tri_centers[i]
     d_v0[de_12_2] = tri_centers[i]
@@ -197,7 +197,7 @@ function make_dual_simplices_2d!(sd::HasDeltaSet2D, ::Type{Simplex{n}}, gen::Fas
   v0 = @view sd[:∂v0]
   v1 = @view sd[:∂v1]
 
-  for (i, de_02_0, de_02_1, de_02_2) in zip(triangles(sd), D_edges02...)
+  @inbounds for (i, de_02_0, de_02_1, de_02_2) in zip(triangles(sd), D_edges02...)
     d_v0[de_02_0] = tri_centers[i]
     d_v0[de_02_1] = tri_centers[i]
     d_v0[de_02_2] = tri_centers[i]
@@ -220,7 +220,7 @@ function make_dual_simplices_2d!(sd::HasDeltaSet2D, ::Type{Simplex{n}}, gen::Fas
 
   triangle_edges = (e0, e1, e2)
 
-  for (i, schema) in enumerate(D_triangle_schemas)
+  @inbounds for (i, schema) in enumerate(D_triangle_schemas)
     v,e,ev = schema
     d_e0[D_triangles[i]] .= D_edges12[e+1]
     d_e1[D_triangles[i]] .= D_edges02[v+1]
@@ -243,7 +243,7 @@ function make_dual_simplices_2d!(sd::HasDeltaSet2D, ::Type{Simplex{n}}, gen::Fas
     tri_orient = @view sd[:tri_orientation]
     D_tri_orient = @view sd[:D_tri_orientation]
 
-    for (i, D_tris) in enumerate(D_triangles)
+    @inbounds for (i, D_tris) in enumerate(D_triangles)
       for (j, D_tri) in enumerate(D_tris)
         D_tri_orient[D_tri] = isodd(i) ? negate(tri_orient[j]) : tri_orient[j]
       end
@@ -251,7 +251,7 @@ function make_dual_simplices_2d!(sd::HasDeltaSet2D, ::Type{Simplex{n}}, gen::Fas
 
     # Orient elementary dual edges.
     D_edge_orient = @view sd[:D_edge_orientation]
-    for (e, D_edges) in enumerate(D_edges12)
+    @inbounds for (e, D_edges) in enumerate(D_edges12)
       tri_edge_view = @view sd[triangle_edges[e], :edge_orientation]
       for (j, D_edge) in enumerate(D_edges)
         D_edge_orient[D_edge] = relative_sign(
