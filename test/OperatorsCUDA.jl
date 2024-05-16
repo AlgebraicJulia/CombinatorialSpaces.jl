@@ -1,15 +1,18 @@
 module TestOperatorsCUDA
 
-using Test
-using SparseArrays
-using LinearAlgebra
-using CombinatorialSpaces
 using CUDA
+using CUDA.CUSPARSE
 using Catlab
-using Random
+using CombinatorialSpaces
 using GeometryBasics: Point2, Point3
-using StaticArrays: SVector
 using Krylov
+using LinearAlgebra
+using LinearOperators
+using Random
+using SparseArrays
+using StaticArrays: SVector
+using Statistics: mean
+using Test
 
 Point2D = Point2{Float64}
 Point3D = Point3{Float64}
@@ -145,6 +148,66 @@ end
     @test all(isapprox.(Array(dec_wedge_product(Tuple{0, 2}, sd, Val{:CUDA})(CuArray(V_1), CuArray(T_2))), ∧(Tuple{0, 2}, sd, V_1, T_2); atol = 1e-14))
 
     @test all(isapprox.(Array(dec_wedge_product(Tuple{1, 1}, sd, Val{:CUDA})(CuArray(E_1), CuArray(E_2))), ∧(Tuple{1, 1}, sd, E_1, E_2); atol = 1e-12))
+  end
+end
+
+@testset "Krylov" begin
+  for sd in dual_meshes_2D
+    Δ0_cpu = Δ(0,sd)
+    Δ0 = CuSparseMatrixCSC(Δ0_cpu)
+    w = Δ0 * CuArray(map(x -> x[1]^3, point(sd)))
+
+    v = CuArray(zeros(Float64, nv(sd)))
+    y = CuArray(zeros(Float64, nv(sd)))
+    z = CuArray(zeros(Float64, nv(sd)))
+
+    # Factorizing on the GPU:
+    Δ0p = ilu02(Δ0)
+    op = LinearOperator(Float64, nv(sd), nv(sd), false, false,
+      (y,x) -> begin
+        ldiv!(z, LowerTriangular(Δ0p), x)
+        ldiv!(y, UnitUpperTriangular(Δ0p), z)
+        y
+      end)
+
+    x, stats = bicgstab(Δ0, w, M=op, atol=1e-13)
+    resid = Δ0*x .- w
+    RMS = sqrt(mean(resid.^2))
+    @test stats.solved
+    @test RMS < 1e-5
+
+    x, stats = gmres(Δ0, w, M=op, atol=1e-13)
+    RMS = sqrt(mean(resid.^2))
+    @test stats.solved
+    @test RMS < 1e-5
+
+    # Factorizing on the CPU:
+    luΔ0_cpu = lu(Δ0_cpu)
+    L = CuSparseMatrixCSC(luΔ0_cpu.L)
+    U = CuSparseMatrixCSC(luΔ0_cpu.U)
+    p = CuArray(luΔ0_cpu.p)
+    q⁻¹ = CuArray(invperm(luΔ0_cpu.q))
+    Rs = CuArray(luΔ0_cpu.Rs)
+
+    # Solving on the GPU:
+    w_Rsp = (w .* Rs)[p]
+    ldiv!(z, LowerTriangular(L), w_Rsp)
+    ldiv!(v, UpperTriangular(U), z)
+    y .= v[q⁻¹]
+
+    resid = Δ0*y .- w
+    RMS = sqrt(mean(resid.^2))
+    @test RMS < 1e-8
+
+    # Solving on the CPU:
+    y_cpu = luΔ0_cpu \ Array(w)
+    resid = Δ0_cpu*(y_cpu) .- Array(w)
+    RMS = sqrt(mean(resid.^2))
+    @test RMS < 1e-8
+
+    # Comparisons of the solutions:
+    resid_resid = Array(Δ0*y) .- Δ0_cpu*y_cpu
+    RMS = sqrt(mean(resid_resid.^2))
   end
 end
 
