@@ -9,8 +9,9 @@ using SparseArrays
 using Krylov
 Point2D = Point2{Float64}
 Point3D = Point3{Float64}
-import CombinatorialSpaces: dec_wedge_product, dec_c_wedge_product, dec_c_wedge_product!, dec_p_wedge_product, 
-dec_boundary, dec_differential, dec_dual_derivative, dec_hodge_star, dec_inv_hodge_star
+import CombinatorialSpaces: dec_wedge_product, dec_c_wedge_product, dec_c_wedge_product!, dec_p_wedge_product, wedge_pd_01_mat, dec_wedge_product_dp, dec_wedge_product_pd,
+dec_boundary, dec_differential, dec_dual_derivative, dec_hodge_star, dec_inv_hodge_star,
+♭♯_mat
 
 """ dec_wedge_product(::Type{Tuple{0,0}}, sd::HasDeltaSet, ::Type{Val{:CUDA}})
 
@@ -135,6 +136,44 @@ function dec_cu_ker_c_wedge_product_11!(wedge_terms, α, β, e, coeffs)
   return nothing
 end
 
+"""    wedge_pd_01_mat(sd::EmbeddedDeltaDualComplex2D{Bool, float_type, _p} , ::Type{Val{:CUDA}})
+
+Returns a matrix that can be multiplied to a primal 0-form, before being
+elementwise-multiplied by a dual 1-form, encoding the wedge product on the GPU.
+
+This function assumes barycentric means and performs bilinear interpolation. It
+is not known if this definition has appeared in the literature or any code.
+"""
+function wedge_pd_01_mat(sd::EmbeddedDeltaDualComplex2D{Bool, float_type, _p} where _p, ::Type{Val{:CUDA}}) where float_type
+  CuSparseMatrixCSC{float_type}(wedge_pd_01_mat(sd))
+end
+
+"""    dec_wedge_product_dp(::Type{Tuple{1,0}}, (sd::EmbeddedDeltaDualComplex2D{Bool, float_type, _p} , ::Type{Val{:CUDA}})
+
+Returns a cached function that computes the wedge product between a dual
+1-form and a primal 0-form on the GPU.
+
+This function assumes barycentric means and performs bilinear interpolation. It
+is not known if this definition has appeared in the literature or any code.
+"""
+function dec_wedge_product_dp(::Type{Tuple{1,0}}, sd::EmbeddedDeltaDualComplex2D{Bool, float_type, _p} where _p, ::Type{Val{:CUDA}}) where float_type
+  m = wedge_pd_01_mat(sd, Val{:CUDA})
+  (f,g) -> f .* (m * g)
+end
+
+"""    dec_wedge_product_pd(::Type{Tuple{0,1}}, (sd::EmbeddedDeltaDualComplex2D{Bool, float_type, _p} , ::Type{Val{:CUDA}})
+
+Returns a cached function that computes the wedge product between a primal
+0-form and a dual 1-form on the GPU.
+
+This function assumes barycentric means and performs bilinear interpolation. It
+is not known if this definition has appeared in the literature or any code.
+"""
+function dec_wedge_product_pd(::Type{Tuple{0,1}}, sd::EmbeddedDeltaDualComplex2D{Bool, float_type, _p} where _p, ::Type{Val{:CUDA}}) where float_type
+  m = wedge_pd_01_mat(sd, Val{:CUDA})
+  (g,f) -> (m * g) .* f
+end
+
 """ dec_boundary(n::Int, sd::EmbeddedDeltaDualComplex, ::Type{Val{:CUDA}})
 
 Boundary matrix as a sparse CUDA matrix
@@ -186,6 +225,17 @@ will compute the result.
 function dec_inv_hodge_star(::Type{Val{1}}, sd::EmbeddedDeltaDualComplex2D, ::GeometricHodge, ::Type{Val{:CUDA}})
   hdg = -1 * dec_hodge_star(1, sd, GeometricHodge(), Val{:CUDA})
   x -> Krylov.gmres(hdg, x, atol = 1e-14)[1]
+end
+
+"""    ♭♯_mat(sd::EmbeddedDeltaDualComplex2D{Bool, float_type, _p} , ::Type{Val{:CUDA}})
+
+Make a dual 1-form primal by chaining ♭ᵈᵖ♯ᵈᵈ on the GPU.
+
+This returns a matrix which can be multiplied by a dual 1-form.
+See also [`♭♯`](@ref).
+"""
+function ♭♯_mat(sd::EmbeddedDeltaDualComplex2D{Bool, float_type, _p} where _p, ::Type{Val{:CUDA}}) where float_type
+  CuSparseMatrixCSC{float_type}(♭♯_mat(sd))
 end
 
 end
