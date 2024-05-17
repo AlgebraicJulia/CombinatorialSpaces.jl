@@ -14,10 +14,10 @@ interoperation with packages in the
 ## Visualizing embedded delta sets
 
 The following example shows how to import a mesh from an OBJ file, convert it
-into an embedded delta set, and render it as a 3D mesh using WGLMakie.
+into an embedded delta set, and render it as a 3D mesh using CairoMakie.
 
 ```@example cat
-using FileIO, WGLMakie, CombinatorialSpaces
+using FileIO, CairoMakie, CombinatorialSpaces
 set_theme!(resolution=(800, 400))
 catmesh = FileIO.load(File{format"OBJ"}(download(
   "https://github.com/JuliaPlots/Makie.jl/raw/master/assets/cat.obj")))
