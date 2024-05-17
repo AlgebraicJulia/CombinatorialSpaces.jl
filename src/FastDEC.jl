@@ -1,3 +1,10 @@
+""" The discrete exterior calculus (DEC) with high performance in mind.
+
+This module provides similar fuctionality to the DiscreteExteriorCalculus module
+but uses assumptions about the ACSet mesh structure to greatly improve performance.
+Some operators, like the exterior derivative are returned as sparse matrices while others,
+like the wedge product, are instead returned as functions that will compute the product. 
+"""
 module FastDEC
 using LinearAlgebra: Diagonal, dot, norm, cross
 using StaticArrays: SVector
@@ -13,9 +20,7 @@ export dec_boundary, dec_differential, dec_dual_derivative, dec_hodge_star, dec_
        dec_wedge_product_pd, dec_wedge_product_dp, ∧,
        interior_product_dd, ℒ_dd,
        dec_wedge_product_dd,
-       Δᵈ, 
-       dec_cu_c_wedge_product!, dec_cu_c_wedge_product, dec_cu_p_wedge_product, dec_cu_wedge_product
-
+       Δᵈ
 """
     dec_p_wedge_product(::Type{Tuple{0,1}}, sd::EmbeddedDeltaDualComplex1D)
 
