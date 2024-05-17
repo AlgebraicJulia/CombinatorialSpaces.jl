@@ -2,6 +2,7 @@ module TestOperatorsCUDA
 
 using CUDA
 using CUDA.CUSPARSE
+using CUDA.CUSOLVER
 using Catlab
 using CombinatorialSpaces
 using GeometryBasics: Point2, Point3
@@ -208,6 +209,12 @@ end
     # Comparisons of the solutions:
     resid_resid = Array(Δ0*y) .- Δ0_cpu*y_cpu
     RMS = sqrt(mean(resid_resid.^2))
+
+    # CUDA's native qr facorization-solve.
+    using CUDA.CUSOLVER: SparseQR, spqr_solve
+    Δ0_CSR = CuSparseMatrixCSR(Δ0_cpu)
+    Δ0_QR = SparseQR(Δ0_CSR)
+    spqr_solve(Δ0_QR, w, y)
   end
 end
 
