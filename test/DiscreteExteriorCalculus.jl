@@ -599,7 +599,7 @@ for (primal_s,s) in flat_meshes
   # Note that we check explicitly both cases of signedness, because orient!
   # picks in/outside without regard to the embedding.
   # This is the "right/left-hand-rule trick."
-  @test all(isapprox.(only.(♭_♯_m * X♭),  eval_constant_primal_form(s, X♯), atol=1e-12)) ||
+  @test all(isapprox.(only.(♭_♯_m * X♭),  eval_constant_primal_form(s, X♯), atol=1e-13)) ||
         all(isapprox.(only.(♭_♯_m * X♭), -eval_constant_primal_form(s, X♯), atol=1e-12))
 
   # This test shows how the musical isomorphism chaining lets you further
@@ -624,8 +624,8 @@ for (primal_s,s) in flat_meshes
   @test all(Λdp(f̃, g′) .== -1 * Λpd(g′, f̃))
 
   # f∧f = 0 (implied by antisymmetry):
-  @test all(isapprox.(Λpd(f′, f̃), 0, atol=1e-10))
-  @test all(isapprox.(Λpd(g′, g̃), 0, atol=1e-10))
+  @test all(isapprox.(Λpd(f′, f̃), 0, atol=1e-11))
+  @test all(isapprox.(Λpd(g′, g̃), 0, atol=1e-11))
 
   # Test and demonstrate the convenience functions:
   @test all(∧(s, SimplexForm{1}(f′), DualForm{1}(g̃)) .≈ -1 * ∧(s, SimplexForm{1}(g′), DualForm{1}(f̃)))
@@ -654,7 +654,7 @@ for (primal_s,s) in flat_meshes
   @test all(isapprox.(
     dec_hodge_star(2,s) * ∧(s, SimplexForm{1}(u), DualForm{1}(u_star)),
     ff_gg,
-    atol=1e-10))
+    atol=1e-12))
 end
 
 end
