@@ -28,9 +28,9 @@ export DualSimplex, DualV, DualE, DualTri, DualChain, DualForm,
 import Base: ndims
 import Base: *
 import LinearAlgebra: mul!
-using LinearAlgebra: Diagonal, dot, norm, cross, pinv, qr
+using LinearAlgebra: Diagonal, dot, norm, cross, pinv, qr, ColumnNorm
 using SparseArrays
-using StaticArrays: @SVector, SVector, SMatrix
+using StaticArrays: @SVector, SVector, SMatrix, MMatrix
 using GeometryBasics: Point2, Point3
 
 const Point2D = SVector{2,Float64}
@@ -801,8 +801,13 @@ function ♯_mat(s::AbstractDeltaDualComplex2D, ::LLSDDSharp)
       end
     # TODO: Move around ' as appropriate to minimize transposing.
     X = stack(de_vecs)'
-    QRX = qr(X)
-    LLS = pinv(QRX.R) * QRX.Q'
+    # See: https://arxiv.org/abs/1102.1845
+    QRX = qr(X, ColumnNorm())
+    P = zeros(MMatrix{length(QRX.p),length(QRX.p), pt.parameters[2], length(QRX.p)*2})
+    for (i,j) in zip(1:size(P,1),QRX.p)
+      P[i,j] = one(pt.parameters[2])
+    end
+    LLS = P' * pinv(QRX.R) * QRX.Q'
     #LLS = pinv(X'*(X))*(X')
     for (i,e) in enumerate(tri_edges)
       ♯_m[t, e] = LLS[:,i]'*weights[i]
