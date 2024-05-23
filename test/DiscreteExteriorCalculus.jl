@@ -586,7 +586,7 @@ for (primal_s,s) in flat_meshes
   # This tests that numerically raising indices is equivalent to analytically
   # raising indices.
   # X_continuous = ♯ᵖ_discrete∘♭ᵖ_discrete(X_continuous)
-  X♯ = SVector{3,Float64}(1/√2,1/√2,0)
+  X♯ = SVector{3,Float64}(3/√2,1/√2,0)
   X♭ = eval_constant_dual_form(s, X♯)
   @test all_are_approx(♯_m * X♭,  X♯; atol=1e-13) ||
         all_are_approx(♯_m * X♭, -X♯; atol=1e-13)

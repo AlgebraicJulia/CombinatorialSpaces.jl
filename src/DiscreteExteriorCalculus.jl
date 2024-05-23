@@ -803,10 +803,10 @@ function ♯_mat(s::AbstractDeltaDualComplex2D, ::LLSDDSharp)
     X = stack(de_vecs)'
     # See: https://arxiv.org/abs/1102.1845
     QRX = qr(X, ColumnNorm())
-    LLS = pinv(QRX.R) * QRX.Q'
+    LLS = (pinv(QRX.R) * QRX.Q')[QRX.p,:]
     #LLS = pinv(X'*(X))*(X')
     for (i,e) in enumerate(tri_edges)
-      ♯_m[t, e] = LLS[QRX.p,:][:,i]'*weights[i]
+      ♯_m[t, e] = LLS[:,i]'*weights[i]
     end
   end
   ♯_m
