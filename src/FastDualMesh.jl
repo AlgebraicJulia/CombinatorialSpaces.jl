@@ -406,4 +406,14 @@ function set_dual_volumes!(::Type{Val{2}}, sd::HasDeltaSet2D, ::Type{point_type}
   end
 end
 
+abstract type UseSVector end
+function set_dual_volumes!(::Type{Val{2}}, sd::HasDeltaSet2D, ::Type{point_type}, ::UseSVector) where point_type
+  @inbounds @simd foreach(parts(sd, :DualTri)) do t
+    sd[t, :dual_area] = volume(SVector{3, point_type}(
+        sd[t, [:D_∂e1, :D_∂v1, :dual_point]],
+        sd[t, [:D_∂e2, :D_∂v0, :dual_point]],
+        sd[t, [:D_∂e0, :D_∂v0, :dual_point]]))
+  end
+end
+
 end
