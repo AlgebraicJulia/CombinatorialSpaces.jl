@@ -30,7 +30,7 @@ import Base: *
 import LinearAlgebra: mul!
 using LinearAlgebra: Diagonal, dot, norm, cross, pinv
 using SparseArrays
-using StaticArrays: @SVector, SVector, SMatrix
+using StaticArrays: @SVector, SVector, SMatrix, MVector
 using GeometryBasics: Point2, Point3
 
 const Point2D = SVector{2,Float64}
@@ -364,29 +364,70 @@ Supports different methods of subdivision through the choice of geometric
 center, as defined by [`geometric_center`](@ref). In particular, barycentric
 subdivision and circumcentric subdivision are supported.
 """
-function subdivide_duals!(s::EmbeddedDeltaDualComplex1D, args...)
-  subdivide_duals_1d!(s, args...)
-  precompute_volumes_1d!(s)
+function subdivide_duals!(sd::EmbeddedDeltaDualComplex1D{_o, _l, point_type} where {_o, _l}, alg) where point_type
+  subdivide_duals_1d!(sd, point_type, alg)
+  precompute_volumes_1d!(sd, point_type)
 end
 
-function subdivide_duals_1d!(s::HasDeltaSet1D, alg)
-  for v in vertices(s)
-    s[vertex_center(s,v), :dual_point] = point(s, v)
+# TODO: Write helpers for getting the correct mesh data
+function subdivide_duals_1d!(sd::HasDeltaSet1D, ::Type{point_type}, alg) where point_type
+
+  point_arr = MVector{2, point_type}(undef)
+
+  @inbounds for v in vertices(sd)
+    sd[v, :dual_point] = sd[v, :point]
   end
-  for e in edges(s)
-    s[edge_center(s,e), :dual_point] = geometric_center(
-      point(s, edge_vertices(s, e)), alg)
+
+  @inbounds for e in edges(sd)
+    point_arr[1] = sd[sd[e, :∂v0], :point]
+    point_arr[2] = sd[sd[e, :∂v1], :point]
+
+    sd[sd[e, :edge_center], :dual_point] = geometric_center(point_arr, alg)
   end
 end
 
-function precompute_volumes_1d!(s::HasDeltaSet1D)
-  for e in edges(s)
-    s[e, :length] = volume(1,s,e,CayleyMengerDet())
+function precompute_volumes_1d!(sd::HasDeltaSet1D, ::Type{point_type}) where point_type
+
+  point_arr = MVector{2, point_type}(undef)
+
+  @inbounds for e in edges(sd)
+    point_arr[1] = sd[sd[e, :∂v0], :point]
+    point_arr[2] = sd[sd[e, :∂v1], :point]
+
+    sd[e, :length] = volume(point_arr)
   end
-  for e in parts(s, :DualE)
-    s[e, :dual_length] = dual_volume(1,s,e,CayleyMengerDet())
+
+  @inbounds for e in parts(sd, :DualE)
+    point_arr[1] = sd[sd[e, :D_∂v0], :dual_point]
+    point_arr[2] = sd[sd[e, :D_∂v1], :dual_point]
+
+    sd[e, :dual_length] = volume(point_arr)
   end
 end
+
+# function subdivide_duals!(s::EmbeddedDeltaDualComplex1D, args...)
+#   subdivide_duals_1d!(s, args...)
+#   precompute_volumes_1d!(s)
+# end
+
+# function subdivide_duals_1d!(s::HasDeltaSet1D, alg)
+#   for v in vertices(s)
+#     s[vertex_center(s,v), :dual_point] = point(s, v)
+#   end
+#   for e in edges(s)
+#     s[edge_center(s,e), :dual_point] = geometric_center(
+#       point(s, edge_vertices(s, e)), alg)
+#   end
+# end
+
+# function precompute_volumes_1d!(s::HasDeltaSet1D)
+#   for e in edges(s)
+#     s[e, :length] = volume(1,s,e,CayleyMengerDet())
+#   end
+#   for e in parts(s, :DualE)
+#     s[e, :dual_length] = dual_volume(1,s,e,CayleyMengerDet())
+#   end
+# end
 
 # TODO: When Catlab PR #823 "Data migrations with Julia functions on attributes"
 # is merged, encode subdivision like so:
@@ -828,28 +869,80 @@ function ∧(::Type{Tuple{1,1}}, s::HasDeltaSet2D, α, β, x::Int)
                       α[e1] * β[e0] - α[e0] * β[e1])) / 2
 end
 
-function subdivide_duals!(s::EmbeddedDeltaDualComplex2D, args...)
-  subdivide_duals_2d!(s, args...)
-  precompute_volumes_2d!(s)
+# TODO: Write helpers for getting the correct mesh data
+function subdivide_duals!(sd::EmbeddedDeltaDualComplex2D{_o, _l, point_type} where {_o, _l}, alg) where point_type
+  subdivide_duals_2d!(sd, point_type, alg)
+  precompute_volumes_2d!(sd, point_type)
 end
 
-function subdivide_duals_2d!(s::HasDeltaSet2D, alg)
-  subdivide_duals_1d!(s, alg)
-  for t in triangles(s)
-    s[triangle_center(s,t), :dual_point] = geometric_center(
-      point(s, triangle_vertices(s, t)), alg)
+function subdivide_duals_2d!(sd::HasDeltaSet2D, ::Type{point_type}, alg) where point_type
+  subdivide_duals_1d!(sd, point_type, alg)
+
+  point_arr = MVector{3, point_type}(undef)
+
+  @inbounds for t in triangles(sd)
+    point_arr[1] = sd[sd[sd[t, :∂e1], :∂v1], :point]
+    point_arr[2] = sd[sd[sd[t, :∂e2], :∂v0], :point]
+    point_arr[3] = sd[sd[sd[t, :∂e1], :∂v0], :point]
+
+    sd[sd[t, :tri_center], :dual_point] = geometric_center(point_arr, alg)
   end
 end
 
-function precompute_volumes_2d!(s::HasDeltaSet2D)
-  precompute_volumes_1d!(s)
-  for t in triangles(s)
-    s[t, :area] = volume(2,s,t,CayleyMengerDet())
-  end
-  for t in parts(s, :DualTri)
-    s[t, :dual_area] = dual_volume(2,s,t,CayleyMengerDet())
+function precompute_volumes_2d!(sd::HasDeltaSet2D, p::Type{point_type}) where point_type
+  precompute_volumes_1d!(sd, point_type)
+  set_volumes_2d!(Val{2}, sd, p)
+  set_dual_volumes_2d!(Val{2}, sd, p)
+end
+
+function set_volumes_2d!(::Type{Val{2}}, sd::HasDeltaSet2D, ::Type{point_type}) where point_type
+
+  point_arr = MVector{3, point_type}(undef)
+
+  @inbounds for t in triangles(sd)
+    point_arr[1] = sd[sd[sd[t, :∂e1], :∂v1], :point]
+    point_arr[2] = sd[sd[sd[t, :∂e2], :∂v0], :point]
+    point_arr[3] = sd[sd[sd[t, :∂e1], :∂v0], :point]
+
+    sd[t, :area] = volume(point_arr)
   end
 end
+
+function set_dual_volumes_2d!(::Type{Val{2}}, sd::HasDeltaSet2D, ::Type{point_type}) where point_type
+
+  point_arr = MVector{3, point_type}(undef)
+
+  @inbounds for t in parts(sd, :DualTri)
+    point_arr[1] = sd[sd[sd[t, :D_∂e1], :D_∂v1], :dual_point]
+    point_arr[2] = sd[sd[sd[t, :D_∂e2], :D_∂v0], :dual_point]
+    point_arr[3] = sd[sd[sd[t, :D_∂e0], :D_∂v0], :dual_point]
+
+    sd[t, :dual_area] = volume(point_arr)
+  end
+end
+
+# function subdivide_duals!(s::EmbeddedDeltaDualComplex2D, args...)
+#   subdivide_duals_2d!(s, args...)
+#   precompute_volumes_2d!(s)
+# end
+
+# function subdivide_duals_2d!(s::HasDeltaSet2D, alg)
+#   subdivide_duals_1d!(s, alg)
+#   for t in triangles(s)
+#     s[triangle_center(s,t), :dual_point] = geometric_center(
+#       point(s, triangle_vertices(s, t)), alg)
+#   end
+# end
+
+# function precompute_volumes_2d!(s::HasDeltaSet2D)
+#   precompute_volumes_1d!(s)
+#   for t in triangles(s)
+#     s[t, :area] = volume(2,s,t,CayleyMengerDet())
+#   end
+#   for t in parts(s, :DualTri)
+#     s[t, :dual_area] = dual_volume(2,s,t,CayleyMengerDet())
+#   end
+# end
 
 # General operators
 ###################
