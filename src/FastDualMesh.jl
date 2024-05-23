@@ -266,23 +266,15 @@ function make_dual_simplices_2d!(sd::HasDeltaSet2D, ::Type{Simplex{n}}, gen::Fas
   D_triangles
 end
 
-function subdivide_duals!(sd::EmbeddedDeltaDualComplex1D, gen::FastMesh, args...)
-  subdivide_duals_1d!(sd, gen, args...)
-  precompute_volumes_1d!(sd, gen)
+function subdivide_duals!(sd::EmbeddedDeltaDualComplex1D{_o, _l, point_type} where {_o, _l}, gen::FastMesh, args...) where point_type
+  subdivide_duals_1d!(sd, gen, point_type, args...)
+  precompute_volumes_1d!(sd, gen, point_type)
 end
 
-function subdivide_duals!(sd::EmbeddedDeltaDualComplex2D, gen::FastMesh, args...)
-  subdivide_duals_2d!(sd, gen, args...)
-  precompute_volumes_2d!(sd, gen)
+function subdivide_duals!(sd::EmbeddedDeltaDualComplex2D{_o, _l, point_type} where {_o, _l}, gen::FastMesh, args...) where point_type
+  subdivide_duals_2d!(sd, gen, point_type, args...)
+  precompute_volumes_2d!(sd, gen, point_type)
 end
-
-subdivide_duals_1d!(sd::EmbeddedDeltaDualComplex1D{_o, _l, point_type} where {_o, _l}, fm::FastMesh, alg) where point_type = subdivide_duals_1d!(sd, fm, point_type, alg)
-subdivide_duals_1d!(sd::EmbeddedDeltaDualComplex2D{_o, _l, point_type} where {_o, _l}, fm::FastMesh, alg) where point_type = subdivide_duals_1d!(sd, fm, point_type, alg)
-subdivide_duals_2d!(sd::EmbeddedDeltaDualComplex2D{_o, _l, point_type} where {_o, _l}, fm::FastMesh, alg) where point_type = subdivide_duals_2d!(sd, fm, point_type, alg)
-
-precompute_volumes_1d!(sd::EmbeddedDeltaDualComplex1D{_o, _l, point_type} where {_o, _l}, fm::FastMesh) where point_type = precompute_volumes_1d!(sd, fm, point_type)
-precompute_volumes_1d!(sd::EmbeddedDeltaDualComplex2D{_o, _l, point_type} where {_o, _l}, fm::FastMesh) where point_type = precompute_volumes_1d!(sd, fm, point_type)
-precompute_volumes_2d!(sd::EmbeddedDeltaDualComplex2D{_o, _l, point_type} where {_o, _l}, fm::FastMesh) where point_type = precompute_volumes_2d!(sd, fm, point_type)
 
 function subdivide_duals_1d!(sd::HasDeltaSet1D, ::FastMesh, ::Type{point_type}, alg) where point_type
 
@@ -334,7 +326,7 @@ function subdivide_duals_2d!(sd::HasDeltaSet2D, gen::FastMesh, ::Type{point_type
 end
 
 function precompute_volumes_2d!(sd::HasDeltaSet2D, gen::FastMesh, p::Type{point_type}) where point_type
-  precompute_volumes_1d!(sd, gen)
+  precompute_volumes_1d!(sd, gen, point_type)
   set_volumes!(Val{2}, sd, p)
   set_dual_volumes!(Val{2}, sd, p)
 end
