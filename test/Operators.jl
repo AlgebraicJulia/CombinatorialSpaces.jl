@@ -278,7 +278,7 @@ end
       # f∧a = (4dx - dy) ∧ (x + 4y)
       #     = 4(x + 4y)dx -(x + 4y)dy
       #     = (4x + 16y)dx + (-x - 4y)dy
-      @test all(isapprox.(Λ10(f,a)[interior_edges], fΛa_analytic[interior_edges], atol=1e-8))
+      @test all(isapprox.(Λ10(f,a)[interior_edges], fΛa_analytic[interior_edges], atol=1e-10))
     end
 end
 
@@ -393,7 +393,7 @@ end
   # This smaller mesh is proportionally more affected by boundary conditions.
   X♯ = SVector{3,Float64}(1/√2,1/√2,0)
   mag_selfadv, mag_dp, mag_∂ₜu  = euler_equation_test(X♯, tg)
-  @test .60 < (count(mag_selfadv .< 1e-2) / length(mag_selfadv))
+  @test .64 < (count(mag_selfadv .< 1e-2) / length(mag_selfadv))
   @test .64 < (count(mag_dp .< 1e-2) / length(mag_dp))
   @test .60 < (count(mag_∂ₜu .< 1e-2) / length(mag_∂ₜu))
 
