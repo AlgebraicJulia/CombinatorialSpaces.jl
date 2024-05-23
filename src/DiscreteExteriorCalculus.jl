@@ -802,9 +802,10 @@ function ♯_mat(s::AbstractDeltaDualComplex2D, ::LLSDDSharp)
     # TODO: Move around ' as appropriate to minimize transposing.
     X = stack(de_vecs)'
     # See: https://arxiv.org/abs/1102.1845
-    QRX = qr(X, ColumnNorm())
-    LLS = (pinv(QRX.R) * QRX.Q')[QRX.p,:]
+    #QRX = qr(X, ColumnNorm())
+    #LLS = (inv(QRX.R) * QRX.Q')[QRX.p,:]
     #LLS = pinv(X'*(X))*(X')
+    LLS = pinv(X)
     for (i,e) in enumerate(tri_edges)
       ♯_m[t, e] = LLS[:,i]'*weights[i]
     end

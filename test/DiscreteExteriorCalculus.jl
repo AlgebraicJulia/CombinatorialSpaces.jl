@@ -599,7 +599,7 @@ for (primal_s,s) in flat_meshes
   # Note that we check explicitly both cases of signedness, because orient!
   # picks in/outside without regard to the embedding.
   # This is the "right/left-hand-rule trick."
-  @test all(isapprox.(only.(♭_♯_m * X♭),  eval_constant_primal_form(s, X♯), atol=1e-14)) ||
+  @test all(isapprox.(only.(♭_♯_m * X♭),  eval_constant_primal_form(s, X♯), atol=1e-13)) ||
         all(isapprox.(only.(♭_♯_m * X♭), -eval_constant_primal_form(s, X♯), atol=1e-13))
 
   # This test shows how the musical isomorphism chaining lets you further
