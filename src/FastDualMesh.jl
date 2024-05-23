@@ -286,72 +286,50 @@ precompute_volumes_2d!(sd::EmbeddedDeltaDualComplex2D{_o, _l, point_type} where 
 
 function subdivide_duals_1d!(sd::HasDeltaSet1D, ::FastMesh, ::Type{point_type}, alg) where point_type
 
-  v1 = @view sd[:∂v0]
-  v2 = @view sd[:∂v1]
-
-  e_centers = @view sd[:edge_center]
-  dual_point_set = @view sd[:dual_point]
-
-  points::Vector{point_type} = sd[:point]
   point_arr = MVector{2, point_type}(undef)
 
   @inbounds for v in vertices(sd)
-    dual_point_set[v] = points[v]
+    sd[v, :dual_point] = sd[v, :point]
   end
+
   @inbounds for e in edges(sd)
-    point_arr[1] = points[v1[e]]
-    point_arr[2] = points[v2[e]]
-    dual_point_set[e_centers[e]] = geometric_center(point_arr, alg)
+    point_arr[1] = sd[sd[e, :∂v0], :point]
+    point_arr[2] = sd[sd[e, :∂v1], :point]
+
+    sd[sd[e, :edge_center], :dual_point] = geometric_center(point_arr, alg)
   end
 end
 
 function precompute_volumes_1d!(sd::HasDeltaSet1D, ::FastMesh, ::Type{point_type}) where point_type
 
-  v0 = @view sd[:∂v0]
-  v1 = @view sd[:∂v1]
-
-  d_v0 = @view sd[:D_∂v0]
-  d_v1 = @view sd[:D_∂v1]
-
-  length_set = @view sd[:length]
-  dual_length_set = @view sd[:dual_length]
-
-  dual_points::Vector{point_type} = sd[:dual_point]
   point_arr = MVector{2, point_type}(undef)
 
   @inbounds for e in edges(sd)
-    point_arr[1] = dual_points[v0[e]]
-    point_arr[2] = dual_points[v1[e]]
-    length_set[e] = volume(point_arr)
+    point_arr[1] = sd[sd[e, :∂v0], :point]
+    point_arr[2] = sd[sd[e, :∂v1], :point]
+
+    sd[e, :length] = volume(point_arr)
   end
+
   @inbounds for e in parts(sd, :DualE)
-    point_arr[1] = dual_points[d_v0[e]]
-    point_arr[2] = dual_points[d_v1[e]]
-    dual_length_set[e] = volume(point_arr)
+    point_arr[1] = sd[sd[e, :D_∂v0], :dual_point]
+    point_arr[2] = sd[sd[e, :D_∂v1], :dual_point]
+
+    sd[e, :dual_length] = volume(point_arr)
   end
 end
 
 function subdivide_duals_2d!(sd::HasDeltaSet2D, gen::FastMesh, ::Type{point_type}, alg) where point_type
-  subdivide_duals_1d!(sd, gen, alg)
+  subdivide_duals_1d!(sd, gen, point_type, alg)
 
-  e1 = @view sd[:∂e1]
-  e2 = @view sd[:∂e2]
-
-  v0 = @view sd[:∂v0]
-  v1 = @view sd[:∂v1]
-
-  tri_centers = @view sd[:tri_center]
-  dual_point_set = @view sd[:dual_point]
-
-  points::Vector{point_type} = sd[:point]
   point_arr = MVector{3, point_type}(undef)
 
   @inbounds for t in triangles(sd)
-    point_arr[1] = points[v1[e1[t]]]
-    point_arr[2] = points[v0[e2[t]]]
-    point_arr[3] = points[v0[e1[t]]]
+    point_arr[1] = sd[sd[sd[t, :∂e1], :∂v1], :point]
+    point_arr[2] = sd[sd[sd[t, :∂e2], :∂v0], :point]
+    point_arr[3] = sd[sd[sd[t, :∂e1], :∂v0], :point]
 
-    dual_point_set[tri_centers[t]] = geometric_center(point_arr, alg)
+    sd[sd[t, :tri_center], :dual_point] = geometric_center(point_arr, alg)
   end
 end
 
@@ -363,56 +341,27 @@ end
 
 function set_volumes!(::Type{Val{2}}, sd::HasDeltaSet2D, ::Type{point_type}) where point_type
 
-  area_set = @view sd[:area]
-
-  e1 = @view sd[:∂e1]
-  e2 = @view sd[:∂e2]
-
-  v0 = @view sd[:∂v0]
-  v1 = @view sd[:∂v1]
-
-  points::Vector{point_type} = sd[:point]
   point_arr = MVector{3, point_type}(undef)
 
   @inbounds for t in triangles(sd)
-    point_arr[1] = points[v1[e1[t]]]
-    point_arr[2] = points[v0[e2[t]]]
-    point_arr[3] = points[v0[e1[t]]]
+    point_arr[1] = sd[sd[sd[t, :∂e1], :∂v1], :point]
+    point_arr[2] = sd[sd[sd[t, :∂e2], :∂v0], :point]
+    point_arr[3] = sd[sd[sd[t, :∂e1], :∂v0], :point]
 
-    area_set[t] = volume(point_arr)
+    sd[t, :area] = volume(point_arr)
   end
 end
 
 function set_dual_volumes!(::Type{Val{2}}, sd::HasDeltaSet2D, ::Type{point_type}) where point_type
 
-  dual_area_set = @view sd[:dual_area]
-
-  d_e0 = @view sd[:D_∂e0]
-  d_e1 = @view sd[:D_∂e1]
-  d_e2 = @view sd[:D_∂e2]
-
-  d_v0 = @view sd[:D_∂v0]
-  d_v1 = @view sd[:D_∂v1]
-
-  dual_points::Vector{point_type} = sd[:dual_point]
   point_arr = MVector{3, point_type}(undef)
 
   @inbounds for t in parts(sd, :DualTri)
-    point_arr[1] = dual_points[d_v1[d_e1[t]]]
-    point_arr[2] = dual_points[d_v0[d_e2[t]]]
-    point_arr[3] = dual_points[d_v0[d_e0[t]]]
+    point_arr[1] = sd[sd[sd[t, :D_∂e1], :D_∂v1], :dual_point]
+    point_arr[2] = sd[sd[sd[t, :D_∂e2], :D_∂v0], :dual_point]
+    point_arr[3] = sd[sd[sd[t, :D_∂e0], :D_∂v0], :dual_point]
 
-    dual_area_set[t] = volume(point_arr)
-  end
-end
-
-abstract type UseSVector end
-function set_dual_volumes!(::Type{Val{2}}, sd::HasDeltaSet2D, ::Type{point_type}, ::UseSVector) where point_type
-  @inbounds @simd foreach(parts(sd, :DualTri)) do t
-    sd[t, :dual_area] = volume(SVector{3, point_type}(
-        sd[t, [:D_∂e1, :D_∂v1, :dual_point]],
-        sd[t, [:D_∂e2, :D_∂v0, :dual_point]],
-        sd[t, [:D_∂e0, :D_∂v0, :dual_point]]))
+    sd[t, :dual_area] = volume(point_arr)
   end
 end
 
