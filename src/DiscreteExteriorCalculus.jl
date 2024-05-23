@@ -28,9 +28,9 @@ export DualSimplex, DualV, DualE, DualTri, DualChain, DualForm,
 import Base: ndims
 import Base: *
 import LinearAlgebra: mul!
-using LinearAlgebra: Diagonal, dot, norm, cross, pinv
+using LinearAlgebra: Diagonal, dot, norm, cross, pinv, qr, ColumnNorm
 using SparseArrays
-using StaticArrays: @SVector, SVector, SMatrix, MVector
+using StaticArrays: @SVector, SVector, SMatrix, MVector, MMatrix
 using GeometryBasics: Point2, Point3
 
 const Point2D = SVector{2,Float64}
@@ -842,7 +842,11 @@ function ♯_mat(s::AbstractDeltaDualComplex2D, ::LLSDDSharp)
       end
     # TODO: Move around ' as appropriate to minimize transposing.
     X = stack(de_vecs)'
-    LLS = pinv(X'*(X))*(X')
+    # See: https://arxiv.org/abs/1102.1845
+    #QRX = qr(X, ColumnNorm())
+    #LLS = (inv(QRX.R) * QRX.Q')[QRX.p,:]
+    #LLS = pinv(X'*(X))*(X')
+    LLS = pinv(X)
     for (i,e) in enumerate(tri_edges)
       ♯_m[t, e] = LLS[:,i]'*weights[i]
     end
@@ -1433,7 +1437,7 @@ Make a dual 1-form primal by chaining ♭ᵈᵖ♯ᵈᵈ.
 This returns a matrix which can be multiplied by a dual 1-form.
 See also [`♭♯`](@ref).
 """
-♭♯_mat(s::HasDeltaSet) = ♭_mat(s) * ♯_mat(s, LLSDDSharp())
+♭♯_mat(s::HasDeltaSet) = only.(♭_mat(s) * ♯_mat(s, LLSDDSharp()))
 
 """    ♭♯(s::HasDeltaSet, α::SimplexForm{1})
 
@@ -1442,7 +1446,7 @@ Make a dual 1-form primal by chaining ♭ᵈᵖ♯ᵈᵈ.
 This returns the given dual 1-form as a primal 1-form.
 See also [`♭♯_mat`](@ref).
 """
-♭♯(s::HasDeltaSet, α::SimplexForm{1}) = only.(♭♯_mat(s) * α)
+♭♯(s::HasDeltaSet, α::SimplexForm{1}) = ♭♯_mat(s) * α
 
 """ Alias for the flat-sharp dual-to-primal interpolation operator [`♭♯`](@ref).
 """

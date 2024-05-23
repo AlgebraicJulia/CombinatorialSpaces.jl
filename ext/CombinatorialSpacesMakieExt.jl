@@ -5,18 +5,14 @@ Makie.jl, including wireframe, mesh, and scatter plots. Note that one of the
 Makie backends (CairoMakie, GLMakie, or WGLMakie) must be imported in order for
 plotting to work.
 """
-module MeshGraphics
+module CombinatorialSpacesMakieExt
 
-using Catlab.CategoricalAlgebra
-using ..SimplicialSets
-using ..MeshInterop
-#import ...Makie: wireframe, wireframe!, mesh, mesh!, scatter, scatter!
-#
-#export wireframe, wireframe!, mesh, mesh!, scatter, scatter!
+using Catlab
+using CombinatorialSpaces
 
 using GeometryBasics: Mesh
-import ...Makie
-import ...Makie: convert_arguments
+using Makie
+import Makie: convert_arguments
 
 """ This extends the "Mesh" plotting recipe for embedded deltasets by converting
 an embedded deltaset into arguments that can be passed into Makie.mesh
