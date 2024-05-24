@@ -233,11 +233,37 @@ negatenz((I, V)) = (I, negate.(V))
 
 """ Construct 1D dual complex from 1D delta set.
 """
-function (::Type{S})(t::AbstractDeltaSet1D) where S <: AbstractDeltaDualComplex1D
-  s = S()
-  copy_parts!(s, t)
-  make_dual_simplices_1d!(s)
-  return s
+function (::Type{S})(s::AbstractDeltaSet1D) where S <: AbstractDeltaDualComplex1D
+  t = S()
+  copy_primal_1D!(t, s) # TODO: Revert to copy_parts! when performance is improved
+  make_dual_simplices_1d!(t)
+  return t
+end
+
+function copy_primal_1D!(t::HasDeltaSet1D, s::HasDeltaSet1D)
+
+  @assert nv(t) == 0
+  @assert ne(t) == 0
+
+  v_range = add_parts!(t, :V, nv(s))
+  e_range = add_parts!(t, :E, ne(s))
+
+  if has_subpart(s, :point)
+    @inbounds for v in v_range
+      t[v, :point] = s[v, :point]
+    end
+  end
+
+  @inbounds for e in e_range
+    t[e, :∂v0] = s[e, :∂v0]
+    t[e, :∂v1] = s[e, :∂v1]
+  end
+
+  if has_subpart(s, :edge_orientation)
+    @inbounds for e in e_range
+      t[e, :edge_orientation] = s[e, :edge_orientation]
+    end
+  end
 end
 
 make_dual_simplices_1d!(s::AbstractDeltaDualComplex1D) = make_dual_simplices_1d!(s, E)
@@ -522,11 +548,31 @@ dual_derivative_nz(::Type{Val{1}}, s::AbstractDeltaDualComplex2D, x::Int) =
 
 """ Construct 2D dual complex from 2D delta set.
 """
-function (::Type{S})(t::AbstractDeltaSet2D) where S <: AbstractDeltaDualComplex2D
-  s = S()
-  copy_parts!(s, t)
-  make_dual_simplices_2d!(s)
-  return s
+function (::Type{S})(s::AbstractDeltaSet2D) where S <: AbstractDeltaDualComplex2D
+  t = S()
+  copy_primal_2D!(t, s) # TODO: Revert to copy_parts! when performance is improved
+  make_dual_simplices_2d!(t)
+  return t
+end
+
+function copy_primal_2D!(t::HasDeltaSet2D, s::HasDeltaSet2D)
+
+  @assert ntriangles(t) == 0
+
+  copy_primal_1D!(t, s)
+  tri_range = add_parts!(t, :Tri, ntriangles(s))
+
+  @inbounds for tri in tri_range
+    t[tri, :∂e0] = s[tri, :∂e0]
+    t[tri, :∂e1] = s[tri, :∂e1]
+    t[tri, :∂e2] = s[tri, :∂e2]
+  end
+
+  if has_subpart(s, :tri_orientation)
+    @inbounds for tri in tri_range
+      t[tri, :tri_orientation] = s[tri, :tri_orientation]
+    end
+  end
 end
 
 make_dual_simplices_1d!(s::AbstractDeltaDualComplex2D) = make_dual_simplices_1d!(s, Tri)
