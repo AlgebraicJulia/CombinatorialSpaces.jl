@@ -19,15 +19,15 @@ Random.seed!(0)
 
 function generate_dual_mesh(s::HasDeltaSet1D)
     orient!(s)
-    sd = EmbeddedDeltaDualComplex1D{Bool,Float64,Point2D}(s, FastMesh())
-    subdivide_duals!(sd, FastMesh(), Barycenter())
+    sd = EmbeddedDeltaDualComplex1D{Bool,Float64,Point2D}(s)
+    subdivide_duals!(sd, Barycenter())
     sd
 end
 
 function generate_dual_mesh(s::HasDeltaSet2D)
     orient!(s)
-    sd = EmbeddedDeltaDualComplex2D{Bool,Float64,Point3D}(s, FastMesh())
-    subdivide_duals!(sd, FastMesh(), Barycenter())
+    sd = EmbeddedDeltaDualComplex2D{Bool,Float64,Point3D}(s)
+    subdivide_duals!(sd, Barycenter())
     sd
 end
 

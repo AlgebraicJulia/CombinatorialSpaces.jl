@@ -12,7 +12,6 @@ end
 @testset "ExteriorCalculus" begin
   include("ExteriorCalculus.jl")
   include("DiscreteExteriorCalculus.jl")
-  include("DualMeshGen.jl")
   include("Operators.jl")
 end
 

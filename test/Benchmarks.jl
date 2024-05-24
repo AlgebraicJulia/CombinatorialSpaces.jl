@@ -35,88 +35,70 @@ begin
     println("----------------------------------------------------------------")
 end
 
-suite = BenchmarkGroup()
+dec_op_suite = BenchmarkGroup()
 
 begin
-    suite["Exterior Derivative"] = BenchmarkGroup()
+    dec_op_suite["Exterior Derivative"] = BenchmarkGroup()
 
-    suite["Exterior Derivative"]["New Form-0"] = @benchmarkable dec_differential(0, $earth)
-    suite["Exterior Derivative"]["Old Form-0"] = @benchmarkable d(0, $earth)
+    dec_op_suite["Exterior Derivative"]["New Form-0"] = @benchmarkable dec_differential(0, $earth)
+    dec_op_suite["Exterior Derivative"]["Old Form-0"] = @benchmarkable d(0, $earth)
 
-    suite["Exterior Derivative"]["New Form-1"] = @benchmarkable dec_differential(1, $earth)
-    suite["Exterior Derivative"]["Old Form-1"] = @benchmarkable d(1, $earth)
+    dec_op_suite["Exterior Derivative"]["New Form-1"] = @benchmarkable dec_differential(1, $earth)
+    dec_op_suite["Exterior Derivative"]["Old Form-1"] = @benchmarkable d(1, $earth)
 end
 
 begin
-    suite["Boundary"] = BenchmarkGroup()
+    dec_op_suite["Boundary"] = BenchmarkGroup()
 
-    suite["Boundary"]["New Form-1"] = @benchmarkable dec_boundary(1, $earth)
-    suite["Boundary"]["Old Form-1"] = @benchmarkable ∂(1, $earth)
+    dec_op_suite["Boundary"]["New Form-1"] = @benchmarkable dec_boundary(1, $earth)
+    dec_op_suite["Boundary"]["Old Form-1"] = @benchmarkable ∂(1, $earth)
 
-    suite["Boundary"]["New Form-2"] = @benchmarkable dec_boundary(2, $earth)
-    suite["Boundary"]["Old Form-2"] = @benchmarkable ∂(2, $earth)
+    dec_op_suite["Boundary"]["New Form-2"] = @benchmarkable dec_boundary(2, $earth)
+    dec_op_suite["Boundary"]["Old Form-2"] = @benchmarkable ∂(2, $earth)
 end
 
 begin
-    suite["Dual Derivative"] = BenchmarkGroup()
+    dec_op_suite["Dual Derivative"] = BenchmarkGroup()
 
-    suite["Dual Derivative"]["New Dual-Form-0"] = @benchmarkable dec_dual_derivative(0, $earth)
-    suite["Dual Derivative"]["Old Dual-Form-0"] = @benchmarkable dual_derivative(0, $earth)
+    dec_op_suite["Dual Derivative"]["New Dual-Form-0"] = @benchmarkable dec_dual_derivative(0, $earth)
+    dec_op_suite["Dual Derivative"]["Old Dual-Form-0"] = @benchmarkable dual_derivative(0, $earth)
 
-    suite["Dual Derivative"]["New Dual-Form-1"] = @benchmarkable dec_dual_derivative(1, $earth)
-    suite["Dual Derivative"]["Old Dual-Form-1"] = @benchmarkable dual_derivative(1, $earth)
+    dec_op_suite["Dual Derivative"]["New Dual-Form-1"] = @benchmarkable dec_dual_derivative(1, $earth)
+    dec_op_suite["Dual Derivative"]["Old Dual-Form-1"] = @benchmarkable dual_derivative(1, $earth)
 end
 
 begin
-    suite["Diagonal Hodge"] = BenchmarkGroup()
+    dec_op_suite["Diagonal Hodge"] = BenchmarkGroup()
 
-    suite["Diagonal Hodge"]["New Form-0"] = @benchmarkable dec_hodge_star(0, $earth, DiagonalHodge())
-    suite["Diagonal Hodge"]["Old Form-0"] = @benchmarkable hodge_star(0, $earth, DiagonalHodge())
+    dec_op_suite["Diagonal Hodge"]["New Form-0"] = @benchmarkable dec_hodge_star(0, $earth, DiagonalHodge())
+    dec_op_suite["Diagonal Hodge"]["Old Form-0"] = @benchmarkable hodge_star(0, $earth, DiagonalHodge())
 
-    suite["Diagonal Hodge"]["New Form-1"] = @benchmarkable dec_hodge_star(1, $earth, DiagonalHodge())
-    suite["Diagonal Hodge"]["Old Form-1"] = @benchmarkable hodge_star(1, $earth, DiagonalHodge())
+    dec_op_suite["Diagonal Hodge"]["New Form-1"] = @benchmarkable dec_hodge_star(1, $earth, DiagonalHodge())
+    dec_op_suite["Diagonal Hodge"]["Old Form-1"] = @benchmarkable hodge_star(1, $earth, DiagonalHodge())
 
-    suite["Diagonal Hodge"]["New Form-2"] = @benchmarkable dec_hodge_star(2, $earth, DiagonalHodge())
-    suite["Diagonal Hodge"]["Old Form-2"] = @benchmarkable hodge_star(2, $earth, DiagonalHodge())
+    dec_op_suite["Diagonal Hodge"]["New Form-2"] = @benchmarkable dec_hodge_star(2, $earth, DiagonalHodge())
+    dec_op_suite["Diagonal Hodge"]["Old Form-2"] = @benchmarkable hodge_star(2, $earth, DiagonalHodge())
 
 end
 
 begin
-    suite["Geometric Hodge"] = BenchmarkGroup()
+    dec_op_suite["Geometric Hodge"] = BenchmarkGroup()
 
-    suite["Geometric Hodge"]["New Form-1"] = @benchmarkable dec_hodge_star(1, $earth, GeometricHodge())
-    suite["Geometric Hodge"]["Old Form-1"] = @benchmarkable hodge_star(1, $earth, GeometricHodge())
+    dec_op_suite["Geometric Hodge"]["New Form-1"] = @benchmarkable dec_hodge_star(1, $earth, GeometricHodge())
+    dec_op_suite["Geometric Hodge"]["Old Form-1"] = @benchmarkable hodge_star(1, $earth, GeometricHodge())
 end
 
 begin
-    suite["Inverse Diagonal Hodge"] = BenchmarkGroup()
+    dec_op_suite["Inverse Diagonal Hodge"] = BenchmarkGroup()
 
-    suite["Inverse Diagonal Hodge"]["New Form-0"] = @benchmarkable dec_inv_hodge_star(0, $earth, DiagonalHodge())
-    suite["Inverse Diagonal Hodge"]["Old Form-0"] = @benchmarkable inv_hodge_star(0, $earth, DiagonalHodge())
+    dec_op_suite["Inverse Diagonal Hodge"]["New Form-0"] = @benchmarkable dec_inv_hodge_star(0, $earth, DiagonalHodge())
+    dec_op_suite["Inverse Diagonal Hodge"]["Old Form-0"] = @benchmarkable inv_hodge_star(0, $earth, DiagonalHodge())
 
-    suite["Inverse Diagonal Hodge"]["New Form-1"] = @benchmarkable dec_inv_hodge_star(1, $earth, DiagonalHodge())
-    suite["Inverse Diagonal Hodge"]["Old Form-1"] = @benchmarkable inv_hodge_star(1, $earth, DiagonalHodge())
+    dec_op_suite["Inverse Diagonal Hodge"]["New Form-1"] = @benchmarkable dec_inv_hodge_star(1, $earth, DiagonalHodge())
+    dec_op_suite["Inverse Diagonal Hodge"]["Old Form-1"] = @benchmarkable inv_hodge_star(1, $earth, DiagonalHodge())
 
-    suite["Inverse Diagonal Hodge"]["New Form-2"] = @benchmarkable dec_inv_hodge_star(2, $earth, DiagonalHodge())
-    suite["Inverse Diagonal Hodge"]["Old Form-2"] = @benchmarkable inv_hodge_star(2, $earth, DiagonalHodge())
-end
-
-begin
-    Random.seed!(7331)
-    V_1 = rand(float_type, nv(earth))
-    E_1, E_2 = rand(float_type, ne(earth)), rand(float_type, ne(earth))
-    T_2 = rand(float_type, ntriangles(earth))
-
-    suite["Wedge Product"] = BenchmarkGroup()
-
-    suite["Wedge Product"]["New Form-0, Form-1"] = @benchmarkable dec_wedge_product(Tuple{0,1}, $earth)($V_1, $E_1)
-    suite["Wedge Product"]["Old Form-0, Form-1"] = @benchmarkable wedge_product(Tuple{0,1}, $earth, $V_1, $E_1)
-
-    suite["Wedge Product"]["New Form-1, Form-1"] = @benchmarkable dec_wedge_product(Tuple{1,1}, $earth)($E_1, $E_2)
-    suite["Wedge Product"]["Old Form-1, Form-1"] = @benchmarkable wedge_product(Tuple{1,1}, $earth, $E_1, $E_2)
-
-    suite["Wedge Product"]["New Form-0, Form-2"] = @benchmarkable dec_wedge_product(Tuple{0,2}, $earth)($V_1, $T_2)
-    suite["Wedge Product"]["Old Form-0, Form-2"] = @benchmarkable wedge_product(Tuple{0,2}, $earth, $V_1, $T_2)
+    dec_op_suite["Inverse Diagonal Hodge"]["New Form-2"] = @benchmarkable dec_inv_hodge_star(2, $earth, DiagonalHodge())
+    dec_op_suite["Inverse Diagonal Hodge"]["Old Form-2"] = @benchmarkable inv_hodge_star(2, $earth, DiagonalHodge())
 end
 
 begin
@@ -125,25 +107,43 @@ begin
     E_1, E_2 = rand(float_type, ne(earth)), rand(float_type, ne(earth))
     T_2 = rand(float_type, ntriangles(earth))
 
-    suite["Wedge Product Computation"] = BenchmarkGroup()
+    dec_op_suite["Wedge Product"] = BenchmarkGroup()
+
+    dec_op_suite["Wedge Product"]["New Form-0, Form-1"] = @benchmarkable dec_wedge_product(Tuple{0,1}, $earth)($V_1, $E_1)
+    dec_op_suite["Wedge Product"]["Old Form-0, Form-1"] = @benchmarkable wedge_product(Tuple{0,1}, $earth, $V_1, $E_1)
+
+    dec_op_suite["Wedge Product"]["New Form-1, Form-1"] = @benchmarkable dec_wedge_product(Tuple{1,1}, $earth)($E_1, $E_2)
+    dec_op_suite["Wedge Product"]["Old Form-1, Form-1"] = @benchmarkable wedge_product(Tuple{1,1}, $earth, $E_1, $E_2)
+
+    dec_op_suite["Wedge Product"]["New Form-0, Form-2"] = @benchmarkable dec_wedge_product(Tuple{0,2}, $earth)($V_1, $T_2)
+    dec_op_suite["Wedge Product"]["Old Form-0, Form-2"] = @benchmarkable wedge_product(Tuple{0,2}, $earth, $V_1, $T_2)
+end
+
+begin
+    Random.seed!(7331)
+    V_1 = rand(float_type, nv(earth))
+    E_1, E_2 = rand(float_type, ne(earth)), rand(float_type, ne(earth))
+    T_2 = rand(float_type, ntriangles(earth))
+
+    dec_op_suite["Wedge Product Computation"] = BenchmarkGroup()
 
     wdg01 = dec_wedge_product(Tuple{0,1}, earth)
     wdg11 = dec_wedge_product(Tuple{1,1}, earth)
     wdg02 = dec_wedge_product(Tuple{0,2}, earth)
 
-    suite["Wedge Product Computation"]["New Form-0, Form-1"] = @benchmarkable wdg01($V_1, $E_1)
-    suite["Wedge Product Computation"]["New Form-1, Form-1"] = @benchmarkable wdg11($E_1, $E_2)
-    suite["Wedge Product Computation"]["New Form-0, Form-2"] = @benchmarkable wdg02($V_1, $T_2)
+    dec_op_suite["Wedge Product Computation"]["New Form-0, Form-1"] = @benchmarkable wdg01($V_1, $E_1)
+    dec_op_suite["Wedge Product Computation"]["New Form-1, Form-1"] = @benchmarkable wdg11($E_1, $E_2)
+    dec_op_suite["Wedge Product Computation"]["New Form-0, Form-2"] = @benchmarkable wdg02($V_1, $T_2)
 end
 
-# tune!(suite)
+# tune!(dec_op_suite)
 
 @info "Running DEC Operator Benchmarks"
 
-results = run(suite, verbose = true, seconds = 1)
+dec_op_results = run(dec_op_suite, verbose = true, seconds = 1)
 
-for op in sort(collect(keys(results)))
-    test = median(results[op])
+for op in sort(collect(keys(dec_op_results)))
+    test = median(dec_op_results[op])
 
     println("Operator: $op")
     for k in sort(collect(keys(test)))
@@ -155,33 +155,46 @@ for op in sort(collect(keys(results)))
 end
 
 @info "Beginning Dual Mesh Generation Benchmarks"
+begin 
+    mesh_size = 100
+    grid_spacings = [1.0, 0.8, 0.5, 0.4, 0.25, 0.2]
+    point_type = Point2D
+    benchmark_dual_meshes = map(gs -> triangulated_grid(mesh_size, mesh_size, gs, gs, point_type), grid_spacings);
+end;
+@info "Generated Primal Meshes"
 
-s_precom = triangulated_grid(100, 100, 100, 100, Point3{Float64});
-s = triangulated_grid(100, 100, 0.5, 0.5, Point3{Float64});
-@info "Generated Primal Mesh"
-
-function test(s)
-    sd = EmbeddedDeltaDualComplex2D{Bool,Float64,Point3{Float64}}(s)
-    subdivide_duals!(sd, Barycenter())
+function create_dual_mesh(s, point_type, center_type)
+    sd = EmbeddedDeltaDualComplex2D{Bool,Float64, point_type}(s)
+    subdivide_duals!(sd, center_type)
     sd;
 end
 
-function fast_test(s)
-    sd_c = EmbeddedDeltaDualComplex2D{Bool,Float64,Point3{Float64}}(s, FastMesh())
-    subdivide_duals!(sd_c, FastMesh(), Barycenter())
-    sd_c;
+dual_mesh_suite = BenchmarkGroup()
+
+begin
+    dual_mesh_suite["Barycenter"] = BenchmarkGroup()
+    dual_mesh_suite["Circumcenter"] = BenchmarkGroup()
+
+    for (i, grid_spacing) in enumerate(grid_spacings)
+        dual_mesh_suite["Barycenter"]["Grid Spacing: $(grid_spacing)"] = @benchmarkable create_dual_mesh($(benchmark_dual_meshes[i]), $point_type, $(Barycenter())) gcsample=true seconds=60
+        dual_mesh_suite["Circumcenter"]["Grid Spacing: $(grid_spacing)"] = @benchmarkable create_dual_mesh($(benchmark_dual_meshes[i]), $point_type, $(Circumcenter())) gcsample=true seconds=60
+    end
 end
 
-@info "Original Dual Mesh Generation"
-test(s_precom);
-@time test(s);
+@info "Running Dual Mesh Benchmarks"
 
-GC.gc(true)
+dual_mesh_results = run(dual_mesh_suite, verbose = true)
 
-@info "New Dual Mesh Generation"
-fast_test(s_precom);
-@time fast_test(s);
+for center in sort(collect(keys(dual_mesh_results)))
+    trial = median(dual_mesh_results[center])
 
-@info "Done"
+    println("Center: $center")
+    for k in sort(collect(keys(trial)), rev=true)
+        t = trial[k].time / 1e9
+        m = trial[k].memory / 1e9
+        println("$k, [$t s, $m GB]")
+    end
+    println("----------------------------------------------------------------")
+end
 
 end
