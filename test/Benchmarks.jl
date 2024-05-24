@@ -11,7 +11,7 @@ Point2D = Point2{Float64}
 Point3D = Point3{Float64}
 
 @info "Beginning DEC Operator Benchmarks"
-begin 
+begin
     mesh_size = 5
     float_type::DataType = Float64
     primal_earth = loadmesh(Icosphere(mesh_size))
@@ -20,7 +20,7 @@ begin
     subdivide_duals!(earth, Barycenter());
 end
 
-begin 
+begin
     println("Mesh: " * "Blender Ico Sphere, $(mesh_size) Subdivisions")
     println("")
 
@@ -155,7 +155,7 @@ for op in sort(collect(keys(dec_op_results)))
 end
 
 @info "Beginning Dual Mesh Generation Benchmarks"
-begin 
+begin
     mesh_size = 100
     grid_spacings = [1.0, 0.8, 0.5, 0.4, 0.25, 0.2]
     point_type = Point2D

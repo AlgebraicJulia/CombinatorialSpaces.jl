@@ -141,6 +141,7 @@ dual_vs = elementary_duals(2,s,2)
 @test s[elementary_duals(1,s,3), :D_∂v1] == repeat([edge_center(s,3)], 2)
 @test [length(elementary_duals(s, V(i))) for i in 1:4] == [4,2,4,2]
 @test dual_triangle_vertices(s, 1) == [1,7,10]
+@test dual_edge_vertices(s, 1) == [5,2]
 
 # 2D oriented dual complex
 #-------------------------
@@ -492,7 +493,7 @@ end
 onedx = eval_constant_form(s, @SVector [1.0,0.0,0.0])
 onedy = eval_constant_form(s, @SVector [0.0,1.0,0.0])
 @test ∧(s, onedx, onedy) == map(s[:tri_orientation], s[:area]) do o,a
-  # Note by the order of -1 and 1 here that 
+  # Note by the order of -1 and 1 here that
   a * (o ? -1 : 1)
 end
 
@@ -658,4 +659,3 @@ for (primal_s,s) in flat_meshes
 end
 
 end
-

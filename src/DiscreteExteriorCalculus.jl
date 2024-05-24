@@ -20,7 +20,7 @@ export DualSimplex, DualV, DualE, DualTri, DualChain, DualForm,
   ⋆, hodge_star, inv_hodge_star, δ, codifferential, ∇², laplace_beltrami, Δ, laplace_de_rham,
   ♭, flat, ♭_mat, ♯, ♯_mat, sharp, ∧, wedge_product, interior_product, interior_product_flat,
   ℒ, lie_derivative, lie_derivative_flat,
-  vertex_center, edge_center, triangle_center, dual_triangle_vertices,
+  vertex_center, edge_center, triangle_center, dual_triangle_vertices, dual_edge_vertices,
   dual_point, dual_volume, subdivide_duals!, DiagonalHodge, GeometricHodge,
   subdivide, PPSharp, AltPPSharp, DesbrunSharp, LLSDDSharp, de_sign,
   ♭♯, ♭♯_mat, flat_sharp, flat_sharp_mat
@@ -173,6 +173,16 @@ elementary_duals(::Type{Val{0}}, s::AbstractDeltaDualComplex1D, v::Int) =
   incident(s, vertex_center(s,v), :D_∂v1)
 elementary_duals(::Type{Val{1}}, s::AbstractDeltaDualComplex1D, e::Int) =
   SVector(edge_center(s,e))
+
+""" Boundary dual vertices of a dual edge.
+
+This accessor assumes that the simplicial identities for the dual hold.
+"""
+function dual_edge_vertices(s::HasDeltaSet1D, t...)
+    SVector(s[t..., :D_∂v0],
+            s[t..., :D_∂v1])
+end
+
 
 """ Boundary dual vertices of a dual triangle.
 
@@ -395,7 +405,7 @@ function subdivide_duals!(sd::EmbeddedDeltaDualComplex1D{_o, _l, point_type} whe
   precompute_volumes_1d!(sd, point_type)
 end
 
-# TODO: Write helpers for getting the correct mesh data
+# TODO: Replace the individual accesses with vector accesses
 function subdivide_duals_1d!(sd::HasDeltaSet1D, ::Type{point_type}, alg) where point_type
 
   point_arr = MVector{2, point_type}(undef)
@@ -405,55 +415,35 @@ function subdivide_duals_1d!(sd::HasDeltaSet1D, ::Type{point_type}, alg) where p
   end
 
   @inbounds for e in edges(sd)
-    point_arr[1] = sd[sd[e, :∂v0], :point]
-    point_arr[2] = sd[sd[e, :∂v1], :point]
+    p1, p2 = edge_vertices(sd, e)
+    point_arr[1] = sd[p1, :point]
+    point_arr[2] = sd[p2, :point]
 
     sd[sd[e, :edge_center], :dual_point] = geometric_center(point_arr, alg)
   end
 end
 
+# TODO: Replace the individual accesses with vector accesses
 function precompute_volumes_1d!(sd::HasDeltaSet1D, ::Type{point_type}) where point_type
 
   point_arr = MVector{2, point_type}(undef)
 
   @inbounds for e in edges(sd)
-    point_arr[1] = sd[sd[e, :∂v0], :point]
-    point_arr[2] = sd[sd[e, :∂v1], :point]
+    p1, p2 = edge_vertices(sd, e)
+    point_arr[1] = sd[p1, :point]
+    point_arr[2] = sd[p2, :point]
 
     sd[e, :length] = volume(point_arr)
   end
 
   @inbounds for e in parts(sd, :DualE)
-    point_arr[1] = sd[sd[e, :D_∂v0], :dual_point]
-    point_arr[2] = sd[sd[e, :D_∂v1], :dual_point]
+    p1, p2 = dual_edge_vertices(sd, e)
+    point_arr[1] = sd[p1, :dual_point]
+    point_arr[2] = sd[p2, :dual_point]
 
     sd[e, :dual_length] = volume(point_arr)
   end
 end
-
-# function subdivide_duals!(s::EmbeddedDeltaDualComplex1D, args...)
-#   subdivide_duals_1d!(s, args...)
-#   precompute_volumes_1d!(s)
-# end
-
-# function subdivide_duals_1d!(s::HasDeltaSet1D, alg)
-#   for v in vertices(s)
-#     s[vertex_center(s,v), :dual_point] = point(s, v)
-#   end
-#   for e in edges(s)
-#     s[edge_center(s,e), :dual_point] = geometric_center(
-#       point(s, edge_vertices(s, e)), alg)
-#   end
-# end
-
-# function precompute_volumes_1d!(s::HasDeltaSet1D)
-#   for e in edges(s)
-#     s[e, :length] = volume(1,s,e,CayleyMengerDet())
-#   end
-#   for e in parts(s, :DualE)
-#     s[e, :dual_length] = dual_volume(1,s,e,CayleyMengerDet())
-#   end
-# end
 
 # TODO: When Catlab PR #823 "Data migrations with Julia functions on attributes"
 # is merged, encode subdivision like so:
@@ -807,7 +797,7 @@ function get_orthogonal_vector(s::AbstractDeltaDualComplex2D, v::Int, e::Int)
   e2_vec - dot(e2_vec, e_vec)*e_vec
 end
 
-function ♯_assign!(♯_mat::AbstractSparseMatrix, s::AbstractDeltaDualComplex2D, 
+function ♯_assign!(♯_mat::AbstractSparseMatrix, s::AbstractDeltaDualComplex2D,
   v₀::Int, _::Int, t::Int, i::Int, tri_edges::SVector{3, Int}, tri_center::Int,
   out_vec, DS::DiscreteSharp)
   for e in deleteat(tri_edges, i)
@@ -820,7 +810,7 @@ function ♯_assign!(♯_mat::AbstractSparseMatrix, s::AbstractDeltaDualComplex2
   end
 end
 
-function ♯_assign!(♯_mat::AbstractSparseMatrix, s::AbstractDeltaDualComplex2D, 
+function ♯_assign!(♯_mat::AbstractSparseMatrix, s::AbstractDeltaDualComplex2D,
   _::Int, e₀::Int, t::Int, _::Int, _::SVector{3, Int}, tri_center::Int,
   out_vec, DS::DesbrunSharp)
   for v in edge_vertices(s, e₀)
@@ -919,21 +909,22 @@ function ∧(::Type{Tuple{1,1}}, s::HasDeltaSet2D, α, β, x::Int)
                       α[e1] * β[e0] - α[e0] * β[e1])) / 2
 end
 
-# TODO: Write helpers for getting the correct mesh data
 function subdivide_duals!(sd::EmbeddedDeltaDualComplex2D{_o, _l, point_type} where {_o, _l}, alg) where point_type
   subdivide_duals_2d!(sd, point_type, alg)
   precompute_volumes_2d!(sd, point_type)
 end
 
+# TODO: Replace the individual accesses with vector accesses
 function subdivide_duals_2d!(sd::HasDeltaSet2D, ::Type{point_type}, alg) where point_type
   subdivide_duals_1d!(sd, point_type, alg)
 
   point_arr = MVector{3, point_type}(undef)
 
   @inbounds for t in triangles(sd)
-    point_arr[1] = sd[sd[sd[t, :∂e1], :∂v1], :point]
-    point_arr[2] = sd[sd[sd[t, :∂e2], :∂v0], :point]
-    point_arr[3] = sd[sd[sd[t, :∂e1], :∂v0], :point]
+    p1, p2, p3 = triangle_vertices(sd, t)
+    point_arr[1] = sd[p1, :point]
+    point_arr[2] = sd[p2, :point]
+    point_arr[3] = sd[p3, :point]
 
     sd[sd[t, :tri_center], :dual_point] = geometric_center(point_arr, alg)
   end
@@ -945,54 +936,35 @@ function precompute_volumes_2d!(sd::HasDeltaSet2D, p::Type{point_type}) where po
   set_dual_volumes_2d!(Val{2}, sd, p)
 end
 
+# TODO: Replace the individual accesses with vector accesses
 function set_volumes_2d!(::Type{Val{2}}, sd::HasDeltaSet2D, ::Type{point_type}) where point_type
 
   point_arr = MVector{3, point_type}(undef)
 
   @inbounds for t in triangles(sd)
-    point_arr[1] = sd[sd[sd[t, :∂e1], :∂v1], :point]
-    point_arr[2] = sd[sd[sd[t, :∂e2], :∂v0], :point]
-    point_arr[3] = sd[sd[sd[t, :∂e1], :∂v0], :point]
+    p1, p2, p3 = triangle_vertices(sd, t)
+    point_arr[1] = sd[p1, :point]
+    point_arr[2] = sd[p2, :point]
+    point_arr[3] = sd[p3, :point]
 
     sd[t, :area] = volume(point_arr)
   end
 end
 
+# TODO: Replace the individual accesses with vector accesses
 function set_dual_volumes_2d!(::Type{Val{2}}, sd::HasDeltaSet2D, ::Type{point_type}) where point_type
 
   point_arr = MVector{3, point_type}(undef)
 
   @inbounds for t in parts(sd, :DualTri)
-    point_arr[1] = sd[sd[sd[t, :D_∂e1], :D_∂v1], :dual_point]
-    point_arr[2] = sd[sd[sd[t, :D_∂e2], :D_∂v0], :dual_point]
-    point_arr[3] = sd[sd[sd[t, :D_∂e0], :D_∂v0], :dual_point]
+    p1, p2, p3 = dual_triangle_vertices(sd, t)
+    point_arr[1] = sd[p1, :dual_point]
+    point_arr[2] = sd[p2, :dual_point]
+    point_arr[3] = sd[p3, :dual_point]
 
     sd[t, :dual_area] = volume(point_arr)
   end
 end
-
-# function subdivide_duals!(s::EmbeddedDeltaDualComplex2D, args...)
-#   subdivide_duals_2d!(s, args...)
-#   precompute_volumes_2d!(s)
-# end
-
-# function subdivide_duals_2d!(s::HasDeltaSet2D, alg)
-#   subdivide_duals_1d!(s, alg)
-#   for t in triangles(s)
-#     s[triangle_center(s,t), :dual_point] = geometric_center(
-#       point(s, triangle_vertices(s, t)), alg)
-#   end
-# end
-
-# function precompute_volumes_2d!(s::HasDeltaSet2D)
-#   precompute_volumes_1d!(s)
-#   for t in triangles(s)
-#     s[t, :area] = volume(2,s,t,CayleyMengerDet())
-#   end
-#   for t in parts(s, :DualTri)
-#     s[t, :dual_area] = dual_volume(2,s,t,CayleyMengerDet())
-#   end
-# end
 
 # General operators
 ###################
