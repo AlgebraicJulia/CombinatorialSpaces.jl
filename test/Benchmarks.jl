@@ -38,8 +38,6 @@ end
 dec_op_suite = BenchmarkGroup()
 
 begin
-    dec_op_suite["Exterior Derivative"] = BenchmarkGroup()
-
     dec_op_suite["Exterior Derivative"]["New Form-0"] = @benchmarkable dec_differential(0, $earth)
     dec_op_suite["Exterior Derivative"]["Old Form-0"] = @benchmarkable d(0, $earth)
 
@@ -48,8 +46,6 @@ begin
 end
 
 begin
-    dec_op_suite["Boundary"] = BenchmarkGroup()
-
     dec_op_suite["Boundary"]["New Form-1"] = @benchmarkable dec_boundary(1, $earth)
     dec_op_suite["Boundary"]["Old Form-1"] = @benchmarkable ∂(1, $earth)
 
@@ -58,8 +54,6 @@ begin
 end
 
 begin
-    dec_op_suite["Dual Derivative"] = BenchmarkGroup()
-
     dec_op_suite["Dual Derivative"]["New Dual-Form-0"] = @benchmarkable dec_dual_derivative(0, $earth)
     dec_op_suite["Dual Derivative"]["Old Dual-Form-0"] = @benchmarkable dual_derivative(0, $earth)
 
@@ -68,8 +62,6 @@ begin
 end
 
 begin
-    dec_op_suite["Diagonal Hodge"] = BenchmarkGroup()
-
     dec_op_suite["Diagonal Hodge"]["New Form-0"] = @benchmarkable dec_hodge_star(0, $earth, DiagonalHodge())
     dec_op_suite["Diagonal Hodge"]["Old Form-0"] = @benchmarkable hodge_star(0, $earth, DiagonalHodge())
 
@@ -82,15 +74,11 @@ begin
 end
 
 begin
-    dec_op_suite["Geometric Hodge"] = BenchmarkGroup()
-
     dec_op_suite["Geometric Hodge"]["New Form-1"] = @benchmarkable dec_hodge_star(1, $earth, GeometricHodge())
     dec_op_suite["Geometric Hodge"]["Old Form-1"] = @benchmarkable hodge_star(1, $earth, GeometricHodge())
 end
 
 begin
-    dec_op_suite["Inverse Diagonal Hodge"] = BenchmarkGroup()
-
     dec_op_suite["Inverse Diagonal Hodge"]["New Form-0"] = @benchmarkable dec_inv_hodge_star(0, $earth, DiagonalHodge())
     dec_op_suite["Inverse Diagonal Hodge"]["Old Form-0"] = @benchmarkable inv_hodge_star(0, $earth, DiagonalHodge())
 
@@ -157,7 +145,7 @@ end
 @info "Beginning Dual Mesh Generation Benchmarks"
 begin
     mesh_size = 100
-    grid_spacings = [1.0, 0.8, 0.5, 0.4, 0.25, 0.2]
+    grid_spacings = [1.0, 0.8]#, 0.5, 0.4, 0.25, 0.2]
     point_type = Point2D
     benchmark_dual_meshes = map(gs -> triangulated_grid(mesh_size, mesh_size, gs, gs, point_type), grid_spacings);
 end;
@@ -170,14 +158,11 @@ function create_dual_mesh(s, point_type, center_type)
 end
 
 dual_mesh_suite = BenchmarkGroup()
-
+filler_name = "Grid Spacing"
 begin
-    dual_mesh_suite["Barycenter"] = BenchmarkGroup()
-    dual_mesh_suite["Circumcenter"] = BenchmarkGroup()
-
     for (i, grid_spacing) in enumerate(grid_spacings)
-        dual_mesh_suite["Barycenter"]["Grid Spacing: $(grid_spacing)"] = @benchmarkable create_dual_mesh($(benchmark_dual_meshes[i]), $point_type, $(Barycenter())) gcsample=true seconds=60
-        dual_mesh_suite["Circumcenter"]["Grid Spacing: $(grid_spacing)"] = @benchmarkable create_dual_mesh($(benchmark_dual_meshes[i]), $point_type, $(Circumcenter())) gcsample=true seconds=60
+        dual_mesh_suite["Barycenter"][filler_name][grid_spacing] = @benchmarkable create_dual_mesh($(benchmark_dual_meshes[i]), $point_type, $(Barycenter())) gcsample=true seconds=10
+        dual_mesh_suite["Circumcenter"][filler_name][grid_spacing] = @benchmarkable create_dual_mesh($(benchmark_dual_meshes[i]), $point_type, $(Circumcenter())) gcsample=true seconds=10
     end
 end
 
@@ -186,7 +171,7 @@ end
 dual_mesh_results = run(dual_mesh_suite, verbose = true)
 
 for center in sort(collect(keys(dual_mesh_results)))
-    trial = median(dual_mesh_results[center])
+    trial = median(dual_mesh_results[center][filler_name])
 
     println("Center: $center")
     for k in sort(collect(keys(trial)), rev=true)
