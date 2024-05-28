@@ -159,7 +159,7 @@ begin
     mesh_size = 100
     grid_spacings = [1.0, 0.8, 0.5, 0.4, 0.25, 0.2]
     point_type = Point2D
-    benchmark_dual_meshes = map(gs -> triangulated_grid(mesh_size, mesh_size, gs, gs, point_type), grid_spacings);
+    create_primal_mesh(gs) = triangulated_grid(mesh_size, mesh_size, gs, gs, point_type)
 end;
 @info "Generated Primal Meshes"
 
@@ -175,9 +175,9 @@ begin
     dual_mesh_suite["Barycenter"] = BenchmarkGroup()
     dual_mesh_suite["Circumcenter"] = BenchmarkGroup()
 
-    for (i, grid_spacing) in enumerate(grid_spacings)
-        dual_mesh_suite["Barycenter"]["Grid Spacing: $(grid_spacing)"] = @benchmarkable create_dual_mesh($(benchmark_dual_meshes[i]), $point_type, $(Barycenter())) gcsample=true seconds=60
-        dual_mesh_suite["Circumcenter"]["Grid Spacing: $(grid_spacing)"] = @benchmarkable create_dual_mesh($(benchmark_dual_meshes[i]), $point_type, $(Circumcenter())) gcsample=true seconds=60
+    for grid_spacing in grid_spacings
+        dual_mesh_suite["Barycenter"]["Grid Spacing: $(grid_spacing)"] = @benchmarkable create_dual_mesh($(create_primal_mesh(grid_spacing)), $point_type, $(Barycenter())) gcsample=true seconds=10
+        dual_mesh_suite["Circumcenter"]["Grid Spacing: $(grid_spacing)"] = @benchmarkable create_dual_mesh($(create_primal_mesh(grid_spacing)), $point_type, $(Circumcenter())) gcsample=true seconds=10
     end
 end
 
