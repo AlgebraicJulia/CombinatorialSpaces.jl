@@ -353,12 +353,22 @@ weddge (without explicitly dividing by 2.)
 
 
 # Boundary Operators
+"""
+    dec_boundary(n::Int, sd::HasDeltaSet)
+
+Gives the boundary operator (as a matrix) for `(n+1)`-simplices to `(n)`-simplices
+"""
 dec_boundary(n::Int, sd::HasDeltaSet) = sparse(dec_p_boundary(Val{n}, sd)...)
 
 dec_p_boundary(::Type{Val{k}}, sd::HasDeltaSet; negate::Bool=false) where {k} =
     dec_p_derivbound(Val{k - 1}, sd, transpose=true, negate=negate)
 
 # Dual Derivative Operators
+"""
+    dec_dual_derivative(n::Int, sd::HasDeltaSet)
+
+Gives the dual exterior derivative (as a matrix) between dual `n`-simplices and dual `(n+1)`-simplices
+"""
 dec_dual_derivative(n::Int, sd::HasDeltaSet) = sparse(dec_p_dual_derivative(Val{n}, sd)...)
 
 dec_p_dual_derivative(::Type{Val{0}}, sd::HasDeltaSet1D) =
@@ -371,6 +381,11 @@ dec_p_dual_derivative(::Type{Val{1}}, sd::HasDeltaSet2D) =
     dec_p_boundary(Val{1}, sd, negate=true)
 
 # Exterior Derivative Operators
+"""
+    dec_differential(n::Int, sd::HasDeltaSet)
+
+Gives the exterior derivative (as a matrix) between `n`-simplices and `(n+1)`-simplices
+"""
 dec_differential(n::Int, sd::HasDeltaSet) = sparse(dec_p_derivbound(Val{n}, sd)...)
 
 function dec_p_derivbound(::Type{Val{0}}, sd::HasDeltaSet; transpose::Bool=false, negate::Bool=false)
@@ -514,6 +529,11 @@ function dec_p_hodge_diag(::Type{Val{2}}, sd::EmbeddedDeltaDualComplex2D{Bool, f
     return 1 ./ tri_areas
 end
 
+"""
+    dec_hodge_star(n::Int, sd::HasDeltaSet; hodge=GeometricHodge())
+
+Gives the hodge matrix between `n`-simplices and dual 'n'-simplices.
+"""
 dec_hodge_star(n::Int, sd::HasDeltaSet; hodge=GeometricHodge()) = dec_hodge_star(Val{n}, sd, hodge)
 dec_hodge_star(n::Int, sd::HasDeltaSet, ::DiagonalHodge) = dec_hodge_star(Val{n}, sd, DiagonalHodge())
 dec_hodge_star(n::Int, sd::HasDeltaSet, ::GeometricHodge) = dec_hodge_star(Val{n}, sd, GeometricHodge())
@@ -599,6 +619,11 @@ function dec_hodge_star(::Type{Val{1}}, sd::EmbeddedDeltaDualComplex2D{Bool, flo
     sparse(view_I, view_J, view_V)
 end
 
+"""
+    dec_inv_hodge_star(n::Int, sd::HasDeltaSet; hodge=GeometricHodge())
+
+Gives the inverse hodge matrix between dual `n`-simplices and 'n'-simplices.
+"""
 dec_inv_hodge_star(n::Int, sd::HasDeltaSet; hodge=GeometricHodge()) = dec_inv_hodge_star(Val{n}, sd, hodge)
 dec_inv_hodge_star(n::Int, sd::HasDeltaSet, ::DiagonalHodge) = dec_inv_hodge_star(Val{n}, sd, DiagonalHodge())
 dec_inv_hodge_star(n::Int, sd::HasDeltaSet, ::GeometricHodge) = dec_inv_hodge_star(Val{n}, sd, GeometricHodge())
