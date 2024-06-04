@@ -3,11 +3,11 @@
 This module provides similar fuctionality to the DiscreteExteriorCalculus module
 but uses assumptions about the ACSet mesh structure to greatly improve performance.
 Some operators, like the exterior derivative are returned as sparse matrices while others,
-like the wedge product, are instead returned as functions that will compute the product. 
+like the wedge product, are instead returned as functions that will compute the product.
 """
 module FastDEC
 using LinearAlgebra: Diagonal, dot, norm, cross
-using StaticArrays: SVector
+using StaticArrays: SVector, MVector
 using SparseArrays: sparse, spzeros
 using LinearAlgebra
 using Base.Iterators
@@ -25,7 +25,7 @@ export dec_boundary, dec_differential, dec_dual_derivative, dec_hodge_star, dec_
     dec_p_wedge_product(::Type{Tuple{0,1}}, sd::EmbeddedDeltaDualComplex1D)
 
 Precomputes values for the wedge product between a 0 and 1-form.
-The values are to be fed into the wedge_terms parameter for the computational "c" varient. 
+The values are to be fed into the wedge_terms parameter for the computational "c" varient.
 This relies on the assumption of a well ordering of the dual space simplices.
 Do NOT modify the mesh once it's dual mesh has been computed else this method may not function properly.
 """
@@ -36,7 +36,7 @@ end
 """    dec_p_wedge_product(::Type{Tuple{0,1}}, sd::EmbeddedDeltaDualComplex2D)
 
 Precomputes values for the wedge product between a 0 and 1-form.
-The values are to be fed into the wedge_terms parameter for the computational "c" varient. 
+The values are to be fed into the wedge_terms parameter for the computational "c" varient.
 This relies on the assumption of a well ordering of the dual space simplices.
 Do NOT modify the mesh once it's dual mesh has been computed else this method may not function properly.
 """
@@ -49,7 +49,7 @@ end
 """    dec_c_wedge_product!(::Type{Tuple{0,1}}, wedge_terms, f, α, val_pack)
 
 Computes the wedge product between a 0 and 1-form.
-Use the precomputational "p" varient for the wedge_terms parameter. 
+Use the precomputational "p" varient for the wedge_terms parameter.
 This relies on the assumption of a well ordering of the dual space simplices.
 Do NOT modify the mesh once it's dual mesh has been computed else this method may not function properly.
 """
@@ -66,48 +66,35 @@ end
 """    dec_p_wedge_product(::Type{Tuple{0,2}}, sd::EmbeddedDeltaDualComplex2D{Bool, float_type, _p} where _p) where float_type
 
 Precomputes values for the wedge product between a 0 and 2-form.
-The values are to be fed into the wedge_terms parameter for the computational "c" varient. 
+The values are to be fed into the wedge_terms parameter for the computational "c" varient.
 This relies on the assumption of a well ordering of the dual space simplices.
 Do NOT modify the mesh once it's dual mesh has been computed else this method may not function properly.
 """
 function dec_p_wedge_product(::Type{Tuple{0,2}}, sd::EmbeddedDeltaDualComplex2D{Bool, float_type, _p} where _p) where float_type
-
-    simples = triangles(sd)
-
-    dual_edges_1 = @view sd[:D_∂e1]
-    dual_v_0 = @view sd[:D_∂v0]
-
-    dual_edges_2 = @view sd[:D_∂e2]
-    dual_v_1 = @view sd[:D_∂v1]
-
-    dv = @view sd[:dual_area]
-    vols = @view sd[:area]
-
     # XXX: This is assuming that meshes don't have too many entries
     # TODO: This type should be settable by the user and default set to Int32
     primal_vertices = Array{Int32}(undef, 6, ntriangles(sd))
     coeffs = Array{float_type}(undef, 6, ntriangles(sd))
 
-    row_idx_in_col = ones(Int8, ntriangles(sd))
-    shift::Int = nv(sd) + ne(sd)
+    shift::Int = ntriangles(sd)
 
-    @inbounds for dual_tri in eachindex(dual_edges_1)
-        primal_tri = dual_v_0[dual_edges_1[dual_tri]] - shift
-        row_idx = row_idx_in_col[primal_tri]
+    @inbounds for primal_tri in triangles(sd)
+      for dual_tri_idx in 1:6
+        dual_tri_real = primal_tri + (dual_tri_idx - 1) * shift
 
-        primal_vertices[row_idx, primal_tri] = dual_v_1[dual_edges_2[dual_tri]]
-        coeffs[row_idx, primal_tri] = dv[dual_tri] / vols[primal_tri]
+        primal_vertices[dual_tri_idx, primal_tri] = sd[sd[dual_tri_real, :D_∂e2], :D_∂v1]
+        coeffs[dual_tri_idx, primal_tri] = sd[dual_tri_real, :dual_area] / sd[primal_tri, :area]
+      end
+  end
 
-        row_idx_in_col[primal_tri] += 1
-    end
 
-    return (primal_vertices, coeffs, simples)
+    return (primal_vertices, coeffs, triangles(sd))
 end
 
 """    dec_c_wedge_product!(::Type{Tuple{0,2}}, wedge_terms, f, α, val_pack)
 
 Computes the wedge product between a 0 and 2-form.
-Use the precomputational "p" varient for the wedge_terms parameter. 
+Use the precomputational "p" varient for the wedge_terms parameter.
 This relies on the assumption of a well ordering of the dual space simplices.
 Do NOT modify the mesh once it's dual mesh has been computed else this method may not function properly.
 """
@@ -125,24 +112,21 @@ end
 """    dec_p_wedge_product(::Type{Tuple{1,1}}, sd::EmbeddedDeltaDualComplex2D{Bool, float_type, _p} where _p) where float_type
 
 Precomputes values for the wedge product between a 1 and 1-form.
-The values are to be fed into the wedge_terms parameter for the computational "c" varient. 
+The values are to be fed into the wedge_terms parameter for the computational "c" varient.
 This relies on the assumption of a well ordering of the dual space simplices.
 Do NOT modify the mesh once it's dual mesh has been computed else this method may not function properly.
 """
 function dec_p_wedge_product(::Type{Tuple{1,1}}, sd::EmbeddedDeltaDualComplex2D{Bool, float_type, _p} where _p) where float_type
-    simples = simplices(2, sd)
-
-    areas = @view sd[:area]
-    d_areas = @view sd[:dual_area]
+    simples =
 
     coeffs = Array{float_type}(undef, 3, ntriangles(sd))
 
     shift = ntriangles(sd)
     @inbounds for i in 1:ntriangles(sd)
-        area = 2 * areas[i]
-        coeffs[1, i] = (d_areas[i] + d_areas[i+shift]) / area
-        coeffs[2, i] = (d_areas[i+2*shift] + d_areas[i+3*shift]) / area
-        coeffs[3, i] = (d_areas[i+4*shift] + d_areas[i+5*shift]) / area
+        area = 2 * sd[i, :area]
+        coeffs[1, i] = (sd[i, :dual_area] + sd[i+shift, :dual_area]) / area
+        coeffs[2, i] = (sd[i+2*shift, :dual_area] + sd[i+3*shift, :dual_area]) / area
+        coeffs[3, i] = (sd[i+4*shift, :dual_area] + sd[i+5*shift, :dual_area]) / area
     end
     # XXX: This is assuming that meshes don't have too many entries
     # TODO: This type should be settable by the user and default set to Int32
@@ -152,13 +136,13 @@ function dec_p_wedge_product(::Type{Tuple{1,1}}, sd::EmbeddedDeltaDualComplex2D{
     e[2, :] = ∂(2, 1, sd)
     e[3, :] = ∂(2, 2, sd)
 
-    return (e, coeffs, simples)
+    return (e, coeffs, triangles(sd))
 end
 
 """    dec_c_wedge_product!(::Type{Tuple{1,1}}, wedge_terms, f, α, val_pack)
 
 Computes the wedge product between a 1 and 1-form.
-Use the precomputational "p" varient for the wedge_terms parameter. 
+Use the precomputational "p" varient for the wedge_terms parameter.
 This relies on the assumption of a well ordering of the dual space simplices.
 Do NOT modify the mesh once it's dual mesh has been computed else this method may not function properly.
 """
@@ -183,7 +167,7 @@ end
 """    dec_c_wedge_product(::Type{Tuple{m,n}}, α, β, val_pack) where {m,n}
 
 Computes the wedge product between two forms.
-Use the precomputational "p" varient for the wedge_terms parameter. 
+Use the precomputational "p" varient for the wedge_terms parameter.
 This relies on the assumption of a well ordering of the dual space simplices.
 Do NOT modify the mesh once it's dual mesh has been computed else this method may not function properly.
 """
@@ -404,17 +388,14 @@ function dec_p_derivbound(::Type{Val{0}}, sd::HasDeltaSet; transpose::Bool=false
         e_orient[i] = (e_orient[i] == 1 ? 1 : -1)
     end
 
-    v0_list = @view sd[:∂v0]
-    v1_list = @view sd[:∂v1]
-
     for i in edges(sd)
         j = 2 * i - 1
 
         I[j] = i
         I[j+1] = i
 
-        J[j] = v0_list[i]
-        J[j+1] = v1_list[i]
+        J[j] = sd[i, :∂v0]
+        J[j+1] = sd[i, :∂v1]
 
         sign_term = e_orient[i]
 
@@ -449,10 +430,6 @@ function dec_p_derivbound(::Type{Val{1}}, sd::HasDeltaSet; transpose::Bool=false
         e_orient[i] = (e_orient[i] == 1 ? 1 : -1)
     end
 
-    e0_list = @view sd[:∂e0]
-    e1_list = @view sd[:∂e1]
-    e2_list = @view sd[:∂e2]
-
     for i in triangles(sd)
         j = 3 * i - 2
 
@@ -462,13 +439,13 @@ function dec_p_derivbound(::Type{Val{1}}, sd::HasDeltaSet; transpose::Bool=false
 
         tri_sign = tri_sign_list[i]
 
-        J[j] = e0_list[i]
-        J[j+1] = e1_list[i]
-        J[j+2] = e2_list[i]
+        J[j] = sd[i, :∂e0]
+        J[j+1] = sd[i, :∂e1]
+        J[j+2] = sd[i, :∂e2]
 
-        edge_sign_0 = e_orient[e0_list[i]]
-        edge_sign_1 = e_orient[e1_list[i]]
-        edge_sign_2 = e_orient[e2_list[i]]
+        edge_sign_0 = e_orient[sd[i, :∂e0]]
+        edge_sign_1 = e_orient[sd[i, :∂e1]]
+        edge_sign_2 = e_orient[sd[i, :∂e2]]
 
         V[j] = edge_sign_0 * tri_sign
         V[j+1] = -1 * edge_sign_1 * tri_sign
@@ -485,20 +462,18 @@ function dec_p_derivbound(::Type{Val{1}}, sd::HasDeltaSet; transpose::Bool=false
     (I, J, V)
 end
 
-# Diagonal Hodges 
+# Diagonal Hodges
 
 function dec_p_hodge_diag(::Type{Val{0}}, sd::EmbeddedDeltaDualComplex1D{Bool, float_type, _p} where _p) where float_type
     num_v_sd = nv(sd)
 
     hodge_diag_0 = zeros(float_type, num_v_sd)
 
-    v1_list = @view sd[:D_∂v1]
-    dual_lengths = @view sd[:dual_length]
-
-    for (d_edge_idx, v1) in enumerate(v1_list)
-        if (1 <= v1 <= num_v_sd)
-            hodge_diag_0[v1] += dual_lengths[d_edge_idx]
-        end
+    for d_edge_idx in parts(sd, :DualE)
+      v1 = sd[d_edge_idx, :D_∂v1]
+      if (1 <= v1 <= num_v_sd)
+          hodge_diag_0[v1] += sd[d_edge_idx, :dual_length]
+      end
     end
     return hodge_diag_0
 end
@@ -512,13 +487,9 @@ end
 function dec_p_hodge_diag(::Type{Val{0}}, sd::EmbeddedDeltaDualComplex2D{Bool, float_type, _p} where _p) where float_type
     hodge_diag_0 = zeros(float_type, nv(sd))
 
-    dual_edges_1 = @view sd[:D_∂e1]
-    dual_v_1 = @view sd[:D_∂v1]
-    dual_areas = @view sd[:dual_area]
-
-    for (dual_tri, dual_edges) in enumerate(dual_edges_1)
-        v = dual_v_1[dual_edges]
-        hodge_diag_0[v] += dual_areas[dual_tri]
+    for dual_tri in parts(sd, :DualTri)
+      v = sd[sd[dual_tri, :D_∂e1], :D_∂v1]
+      hodge_diag_0[v] += sd[dual_tri, :dual_area]
     end
     return hodge_diag_0
 end
@@ -529,15 +500,11 @@ function dec_p_hodge_diag(::Type{Val{1}}, sd::EmbeddedDeltaDualComplex2D{Bool, f
 
     hodge_diag_1 = zeros(float_type, num_e_sd)
 
-    v1_list = @view sd[:D_∂v1]
-    dual_lengths = @view sd[:dual_length]
-    lengths = @view sd[:length]
-
-    for (d_edge_idx, v1) in enumerate(v1_list)
-        v1_shift = v1 - num_v_sd
-        if (1 <= v1_shift <= num_e_sd)
-            hodge_diag_1[v1_shift] += dual_lengths[d_edge_idx] / lengths[v1_shift]
-        end
+    for d_edge_idx in parts(sd, :DualE)
+      v1_shift = sd[d_edge_idx, :D_∂v1] - num_v_sd
+      if (1 <= v1_shift <= num_e_sd)
+          hodge_diag_1[v1_shift] += sd[d_edge_idx, :dual_length] / sd[v1_shift, :length]
+      end
     end
     return hodge_diag_1
 end
@@ -554,7 +521,7 @@ dec_hodge_star(n::Int, sd::HasDeltaSet, ::GeometricHodge) = dec_hodge_star(Val{n
 dec_hodge_star(::Type{Val{k}}, sd::HasDeltaSet, ::DiagonalHodge) where {k} =
     Diagonal(dec_p_hodge_diag(Val{k}, sd))
 
-# These are Geometric Hodges 
+# These are Geometric Hodges
 # TODO: Still need better implementation for Hodge 1 in 2D
 dec_hodge_star(::Type{Val{0}}, sd::EmbeddedDeltaDualComplex1D, ::GeometricHodge) =
     dec_hodge_star(Val{0}, sd, DiagonalHodge())
@@ -574,7 +541,7 @@ crossdot(v1, v2) = begin
 end
 
 function dec_hodge_star(::Type{Val{1}}, sd::EmbeddedDeltaDualComplex2D{Bool, float_type, point_type}, ::GeometricHodge) where {float_type, point_type}
-    
+
     I = Vector{Int32}(undef, ntriangles(sd) * 9)
     J = Vector{Int32}(undef, ntriangles(sd) * 9)
     V = Vector{float_type}(undef, ntriangles(sd) * 9)
@@ -584,27 +551,18 @@ function dec_hodge_star(::Type{Val{1}}, sd::EmbeddedDeltaDualComplex2D{Bool, flo
     tri_edges_2 = @view sd[:∂e1]
     tri_edges_3 = @view sd[:∂e0]
     tri_edges = [tri_edges_1, tri_edges_2, tri_edges_3]
-    
-    edge_centers = @view sd[:edge_center]
-    tri_centers = @view sd[:tri_center]
-    tgts = @view sd[:∂v0]
-    srcs = @view sd[:∂v1]
 
-    # Regular points are contained in first nv(sd) spots
-    # TODO: Decide if to use view or not, using a view means less memory but slightly slower
-    dual_points::Vector{point_type} = sd[:dual_point]
-
-    evt = Vector{point_type}(undef, 3)
-    dvt = Vector{point_type}(undef, 3)
+    evt = MVector{3, point_type}(undef)
+    dvt = MVector{3, point_type}(undef)
 
     idx = 0
 
     @inbounds for t in triangles(sd)
-        dual_point_tct = dual_points[tri_centers[t]]
+        dual_point_tct = sd[sd[t, :tri_center], :dual_point]
         for i in 1:3
             tri_edge = tri_edges[i][t]
-            evt[i] = dual_points[tgts[tri_edge]] - dual_points[srcs[tri_edge]]
-            dvt[i] = dual_point_tct - dual_points[edge_centers[tri_edge]]
+            evt[i] = sd[sd[tri_edge, :∂v0], :dual_point] - sd[sd[tri_edge, :∂v1], :dual_point]
+            dvt[i] = dual_point_tct - sd[sd[tri_edge, :edge_center], :dual_point]
         end
         dvt[2] *= -1
 
@@ -624,7 +582,7 @@ function dec_hodge_star(::Type{Val{1}}, sd::EmbeddedDeltaDualComplex2D{Bool, flo
 
         for p ∈ ((1, 2, 3), (1, 3, 2), (2, 1, 3), (2, 3, 1), (3, 1, 2), (3, 2, 1))
             diag_dot = dot(evt[p[1]], dvt[p[1]]) / dot(evt[p[1]], evt[p[1]])
-            val = diag_dot * dot(evt[p[1]], evt[p[3]]) 
+            val = diag_dot * dot(evt[p[1]], evt[p[3]])
             if val != 0.0
                 idx += 1
                 I[idx] = tri_edges[p[1]][t]
