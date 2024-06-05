@@ -58,9 +58,10 @@ struct VertexList #XX parameterize by n? remember to replace sort! w sort
 end
 
 Base.length(s::VertexList) = length(s.vs)
+Base.lastindex(s::VertexList) = lastindex(s.vs)
 has_simplex(sc::SimplicialComplex,s::VertexList) = haskey(sc.cache, s.vs)
 
-Base.getindex(v::VertexList, i::Int) = v.vs[i]
+Base.getindex(v::VertexList, i) = v.vs[i]
 
 function Base.getindex(sc::SimplicialComplex, s::VertexList)::Simplex
     has_simplex(sc,s) || error("Simplex not found: $s")
@@ -69,7 +70,7 @@ end
 
 function Base.union(vs1::VertexList, vs2::VertexList)
     out = Int[]
-    i, j = 1
+    i, j = 1, 1
     while (i <= length(vs1)) && (j <= length(vs2))
         v1, v2 = vs1[i], vs2[j]
         if (v1 == v2)
@@ -84,7 +85,14 @@ function Base.union(vs1::VertexList, vs2::VertexList)
             j += 1
         end
     end
+    if (i <= length(vs1))
+        append!(out, vs1[i:end])
+    end
+    if (j <= length(vs2))
+        append!(out, vs2[j:end])
+    end
     VertexList(out, sorted=true)
 end
 
+#TODO: get a point by barycentric coordinates, maps
 end
