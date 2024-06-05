@@ -17,4 +17,8 @@ vl = VertexList(s,Simplex{2}(1))
 @test !has_simplex(sc,VertexList([1,2,4]))
 @test sc[vl] == Simplex{2}(1)
 
+vl′ = VertexList([1,2])∪VertexList([2,3])
+@test has_simplex(sc,vl′)
+@test !has_simplex(sc,VertexList([1,2])∪VertexList([2,4]))
+
 end
