@@ -22,6 +22,42 @@ struct Point
   coordinates::Vector{Float64}
 end
 
-struct GeometricMap
+function vertices(d::DeltaSet, dim::Int, i::Int)
+  if dim == 0
+    [i]
+  elseif dim == 1
+    [src(d, i), tgt(d, i)]
+  elseif dim == 2
+    triangle_vertices(d, i)
+  else
+    error("we can't do above 2-dimensions")
+  end
+end
+
+function vertices(d::DeltaSet, p::Point)
+  vertices(d, length(p.coordinates) - 1, p.simplex)
+end
+
+function check_simplex_exists(
+  codom::SimplicialComplex{D'}
+  points::Vector{Point}
+) where {D, D'}
+  verts = vcat([vertices(codom.delta_set, p) for p in points])
+  sort!(verts)
+  unique!(verts)
+  haskey(codom.complexes, verts) ||
+    error("edge $e cannot map into a valid complex")
+end
+
+struct GeometricMap{D, D'}
+  dom::SimplicialComplex{D}
+  codom::SimplicialComplex{D'}
   values::Vector{Point}
+  function GeometricMap(
+    dom::SimplicialComplex{D},
+    codom::SimplicialComplex{D'},
+    values::Vector{Point}
+  ) where {D <: AbstractDeltaSet1D, D'}
+
+  end
 end
