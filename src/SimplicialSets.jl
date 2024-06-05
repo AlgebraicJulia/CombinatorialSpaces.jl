@@ -35,7 +35,7 @@ export Simplex, V, E, Tri, Tet, SimplexChain, VChain, EChain, TriChain, TetChain
   tetrahedron_triangles, tetrahedron_edges, tetrahedron_vertices, ntetrahedra,
   tetrahedra, add_tetrahedron!, glue_tetrahedron!, glue_sorted_tetrahedron!,
   glue_sorted_tet_cube!, is_manifold_like, nonboundaries,
-  star, St, closed_star, St̄, link, Lk
+  star, St, closed_star, St̄, link, Lk, simplex_vertices
 
 using LinearAlgebra: det
 using SparseArrays
@@ -602,8 +602,19 @@ const Tri = Simplex{2}
 """
 const Tet = Simplex{3}
 
-""" Wrapper for chain of oriented simplices of dimension `n`.
-"""
+# could generalize to Simplex{n, N}
+function simplex_vertices(s::HasDeltaSet, x::Simplex{n,0}) where n
+  simplex_vertices(Val{n}, s, x)
+end
+
+function simplex_vertices(::Type{Val{n}},s::HasDeltaSet,x::Simplex{n,0}) where n
+  n == 0 && return [x.data]
+  n == 1 && return edge_vertices(s, x.data)
+  n == 2 && return triangle_vertices(s, x.data)
+  n == 3 && return tetrahedron_vertices(s, x.data)
+end
+
+""" Wrapper for simplex chain of dimension `n`."""
 @vector_struct SimplexChain{n}
 
 const VChain = SimplexChain{0}
