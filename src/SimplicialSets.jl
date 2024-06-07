@@ -918,7 +918,7 @@ star(s::AbstractDeltaSet3D, v::Int) = star(s, v, Tet)
 Munkres §2 ≈ "The union of the interiors of those simplices of s that have v as
 a vertex."
 
-Return a vector of simplices of dimensions 0 to n.
+Return a vector of simplex chains of dimensions 0 to n.
 
 Recall that interior(σ) = σ - boundary(σ), Munkres §1.
 
@@ -950,7 +950,7 @@ closed_star(s::AbstractDeltaSet3D, v::Int) = closed_star(s, v, star(s, v), Tet)
 
 Munkres §2 ≈ "The union of all simplices of s having v as a vertex."
 
-Return a vector of simplices of dimensions 0 to n.
+Return a vector of simplex chains of dimensions 0 to n.
 
 Note that we do not return polytopes, but rather the simplices which together
 form such polytopes, in no particular order.
@@ -978,7 +978,7 @@ link(s::AbstractDeltaSet3D, v::Int) = link(s, v, Tet)
 
 Munkres §2 ≈ "The set St̄(v) - St(v)."
 
-Return a vector of simplices of dimensions 0 to n.
+Return a vector of simplex chains of dimensions 0 to n.
 
 These are the simplices which are in the closed star of v, but not in the star
 of v.
@@ -986,8 +986,8 @@ of v.
 See also [`star`](@ref), [`closed_star`](@ref).
 """
 function link(s::HasDeltaSet, v::Int, ::Type{Simplex{n}}) where n
-  map(closed_star(s,v), star(s,v)) do closed, interior
-    setdiff(closed, interior)
+  map(0:n, closed_star(s,v), star(s,v)) do i, closed, interior
+    Simplex{i}(setdiff(closed, interior))
   end
 end
 

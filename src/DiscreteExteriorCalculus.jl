@@ -23,7 +23,7 @@ export DualSimplex, DualV, DualE, DualTri, DualTet, DualChain, DualForm,
   ⋆, hodge_star, inv_hodge_star, δ, codifferential, ∇², laplace_beltrami, Δ, laplace_de_rham,
   ♭, flat, ♭_mat, ♯, ♯_mat, sharp, ∧, wedge_product, interior_product, interior_product_flat,
   ℒ, lie_derivative, lie_derivative_flat,
-  vertex_center, edge_center, triangle_center, tetrahedron_center, dual_triangle_vertices,
+  vertex_center, edge_center, triangle_center, tetrahedron_center, dual_triangle_vertices, dual_edge_vertices,
   dual_point, dual_volume, subdivide_duals!, DiagonalHodge, GeometricHodge,
   subdivide, PPSharp, AltPPSharp, DesbrunSharp, LLSDDSharp, de_sign,
   ♭♯, ♭♯_mat, flat_sharp, flat_sharp_mat
@@ -31,9 +31,9 @@ export DualSimplex, DualV, DualE, DualTri, DualTet, DualChain, DualForm,
 import Base: ndims
 import Base: *
 import LinearAlgebra: mul!
-using LinearAlgebra: Diagonal, dot, norm, cross, pinv
+using LinearAlgebra: Diagonal, dot, norm, cross, pinv, qr, ColumnNorm
 using SparseArrays
-using StaticArrays: @SVector, SVector, SMatrix
+using StaticArrays: @SVector, SVector, SMatrix, MVector, MMatrix
 using GeometryBasics: Point2, Point3
 
 const Point2D = SVector{2,Float64}
@@ -177,6 +177,16 @@ elementary_duals(::Type{Val{0}}, s::AbstractDeltaDualComplex1D, v::Int) =
 elementary_duals(::Type{Val{1}}, s::AbstractDeltaDualComplex1D, e::Int) =
   SVector(edge_center(s,e))
 
+""" Boundary dual vertices of a dual edge.
+
+This accessor assumes that the simplicial identities for the dual hold.
+"""
+function dual_edge_vertices(s::HasDeltaSet1D, t...)
+    SVector(s[t..., :D_∂v0],
+            s[t..., :D_∂v1])
+end
+
+
 """ Boundary dual vertices of a dual triangle.
 
 This accessor assumes that the simplicial identities for the dual hold.
@@ -236,11 +246,37 @@ negatenz((I, V)) = (I, negate.(V))
 
 """ Construct 1D dual complex from 1D delta set.
 """
-function (::Type{S})(t::AbstractDeltaSet1D) where S <: AbstractDeltaDualComplex1D
-  s = S()
-  copy_parts!(s, t)
-  make_dual_simplices_1d!(s)
-  return s
+function (::Type{S})(s::AbstractDeltaSet1D) where S <: AbstractDeltaDualComplex1D
+  t = S()
+  copy_primal_1D!(t, s) # TODO: Revert to copy_parts! when performance is improved
+  make_dual_simplices_1d!(t)
+  return t
+end
+
+function copy_primal_1D!(t::HasDeltaSet1D, s::HasDeltaSet1D)
+
+  @assert nv(t) == 0
+  @assert ne(t) == 0
+
+  v_range = add_parts!(t, :V, nv(s))
+  e_range = add_parts!(t, :E, ne(s))
+
+  if has_subpart(s, :point)
+    @inbounds for v in v_range
+      t[v, :point] = s[v, :point]
+    end
+  end
+
+  @inbounds for e in e_range
+    t[e, :∂v0] = s[e, :∂v0]
+    t[e, :∂v1] = s[e, :∂v1]
+  end
+
+  if has_subpart(s, :edge_orientation)
+    @inbounds for e in e_range
+      t[e, :edge_orientation] = s[e, :edge_orientation]
+    end
+  end
 end
 
 make_dual_simplices_1d!(s::AbstractDeltaDualComplex1D) = make_dual_simplices_1d!(s, E)
@@ -367,27 +403,48 @@ Supports different methods of subdivision through the choice of geometric
 center, as defined by [`geometric_center`](@ref). In particular, barycentric
 subdivision and circumcentric subdivision are supported.
 """
-function subdivide_duals!(s::EmbeddedDeltaDualComplex1D, args...)
-  subdivide_duals_1d!(s, args...)
-  precompute_volumes_1d!(s)
+function subdivide_duals!(sd::EmbeddedDeltaDualComplex1D{_o, _l, point_type} where {_o, _l}, alg) where point_type
+  subdivide_duals_1d!(sd, point_type, alg)
+  precompute_volumes_1d!(sd, point_type)
 end
 
-function subdivide_duals_1d!(s::HasDeltaSet1D, alg)
-  for v in vertices(s)
-    s[vertex_center(s,v), :dual_point] = point(s, v)
+# TODO: Replace the individual accesses with vector accesses
+function subdivide_duals_1d!(sd::HasDeltaSet1D, ::Type{point_type}, alg) where point_type
+
+  point_arr = MVector{2, point_type}(undef)
+
+  @inbounds for v in vertices(sd)
+    sd[v, :dual_point] = sd[v, :point]
   end
-  for e in edges(s)
-    s[edge_center(s,e), :dual_point] = geometric_center(
-      point(s, edge_vertices(s, e)), alg)
+
+  @inbounds for e in edges(sd)
+    p1, p2 = edge_vertices(sd, e)
+    point_arr[1] = sd[p1, :point]
+    point_arr[2] = sd[p2, :point]
+
+    sd[sd[e, :edge_center], :dual_point] = geometric_center(point_arr, alg)
   end
 end
 
-function precompute_volumes_1d!(s::HasDeltaSet1D)
-  for e in edges(s)
-    s[e, :length] = volume(1,s,e,CayleyMengerDet())
+# TODO: Replace the individual accesses with vector accesses
+function precompute_volumes_1d!(sd::HasDeltaSet1D, ::Type{point_type}) where point_type
+
+  point_arr = MVector{2, point_type}(undef)
+
+  @inbounds for e in edges(sd)
+    p1, p2 = edge_vertices(sd, e)
+    point_arr[1] = sd[p1, :point]
+    point_arr[2] = sd[p2, :point]
+
+    sd[e, :length] = volume(point_arr)
   end
-  for e in parts(s, :DualE)
-    s[e, :dual_length] = dual_volume(1,s,e,CayleyMengerDet())
+
+  @inbounds for e in parts(sd, :DualE)
+    p1, p2 = dual_edge_vertices(sd, e)
+    point_arr[1] = sd[p1, :dual_point]
+    point_arr[2] = sd[p2, :dual_point]
+
+    sd[e, :dual_length] = volume(point_arr)
   end
 end
 
@@ -484,11 +541,31 @@ dual_derivative_nz(::Type{Val{1}}, s::AbstractDeltaDualComplex2D, x::Int) =
 
 """ Construct 2D dual complex from 2D delta set.
 """
-function (::Type{S})(t::AbstractDeltaSet2D) where S <: AbstractDeltaDualComplex2D
-  s = S()
-  copy_parts!(s, t)
-  make_dual_simplices_2d!(s)
-  return s
+function (::Type{S})(s::AbstractDeltaSet2D) where S <: AbstractDeltaDualComplex2D
+  t = S()
+  copy_primal_2D!(t, s) # TODO: Revert to copy_parts! when performance is improved
+  make_dual_simplices_2d!(t)
+  return t
+end
+
+function copy_primal_2D!(t::HasDeltaSet2D, s::HasDeltaSet2D)
+
+  @assert ntriangles(t) == 0
+
+  copy_primal_1D!(t, s)
+  tri_range = add_parts!(t, :Tri, ntriangles(s))
+
+  @inbounds for tri in tri_range
+    t[tri, :∂e0] = s[tri, :∂e0]
+    t[tri, :∂e1] = s[tri, :∂e1]
+    t[tri, :∂e2] = s[tri, :∂e2]
+  end
+
+  if has_subpart(s, :tri_orientation)
+    @inbounds for tri in tri_range
+      t[tri, :tri_orientation] = s[tri, :tri_orientation]
+    end
+  end
 end
 
 make_dual_simplices_1d!(s::AbstractDeltaDualComplex2D) = make_dual_simplices_1d!(s, Tri)
@@ -723,7 +800,7 @@ function get_orthogonal_vector(s::AbstractDeltaDualComplex2D, v::Int, e::Int)
   e2_vec - dot(e2_vec, e_vec)*e_vec
 end
 
-function ♯_assign!(♯_mat::AbstractSparseMatrix, s::AbstractDeltaDualComplex2D, 
+function ♯_assign!(♯_mat::AbstractSparseMatrix, s::AbstractDeltaDualComplex2D,
   v₀::Int, _::Int, t::Int, i::Int, tri_edges::SVector{3, Int}, tri_center::Int,
   out_vec, DS::DiscreteSharp)
   for e in deleteat(tri_edges, i)
@@ -736,7 +813,7 @@ function ♯_assign!(♯_mat::AbstractSparseMatrix, s::AbstractDeltaDualComplex2
   end
 end
 
-function ♯_assign!(♯_mat::AbstractSparseMatrix, s::AbstractDeltaDualComplex2D, 
+function ♯_assign!(♯_mat::AbstractSparseMatrix, s::AbstractDeltaDualComplex2D,
   _::Int, e₀::Int, t::Int, _::Int, _::SVector{3, Int}, tri_center::Int,
   out_vec, DS::DesbrunSharp)
   for v in edge_vertices(s, e₀)
@@ -804,7 +881,11 @@ function ♯_mat(s::AbstractDeltaDualComplex2D, ::LLSDDSharp)
       end
     # TODO: Move around ' as appropriate to minimize transposing.
     X = stack(de_vecs)'
-    LLS = pinv(X'*(X))*(X')
+    # See: https://arxiv.org/abs/1102.1845
+    #QRX = qr(X, ColumnNorm())
+    #LLS = (inv(QRX.R) * QRX.Q')[QRX.p,:]
+    #LLS = pinv(X'*(X))*(X')
+    LLS = pinv(X)
     for (i,e) in enumerate(tri_edges)
       ♯_m[t, e] = LLS[:,i]'*weights[i]
     end
@@ -831,26 +912,60 @@ function ∧(::Type{Tuple{1,1}}, s::HasDeltaSet2D, α, β, x::Int)
                       α[e1] * β[e0] - α[e0] * β[e1])) / 2
 end
 
-function subdivide_duals!(s::EmbeddedDeltaDualComplex2D, args...)
-  subdivide_duals_2d!(s, args...)
-  precompute_volumes_2d!(s)
+function subdivide_duals!(sd::EmbeddedDeltaDualComplex2D{_o, _l, point_type} where {_o, _l}, alg) where point_type
+  subdivide_duals_2d!(sd, point_type, alg)
+  precompute_volumes_2d!(sd, point_type)
 end
 
-function subdivide_duals_2d!(s::HasDeltaSet2D, alg)
-  subdivide_duals_1d!(s, alg)
-  for t in triangles(s)
-    s[triangle_center(s,t), :dual_point] = geometric_center(
-      point(s, triangle_vertices(s, t)), alg)
+# TODO: Replace the individual accesses with vector accesses
+function subdivide_duals_2d!(sd::HasDeltaSet2D, ::Type{point_type}, alg) where point_type
+  subdivide_duals_1d!(sd, point_type, alg)
+
+  point_arr = MVector{3, point_type}(undef)
+
+  @inbounds for t in triangles(sd)
+    p1, p2, p3 = triangle_vertices(sd, t)
+    point_arr[1] = sd[p1, :point]
+    point_arr[2] = sd[p2, :point]
+    point_arr[3] = sd[p3, :point]
+
+    sd[sd[t, :tri_center], :dual_point] = geometric_center(point_arr, alg)
   end
 end
 
-function precompute_volumes_2d!(s::HasDeltaSet2D)
-  precompute_volumes_1d!(s)
-  for t in triangles(s)
-    s[t, :area] = volume(2,s,t,CayleyMengerDet())
+function precompute_volumes_2d!(sd::HasDeltaSet2D, p::Type{point_type}) where point_type
+  precompute_volumes_1d!(sd, point_type)
+  set_volumes_2d!(Val{2}, sd, p)
+  set_dual_volumes_2d!(Val{2}, sd, p)
+end
+
+# TODO: Replace the individual accesses with vector accesses
+function set_volumes_2d!(::Type{Val{2}}, sd::HasDeltaSet2D, ::Type{point_type}) where point_type
+
+  point_arr = MVector{3, point_type}(undef)
+
+  @inbounds for t in triangles(sd)
+    p1, p2, p3 = triangle_vertices(sd, t)
+    point_arr[1] = sd[p1, :point]
+    point_arr[2] = sd[p2, :point]
+    point_arr[3] = sd[p3, :point]
+
+    sd[t, :area] = volume(point_arr)
   end
-  for t in parts(s, :DualTri)
-    s[t, :dual_area] = dual_volume(2,s,t,CayleyMengerDet())
+end
+
+# TODO: Replace the individual accesses with vector accesses
+function set_dual_volumes_2d!(::Type{Val{2}}, sd::HasDeltaSet2D, ::Type{point_type}) where point_type
+
+  point_arr = MVector{3, point_type}(undef)
+
+  @inbounds for t in parts(sd, :DualTri)
+    p1, p2, p3 = dual_triangle_vertices(sd, t)
+    point_arr[1] = sd[p1, :dual_point]
+    point_arr[2] = sd[p2, :dual_point]
+    point_arr[3] = sd[p3, :dual_point]
+
+    sd[t, :dual_area] = volume(point_arr)
   end
 end
 
@@ -1679,7 +1794,7 @@ Make a dual 1-form primal by chaining ♭ᵈᵖ♯ᵈᵈ.
 This returns a matrix which can be multiplied by a dual 1-form.
 See also [`♭♯`](@ref).
 """
-♭♯_mat(s::HasDeltaSet) = ♭_mat(s) * ♯_mat(s, LLSDDSharp())
+♭♯_mat(s::HasDeltaSet) = only.(♭_mat(s) * ♯_mat(s, LLSDDSharp()))
 
 """    ♭♯(s::HasDeltaSet, α::SimplexForm{1})
 
@@ -1688,7 +1803,7 @@ Make a dual 1-form primal by chaining ♭ᵈᵖ♯ᵈᵈ.
 This returns the given dual 1-form as a primal 1-form.
 See also [`♭♯_mat`](@ref).
 """
-♭♯(s::HasDeltaSet, α::SimplexForm{1}) = only.(♭♯_mat(s) * α)
+♭♯(s::HasDeltaSet, α::SimplexForm{1}) = ♭♯_mat(s) * α
 
 """ Alias for the flat-sharp dual-to-primal interpolation operator [`♭♯`](@ref).
 """

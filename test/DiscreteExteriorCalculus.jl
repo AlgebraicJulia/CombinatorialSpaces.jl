@@ -141,6 +141,7 @@ dual_vs = elementary_duals(2,s,2)
 @test s[elementary_duals(1,s,3), :D_∂v1] == repeat([edge_center(s,3)], 2)
 @test [length(elementary_duals(s, V(i))) for i in 1:4] == [4,2,4,2]
 @test dual_triangle_vertices(s, 1) == [1,7,10]
+@test dual_edge_vertices(s, 1) == [5,2]
 
 # 2D oriented dual complex
 #-------------------------
@@ -492,7 +493,7 @@ end
 onedx = eval_constant_form(s, @SVector [1.0,0.0,0.0])
 onedy = eval_constant_form(s, @SVector [0.0,1.0,0.0])
 @test ∧(s, onedx, onedy) == map(s[:tri_orientation], s[:area]) do o,a
-  # Note by the order of -1 and 1 here that 
+  # Note by the order of -1 and 1 here that
   a * (o ? -1 : 1)
 end
 
@@ -586,7 +587,7 @@ for (primal_s,s) in flat_meshes
   # This tests that numerically raising indices is equivalent to analytically
   # raising indices.
   # X_continuous = ♯ᵖ_discrete∘♭ᵖ_discrete(X_continuous)
-  X♯ = SVector{3,Float64}(1/√2,1/√2,0)
+  X♯ = SVector{3,Float64}(3/√2,1/√2,0)
   X♭ = eval_constant_dual_form(s, X♯)
   @test all_are_approx(♯_m * X♭,  X♯; atol=1e-13) ||
         all_are_approx(♯_m * X♭, -X♯; atol=1e-13)
@@ -599,8 +600,8 @@ for (primal_s,s) in flat_meshes
   # Note that we check explicitly both cases of signedness, because orient!
   # picks in/outside without regard to the embedding.
   # This is the "right/left-hand-rule trick."
-  @test all(isapprox.(only.(♭_♯_m * X♭),  eval_constant_primal_form(s, X♯), atol=1e-12)) ||
-        all(isapprox.(only.(♭_♯_m * X♭), -eval_constant_primal_form(s, X♯), atol=1e-12))
+  @test all(isapprox.(only.(♭_♯_m * X♭),  eval_constant_primal_form(s, X♯), atol=1e-13)) ||
+        all(isapprox.(only.(♭_♯_m * X♭), -eval_constant_primal_form(s, X♯), atol=1e-13))
 
   # This test shows how the musical isomorphism chaining lets you further
   # define a primal-dual wedge that preserves properties from the continuous
@@ -624,8 +625,8 @@ for (primal_s,s) in flat_meshes
   @test all(Λdp(f̃, g′) .== -1 * Λpd(g′, f̃))
 
   # f∧f = 0 (implied by antisymmetry):
-  @test all(isapprox.(Λpd(f′, f̃), 0, atol=1e-10))
-  @test all(isapprox.(Λpd(g′, g̃), 0, atol=1e-10))
+  @test all(isapprox.(Λpd(f′, f̃), 0, atol=1e-11))
+  @test all(isapprox.(Λpd(g′, g̃), 0, atol=1e-11))
 
   # Test and demonstrate the convenience functions:
   @test all(∧(s, SimplexForm{1}(f′), DualForm{1}(g̃)) .≈ -1 * ∧(s, SimplexForm{1}(g′), DualForm{1}(f̃)))
@@ -652,9 +653,9 @@ for (primal_s,s) in flat_meshes
   u_star = hodge_star(1,s) * u
 
   @test all(isapprox.(
-    sign(2,s) .* hodge_star(2,s) * ∧(s, SimplexForm{1}(u), DualForm{1}(u_star)),
+    dec_hodge_star(2,s) * ∧(s, SimplexForm{1}(u), DualForm{1}(u_star)),
     ff_gg,
-    atol=1e-10))
+    atol=1e-12))
 end
 
 

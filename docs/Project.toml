@@ -1,7 +1,8 @@
 [deps]
+CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
+CairoMakie = "13f3f980-e62b-5c42-98c6-ff1f3baf88f0"
 CombinatorialSpaces = "b1c52339-7909-45ad-8b6a-6e388f7c67f2"
 Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
 FileIO = "5789e2e9-d7fb-5bc7-8068-2c6fae9b9549"
 JSServe = "824d6782-a2ef-11e9-3a09-e5662e0c26f9"
 MeshIO = "7269a6da-0436-5bbc-96c2-40638cbb6118"
-WGLMakie = "276b4fcb-3e11-5398-bf8b-a0c2d153d008"

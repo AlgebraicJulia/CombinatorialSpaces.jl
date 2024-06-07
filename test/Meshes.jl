@@ -55,6 +55,32 @@ unit_icosphere5 = loadmesh(Icosphere(5))
 @test ρ == unit_radius
 @test euler_characteristic(unit_icosphere5) == 2
 
+unit_icosphere6 = loadmesh(Icosphere(6))
+@test nv(unit_icosphere6) == 10242
+@test ne(unit_icosphere6) == 30720
+@test nparts(unit_icosphere6, :Tri) == 20480
+ρ = magnitude(unit_icosphere6[:point][begin])
+@test all(isapprox.(magnitude.(unit_icosphere6[:point]), ρ))
+@test ρ == unit_radius
+@test euler_characteristic(unit_icosphere6) == 2
+
+unit_icosphere7 = loadmesh(Icosphere(7))
+@test nv(unit_icosphere7) == 40962
+@test ne(unit_icosphere7) == 122880
+@test nparts(unit_icosphere7, :Tri) == 81920
+ρ = magnitude(unit_icosphere7[:point][begin])
+@test all(isapprox.(magnitude.(unit_icosphere7[:point]), ρ))
+@test ρ == unit_radius
+@test euler_characteristic(unit_icosphere7) == 2
+
+unit_icosphere8 = loadmesh(Icosphere(8))
+@test nv(unit_icosphere8) == 163842
+@test ne(unit_icosphere8) == 491520
+@test nparts(unit_icosphere8, :Tri) == 327680
+ρ = magnitude(unit_icosphere8[:point][begin])
+@test all(isapprox.(magnitude.(unit_icosphere8[:point]), ρ))
+@test ρ == unit_radius
+@test euler_characteristic(unit_icosphere8) == 2
 
 # Testing the radius parameter.
 thermosphere_radius = 6371 + 90
