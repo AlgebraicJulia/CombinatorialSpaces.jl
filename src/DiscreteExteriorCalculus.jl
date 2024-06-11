@@ -24,7 +24,7 @@ export DualSimplex, DualV, DualE, DualTri, DualChain, DualForm,
   dual_point, dual_volume, subdivide_duals!, DiagonalHodge, GeometricHodge,
   subdivide, PPSharp, AltPPSharp, DesbrunSharp, LLSDDSharp, de_sign,
   ♭♯, ♭♯_mat, flat_sharp, flat_sharp_mat,
-  avg₀₁, avg_01
+  avg₀₁, avg_01, avg₀₁_mat, avg_01_mat
 
 import Base: ndims
 import Base: *
@@ -1480,8 +1480,10 @@ const flat_sharp_mat = ♭♯_mat
 Given a 0-form, this matrix computes a 1-form by taking the mean of value stored on the faces of each edge.
 
 This matrix can be used to implement a wedge product: `(avg₀₁(s)*X) .* Y` where `X` is a 0-form and `Y` a 1-form, assuming the center of an edge is halfway between its endpoints.
+
+See also [`avg₀₁`](@ref).
 """
-function avg₀₁(s::HasDeltaSet)
+function avg₀₁_mat(s::HasDeltaSet)
   I = Vector{Int64}()
   J = Vector{Int64}()
   V = Vector{Float64}()
@@ -1493,9 +1495,21 @@ function avg₀₁(s::HasDeltaSet)
   sparse(I,J,V)
 end
 
-""" Alias for the averaging matrix [`avg₀₁`](@ref).
+"""    avg₀₁(s::HasDeltaSet, α::SimplexForm{0})
+
+Turn a 0-form into a 1-form by averaging data stored on the face of an edge.
+
+See also [`avg₀₁_mat`](@ref).
+"""
+avg₀₁(s::HasDeltaSet, α::SimplexForm{0}) = avg₀₁_mat(s) * α
+
+""" Alias for the averaging operator [`avg₀₁`](@ref).
 """
 const avg_01 = avg₀₁
+
+""" Alias for the averaging matrix [`avg₀₁_mat`](@ref).
+"""
+const avg_01_mat = avg₀₁_mat
 
 """ Wedge product of discrete forms.
 
