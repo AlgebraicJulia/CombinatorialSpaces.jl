@@ -345,13 +345,8 @@ subdivide_duals!(s, Incenter())
 #plot_pvf(primal_s, ♯(s, E))
 #plot_pvf(primal_s, ♯(s, E, AltPPSharp()))
 
-# Evaluate a constant 1-form α assuming Euclidean space. (Inner product is dot)
-eval_constant_form(s, α::SVector) = map(edges(s)) do e
-  dot(α, point(s, tgt(s,e)) - point(s, src(s,e))) * sign(1,s,e)
-end |> EForm
-
 function test_♯(s, covector::SVector; atol=1e-8)
-  X = eval_constant_form(s, covector)
+  X = eval_constant_primal_form(s, covector)
   # Test that the Hirani field is approximately parallel to the given field.
   X♯ = ♯(s, X)
   @test all(map(X♯) do x
@@ -374,7 +369,7 @@ vfs = [Point3D(1,0,0), Point3D(1,1,0), Point3D(-3,2,0), Point3D(0,0,0),
 primal_s, s = tri_345()
 foreach(vf -> test_♯(s, vf), vfs)
 ♯_m = ♯_mat(s, DesbrunSharp())
-X = eval_constant_form(s, Point3D(1,0,0))
+X = eval_constant_primal_form(s, Point3D(1,0,0))
 X♯ = ♯_m * X
 @test all(X♯ .≈ [Point3D(.8,.4,0), Point3D(0,-1,0), Point3D(-.8,.6,0)])
 
@@ -490,8 +485,8 @@ for k = 0:2
 end
 
 # 1dx ∧ 1dy = 1 dx∧dy
-onedx = eval_constant_form(s, @SVector [1.0,0.0,0.0])
-onedy = eval_constant_form(s, @SVector [0.0,1.0,0.0])
+onedx = eval_constant_primal_form(s, @SVector [1.0,0.0,0.0])
+onedy = eval_constant_primal_form(s, @SVector [0.0,1.0,0.0])
 @test ∧(s, onedx, onedy) == map(s[:tri_orientation], s[:area]) do o,a
   # Note by the order of -1 and 1 here that
   a * (o ? -1 : 1)
