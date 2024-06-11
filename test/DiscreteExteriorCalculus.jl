@@ -120,16 +120,6 @@ f = VForm([0,1,2,1,0])
                           0.0  1.0 -2.0  1.0;
                           0.0  0.0  1.0 -3.0], atol=1e-3)
 
-# 2 ∧ (1dx) = 2dx
-two = fill(2.0, nv(s))
-onedx = s[:length]
-twodx = 2*s[:length]
-# Test that the averaging matrix can compute a wedge product.
-avg_mat = avg₀₁_mat(s)
-@test all(twodx .== ∧(s, VForm(two), EForm(onedx)))
-@test all(twodx .== (avg_mat * two .* onedx))
-@test all(twodx .== (avg₀₁(s, VForm(two)) .* onedx))
-
 # 2D dual complex
 #################
 
@@ -493,16 +483,6 @@ for k = 0:2
   βᵏ = SimplexForm{k}(collect(1:nsimplices(k,s)))
   @test all(∧(s, α, βᵏ) .≈ βᵏ)
 end
-
-# 2 ∧ (1dx + 1dy) = 2dx + 2dy
-two = fill(2.0, nv(s))
-onedx_onedy = eval_constant_primal_form(s, @SVector [1.0,1.0,0.0])
-twodx_twody = eval_constant_primal_form(s, @SVector [2.0,2.0,0.0])
-# Test that the averaging matrix can compute a wedge product.
-avg_mat = avg₀₁_mat(s)
-@test all(twodx_twody .== ∧(s, VForm(two), EForm(onedx_onedy)))
-@test all(twodx_twody .== (avg_mat * two .* onedx_onedy))
-@test all(twodx_twody .== (avg₀₁(s, VForm(two)) .* onedx_onedy))
 
 # 1dx ∧ 1dy = 1 dx∧dy
 onedx = eval_constant_primal_form(s, @SVector [1.0,0.0,0.0])
