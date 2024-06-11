@@ -207,6 +207,28 @@ end
     end
 end
 
+@testset "Averaging Operator" begin
+    for sd in dual_meshes_1D
+        # Test that the averaging matrix can compute a wedge product.
+        V_1 = rand(nv(sd))
+        E_1 = rand(ne(sd))
+        expected_wedge = dec_wedge_product(Tuple{0, 1}, sd)(V_1, E_1)
+        avg_mat = avg₀₁_mat(sd)
+        @test all(expected_wedge .== (avg_mat * V_1 .* E_1))
+        @test all(expected_wedge .== (avg₀₁(sd, VForm(V_1)) .* E_1))
+    end
+
+    for sd in dual_meshes_2D
+        # Test that the averaging matrix can compute a wedge product.
+        V_1 = rand(nv(sd))
+        E_1 = rand(ne(sd))
+        expected_wedge = dec_wedge_product(Tuple{0, 1}, sd)(V_1, E_1)
+        avg_mat = avg₀₁_mat(sd)
+        @test all(expected_wedge .== (avg_mat * V_1 .* E_1))
+        @test all(expected_wedge .== (avg₀₁(sd, VForm(V_1)) .* E_1))
+    end
+end
+
 # TODO: Move all boundary helper functions into CombinatorialSpaces.
 function boundary_inds(::Type{Val{0}}, s)
   ∂1_inds = boundary_inds(Val{1}, s)

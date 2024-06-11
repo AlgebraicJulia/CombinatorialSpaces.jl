@@ -8,7 +8,7 @@ like the wedge product, are instead returned as functions that will compute the 
 module FastDEC
 using LinearAlgebra: Diagonal, dot, norm, cross
 using StaticArrays: SVector, MVector
-using SparseArrays: sparse, spzeros
+using SparseArrays: sparse, spzeros, SparseMatrixCSC
 using LinearAlgebra
 using Base.Iterators
 using ACSets.DenseACSets: attrtype_type
@@ -20,7 +20,8 @@ export dec_boundary, dec_differential, dec_dual_derivative, dec_hodge_star, dec_
        dec_wedge_product_pd, dec_wedge_product_dp, ∧,
        interior_product_dd, ℒ_dd,
        dec_wedge_product_dd,
-       Δᵈ
+       Δᵈ,
+       avg₀₁, avg_01, avg₀₁_mat, avg_01_mat
 """
     dec_p_wedge_product(::Type{Tuple{0,1}}, sd::EmbeddedDeltaDualComplex1D)
 
@@ -729,5 +730,41 @@ function Δᵈ(::Type{Val{1}}, s::SimplicialSets.HasDeltaSet)
     n * ihs1(x)
   end
 end
+
+function avg₀₁_mat(s::HasDeltaSet, float_type)
+  d0 = dec_differential(0,s)
+  avg_mat = SparseMatrixCSC{float_type, Int32}(d0)
+  avg_mat.nzval .= 0.5
+  avg_mat
+end
+
+""" Averaging matrix from 0-forms to 1-forms.
+
+Given a 0-form, this matrix computes a 1-form by taking the mean of value stored on the faces of each edge.
+
+This matrix can be used to implement a wedge product: `(avg₀₁(s)*X) .* Y` where `X` is a 0-form and `Y` a 1-form, assuming the center of an edge is halfway between its endpoints.
+
+See also [`avg₀₁`](@ref).
+"""
+avg₀₁_mat(s::EmbeddedDeltaDualComplex2D{Bool, float_type, _p} where _p) where float_type =
+  avg₀₁_mat(s, float_type)
+avg₀₁_mat(s::EmbeddedDeltaDualComplex1D{Bool, float_type, _p} where _p) where float_type =
+  avg₀₁_mat(s, float_type)
+
+"""    avg₀₁(s::HasDeltaSet, α::SimplexForm{0})
+
+Turn a 0-form into a 1-form by averaging data stored on the face of an edge.
+
+See also [`avg₀₁_mat`](@ref).
+"""
+avg₀₁(s::HasDeltaSet, α::SimplexForm{0}) = avg₀₁_mat(s) * α
+
+""" Alias for the averaging operator [`avg₀₁`](@ref).
+"""
+const avg_01 = avg₀₁
+
+""" Alias for the averaging matrix [`avg₀₁_mat`](@ref).
+"""
+const avg_01_mat = avg₀₁_mat
 
 end
