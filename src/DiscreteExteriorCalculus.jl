@@ -23,7 +23,8 @@ export DualSimplex, DualV, DualE, DualTri, DualChain, DualForm,
   vertex_center, edge_center, triangle_center, dual_triangle_vertices, dual_edge_vertices,
   dual_point, dual_volume, subdivide_duals!, DiagonalHodge, GeometricHodge,
   subdivide, PPSharp, AltPPSharp, DesbrunSharp, LLSDDSharp, de_sign,
-  ♭♯, ♭♯_mat, flat_sharp, flat_sharp_mat
+  ♭♯, ♭♯_mat, flat_sharp, flat_sharp_mat,
+  avg₀₁, avg_01
 
 import Base: ndims
 import Base: *
@@ -1473,6 +1474,28 @@ const flat_sharp = ♭♯
 """ Alias for the flat-sharp dual-to-primal interpolation matrix [`♭♯_mat`](@ref).
 """
 const flat_sharp_mat = ♭♯_mat
+
+""" Averaging matrix from 0-forms to 1-forms.
+
+Given a 0-form, this matrix computes a 1-form by taking the mean of value stored on the faces of each edge.
+
+This matrix can be used to implement a wedge product: `(avg₀₁(s)*X) .* Y` where `X` is a 0-form and `Y` a 1-form, assuming the center of an edge is halfway between its endpoints.
+"""
+function avg₀₁(s::HasDeltaSet)
+  I = Vector{Int64}()
+  J = Vector{Int64}()
+  V = Vector{Float64}()
+  for e in 1:ne(s)
+    append!(J, [s[e,:∂v0],s[e,:∂v1]])
+    append!(I, [e,e])
+    append!(V, [0.5, 0.5])
+  end
+  sparse(I,J,V)
+end
+
+""" Alias for the averaging matrix [`avg₀₁`](@ref).
+"""
+const avg_01 = avg₀₁
 
 """ Wedge product of discrete forms.
 

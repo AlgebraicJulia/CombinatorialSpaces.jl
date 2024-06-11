@@ -489,6 +489,15 @@ for k = 0:2
   @test all(∧(s, α, βᵏ) .≈ βᵏ)
 end
 
+# 2 ∧ (1dx + 1dy) = 2dx + 2dy
+two = fill(2.0, nv(s))
+onedx_onedy = eval_constant_form(s, @SVector [1.0,1.0,0.0])
+# Test that the averaging matrix can compute a wedge product.
+avg_mat = avg₀₁(s)
+twodx_twody = eval_constant_form(s, @SVector [2.0,2.0,0.0])
+@test all(twodx_twody .== ∧(s, VForm(two), EForm(onedx_onedy)))
+@test all(twodx_twody .== (avg_mat * two .* onedx_onedy),)
+
 # 1dx ∧ 1dy = 1 dx∧dy
 onedx = eval_constant_form(s, @SVector [1.0,0.0,0.0])
 onedy = eval_constant_form(s, @SVector [0.0,1.0,0.0])
