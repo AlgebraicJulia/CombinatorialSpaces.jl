@@ -120,6 +120,16 @@ f = VForm([0,1,2,1,0])
                           0.0  1.0 -2.0  1.0;
                           0.0  0.0  1.0 -3.0], atol=1e-3)
 
+# 2 ∧ (1dx) = 2dx
+two = fill(2.0, nv(s))
+onedx = s[:length]
+twodx = 2*s[:length]
+# Test that the averaging matrix can compute a wedge product.
+avg_mat = avg₀₁_mat(s)
+@test all(twodx .== ∧(s, VForm(two), EForm(onedx)))
+@test all(twodx .== (avg_mat * two .* onedx))
+@test all(twodx .== (avg₀₁(s, VForm(two)) .* onedx))
+
 # 2D dual complex
 #################
 

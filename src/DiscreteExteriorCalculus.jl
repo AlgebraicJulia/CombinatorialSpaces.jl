@@ -1475,6 +1475,17 @@ const flat_sharp = ♭♯
 """
 const flat_sharp_mat = ♭♯_mat
 
+function avg₀₁_mat_helper(s::HasDeltaSet, V::AbstractVector)
+  I = Vector{Int32}()
+  J = Vector{Int32}()
+  for e in 1:ne(s)
+    append!(J, [s[e,:∂v0],s[e,:∂v1]])
+    append!(I, [e,e])
+    append!(V, [0.5, 0.5])
+  end
+  sparse(I,J,V)
+end
+
 """ Averaging matrix from 0-forms to 1-forms.
 
 Given a 0-form, this matrix computes a 1-form by taking the mean of value stored on the faces of each edge.
@@ -1483,17 +1494,10 @@ This matrix can be used to implement a wedge product: `(avg₀₁(s)*X) .* Y` wh
 
 See also [`avg₀₁`](@ref).
 """
-function avg₀₁_mat(s::HasDeltaSet)
-  I = Vector{Int64}()
-  J = Vector{Int64}()
-  V = Vector{Float64}()
-  for e in 1:ne(s)
-    append!(J, [s[e,:∂v0],s[e,:∂v1]])
-    append!(I, [e,e])
-    append!(V, [0.5, 0.5])
-  end
-  sparse(I,J,V)
-end
+avg₀₁_mat(s::EmbeddedDeltaDualComplex2D{Bool, float_type, _p} where _p) where float_type =
+  avg₀₁_mat_helper(s, Vector{float_type}())
+avg₀₁_mat(s::EmbeddedDeltaDualComplex1D{Bool, float_type, _p} where _p) where float_type =
+  avg₀₁_mat_helper(s, Vector{float_type}())
 
 """    avg₀₁(s::HasDeltaSet, α::SimplexForm{0})
 
