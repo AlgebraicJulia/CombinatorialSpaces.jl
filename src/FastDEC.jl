@@ -409,7 +409,7 @@ function dec_p_derivbound(::Type{Val{0}}, sd::HasDeltaSet; transpose::Bool=false
         J[j] = sd[i, :∂v0]
         J[j+1] = sd[i, :∂v1]
 
-        sign_term = numeric_sign(sd[i, :edge_orientation])
+        sign_term = numeric_sign(sd[i, :edge_orientation]::Bool)
 
         V[j] = sign_term
         V[j+1] = -1 * sign_term
@@ -442,15 +442,15 @@ function dec_p_derivbound(::Type{Val{1}}, sd::HasDeltaSet; transpose::Bool=false
         I[j+1] = i
         I[j+2] = i
 
-        tri_sign = numeric_sign(sd[i, :tri_orientation])
+        tri_sign = numeric_sign(sd[i, :tri_orientation]::Bool)
 
         J[j] = sd[i, :∂e0]
         J[j+1] = sd[i, :∂e1]
         J[j+2] = sd[i, :∂e2]
 
-        edge_sign_0 = numeric_sign(sd[sd[i, :∂e0], :edge_orientation])
-        edge_sign_1 = numeric_sign(sd[sd[i, :∂e1], :edge_orientation])
-        edge_sign_2 = numeric_sign(sd[sd[i, :∂e2], :edge_orientation])
+        edge_sign_0 = numeric_sign(sd[sd[i, :∂e0], :edge_orientation]::Bool)
+        edge_sign_1 = numeric_sign(sd[sd[i, :∂e1], :edge_orientation]::Bool)
+        edge_sign_2 = numeric_sign(sd[sd[i, :∂e2], :edge_orientation]::Bool)
 
         V[j] = edge_sign_0 * tri_sign
         V[j+1] = -1 * edge_sign_1 * tri_sign
