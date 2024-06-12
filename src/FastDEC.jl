@@ -15,6 +15,7 @@ using ACSets.DenseACSets: attrtype_type
 using Catlab, Catlab.CategoricalAlgebra.CSets
 using ..SimplicialSets, ..DiscreteExteriorCalculus
 import ..DiscreteExteriorCalculus: ∧
+import ..SimplicialSets: numeric_sign
 
 export dec_boundary, dec_differential, dec_dual_derivative, dec_hodge_star, dec_inv_hodge_star, dec_wedge_product, dec_c_wedge_product, dec_p_wedge_product, dec_c_wedge_product!,
        dec_wedge_product_pd, dec_wedge_product_dp, ∧,
@@ -399,11 +400,6 @@ function dec_p_derivbound(::Type{Val{0}}, sd::HasDeltaSet; transpose::Bool=false
 
     V = Vector{Int8}(undef, vec_size)
 
-    e_orient::Vector{Int8} = sd[:edge_orientation]
-    for i in eachindex(e_orient)
-        e_orient[i] = (e_orient[i] == 1 ? 1 : -1)
-    end
-
     for i in edges(sd)
         j = 2 * i - 1
 
@@ -413,7 +409,7 @@ function dec_p_derivbound(::Type{Val{0}}, sd::HasDeltaSet; transpose::Bool=false
         J[j] = sd[i, :∂v0]
         J[j+1] = sd[i, :∂v1]
 
-        sign_term = e_orient[i]
+        sign_term = numeric_sign(sd[i, :edge_orientation]::Bool)
 
         V[j] = sign_term
         V[j+1] = -1 * sign_term
@@ -439,13 +435,6 @@ function dec_p_derivbound(::Type{Val{1}}, sd::HasDeltaSet; transpose::Bool=false
 
     V = Vector{Int8}(undef, vec_size)
 
-    tri_sign_list::Vector{Int8} = sign(2, sd)
-
-    e_orient::Vector{Int8} = sd[:edge_orientation]
-    for i in eachindex(e_orient)
-        e_orient[i] = (e_orient[i] == 1 ? 1 : -1)
-    end
-
     for i in triangles(sd)
         j = 3 * i - 2
 
@@ -453,15 +442,15 @@ function dec_p_derivbound(::Type{Val{1}}, sd::HasDeltaSet; transpose::Bool=false
         I[j+1] = i
         I[j+2] = i
 
-        tri_sign = tri_sign_list[i]
+        tri_sign = numeric_sign(sd[i, :tri_orientation]::Bool)
 
         J[j] = sd[i, :∂e0]
         J[j+1] = sd[i, :∂e1]
         J[j+2] = sd[i, :∂e2]
 
-        edge_sign_0 = e_orient[sd[i, :∂e0]]
-        edge_sign_1 = e_orient[sd[i, :∂e1]]
-        edge_sign_2 = e_orient[sd[i, :∂e2]]
+        edge_sign_0 = numeric_sign(sd[sd[i, :∂e0], :edge_orientation]::Bool)
+        edge_sign_1 = numeric_sign(sd[sd[i, :∂e1], :edge_orientation]::Bool)
+        edge_sign_2 = numeric_sign(sd[sd[i, :∂e2], :edge_orientation]::Bool)
 
         V[j] = edge_sign_0 * tri_sign
         V[j+1] = -1 * edge_sign_1 * tri_sign
