@@ -1269,27 +1269,27 @@ hodge_diag(::Type{Val{3}}, s::AbstractDeltaDualComplex3D, tet::Int) =
 #function ♯_mat(s::AbstractDeltaDualComplex3D, DS::DiscreteSharp)
 
 # TODO: subdivide_duals! may also be simplified via multiple dispatch.
-function subdivide_duals!(s::EmbeddedDeltaDualComplex3D, args...)
-  subdivide_duals_3d!(s, args...)
-  precompute_volumes_3d!(s)
+function subdivide_duals!(sd::EmbeddedDeltaDualComplex3D{_o, _l, point_type} where {_o, _l}, alg) where point_type
+  subdivide_duals_3d!(sd, point_type, alg)
+  precompute_volumes_3d!(sd, point_type)
 end
 
-function subdivide_duals_3d!(s::HasDeltaSet3D, alg)
+function subdivide_duals_3d!(sd::HasDeltaSet3D, ::Type{point_type}, alg) where point_type
   # TODO: Double-check what gets called by subdivide_duals_2d!.
-  subdivide_duals_2d!(s, alg)
-  for tet in tetrahedra(s)
-    s[tetrahedron_center(s,tet), :dual_point] = geometric_center(
-      point(s, tetrahedron_vertices(s, tet)), alg)
+  subdivide_duals_2d!(sd, point_type, alg)
+  for tet in tetrahedra(sd)
+    sd[tetrahedron_center(sd,tet), :dual_point] = geometric_center(
+      point(sd, tetrahedron_vertices(sd, tet)), alg)
   end
 end
 
-function precompute_volumes_3d!(s::HasDeltaSet3D)
-  precompute_volumes_2d!(s)
-  for tet in tetrahedra(s)
-    s[tet, :vol] = volume(3,s,tet,CayleyMengerDet())
+function precompute_volumes_3d!(sd::HasDeltaSet3D, p::Type{point_type}) where point_type
+  precompute_volumes_2d!(sd, p)
+  for tet in tetrahedra(sd)
+    sd[tet, :vol] = volume(3,sd,tet,CayleyMengerDet())
   end
-  for tet in parts(s, :DualTet)
-    s[tet, :dual_vol] = dual_volume(3,s,tet,CayleyMengerDet())
+  for tet in parts(sd, :DualTet)
+    sd[tet, :dual_vol] = dual_volume(3,sd,tet,CayleyMengerDet())
   end
 end
 
