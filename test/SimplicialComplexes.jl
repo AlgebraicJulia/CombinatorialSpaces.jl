@@ -3,6 +3,8 @@ using Test
 using CombinatorialSpaces
 using Catlab:@acset
 using LinearAlgebra: I
+using GeometryBasics: Point2, Point3
+Point2D = Point2{Float64}
 
 # Triangulated commutative square.
 ss = DeltaSet2D()
@@ -81,6 +83,70 @@ function heat_equation_multiscale(primal_s::HasDeltaSet, laplacian_builder::Func
     u_fine = u_coarse * f
   end
   transpose(u_fine)
+end
+
+#XX might be handy to make this an iterator
+"""
+A weighted Jacobi iteration iterating toward a solution of 
+Au=b.
+For Poisson's equation on a grid, it's known that ω=2/3 is optimal.
+Experimentally, ω around .85 is best for a subdivided 45-45-90 triangle.
+In general this will converge for all u₀ with ω=1 if A is strictly 
+diagonally dominant.
+I'm not sure about convergence for general ω.
+See Golub Van Loan 11.2 and 11.6.2. 
+"""
+function WJ(A,b,ω)
+  D = diagm(diag(A))
+  c = ω * (D \ b)
+  G = (1-ω)*I-ω * (D\(A-D))
+  G,c
+end
+spectral_radius(A) = maximum(abs.(eigvals(A)))
+sub_spectral_radius(A) = sub_max(abs.(eigvals(A)))
+function sub_max(v)
+  length(v)>1 || error("don't") 
+  a,b = sort([v[1],v[2]])
+  for i in v[3:end]
+    if i > b
+      a,b = b,i
+    elseif i > a
+      a = i
+    end
+  end
+  a
+end
+function it(G,c,u₀,n) 
+  u = u₀ 
+  for i in 1:n u = G*u+c end 
+  u
+end
+u₀ = zeros(7)
+A = rand(7,7)+diagm(fill(10.0,7))
+b = ones(7)
+G,c = WJ(A,b,1)
+@test norm(A*it(G,c,u₀,25)- b)<10^-10
+
+function multigrid_vcycle(u,b,primal_s,depth)
+  mats = multigrid_setup(primal_s,depth)
+end
+function multigrid_setup(primal_s,depth,alg=Barycenter())
+  prim = primal_s
+  map(1:depth+1) do i
+    duco = dualize(prim,alg)
+    dual = extract_dual(duco)
+    mat = zeros(Float64,nv(prim),nv(dual))
+    pvs = map(i->primal_vertices(duco,i),1:nv(dual))
+    weights = 1 ./(length.(pvs))
+    for j in 1:nv(dual)
+      for v in pvs[j]
+        mat[v,j] = weights[j]
+      end
+    end
+    L,f=∇²(0,duco),GeometricMap(SimplicialComplex(dual),SimplicialComplex(prim),mat)
+    prim = dual
+    (L=L,f=f)
+  end
 end
 
 end

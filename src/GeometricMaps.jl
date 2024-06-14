@@ -39,9 +39,9 @@ function vertices(d::DeltaSet, p::Point)
 end
 
 function check_simplex_exists(
-  codom::SimplicialComplex{D'}
+  codom::SimplicialComplex{D′}
   points::Vector{Point}
-) where {D, D'}
+) where {D′}
   verts = vcat([vertices(codom.delta_set, p) for p in points])
   sort!(verts)
   unique!(verts)

@@ -2,7 +2,7 @@
 The category of simplicial complexes and Kleisli maps for the convex space monad.
 """
 module SimplicialComplexes
-export SimplicialComplex, VertexList, has_simplex, GeometricPoint, has_point, has_span, GeometricMap, nv, as_matrix, compose, id, cocenter, primal_vertices, subdivision_maps
+export SimplicialComplex, VertexList, has_simplex, GeometricPoint, has_point, has_span, GeometricMap, nv, as_matrix, compose, id, cocenter, primal_vertices, subdivision_map
 using ..Tries
 using ..SimplicialSets, ..DiscreteExteriorCalculus
 import ACSets: incident, subpart
@@ -70,6 +70,15 @@ struct SimplicialComplex{D}
     new{D}(d, t)
   end
 
+  Base.show(io::IO,sc::SimplicialComplex) = print(io,"SimplicialComplex($(sc.cache))")
+  Base.show(io::IO,::MIME"text/plain",sc::SimplicialComplex) = 
+    print(io,
+    """
+    Simplicial complex with $(nv(sc)) vertices.
+    Edges: $(sort(filter(x->length(x)==2,keys(sc.cache)))).
+    Triangles: $(sort(filter(x->length(x)==3,keys(sc.cache)))).
+    """
+    ) 
   #XX Make this work for oriented types, maybe error for embedded types
   """
   Build a simplicial complex without a pre-existing delta-set.
@@ -247,6 +256,18 @@ end
 GeometricMap(sc::SimplicialComplex{D},sc′::SimplicialComplex{D′},points::AbstractMatrix;checked::Bool=true) where {D,D′} = GeometricMap(sc,sc′,GeometricPoint.(eachcol(points)),checked=checked)
 dom(f::GeometricMap) = f.dom
 codom(f::GeometricMap) = f.cod
+Base.show(io::IO,f::GeometricMap) = 
+  print(io,"GeometricMap(\n $(f.dom),\n $(f.cod),\n $(as_matrix(f)))")
+Base.show(io::IO,::MIME"text/plain",f::GeometricMap) = 
+  print(io,
+  """
+  GeometricMap with 
+  Domain: $(sprint((io,x)->show(io,MIME"text/plain"(),x),f.dom))
+  Codomain: $(sprint((io,x)->show(io,MIME"text/plain"(),x),f.cod))
+  Values: $(sprint((io,x)->show(io,MIME"text/plain"(),x),as_matrix(f))) 
+  """)
+
+
 #want f(n) to give values[n]?
 """
 Returns the data-centric view of f as a matrix whose i-th column 
@@ -268,14 +289,15 @@ function GeometricMap(sc::SimplicialComplex,::Barycenter)
 end
 #accessors for the nonzeros in a column of the matrix
 
+#XX: make the restriction map smoother
 """
-The geometric maps from a deltaset's subdivision to itself and back again.
+The geometric map from a deltaset's subdivision to itself.
 
 Warning: the second returned map is not actually a valid geometric map as edges 
 of the primal delta set will run over multiple edges of the dual. So, careful composing
 with it etc.
 """
-function subdivision_maps(primal_s::EmbeddedDeltaSet,alg=Barycenter())
+function subdivision_map(primal_s::EmbeddedDeltaSet,alg=Barycenter())
   prim = SimplicialComplex(primal_s)
   s = dualize(primal_s)
   subdivide_duals!(s,alg)
@@ -288,12 +310,7 @@ function subdivision_maps(primal_s::EmbeddedDeltaSet,alg=Barycenter())
       mat[v,j] = weights[j]
     end
   end
-  a = GeometricMap(dual,prim,mat)
-  mat′ = zeros(Float64,nv(dual),nv(prim))
-  for i in 1:nv(prim)
-    mat′[subpart(s,i,:vertex_center),i] = 1
-  end
-  a, GeometricMap(prim,dual,mat′,checked=false)
+  GeometricMap(dual,prim,mat)
 end
 
 function pullback_primal(f::GeometricMap, v::PrimalVectorField{T}) where T
