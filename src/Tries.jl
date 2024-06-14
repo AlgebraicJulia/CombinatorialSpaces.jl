@@ -73,7 +73,7 @@ function Base.haskey(t::Trie, key)
     !isnothing(node)  && hasvalue(node)
 end
 
-function Base.get(t::Trie, key, notfound)
+function Base.get(t::Trie, key, notfound) 
     node = subtrie(t, key)
     if !isnothing(node)  && hasvalue(node)
         return something(node.value)
@@ -175,5 +175,7 @@ function find_prefixes(t::Trie, str::T) where {T}
     end
     return prefixes
 end
+
+Base.show(io::IO,t::Trie) = print(io,"Trie($(map(k->(k,t[k]),sort(keys(t),by=x->(length(x),sort(x))))))")
 
 end
