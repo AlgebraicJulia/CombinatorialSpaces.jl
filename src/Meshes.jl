@@ -155,31 +155,31 @@ We say that:
 ```julia-repl
 # Regular octahedron.
 julia> s, npi, spi = makeSphere(0, 180, 90, 0, 360, 90, 1)
-````
+```
 ```julia-repl
 # 72 points along the unit circle on the x-y plane.
 julia> s, npi, spi = makeSphere(90, 90, 0, 0, 360, 5, 1)
-````
+```
 ```julia-repl
 # 72 points along the equator at 0km from Earth's surface.
 julia> s, npi, spi = makeSphere(90, 90, 1, 0, 360, 5, 6371)
-````
+```
 ```julia-repl
 # TIE-GCM grid at 90km altitude (with no poles,   i.e. a bulbous cylinder).
 julia> s, npi, spi = makeSphere(5, 175, 5, 0, 360, 5, 6371+90)
-````
+```
 ```julia-repl
 # TIE-GCM grid at 90km altitude (with South pole, i.e. a bowl).
 julia> s, npi, spi = makeSphere(5, 180, 5, 0, 360, 5, 6371+90)
-````
+```
 ```julia-repl
 # TIE-GCM grid at 90km altitude (with poles,      i.e. a sphere).
 julia> s, npi, spi = makeSphere(0, 180, 5, 0, 360, 5, 6371+90)
-````
+```
 ```julia-repl
 # The Northern hemisphere of the TIE-GCM grid at 90km altitude.
 julia> s, npi, spi = makeSphere(0, 180, 5, 0, 360, 5, 6371+90)
-````
+```
 """
 function makeSphere(minLat, maxLat, dLat, minLong, maxLong, dLong, radius)
   if (   !(0 ≤ minLat ≤ 180)  || !(0 ≤ maxLat ≤ 180)
