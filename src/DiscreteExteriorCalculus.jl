@@ -1144,7 +1144,7 @@ function make_dual_simplices_3d!(s::HasDeltaSet3D, ::Type{Simplex{n}}) where n
     tvs = tetrahedron_vertices(s,tet)
     tes = tetrahedron_edges(s,tet)
     tts = tetrahedron_triangles(s,tet)
-    tet_center = s[tet, :tet_center]
+    tc = tetrahedron_center(s,tet)
     dvs = [vertex_center(s,tvs)...,   # v₀ v₁ v₂ v₃
            edge_center(s,tes)...,     # e₀ e₁ e₂ e₃ e₄ e₅
            triangle_center(s,tts)...] # t₀ t₁ t₂ t₃
@@ -1164,7 +1164,7 @@ function make_dual_simplices_3d!(s::HasDeltaSet3D, ::Type{Simplex{n}}) where n
     foreach(D_tetrahedron_schemas) do (x,y,z)
       # Exploit the fact that `glue_sorted_dual_tetrahedron!` adds only
       # necessary new dual triangles.
-      glue_sorted_dual_tetrahedron!(s, dvs[x], dvs[y], dvs[z], tet_center)
+      glue_sorted_dual_tetrahedron!(s, dvs[x], dvs[y], dvs[z], tc)
     end
   end
 
@@ -1207,8 +1207,8 @@ function make_dual_simplices_3d!(s::HasDeltaSet3D, ::Type{Simplex{n}}) where n
 
     # Remaining dual edges and dual triangles are oriented arbitrarily.
     s[findall(isnothing, s[:D_tri_orientation]), :D_tri_orientation] = one(attrtype_type(s, :Orientation))
-    # These will be dual edges from vertex_center to tet_center, and from
-    # edge_center to tet_center.
+    # These will be dual edges from vertex_center to tc, and from
+    # edge_center to tc.
     s[findall(isnothing, s[:D_edge_orientation]), :D_edge_orientation] = one(attrtype_type(s, :Orientation))
   end
 
