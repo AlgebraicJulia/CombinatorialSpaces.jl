@@ -653,4 +653,146 @@ for (primal_s,s) in flat_meshes
     atol=1e-12))
 end
 
+
+# 3D dual complex
+#################
+
+# Single tetrahedron.
+primal_s = DeltaSet3D()
+add_vertices!(primal_s, 4)
+glue_sorted_tetrahedron!(primal_s, 1, 2, 3, 4)
+s = DeltaDualComplex3D(primal_s)
+# This SO answer explains the expected number of cells:
+# https://math.stackexchange.com/a/3511873
+@test nparts(s, :DualV) == nv(primal_s) + ne(primal_s) + ntriangles(primal_s) + ntetrahedra(primal_s)
+@test nparts(s, :DualE) == 6*4 + 2*6 + 14 # 36 exterior and 14 interior
+@test nparts(s, :DualTri) == 60
+@test nparts(s, :DualTet) == 24 * ntetrahedra(primal_s)
+@test primal_vertex(s, subsimplices(s, Tet(1)))::V == V(repeat(1:4, inner=6))
+
+dual_v = elementary_duals(3,s,1)
+@test dual_v == [tetrahedron_center(s,1)]
+@test elementary_duals(s, Tet(1)) == DualV(dual_v)
+dual_e = elementary_duals(2,s,1)
+@test s[dual_e, :D_∂v0] == [tetrahedron_center(s,1)]
+@test s[dual_e, :D_∂v1] == [triangle_center(s,1)]
+@test elementary_duals(s, Tri(1)) == DualE(dual_e)
+dual_ts = elementary_duals(1,s,1)
+@test s[dual_ts, [:D_∂e0, :D_∂v0]] == [tetrahedron_center(s,1), tetrahedron_center(s,1)]
+@test elementary_duals(s, E(1)) == DualTri(dual_ts)
+dual_tets = elementary_duals(0,s,1)
+@test s[dual_tets, [:D_∂t0, :D_∂e0, :D_∂v0]] == fill(tetrahedron_center(s,1), 6)
+@test elementary_duals(s, V(1)) == DualTet(dual_tets)
+
+# Two tetrahedra forming a square pyramid.
+# The shared (internal) triangle is (2,3,5).
+primal_s = DeltaSet3D()
+add_vertices!(primal_s, 5)
+glue_tetrahedron!(primal_s, 1, 2, 3, 5)
+glue_tetrahedron!(primal_s, 2, 3, 4, 5)
+s = DeltaDualComplex3D(primal_s)
+@test nparts(s, :DualV) == 5 + 1 + 2 + 9 + 6
+@test nparts(s, :DualE) == (6*4 + 2*6 + 14)*2 - 12
+@test nparts(s, :DualTri) == 60*2 - 6
+@test nparts(s, :DualTet) == 24*2
+@test primal_vertex(s, subsimplices(s, Tet(1)))::V == V(repeat([1,2,3,5], inner=6))
+@test primal_vertex(s, subsimplices(s, Tet(2)))::V == V(repeat(2:5, inner=6))
+
+# 3D oriented dual complex
+#-------------------------
+
+# Oriented single tetrahedron.
+primal_s = OrientedDeltaSet3D{Bool}()
+add_vertices!(primal_s, 4)
+glue_tetrahedron!(primal_s, 1, 2, 3, 4, tet_orientation=true)
+primal_s[:tri_orientation] = true
+primal_s[:edge_orientation] = true
+tetrahedron_s = OrientedDeltaDualComplex3D{Bool}(primal_s)
+
+# Oriented cube.
+primal_s = OrientedDeltaSet3D{Bool}()
+add_vertices!(primal_s, 8)
+glue_sorted_tet_cube!(primal_s, 1:8..., tet_orientation=true)
+cube_s = OrientedDeltaDualComplex3D{Bool}(primal_s)
+
+for s in [tetrahedron_s, cube_s]
+  @test all(==(0), dual_derivative(1,s)*dual_derivative(0,s))
+  @test all(==(0), dual_derivative(2,s)*dual_derivative(1,s))
+
+  for k in 0:2
+    @test dual_boundary(3-k,s) == (-1)^k * ∂(k+1,s)'
+  end
+  for k in 1:3
+    # Desbrun, Kanso, Tong 2008, Equation 4.2.
+    @test dual_derivative(3-k,s) == (-1)^k * d(k-1,s)'
+  end
 end
+
+# 3D embedded dual complex
+#-------------------------
+
+# Regular tetrahedron with edge length 2√2 in ℝ³.
+primal_s = EmbeddedDeltaSet3D{Bool,Point3D}()
+add_vertices!(primal_s, 4, point=[Point3D(1,1,1), Point3D(1,-1,-1),
+  Point3D(-1,1,-1), Point3D(-1,-1,1)])
+glue_tetrahedron!(primal_s, 1, 2, 3, 4)
+s = EmbeddedDeltaDualComplex3D{Bool,Float64,Point3D}(primal_s)
+subdivide_duals!(s, Circumcenter())
+regular_tetrahedron_volume(len) = len^3/(6√2)
+@test all(dual_volume(3,s,1:24) .≈ regular_tetrahedron_volume(2√2)/24)
+@test dual_point(s,tetrahedron_center(s,1)) == sum(point(s)) / length(point(s))
+
+# Heat equation:
+d₀_mat = d(0,s)
+star₁_mat = hodge_star(1,s,DiagonalHodge())
+dual_d₀_mat = dual_derivative(2,s)
+inv_star₃_mat = inv_hodge_star(0,s,DiagonalHodge())
+
+lap_mat = inv_star₃_mat * dual_d₀_mat * star₁_mat * d₀_mat
+
+C = collect(1.0:4.0)
+C₀ = collect(1.0:4.0)
+D = 0.005
+for _ in 0:100_000
+  dt_C = D * lap_mat*C
+  C .+= dt_C
+end
+@test all(C .≈ sum(C₀)/length(C₀))
+
+# Six tetrahedra of equal volume forming a cube with edge length 1.
+# The connectivity is that of Blessent's 2009 thesis, Figure 3.2.
+primal_s = EmbeddedDeltaSet3D{Bool,Point3D}()
+add_vertices!(primal_s, 8, point=[
+  Point3D(0,1,0), Point3D(0,0,0), Point3D(1,1,0), Point3D(1,0,0),
+  Point3D(0,1,1), Point3D(0,0,1), Point3D(1,1,1), Point3D(1,0,1)])
+# See Table 3.1 "Mesh connectivity".
+glue_sorted_tetrahedron!(primal_s, 3, 5, 4, 2)
+glue_sorted_tetrahedron!(primal_s, 7, 6, 8, 4)
+glue_sorted_tetrahedron!(primal_s, 5, 6, 7, 4)
+glue_sorted_tetrahedron!(primal_s, 3, 5, 7, 4)
+glue_sorted_tetrahedron!(primal_s, 5, 6, 4, 2)
+glue_sorted_tetrahedron!(primal_s, 1, 5, 3, 2)
+primal_s[:edge_orientation] = true
+primal_s[:tri_orientation] = true
+primal_s[:tet_orientation] = true
+orient!(primal_s)
+
+# Note that under circumcentric subdivision, some dual simplices will be of 0
+# area or volume, because e.g. a tetrahedron and a face of that tetrahedron may
+# have the same circumcenter. So a dual tetrahedron associated with those will
+# have two dual vertices at the same coordinates, thus resulting in a 0-volume
+# dual tetrahedron.  e.g. circumcenter([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0,
+# 1.0, 1.0]) == circumcenter([0.0, 0.0, 0.0], [1.0, 1.0, 0.0], [1.0, 0.0, 0.0],
+# [0.0, 1.0, 1.0])
+#s = EmbeddedDeltaDualComplex3D{Bool,Float64,Point3D}(primal_s)
+#subdivide_duals!(s, Circumcenter())
+#@test_throws sum(dual_volume(3,s,parts(s,:DualTet))) ≈ 1
+
+# Barycentric subdivision avoids the above issue.
+s = EmbeddedDeltaDualComplex3D{Bool,Float64,Point3D}(primal_s)
+subdivide_duals!(s, Barycenter())
+@test sum(dual_volume(3,s,parts(s,:DualTet))) ≈ 1
+@test all(dual_volume(3,s,parts(s,:DualTet)) .≈ 1/nparts(s,:DualTet))
+
+end
+
