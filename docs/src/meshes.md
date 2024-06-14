@@ -43,6 +43,6 @@ wireframe(dual)
 ## API docs
 
 ```@autodocs
-Modules = [ MeshInterop ]
+Modules = [ Meshes, MeshInterop ]
 Private = false
 ```
