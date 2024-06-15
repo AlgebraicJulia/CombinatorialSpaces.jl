@@ -10,7 +10,7 @@ using FileIO, MeshIO, GeometryBasics
 
 using Catlab.CategoricalAlgebra: copy_parts!
 using ..SimplicialSets, ..DiscreteExteriorCalculus
-import ..SimplicialSets: EmbeddedDeltaSet2D
+import ..SimplicialSets: EmbeddedDeltaSet2D, EmbeddedDeltaSet3D
 
 # Export meshes
 ###############
@@ -21,6 +21,12 @@ function GeometryBasics.Mesh(ds::EmbeddedDeltaSet2D)
   points = Point{3, Float64}[point(ds)...]
   tris = TriangleFace{Int}[zip(triangle_vertices(ds)...)...]
   Mesh(points, tris)
+end
+
+function GeometryBasics.Mesh(ds::EmbeddedDeltaSet3D)
+  points = Point{3, Float64}[point(ds)...]
+  tets = TetrahedronFace{Int}[zip(tetrahedron_vertices(ds)...)...]
+  Mesh(points, tets)
 end
 
 """ Construct a Mesh object from a dual embedded delta set.
@@ -35,6 +41,19 @@ function GeometryBasics.Mesh(ds::EmbeddedDeltaDualComplex2D{O,R,P};
     points = Point{3, Float64}[dual_point(ds)...]
     tris = TriangleFace{Int}[zip(dual_triangle_vertices(ds)...)...]
     Mesh(points, tris)
+  end
+end
+
+function GeometryBasics.Mesh(ds::EmbeddedDeltaDualComplex3D{O,R,P};
+                             primal=false) where {O,R,P}
+  if primal
+    ds′ = EmbeddedDeltaSet3D{O,P}()
+    copy_parts!(ds′, ds)
+    Mesh(ds′)
+  else
+    points = Point{3, Float64}[dual_point(ds)...]
+    tets = TetrahedronFace{Int}[zip(dual_tetrahedron_vertices(ds)...)...]
+    Mesh(points, tets)
   end
 end
 
@@ -70,6 +89,27 @@ function EmbeddedDeltaSet2D(m::GeometryBasics.Mesh; force_unique=false)
   s
 end
 
+function EmbeddedDeltaSet3D(m::GeometryBasics.Mesh; force_unique=false)
+  coords = metafree.(coordinates(m))
+  ind_map = 1:length(coords)
+  if(force_unique) 
+    indices = unique(i->coords[i], 1:length(coords))
+    val2ind = Dict(coords[indices[i]]=>i for i in 1:length(indices))
+    ind_map = map(c->val2ind[c], coords)
+    coords = coords[indices]
+  end
+  tets = faces(m)
+  s = EmbeddedDeltaSet3D{Bool, eltype(coords)}()
+  add_vertices!(s, length(coords), point=coords)
+  for tet in tets
+    tet = ind_map[convert.(Int64, tet)]
+    glue_sorted_tetrahedron!(s, tet...)
+  end
+  # Properly orient the delta set
+  orient!(s)
+  s
+end
+
 """ Construct EmbeddedDeltaSet2D from mesh file
 
 This operator should work for any file support for import from MeshIO. Note
@@ -83,6 +123,16 @@ function EmbeddedDeltaSet2D(fn::String)
     EmbeddedDeltaSet2D(FileIO.load(fn); force_unique=true)
   else
     EmbeddedDeltaSet2D(FileIO.load(fn))
+  end
+end
+
+function EmbeddedDeltaSet3D(fn::String)
+  if(splitext(fn)[2] == ".stl")
+    # The .stl format references points by location so we apply the
+    # force_unique flag
+    EmbeddedDeltaSet3D(FileIO.load(fn); force_unique=true)
+  else
+    EmbeddedDeltaSet3D(FileIO.load(fn))
   end
 end
 

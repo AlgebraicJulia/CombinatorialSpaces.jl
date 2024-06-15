@@ -191,7 +191,7 @@ end
 
 This accessor assumes that the simplicial identities for the dual hold.
 """
-function dual_triangle_vertices(s::HasDeltaSet1D, t...)
+function dual_triangle_vertices(s::HasDeltaSet2D, t...)
   SVector(s[s[t..., :D_∂e1], :D_∂v1],
           s[s[t..., :D_∂e0], :D_∂v1],
           s[s[t..., :D_∂e0], :D_∂v0])
@@ -1025,6 +1025,17 @@ elementary_duals(::Type{Val{2}}, s::AbstractDeltaDualComplex3D, t::Int) =
   incident(s, triangle_center(s,t), :D_∂v1)
 elementary_duals(::Type{Val{3}}, s::AbstractDeltaDualComplex3D, tet::Int) =
   SVector(tetrahedron_center(s,tet))
+
+""" Boundary dual vertices of a dual tetrahedron.
+
+This accessor assumes that the simplicial identities for the dual hold.
+"""
+function dual_tetrahedron_vertices(s::HasDeltaSet3D, t...)
+  SVector(s[s[s[tet, :D_∂t2], :D_∂e2], :D_∂v1],
+          s[s[s[tet, :D_∂t2], :D_∂e2], :D_∂v0],
+          s[s[s[tet, :D_∂t0], :D_∂e0], :D_∂v1],
+          s[s[s[tet, :D_∂t0], :D_∂e0], :D_∂v0])
+end
 
 # 3D oriented dual complex
 #-------------------------
