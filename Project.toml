@@ -20,7 +20,6 @@ MeshIO = "7269a6da-0436-5bbc-96c2-40638cbb6118"
 Reexport = "189a3867-3050-52da-a836-e630ba90ab69"
 SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
 StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
-TetGen = "c5d3f3f7-f850-59f6-8a2e-ffc6dc1317ea"
 
 [weakdeps]
 CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
