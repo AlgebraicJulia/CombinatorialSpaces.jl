@@ -116,7 +116,7 @@ is necessary to process `.stl` files which reference points by location.
 function EmbeddedDeltaSet2D(m::GeometryBasics.Mesh; force_unique=false)
   coords = metafree.(coordinates(m))
   ind_map, uniques = unique_index_map(coords, force_unique)
-  tris = faces(m)
+  tris = GeometryBasics.faces(m)
   s = EmbeddedDeltaSet2D{Bool, eltype(coords)}()
   add_vertices!(s, length(uniques), point=coords[uniques])
   for tri in tris
@@ -141,7 +141,7 @@ since some file formats reference points by location.
 function EmbeddedDeltaSet3D(m::GeometryBasics.Mesh; force_unique=false)
   coords = metafree.(coordinates(m))
   ind_map, uniques = unique_index_map(coords, force_unique)
-  tets = faces(m)
+  tets = GeometryBasics.faces(m)
   s = EmbeddedDeltaSet3D{Bool, eltype(coords)}()
   add_vertices!(s, length(uniques), point=coords[uniques])
   for tet in tets
