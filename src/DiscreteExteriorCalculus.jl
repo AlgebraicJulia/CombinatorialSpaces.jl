@@ -24,7 +24,7 @@ export DualSimplex, DualV, DualE, DualTri, DualTet, DualChain, DualForm,
   ⋆, hodge_star, inv_hodge_star, δ, codifferential, ∇², laplace_beltrami, Δ, laplace_de_rham,
   ♭, flat, ♭_mat, ♯, ♯_mat, sharp, ∧, wedge_product, interior_product, interior_product_flat,
   ℒ, lie_derivative, lie_derivative_flat,
-  vertex_center, edge_center, triangle_center, tetrahedron_center, dual_triangle_vertices, dual_edge_vertices,
+  vertex_center, edge_center, triangle_center, tetrahedron_center, dual_tetrahedron_vertices, dual_triangle_vertices, dual_edge_vertices,
   dual_point, dual_volume, subdivide_duals!, DiagonalHodge, GeometricHodge,
   subdivide, PPSharp, AltPPSharp, DesbrunSharp, LLSDDSharp, de_sign,
   ♭♯, ♭♯_mat, flat_sharp, flat_sharp_mat, dualize, dual_extractor, extract_dual
@@ -1016,6 +1016,17 @@ elementary_duals(::Type{Val{2}}, s::AbstractDeltaDualComplex3D, t::Int) =
   incident(s, triangle_center(s,t), :D_∂v1)
 elementary_duals(::Type{Val{3}}, s::AbstractDeltaDualComplex3D, tet::Int) =
   SVector(tetrahedron_center(s,tet))
+
+""" Boundary dual vertices of a dual tetrahedron.
+
+This accessor assumes that the simplicial identities for the dual hold.
+"""
+function dual_tetrahedron_vertices(s::HasDeltaSet3D, t...)
+  SVector(s[s[s[t..., :D_∂t2], :D_∂e2], :D_∂v1],
+          s[s[s[t..., :D_∂t2], :D_∂e2], :D_∂v0],
+          s[s[s[t..., :D_∂t0], :D_∂e0], :D_∂v1],
+          s[s[s[t..., :D_∂t0], :D_∂e0], :D_∂v0])
+end
 
 # 3D oriented dual complex
 #-------------------------

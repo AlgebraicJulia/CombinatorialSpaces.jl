@@ -356,5 +356,19 @@ function right_scalene_unit_hypot()
   (primal_s, s)
 end
 
+"""    function single_tetrahedron()
+
+Return the primal and dual mesh of a single tetrahedron with points at the origin and Euclidean basis vectors.
+"""
+function single_tetrahedron()
+  pnts = Point3D[
+    (0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0)]
+  primal_s = EmbeddedDeltaSet3D{Bool, Point3D}()
+  add_vertices!(primal_s, 4, point=pnts)
+  glue_sorted_tetrahedron!(primal_s, 1:4...)
+  s = EmbeddedDeltaDualComplex3D{Bool, Float64, Point3D}(primal_s)
+  subdivide_duals!(s, Barycenter())
+  (primal_s, s)
+end
 
 end
