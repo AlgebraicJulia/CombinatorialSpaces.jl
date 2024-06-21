@@ -82,7 +82,7 @@ end
 # and the indices of first occurences of the entries in that endofunction.
 # The second return value is equivalent to:
 # `unique(i -> ind_map[i], eachindex[ind_map])`.
-function uniqueperm(coords::AbstractVector{T}, force_unique::Bool) where T
+function unique_index_map(coords::AbstractVector{T}, force_unique::Bool) where T
   uniques = 1:length(coords)
   ind_map = 1:length(coords)
   if force_unique
@@ -115,7 +115,7 @@ is necessary to process `.stl` files which reference points by location.
 """
 function EmbeddedDeltaSet2D(m::GeometryBasics.Mesh; force_unique=false)
   coords = metafree.(coordinates(m))
-  ind_map, uniques = uniqueperm(coords, force_unique)
+  ind_map, uniques = unique_index_map(coords, force_unique)
   tris = faces(m)
   s = EmbeddedDeltaSet2D{Bool, eltype(coords)}()
   add_vertices!(s, length(uniques), point=coords[uniques])
@@ -140,7 +140,7 @@ since some file formats reference points by location.
 """
 function EmbeddedDeltaSet3D(m::GeometryBasics.Mesh; force_unique=false)
   coords = metafree.(coordinates(m))
-  ind_map, uniques = uniqueperm(coords, force_unique)
+  ind_map, uniques = unique_index_map(coords, force_unique)
   tets = faces(m)
   s = EmbeddedDeltaSet3D{Bool, eltype(coords)}()
   add_vertices!(s, length(uniques), point=coords[uniques])
