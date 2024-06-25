@@ -7,6 +7,7 @@ as_matrix, compose, id
 using ..Tries
 using ..SimplicialSets
 import AlgebraicInterfaces: dom,codom,compose,id 
+import StaticArrays: MVector
 import LinearAlgebra: I
 #import ..SimplicialSets: nv,ne
 
@@ -35,37 +36,74 @@ function add_2_cells(d::HasDeltaSet, t::Trie{Int, Int})
 end
 
 struct SimplicialComplex{D}
-    delta_set::D
-    cache::Trie{Int, Int}
+  delta_set::D
+  cache::Trie{Int,Int}
 
-    function SimplicialComplex(d::DeltaSet0D)
-      t = Trie{Int, Int}()
-      add_0_cells(d, t)
-      new{DeltaSet0D}(d, t)
-    end
+  function SimplicialComplex(d::DeltaSet0D)
+    t = Trie{Int,Int}()
+    add_0_cells(d, t)
+    new{DeltaSet0D}(d, t)
+  end
 
-    function SimplicialComplex(d::D) where {D<:AbstractDeltaSet1D}
-        t = Trie{Int, Int}()
-        add_0_cells(d, t)
-        add_1_cells(d, t)
-        new{D}(d, t)
-    end
+  function SimplicialComplex(d::D) where {D<:AbstractDeltaSet1D}
+    t = Trie{Int,Int}()
+    add_0_cells(d, t)
+    add_1_cells(d, t)
+    new{D}(d, t)
+  end
 
-    function SimplicialComplex(d::D) where {D<:AbstractDeltaSet2D}
-        t = Trie{Int, Int}()
-        add_0_cells(d, t)
-        add_1_cells(d, t)
-        add_2_cells(d, t)
-        new{D}(d, t)
+  function SimplicialComplex(d::D) where {D<:AbstractDeltaSet2D}
+    t = Trie{Int,Int}()
+    add_0_cells(d, t)
+    add_1_cells(d, t)
+    add_2_cells(d, t)
+    new{D}(d, t)
+  end
+
+  #XX Make this work for oriented types, maybe error for embedded types
+  """
+  Build a simplicial complex without a pre-existing delta-set.
+
+  In this case any initial values in the trie are meaningless and will be overwritten.
+  If you apply this to the cache of a simplicial complex, you may get a non-isomorphic
+  Δ-set, but it will be isomorphic as a simplicial complex (i.e. after symmetrizing.)
+  `simplices[1]`` is sorted just for predictability of the output--this guarantees that 
+  the result will have the same indexing for the vertices in its `cache` as in its
+  `delta_set`.
+  """
+  function SimplicialComplex(dt::Type{D}, t::Trie{Int,Int}) where {D<:HasDeltaSet}
+    n = dimension(D)
+    simplices = MVector{n + 1,Vector{Vector{Int}}}(fill([], n + 1))
+    for k in keys(t)
+      push!(simplices[length(k)], k)
     end
+    d = D()
+    for v in sort(simplices[1])
+      t[v] = add_vertex!(d)
+    end
+    n > 0 && for e in simplices[2]
+      t[e] = add_edge!(d, t[e[1]], t[e[2]])
+    end
+    n > 1 && for tri in simplices[3]
+      t[tri] = glue_triangle!(d, t[tri[1]], t[tri[2]], t[tri[3]])
+    end
+    n > 2 && for tet in simplices[4]
+      t[tet] = glue_tetrahedron!(d, t[tet[1]], t[tet[2]], t[tet[3]], t[tet[4]])
+    end
+    new{D}(d, t)
+  end
 end
 
-#nv(sc::SimplicialComplex) = nv(sc.delta_set)
+#XX: Should this output something oriented?
+"""
+Build a simplicial complex from a trie, constructing a delta-set of the minimal
+dimension consistent with the trie.
+"""
+SimplicialComplex(t::Trie{Int,Int}) = SimplicialComplex(DeltaSet(max(height(t)-1,0)),t) 
 
-for f in [:nv,:ne] 
+for f in [:nv,:ne,:ntriangles,:dimension] 
     @eval SimplicialSets.$f(sc::SimplicialComplex) = $f(sc.delta_set)
 end
-
 
 struct VertexList #XX parameterize by n? 
     vs::Vector{Int} # must be sorted
@@ -75,6 +113,43 @@ struct VertexList #XX parameterize by n?
     function VertexList(d::HasDeltaSet, s::Simplex{n,0}) where n
         new(sort(simplex_vertices(d,s)))
     end
+end
+
+"""
+Iterator over proper subsimplices of a simplex in reversed binary order.
+
+Example
+```julia-repl
+julia> vl = VertexList([1,4,9])
+VertexList([1, 4, 9])
+julia> iter = SubsimplexIterator(vl)
+SubsimplexIterator(VertexList([1, 4, 9]), 7)
+julia> collect(iter)
+7-element Vector{VertexList}:
+ VertexList(Int64[])
+ VertexList([1])
+ VertexList([4])
+ VertexList([1, 4])
+ VertexList([9])
+ VertexList([1, 9])
+ VertexList([4, 9])
+```
+"""
+struct SubsimplexIterator
+  vl::VertexList
+  length::Int
+  #Note that an n-simplex has 2^(n+1)-1 subsimplices, with n+1 vertices.
+  SubsimplexIterator(vl::VertexList) = new(vl, 2^length(vl.vs)-1)
+end
+Base.length(iter::SubsimplexIterator) = iter.length
+Base.eltype(iter::SubsimplexIterator) = VertexList
+function Base.iterate(iter::SubsimplexIterator,i=0)
+    if i >= iter.length
+        return nothing
+    end
+    ds = digits(i,base=2)
+    mask = Bool[ds;fill(0,length(iter.vl.vs)-length(ds))]
+    (VertexList(iter.vl.vs[mask]),i+1)
 end
 
 Base.length(s::VertexList) = length(s.vs)
@@ -114,9 +189,12 @@ function Base.union(vs1::VertexList, vs2::VertexList)
     VertexList(out, sorted=true)
 end
 
-#A point in an unspecified simplicial complex, given by its barycentric coordinates.
-#Constructed via a dense vector of coordinates.
+
 #XX: This type is maybe more trouble than it's worth?
+"""
+A point in an unspecified simplicial complex, given by its barycentric coordinates.
+Constructed via a dense vector of coordinates.
+"""
 struct GeometricPoint
   bcs::Vector{Float64} #XX: Need a sparse form?
   function GeometricPoint(bcs, checked=true)
@@ -149,7 +227,7 @@ struct GeometricMap{D,D′}
   points::Vector{GeometricPoint}
   function GeometricMap(sc::SimplicialComplex{D}, sc′::SimplicialComplex{D′}, points::Vector{GeometricPoint},checked=true) where {D,D′}
     length(points) == nv(sc) || error("Number of points must match number of vertices in domain")
-    all(map(x->has_span(sc′,points[x]),keys(sc.cache))) || error("Span of points in simplices of domain must lie in codomain") #lol wrong
+    all(map(x->has_span(sc′,points[x]),keys(sc.cache))) || error("Span of points in simplices of domain must lie in codomain") 
     new{D,D′}(sc, sc′, points)
   end
 end
@@ -167,5 +245,4 @@ id(sc::SimplicialComplex) = GeometricMap(sc,sc,GeometricPoint.(eachcol(I(nv(sc))
 
 
 
-#TODO: composition of maps!
 end
