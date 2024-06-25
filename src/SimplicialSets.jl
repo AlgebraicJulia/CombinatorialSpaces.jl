@@ -15,7 +15,7 @@ exterior derivative) operators. For additional operators, see the
 module SimplicialSets
 export Simplex, V, E, Tri, Tet, SimplexChain, VChain, EChain, TriChain, TetChain,
   SimplexForm, VForm, EForm, TriForm, TetForm, HasDeltaSet,
-  HasDeltaSet1D, DeltaSet0D, AbstractDeltaSet1D, DeltaSet1D, SchDeltaSet1D,
+  HasDeltaSet1D, DeltaSet, DeltaSet0D, AbstractDeltaSet1D, DeltaSet1D, SchDeltaSet1D,
   OrientedDeltaSet1D, SchOrientedDeltaSet1D,
   EmbeddedDeltaSet1D, SchEmbeddedDeltaSet1D,
   HasDeltaSet2D, AbstractDeltaSet2D, DeltaSet2D, SchDeltaSet2D,
@@ -31,11 +31,11 @@ export Simplex, V, E, Tri, Tet, SimplexChain, VChain, EChain, TriChain, TetChain
   add_vertex!, add_vertices!, add_edge!, add_edges!,
   add_sorted_edge!, add_sorted_edges!,
   triangle_edges, triangle_vertices, ntriangles, triangles,
-  add_triangle!, glue_triangle!, glue_sorted_triangle!,
+  add_triangle!, glue_triangle!, glue_triangles!, glue_sorted_triangle!,
   tetrahedron_triangles, tetrahedron_edges, tetrahedron_vertices, ntetrahedra,
   tetrahedra, add_tetrahedron!, glue_tetrahedron!, glue_sorted_tetrahedron!,
   glue_sorted_tet_cube!, is_manifold_like, nonboundaries,
-  star, St, closed_star, St̄, link, Lk, simplex_vertices
+  star, St, closed_star, St̄, link, Lk, simplex_vertices, dimension, subdivide
 
 using LinearAlgebra: det
 using SparseArrays
@@ -62,6 +62,18 @@ nsimplices(::Type{Val{0}}, s::HasDeltaSet) = nv(s)
 has_vertex(s::HasDeltaSet, v) = has_part(s, :V, v)
 add_vertex!(s::HasDeltaSet; kw...) = add_part!(s, :V; kw...)
 add_vertices!(s::HasDeltaSet, n::Int; kw...) = add_parts!(s, :V, n; kw...)
+
+"""
+Calculate the dimension of a delta set from its acset schema.
+Assumes that vertices, edges, triangles, and tetrahedra are
+named :V, :E, :Tri, and :Tet respectively.
+"""
+function dimension(d::HasDeltaSet)
+  S = acset_schema(d)
+  :E in ob(S) ? :Tri in ob(S) ? :Tet in ob(S) ? 3 : 2 : 1 : 0
+end
+dimension(dt::Type{D}) where {D<:HasDeltaSet} = dimension(D())
+
 
 # 0-D simplicial sets
 #####################
@@ -330,12 +342,69 @@ function get_edge!(s::HasDeltaSet1D, src::Int, tgt::Int)
   es = edges(s, src, tgt)
   isempty(es) ? add_edge!(s, src, tgt) : first(es)
 end
+function glue_triangles!(s,v₀s,v₁s,v₂s; kw...)
+  for (v₀,v₁,v₂) in zip(v₀s,v₁s,v₂s)
+    glue_triangle!(s, v₀, v₁, v₂; kw...)
+  end
+end
 
 """ Glue a triangle onto a simplicial set, respecting the order of the vertices.
 """
 function glue_sorted_triangle!(s::HasDeltaSet2D, v₀::Int, v₁::Int, v₂::Int; kw...)
   v₀, v₁, v₂ = sort(SVector(v₀, v₁, v₂))
   glue_triangle!(s, v₀, v₁, v₂; kw...)
+end
+
+"""
+Designed for simplicial complexes.
+"""
+function subdivide(s::HasDeltaSet2D)
+  d = typeof(s)()
+  #vertices for all simplices
+  add_vertices!(d, nv(s))
+  add_vertices!(d, ne(s))
+  add_vertices!(d, ntriangles(s))
+
+  e_to_v(e) = e + nv(s)
+  ts_as_vs = (1:ntriangles(s)) .+ (nv(s) + ne(s))
+  #edges from source of edge to edge and target of edge to edge
+  add_edges!(d, subpart(s, :∂v1), e_to_v.(1:ne(s)))
+  add_edges!(d, subpart(s, :∂v0), e_to_v.(1:ne(s)))
+  #edges from vertex of triangle to triangle
+  add_edges!(d, subpart(s, [:∂e2, :∂v1]), ts_as_vs)
+  add_edges!(d, subpart(s, [:∂e2, :∂v0]), ts_as_vs)
+  add_edges!(d, subpart(s, [:∂e1, :∂v0]), ts_as_vs)
+  #edges from edge of triangle to triangle
+  add_edges!(d, e_to_v.(subpart(s, :∂e2)), ts_as_vs)
+  add_edges!(d, e_to_v.(subpart(s, :∂e1)), ts_as_vs)
+  add_edges!(d, e_to_v.(subpart(s, :∂e0)), ts_as_vs)
+  #triangles from vertex of edge of triangle to triangle
+  glue_triangles!(d,
+    subpart(s, [:∂e2, :∂v1]),
+    e_to_v.(subpart(s, :∂e2)),
+    ts_as_vs)
+  glue_triangles!(d,
+    subpart(s, [:∂e2, :∂v0]),
+    e_to_v.(subpart(s, :∂e2)),
+    ts_as_vs)
+    glue_triangles!(d,
+    subpart(s, [:∂e1, :∂v1]),
+    e_to_v.(subpart(s, :∂e1)),
+    ts_as_vs)
+  glue_triangles!(d,
+    subpart(s, [:∂e1, :∂v0]),
+    e_to_v.(subpart(s, :∂e1)),
+    ts_as_vs)
+    glue_triangles!(d,
+    subpart(s, [:∂e0, :∂v1]),
+    e_to_v.(subpart(s, :∂e0)),
+    ts_as_vs)
+  glue_triangles!(d,
+    subpart(s, [:∂e0, :∂v0]),
+    e_to_v.(subpart(s, :∂e0)),
+    ts_as_vs)
+  ##XX: orientations?
+  d
 end
 
 # 2D oriented simplicial sets
@@ -584,6 +653,8 @@ volume(::Type{Val{3}}, s::HasDeltaSet3D, t::Int, ::CayleyMengerDet) =
 
 # General operators
 ###################
+
+DeltaSet(n) = eval(Symbol("DeltaSet$(n)D"))
 
 """ Wrapper for simplex or simplices of dimension `n`.
 

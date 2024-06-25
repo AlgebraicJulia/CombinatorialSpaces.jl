@@ -1,19 +1,23 @@
 module TestSimplicialComplexes
 using Test 
-using CombinatorialSpaces.SimplicialSets
-using CombinatorialSpaces.SimplicialComplexes
+using CombinatorialSpaces
 using Catlab:@acset
 
 # Triangulated commutative square.
-s = DeltaSet2D()
-add_vertices!(s, 4)
-glue_triangle!(s, 1, 2, 3)
-glue_triangle!(s, 1, 4, 3)
+ss = DeltaSet2D()
+add_vertices!(ss, 4)
+glue_triangle!(ss, 1, 2, 3)
+glue_triangle!(ss, 1, 4, 3)
 
-sc = SimplicialComplex(s)
-@test nv(sc) == 4 && ne(sc) == 5
-vl = VertexList(s,Simplex{2}(1))
+sc = SimplicialComplex(ss)
+@test nv(sc) == 4 && ne(sc) == 5 && ntriangles(sc) == 2
+sc′ = SimplicialComplex(DeltaSet2D,sc.cache).delta_set
+@test nv(sc′) == 4 && ne(sc′) == 5 && ntriangles(sc′) == 2 #identifies this up to iso
+#awkward height=0 edge case, technically can think of the empty sset as -1-dimensional.
+sc′′=SimplicialComplex(Trie{Int,Int}()) 
+@test dimension(sc′′) == 0 && nv(sc′′) == 0
 
+vl = VertexList(ss,Simplex{2}(1))
 @test vl.vs == [1,2,3]
 @test has_simplex(sc,vl)
 @test !has_simplex(sc,VertexList([1,2,4]))

@@ -121,7 +121,8 @@ glue_triangle!(s, 1, 4, 3)
 @test triangles(s) == 1:2
 @test ne(s) == 5
 @test sort(map(Pair, src(s), tgt(s))) == [1=>2, 1=>3, 1=>4, 2=>3, 4=>3]
-
+sd = subdivide(s)
+@test ntriangles(sd) == 12 && ne(sd) == 22 && nv(sd) == 11
 # 2D oriented simplicial sets
 #----------------------------
 
