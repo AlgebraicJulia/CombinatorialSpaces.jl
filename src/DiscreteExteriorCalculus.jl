@@ -51,7 +51,7 @@ using DataMigrations: @migrate
 using ..ArrayUtils, ..SimplicialSets
 using ..SimplicialSets: CayleyMengerDet, operator_nz, ∂_nz, d_nz,
   cayley_menger, negate
-import ..SimplicialSets: ∂, d, volume
+import ..SimplicialSets: ∂, d, volume, subdivide
 
 abstract type DiscreteFlat end
 struct DPPFlat <: DiscreteFlat end
@@ -202,7 +202,7 @@ end
 
 """ Subdivide a 1D delta set.
 """
-function subdivide(s::HasDeltaSet1D)
+function subdivide(s::HasDeltaSet1D) #Should perhaps be in simplicialsets
   @migrate typeof(s) s begin
     V => @cases begin
       v::V
@@ -222,6 +222,7 @@ function subdivide(s::HasDeltaSet1D)
     end
   end
 end
+
 
 # 1D oriented dual complex
 #-------------------------
