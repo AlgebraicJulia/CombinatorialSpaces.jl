@@ -9,6 +9,7 @@ using ..SimplicialSets
 import AlgebraicInterfaces: dom,codom,compose,id 
 import StaticArrays: MVector
 import LinearAlgebra: I
+import ..DiscreteExteriorCalculus: Barycenter
 #import ..SimplicialSets: nv,ne
 
 function add_0_cells(d::HasDeltaSet, t::Trie{Int, Int})
@@ -243,6 +244,15 @@ as_matrix(f::GeometricMap) = hcat(coords.(f.points)...)
 compose(f::GeometricMap, g::GeometricMap) = GeometricMap(f.dom, g.cod, as_matrix(g)*as_matrix(f))
 id(sc::SimplicialComplex) = GeometricMap(sc,sc,GeometricPoint.(eachcol(I(nv(sc)))))
 
+function GeometricMap(sc::SimplicialComplex,::Barycenter)
+  dom = SimplicialComplex(subdivide(sc.delta_set))
+  #Vertices of dom correspond to vertices, edges, triangles of sc.
+  mat = zeros(Float64,nv(sc),nv(dom))
+  for i in 1:nv(sc) mat[i,i] = 1 end
+  for i in 1:ne(sc) for n in edge_vertices(sc.delta_set,i) mat[n,nv(sc)+i] = 1/2 end end
+  for i in 1:ntriangles(sc) for n in triangle_vertices(sc.delta_set,i) mat[n,nv(sc)+ne(sc)+i] = 1/3 end end
+  GeometricMap(dom,sc,mat)
+end
 
 
 end
