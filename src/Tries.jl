@@ -1,6 +1,6 @@
 module Tries
 export Trie, keys_with_prefix, partial_path,
-find_prefixes, subtrie
+find_prefixes, subtrie, height,subdivide_trie
 
 # vendored in from https://github.com/JuliaCollections/DataStructures.jl/blob/master/src/trie.jl
 
@@ -34,7 +34,6 @@ Trie(kv::AbstractDict{K,V}) where {K,V} = Trie{eltype(K),V}(kv)
 Trie(ks::AbstractVector{K}) where {K} = Trie{eltype(K),Nothing}(ks, similar(ks, Nothing))
 
 hasvalue(t::Trie) = !isnothing(t.value)
-
 
 function Base.setindex!(t::Trie{K,V}, val, key) where {K,V}
     value = convert(V, val) # we don't want to iterate before finding out it fails
@@ -82,7 +81,8 @@ function Base.get(t::Trie, key, notfound)
 end
 
 _concat(prefix::String, char::Char) = string(prefix, char)
-_concat(prefix::Vector{T}, char::T) where {T} = vcat(prefix, char)
+#was wrong if T is itself a vector type!
+_concat(prefix::Vector{T}, char::T) where {T} = vcat(prefix, [char])
 
 _empty_prefix(::Trie{Char,V}) where {V} = ""
 _empty_prefix(::Trie{K,V}) where {K,V} = K[]
@@ -101,8 +101,21 @@ end
 
 function keys_with_prefix(t::Trie, prefix)
     st = subtrie(t, prefix)
-    st != nothing ? keys(st,prefix) : []
+    !isnothing(st) ? keys(st,prefix) : []
 end
+
+height(t::Trie) = isempty(t.children) ? 0 : 1 + maximum(height.(values(t.children)))
+
+#=
+function subdivide_trie(t::Trie{K,V},help=K[]) where {K,V}
+  sdt = Trie{Vector{K},V}()
+  sdt.value = t.value
+  for k in [k for k in keys(t) if length(k) > 0]
+    sdt.children[vcat(help,k)] = subdivide(subtrie(t,k),vcat(help,k))
+  end
+  sdt
+end
+=#
 
 # The state of a TrieIterator is a pair (t::Trie, i::Int),
 # where t is the Trie which was the output of the previous iteration
