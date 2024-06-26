@@ -200,28 +200,7 @@ function dual_triangle_vertices(s::HasDeltaSet2D, t...)
           s[s[t..., :D_∂e0], :D_∂v0])
 end
 
-""" Subdivide a 1D delta set.
-"""
-function subdivide(s::HasDeltaSet1D) #Should perhaps be in simplicialsets
-  @migrate typeof(s) s begin
-    V => @cases begin
-      v::V
-      e::E
-    end
-    E => @cases begin
-      e₁::E
-      e₂::E
-    end
-    ∂v1 => begin
-      e₁ => e
-      e₂ => e
-    end
-    ∂v0 => begin
-      e₁ => (v∘∂v1)
-      e₂ => (v∘∂v0)
-    end
-  end
-end
+
 
 
 # 1D oriented dual complex
@@ -285,7 +264,7 @@ end
 
 make_dual_simplices_1d!(s::AbstractDeltaDualComplex1D) = make_dual_simplices_1d!(s, E)
 
-""" Make dual vertice and edges for dual complex of dimension ≧ 1.
+""" Make dual vertices and edges for dual complex of dimension ≧ 1.
 
 Although zero-dimensional duality is geometrically trivial (subdividing a vertex
 gives back the same vertex), we treat the dual vertices as disjoint from the
@@ -486,6 +465,15 @@ end
   edge_center::Hom(E, DualV)
   tri_center::Hom(Tri, DualV)
 end
+
+
+#type_by_name(header::String,n::Int) = eval(Symbol(header * string(n)*"D"))
+
+#=
+function extract_subdivided_primal_migration(n)
+  S =
+end
+=#
 
 """ Abstract type for dual complex of a 2D delta set.
 """
