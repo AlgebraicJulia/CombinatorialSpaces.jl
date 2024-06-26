@@ -7,9 +7,11 @@ as_matrix, compose, id
 using ..Tries
 using ..SimplicialSets
 import AlgebraicInterfaces: dom,codom,compose,id 
+import Base:*
 import StaticArrays: MVector
 import LinearAlgebra: I
 import ..DiscreteExteriorCalculus: Barycenter
+import ..DiscreteExteriorCalculus: PrimalVectorField
 #import ..SimplicialSets: nv,ne
 
 function add_0_cells(d::HasDeltaSet, t::Trie{Int, Int})
@@ -253,6 +255,12 @@ function GeometricMap(sc::SimplicialComplex,::Barycenter)
   for i in 1:ntriangles(sc) for n in triangle_vertices(sc.delta_set,i) mat[n,nv(sc)+ne(sc)+i] = 1/3 end end
   GeometricMap(dom,sc,mat)
 end
+
+function pullback_primal(f::GeometricMap, v::PrimalVectorField{T}) where T
+  nv(f.cod) == length(v) || error("Vector field must have same number of vertices as codomain")
+  PrimalVectorField(T.(eachcol(hcat(v.data...)*as_matrix(f))))
+end
+*(f::GeometricMap,v::PrimalVectorField) = pullback_primal(f,v)
 
 
 end
