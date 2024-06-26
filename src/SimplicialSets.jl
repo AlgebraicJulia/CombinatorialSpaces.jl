@@ -12,7 +12,7 @@ all geometric applications, namely the boundary and coboundary (discrete
 exterior derivative) operators. For additional operators, see the
 `DiscreteExteriorCalculus` module.
 """
-module SimplicialSets
+module SimplicialSets 
 export Simplex, V, E, Tri, Tet, SimplexChain, VChain, EChain, TriChain, TetChain,
   SimplexForm, VForm, EForm, TriForm, TetForm, HasDeltaSet,
   HasDeltaSet1D, DeltaSet, DeltaSet0D, AbstractDeltaSet1D, DeltaSet1D, SchDeltaSet1D,
@@ -35,7 +35,8 @@ export Simplex, V, E, Tri, Tet, SimplexChain, VChain, EChain, TriChain, TetChain
   tetrahedron_triangles, tetrahedron_edges, tetrahedron_vertices, ntetrahedra,
   tetrahedra, add_tetrahedron!, glue_tetrahedron!, glue_sorted_tetrahedron!,
   glue_sorted_tet_cube!, is_manifold_like, nonboundaries,
-  star, St, closed_star, St̄, link, Lk, simplex_vertices, dimension, subdivide
+  star, St, closed_star, St̄, link, Lk, simplex_vertices, dimension, subdivide,
+  DeltaSet, OrientedDeltaSet, EmbeddedDeltaSet
 
 using LinearAlgebra: det
 using SparseArrays
@@ -53,7 +54,8 @@ using ..ArrayUtils
 This dimension could be zero, in which case the delta set consists only of
 vertices (0-simplices).
 """
-@abstract_acset_type HasDeltaSet
+@abstract_acset_type HasDeltaSet 
+const HasDeltaSet0D = HasDeltaSet
 
 vertices(s::HasDeltaSet) = parts(s, :V)
 nv(s::HasDeltaSet) = nparts(s, :V)
@@ -84,7 +86,6 @@ end
 """ A 0-dimensional delta set, aka a set of vertices.
 """
 @acset_type DeltaSet0D(SchDeltaSet0D) <: HasDeltaSet
-ne(::DeltaSet0D) = error("0-dimensional Δ-set lacks edges.")
 
 # 1D simplicial sets
 ####################
@@ -111,10 +112,12 @@ More generally, this type implements the graphs interface in `Catlab.Graphs`.
 """
 @acset_type DeltaSet1D(SchDeltaSet1D, index=[:∂v0,:∂v1]) <: AbstractDeltaSet1D
 
+edges(::HasDeltaSet) = error("0D simplicial sets have no edges")
 edges(s::HasDeltaSet1D) = parts(s, :E)
 edges(s::HasDeltaSet1D, src::Int, tgt::Int) =
   (e for e in coface(1,1,s,src) if ∂(1,0,s,e) == tgt)
 
+ne(::HasDeltaSet) = 0
 ne(s::HasDeltaSet1D) = nparts(s, :E)
 nsimplices(::Type{Val{1}}, s::HasDeltaSet1D) = ne(s)
 
@@ -185,7 +188,7 @@ function d_nz(::Type{Val{0}}, s::HasDeltaSet1D, v::Int)
   (lazy(vcat, e₀, e₁), lazy(vcat, sign(1,s,e₀), -sign(1,s,e₁)))
 end
 
-# 1D embedded simplicial sets
+# 1D embedded, oriented simplicial sets
 #----------------------------
 
 @present SchEmbeddedDeltaSet1D <: SchOrientedDeltaSet1D begin
@@ -275,6 +278,7 @@ function triangles(s::HasDeltaSet2D, v₀::Int, v₁::Int, v₂::Int)
 end
 
 ntriangles(s::HasDeltaSet2D) = nparts(s, :Tri)
+ntriangles(s::HasDeltaSet) = 0
 nsimplices(::Type{Val{2}}, s::HasDeltaSet2D) = ntriangles(s)
 
 face(::Type{Val{(2,0)}}, s::HasDeltaSet2D, args...) = subpart(s, args..., :∂e0)
@@ -355,8 +359,32 @@ function glue_sorted_triangle!(s::HasDeltaSet2D, v₀::Int, v₁::Int, v₂::Int
   glue_triangle!(s, v₀, v₁, v₂; kw...)
 end
 
+""" Subdivide a 1D delta set. Note that this is written as if it'll work
+for any type of 1D delta-set, but it can't handle orientations or embeddings.
 """
-Designed for simplicial complexes.
+function subdivide(s::HasDeltaSet1D)
+  @migrate typeof(s) s begin
+    V => @cases begin
+      v::V
+      e::E
+    end
+    E => @cases begin
+      e₁::E
+      e₂::E
+    end
+    ∂v1 => begin
+      e₁ => e
+      e₂ => e
+    end
+    ∂v0 => begin
+      e₁ => (v∘∂v1)
+      e₂ => (v∘∂v0)
+    end
+  end
+end
+"""
+Subdivision of a 2D simplicial set, relies on glue_triangle! so not good
+for arbitrary simplicial sets.
 """
 function subdivide(s::HasDeltaSet2D)
   d = typeof(s)()
@@ -654,7 +682,16 @@ volume(::Type{Val{3}}, s::HasDeltaSet3D, t::Int, ::CayleyMengerDet) =
 # General operators
 ###################
 
-DeltaSet(n) = eval(Symbol("DeltaSet$(n)D"))
+DeltaSetTypes = Dict{Tuple{Symbol,Int},Type}()
+add_type!(s,n) = DeltaSetTypes[(s,n)] = eval(Symbol(string(s)*string(n)*"D"))
+for symb in [:DeltaSet,:EmbeddedDeltaSet,:OrientedDeltaSet]
+  for n in 1:3
+    add_type!(symb,n)
+  end
+  #defines eg DeltaSet(2) = DeltaSet2D
+  eval(Expr(:(=),Expr(:call,symb,:n),Expr(:ref,:DeltaSetTypes,Expr(:tuple,QuoteNode(symb),:n))))
+end
+
 
 """ Wrapper for simplex or simplices of dimension `n`.
 
@@ -690,7 +727,11 @@ function simplex_vertices(::Type{Val{n}},s::HasDeltaSet,x::Simplex{n,0}) where n
   n == 3 && return tetrahedron_vertices(s, x.data)
 end
 
-""" Wrapper for simplex chain of dimension `n`."""
+""" Wrapper for simplex chain of dimension `n`.
+
+Example: EChain([2,-1,1]) represents the chain 2a-b+c in the 
+simplicial set with edges a,b,c.
+"""
 @vector_struct SimplexChain{n}
 
 const VChain = SimplexChain{0}
