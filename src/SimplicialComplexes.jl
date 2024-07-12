@@ -194,6 +194,7 @@ end
 
 
 #XX: This type is maybe more trouble than it's worth?
+#yeah kill
 """
 A point in an unspecified simplicial complex, given by its barycentric coordinates.
 Constructed via a dense vector of coordinates.
@@ -246,6 +247,7 @@ as_matrix(f::GeometricMap) = hcat(coords.(f.points)...)
 compose(f::GeometricMap, g::GeometricMap) = GeometricMap(f.dom, g.cod, as_matrix(g)*as_matrix(f))
 id(sc::SimplicialComplex) = GeometricMap(sc,sc,GeometricPoint.(eachcol(I(nv(sc)))))
 
+#make sparse matrices
 function GeometricMap(sc::SimplicialComplex,::Barycenter)
   dom = SimplicialComplex(subdivide(sc.delta_set))
   #Vertices of dom correspond to vertices, edges, triangles of sc.
@@ -255,6 +257,7 @@ function GeometricMap(sc::SimplicialComplex,::Barycenter)
   for i in 1:ntriangles(sc) for n in triangle_vertices(sc.delta_set,i) mat[n,nv(sc)+ne(sc)+i] = 1/3 end end
   GeometricMap(dom,sc,mat)
 end
+#accessors for the nonzeros in a column of the matrix
 
 function pullback_primal(f::GeometricMap, v::PrimalVectorField{T}) where T
   nv(f.cod) == length(v) || error("Vector field must have same number of vertices as codomain")
