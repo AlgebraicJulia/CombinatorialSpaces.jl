@@ -46,6 +46,7 @@ using ACSets.DenseACSets: attrtype_type
 using Catlab, Catlab.CategoricalAlgebra, Catlab.Graphs
 import Catlab.Graphs: src, tgt, nv, ne, vertices, edges, has_vertex, has_edge,
   add_vertex!, add_vertices!, add_edge!, add_edges!
+import DataMigrations: @migrate
 using ..ArrayUtils
 
 
@@ -112,7 +113,7 @@ More generally, this type implements the graphs interface in `Catlab.Graphs`.
 """
 @acset_type DeltaSet1D(SchDeltaSet1D, index=[:∂v0,:∂v1]) <: AbstractDeltaSet1D
 
-edges(::HasDeltaSet) = error("0D simplicial sets have no edges")
+edges(::HasDeltaSet) = error("0-dimensional simplicial sets have no edges")
 edges(s::HasDeltaSet1D) = parts(s, :E)
 edges(s::HasDeltaSet1D, src::Int, tgt::Int) =
   (e for e in coface(1,1,s,src) if ∂(1,0,s,e) == tgt)
@@ -684,6 +685,7 @@ volume(::Type{Val{3}}, s::HasDeltaSet3D, t::Int, ::CayleyMengerDet) =
 
 DeltaSetTypes = Dict{Tuple{Symbol,Int},Type}()
 add_type!(s,n) = DeltaSetTypes[(s,n)] = eval(Symbol(string(s)*string(n)*"D"))
+add_type!(:DeltaSet,0)
 for symb in [:DeltaSet,:EmbeddedDeltaSet,:OrientedDeltaSet]
   for n in 1:3
     add_type!(symb,n)
