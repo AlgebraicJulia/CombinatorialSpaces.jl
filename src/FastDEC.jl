@@ -84,7 +84,7 @@ function dec_p_wedge_product(::Type{Tuple{0,2}}, sd::EmbeddedDeltaDualComplex2D{
       for dual_tri_idx in 1:6
         dual_tri_real = primal_tri + (dual_tri_idx - 1) * shift
 
-        primal_vertices[dual_tri_idx, primal_tri] = sd[sd[dual_tri_real, :D_∂e2], :D_∂v1]
+        primal_vertices[dual_tri_idx, primal_tri] = sd[sd[dual_tri_real, :dual_∂e2], :dual_∂v1]
         coeffs[dual_tri_idx, primal_tri] = sd[dual_tri_real, :dual_area] / sd[primal_tri, :area]
       end
   end
@@ -225,7 +225,7 @@ function wedge_dd_01_mat(sd::HasDeltaSet)
   m = spzeros(ne(sd), ntriangles(sd))
   for e in edges(sd)
     des = elementary_duals(1,sd,e)
-    dvs = sd[des, :D_∂v0]
+    dvs = sd[des, :dual_∂v0]
     tris = only.(incident(sd, dvs, :tri_center))
     ws = sd[des, :dual_length] ./ sum(sd[des, :dual_length])
     for (w,t) in zip(ws,tris)
@@ -268,7 +268,7 @@ function wedge_pd_01_mat(sd::HasDeltaSet)
   for e in edges(sd)
     α, β = edge_vertices(sd,e)
     des = elementary_duals(1,sd,e)
-    dvs = sd[des, :D_∂v0]
+    dvs = sd[des, :dual_∂v0]
     tris = only.(incident(sd, dvs, :tri_center))
     γδ = map(tris) do t
       only(filter(x -> x ∉ [α,β], triangle_vertices(sd,t)))
@@ -475,7 +475,7 @@ function dec_p_hodge_diag(::Type{Val{0}}, sd::EmbeddedDeltaDualComplex1D{Bool, f
     hodge_diag_0 = zeros(float_type, num_v_sd)
 
     for d_edge_idx in parts(sd, :DualE)
-      v1 = sd[d_edge_idx, :D_∂v1]
+      v1 = sd[d_edge_idx, :dual_∂v1]
       if (1 <= v1 <= num_v_sd)
           hodge_diag_0[v1] += sd[d_edge_idx, :dual_length]
       end
@@ -493,7 +493,7 @@ function dec_p_hodge_diag(::Type{Val{0}}, sd::EmbeddedDeltaDualComplex2D{Bool, f
     hodge_diag_0 = zeros(float_type, nv(sd))
 
     for dual_tri in parts(sd, :DualTri)
-      v = sd[sd[dual_tri, :D_∂e1], :D_∂v1]
+      v = sd[sd[dual_tri, :dual_∂e1], :dual_∂v1]
       hodge_diag_0[v] += sd[dual_tri, :dual_area]
     end
     return hodge_diag_0
@@ -506,7 +506,7 @@ function dec_p_hodge_diag(::Type{Val{1}}, sd::EmbeddedDeltaDualComplex2D{Bool, f
     hodge_diag_1 = zeros(float_type, num_e_sd)
 
     for d_edge_idx in parts(sd, :DualE)
-      v1_shift = sd[d_edge_idx, :D_∂v1] - num_v_sd
+      v1_shift = sd[d_edge_idx, :dual_∂v1] - num_v_sd
       if (1 <= v1_shift <= num_e_sd)
           hodge_diag_1[v1_shift] += sd[d_edge_idx, :dual_length] / sd[v1_shift, :length]
       end
