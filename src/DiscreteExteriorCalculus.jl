@@ -56,7 +56,7 @@ using DataMigrations: @migrate
 using ..ArrayUtils, ..SimplicialSets
 using ..SimplicialSets: CayleyMengerDet, operator_nz, ∂_nz, d_nz,
   cayley_menger, negate
-import ..SimplicialSets: ∂, d, volume, subdivide
+import ..SimplicialSets: ∂, d, volume
 
 abstract type DiscreteFlat end
 struct DPPFlat <: DiscreteFlat end
@@ -307,40 +307,6 @@ function make_dual_simplices_1d!(s::HasDeltaSet1D, ::Type{Simplex{n}}) where n
   dual_edges
 end
 
-# TODO: Instead of copying-and-pasting the DeltaSet1D version:
-# - Use metaprogramming, or
-# - Don't use the migration DSL, but rather the lower-level functor interface.
-# TODO: When Catlab PR #823 "Data migrations with Julia functions on attributes"
-# is merged, ensure that oriented-ness is preserved. (Flip one of the
-# orientations.)
-""" Subdivide an oriented 1D delta set.
-
-Note that this function does NOT currently guarantee that if the input is
-oriented, then the output will be.
-"""
-function subdivide(s::OrientedDeltaSet1D{T}) where T
-  @migrate typeof(s) s begin
-    V => @cases begin
-      v::V
-      e::E
-    end
-    E => @cases begin
-      e₁::E
-      e₂::E
-    end
-    ∂v1 => begin
-      e₁ => e
-      e₂ => e
-    end
-    ∂v0 => begin
-      e₁ => (v∘∂v1)
-      e₂ => (v∘∂v0)
-    end
-    Orientation => Orientation
-    # TODO: One of these edge orientations must be flipped. (e₂?)
-    edge_orientation => (e₁ => edge_orientation; e₂ => edge_orientation)
-  end
-end
 
 # 1D embedded dual complex
 #-------------------------
@@ -435,17 +401,7 @@ function precompute_volumes_1d!(sd::HasDeltaSet1D, ::Type{point_type}) where poi
   end
 end
 
-# TODO: When Catlab PR #823 "Data migrations with Julia functions on attributes"
-# is merged, encode subdivision like so:
-#function subdivide(s::EmbeddedDeltaSet1D{T,U}, alg::V) where {T,U,V <: SimplexCenter}
-#  @migrate typeof(s) s begin
-#    ...
-#    edge_orientation => (e₁ => edge_orientation; e₂ => !(edge_orientation))
-#    Point => Point
-#    point => (v => point; e => geometric_center([e₁ ⋅ point, e₂ ⋅ point], alg))
-#    ...
-#  end
-#end
+# TODO: Orientation on subdivisions
 
 # 2D dual complex
 #################
@@ -470,8 +426,6 @@ end
   tri_center::Hom(Tri, DualV)
 end
 
-
-#type_by_name(header::String,n::Int) = eval(Symbol(header * string(n)*"D"))
 
 """ Abstract type for dual complex of a 2D delta set.
 """
