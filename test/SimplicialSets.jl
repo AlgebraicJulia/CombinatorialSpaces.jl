@@ -556,4 +556,10 @@ vs = union(∂(0, s, E(es)), ∂(1, s, E(es)))
 @test Set(vs) == Set(Lkf[1])
 @test Set(Lkf[1]) == Set([1,2,3,4,5,7])
 
+#Type conversion utilities
+dt = CombinatorialSpaces.DiscreteExteriorCalculus.dual_type
+fs = CombinatorialSpaces.DiscreteExteriorCalculus.fancy_acset_schema
+@test all([dt(DeltaSet1D()) == DeltaDualComplex1D,dt(EmbeddedDeltaSet2D{Int,Vector{String}}()) == EmbeddedDeltaDualComplex2D{Int,String,Vector{String}}, dt(EmbeddedDeltaDualComplex1D{DeltaSet0D,Type,Real}()) == EmbeddedDeltaSet1D{DeltaSet0D,Real},dt(OrientedDeltaSet2D{Bool}()) == OrientedDeltaDualComplex2D{Bool}])
+@test fancy_acset_schema(DeltaSet1D()) == SchDeltaSet1D
+
 end

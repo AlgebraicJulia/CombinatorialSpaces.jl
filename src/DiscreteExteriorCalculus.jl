@@ -71,7 +71,6 @@ struct DiagonalHodge  <: DiscreteHodge end
 
 # Euclidean geometry
 ####################
-
 """ A notion of "geometric center" of a simplex.
 
 See also: [`geometric_center`](@ref).
@@ -1492,22 +1491,53 @@ function dual_derivative(::Type{Val{n}}, s::HasDeltaSet, args...) where n
   end
 end
 
-"""
-Checks whethere a DeltaSet is embedded by (droolingly) searching for 'Embedded'
-in the name of its type. This could also check for 'Point' in the schema, which
-would feel better but be less trustworthy.
-"""
-is_embedded(d::HasDeltaSet) = is_embedded(typeof(t))
-is_embedded(t::Type{T}) where {T<:HasDeltaSet} = !isnothing(findfirst("Embedded",string(t.name.name)))
 const REPLACEMENT_FOR_DUAL_TYPE = "Set" => "DualComplex"
 rename_to_dual(s::Symbol) = Symbol(replace(string(s),REPLACEMENT_FOR_DUAL_TYPE))
 rename_from_dual(s::Symbol) = Symbol(replace(string(s),reverse(REPLACEMENT_FOR_DUAL_TYPE)))
 
-#adds the Real type for lengths in the Embedded case. Will need further customization
-#if we add another type whose dual has more parameters than its primal.
-function dual_param_list(t) 
-  is_embedded(t) ?  [t.parameters[1],eltype(t.parameters[2]),t.parameters[2]] : t.parameters
+const EmbeddedDeltaSet = Union{EmbeddedDeltaSet1D,EmbeddedDeltaSet2D,EmbeddedDeltaSet3D}
+const EmbeddedDeltaDualComplex = Union{EmbeddedDeltaDualComplex1D,EmbeddedDeltaDualComplex2D}
+"""
+Adds the Real type for lengths in the EmbeddedDeltaSet case, and removes it in the EmbeddedDeltaDualComplex case. 
+Will need further customization
+if we add another type whose dual has different parameters than its primal.
+"""
+dual_param_list(d::HasDeltaSet) = typeof(d).parameters
+dual_param_list(d::EmbeddedDeltaSet) = 
+  begin t = typeof(d) ; [t.parameters[1],eltype(t.parameters[2]),t.parameters[2]] end
+dual_param_list(d::EmbeddedDeltaDualComplex) = 
+  begin t = typeof(d); [t.parameters[1],t.parameters[3]] end
+
+
+"""
+Keys are symbols for all the DeltaSet and DeltaDualComplex types.
+Values are the types themselves, without parameters, so mostly UnionAlls.
+Note there aren't any 0D or 3D types in here thus far.
+"""
+type_dict = Dict{Symbol,Type}()
+const prefixes = ["Embedded","Oriented",""]
+const postfixes = ["1D","2D"]
+const midfixes = ["DeltaDualComplex","DeltaSet"]
+for pre in prefixes for mid in midfixes for post in postfixes
+    s = Symbol(pre,mid,post)
+    type_dict[s] = eval(s)
+end end end
+
+"""
+Get the dual type of a plain, oriented, or embedded DeltaSet1D or 2D.
+Will always return a `DataType`, i.e. any parameters will be evaluated.
+"""
+function dual_type(d::HasDeltaSet) 
+  n = type_dict[rename_to_dual(typeof(d).name.name)]
+  ps = dual_param_list(d)
+  length(ps) > 0 ? n{ps...} : n
 end
+function dual_type(d::AbstractDeltaDualComplex) 
+  n = type_dict[rename_from_dual(typeof(d).name.name)]
+  ps = dual_param_list(d)
+  length(ps) > 0 ? n{ps...} : n
+end
+
 """
 Calls the constructor for d's dual type on d, including parameters.
 Does not call `subdivide_duals!` on the result.
@@ -1520,42 +1550,43 @@ time of writing (July 2024) only "Embedded" types fail criterion (2) and get spe
 s = EmbeddedDeltaSet2D{Bool,SVector{Float64,Float64}}()
 dualize(s)::EmbeddedDeltaDualComplex2D{Bool,Float64,SVector{Float64,Float64}}
 """
-function dualize(d::HasDeltaSet) #add embedded keyword?
-  t = typeof(d) 
-  n = dualize_type_name(t)
-  ps = dual_param_list(t)
-  length(ps) > 0 ? n{ps...}(d) : n(d)
-end
-#Note this can only successfully dualize types whose duals are defined in the scope of this module!
-dualize_type_name(t::Type) = eval(rename_to_dual(t.name.name))
+dualize(d::HasDeltaSet) = dual_type(d)(d)
 
-dual_extractor(d::HasDeltaSet) = dual_extractor(typeof(d))
-function dual_extractor(t::Type{T}) where {T <: HasDeltaSet}
-  n = t.name.name
-  sch_name = Symbol("Sch",n)
-  sch = eval(sch_name)
-  dual_sch = eval(rename_to_dual(sch_name))
-  C = FinCat(sch)
-  D = FinCat(dual_sch)
+"""
+Get the acset schema, as a Presentation, of a HasDeltaSet.
+XXX: upstream to Catlab.
+"""
+fancy_acset_schema(d::HasDeltaSet) = Presentation(acset_schema(d)) 
+
+"""
+Produces a DataMigration which will migrate the dualization of a 
+`DeltaSet` of `d`'s type back to `d`'s schema, selecting only the dual
+part.
+"""
+function dual_extractor(d::HasDeltaSet)
+  sch, dual_sch = fancy_acset_schema.([d,dual_type(d)()])
+  C,D = FinCat.([sch,dual_sch])
+  #Map objects to the object with "Dual" appended to the name
   o = Dict(nameof(a) => Symbol("Dual",nameof(a)) for a in sch.generators[:Ob])
+  #Map attrtypes to themselves
   for a in sch.generators[:AttrType] o[nameof(a)] = nameof(a) end
+  #Map homs (and attrs) to the hom with "dual_" appended to the name
   h = Dict(nameof(a) => Symbol("dual_",nameof(a)) for a in hom_generators(C))
   DeltaMigration(FinDomFunctor(o,h,C,D))
 end
-dual_extractor(t::Type{T}) where {T <: AbstractDeltaDualComplex} = dual_extractor(eval(rename_from_dual(t.name.name)))
+dual_extractor(d::AbstractDeltaDualComplex) = dual_extractor(dual_type(d)())
 
 """
 Get the subdivision of a `DeltaSet` `d` as a `DeltaSet` of the same type, 
 or extract just the subdivided part of a `DeltaDualComplex` as a `DeltaSet`.
 """
 extract_dual(d::HasDeltaSet) = migrate(typeof(d),dualize(d),dual_extractor(d))
-function extract_dual(d::HasDeltaSet,alg)
-  is_embedded(d) || error("Cannot subdivide duals for a non-embedded DeltaSet.")
+function extract_dual(d::EmbeddedDeltaSet,alg)
   s = dualize(d)
   subdivide_duals!(s,alg)
   migrate(typeof(d),s,dual_extractor(d))
 end
-extract_dual(d::AbstractDeltaDualComplex) = migrate(eval(rename_from_dual(typeof(d).name.name)),d,dual_extractor(d))
+extract_dual(d::AbstractDeltaDualComplex) = migrate(dual_type(d),d,dual_extractor(d))
 
 
 """ Hodge star operator from primal ``n``-forms to dual ``N-n``-forms.

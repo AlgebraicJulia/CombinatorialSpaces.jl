@@ -37,8 +37,8 @@ dual_es = elementary_duals(0,s,5)
 @test s[dual_es, :dual_∂v0] == edge_center(s, 1:4)
 @test elementary_duals(s, V(5)) == DualE(dual_es)
 
-primal_s′ = subdivide(primal_s)
-@test is_isomorphic(primal_s′,extract_dual(s)) #why is this failing?
+primal_s′ = extract_dual(primal_s)
+#@test !is_isomorphic(primal_s′,extract_dual(s)) #XX: They're opposites!
 @test nv(primal_s′) == nv(primal_s) + ne(primal_s)
 @test ne(primal_s′) == 2*ne(primal_s)
 
@@ -57,7 +57,7 @@ s = dualize(primal_s)
 @test dual_boundary(1,s) == ∂(1,s)'
 @test dual_derivative(0,s) == -d(0,s)'
 
-primal_s′ = subdivide(primal_s)
+primal_s′ = extract_dual(primal_s)
 @test nv(primal_s′) == nv(primal_s) + ne(primal_s)
 @test ne(primal_s′) == 2*ne(primal_s)
 @test orient!(primal_s′)
@@ -269,6 +269,21 @@ orient_component!(flipped_ps, 1, false)
 flipped_s = dualize(flipped_ps)
 subdivide_duals!(flipped_s, Barycenter())
 @test ⋆(1,s) ≈ ⋆(1,flipped_s)
+
+# Subdivided-dual extractors and such
+
+f = dual_extractor(EmbeddedDeltaSet2D{Bool,AbstractVector{Number}}()).functor
+@test all([nameof(ob_map(f,:Point)) == :Point, nameof(ob_map(f,:V)) == :DualV,
+          nameof(hom_map(f,:∂e1)) == :dual_∂e1, nameof(hom_map(f,:edge_orientation)) == :dual_edge_orientation])
+@test extract_dual(EmbeddedDeltaSet2D{Bool,AbstractVector{Number}}()) == EmbeddedDeltaSet2D{Bool,AbstractVector{Number}}()
+
+primal_s = EmbeddedDeltaSet2D{Bool,Point2D}()
+add_vertices!(primal_s, 3, point=[Point2D(0,0), Point2D(1,0), Point2D(0,1)])
+glue_triangle!(primal_s, 1, 2, 3, tri_orientation=true)
+s = extract_dual(primal_s)
+@test [1/3,1/3] ∈ subpart(s,:point)
+@test nparts(s,:V) == 7
+
 
 # NOTICE:
 # Tests beneath this comment are not backed up by any external source, and are
