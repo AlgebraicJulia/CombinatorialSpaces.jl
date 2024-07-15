@@ -249,7 +249,7 @@ id(sc::SimplicialComplex) = GeometricMap(sc,sc,GeometricPoint.(eachcol(I(nv(sc))
 
 #make sparse matrices
 function GeometricMap(sc::SimplicialComplex,::Barycenter)
-  dom = SimplicialComplex(subdivide(sc.delta_set))
+  dom = SimplicialComplex(extract_dual(sc.delta_set))
   #Vertices of dom correspond to vertices, edges, triangles of sc.
   mat = zeros(Float64,nv(sc),nv(dom))
   for i in 1:nv(sc) mat[i,i] = 1 end
