@@ -106,22 +106,15 @@ end
 
 height(t::Trie) = isempty(t.children) ? 0 : 1 + maximum(height.(values(t.children)))
 
-#=
-function subdivide_trie(t::Trie{K,V},help=K[]) where {K,V}
-  sdt = Trie{Vector{K},V}()
-  sdt.value = t.value
-  for k in [k for k in keys(t) if length(k) > 0]
-    sdt.children[vcat(help,k)] = subdivide(subtrie(t,k),vcat(help,k))
-  end
-  sdt
-end
-=#
+
+
 
 # The state of a TrieIterator is a pair (t::Trie, i::Int),
 # where t is the Trie which was the output of the previous iteration
 # and i is the index of the current character of the string.
 # The indexing is potentially confusing;
 # see the comments and implementation below for details.
+
 struct TrieIterator
     t::Trie
     str

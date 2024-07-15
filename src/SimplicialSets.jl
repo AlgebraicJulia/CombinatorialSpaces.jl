@@ -35,7 +35,7 @@ export Simplex, V, E, Tri, Tet, SimplexChain, VChain, EChain, TriChain, TetChain
   tetrahedron_triangles, tetrahedron_edges, tetrahedron_vertices, ntetrahedra,
   tetrahedra, add_tetrahedron!, glue_tetrahedron!, glue_sorted_tetrahedron!,
   glue_sorted_tet_cube!, is_manifold_like, nonboundaries,
-  star, St, closed_star, St̄, link, Lk, simplex_vertices, dimension, subdivide,
+  star, St, closed_star, St̄, link, Lk, simplex_vertices, dimension, 
   DeltaSet, OrientedDeltaSet, EmbeddedDeltaSet
 
 using LinearAlgebra: det
@@ -358,82 +358,6 @@ end
 function glue_sorted_triangle!(s::HasDeltaSet2D, v₀::Int, v₁::Int, v₂::Int; kw...)
   v₀, v₁, v₂ = sort(SVector(v₀, v₁, v₂))
   glue_triangle!(s, v₀, v₁, v₂; kw...)
-end
-
-""" Subdivide a 1D delta set. Note that this is written as if it'll work
-for any type of 1D delta-set, but it can't handle orientations or embeddings.
-"""
-function subdivide(s::HasDeltaSet1D)
-  @migrate typeof(s) s begin
-    V => @cases begin
-      v::V
-      e::E
-    end
-    E => @cases begin
-      e₁::E
-      e₂::E
-    end
-    ∂v1 => begin
-      e₁ => e
-      e₂ => e
-    end
-    ∂v0 => begin
-      e₁ => (v∘∂v1)
-      e₂ => (v∘∂v0)
-    end
-  end
-end
-"""
-Subdivision of a 2D simplicial set, relies on glue_triangle! so not good
-for arbitrary simplicial sets.
-"""
-function subdivide(s::HasDeltaSet2D)
-  d = typeof(s)()
-  #vertices for all simplices
-  add_vertices!(d, nv(s))
-  add_vertices!(d, ne(s))
-  add_vertices!(d, ntriangles(s))
-
-  e_to_v(e) = e + nv(s)
-  ts_as_vs = (1:ntriangles(s)) .+ (nv(s) + ne(s))
-  #edges from source of edge to edge and target of edge to edge
-  add_edges!(d, subpart(s, :∂v1), e_to_v.(1:ne(s)))
-  add_edges!(d, subpart(s, :∂v0), e_to_v.(1:ne(s)))
-  #edges from vertex of triangle to triangle
-  add_edges!(d, subpart(s, [:∂e2, :∂v1]), ts_as_vs)
-  add_edges!(d, subpart(s, [:∂e2, :∂v0]), ts_as_vs)
-  add_edges!(d, subpart(s, [:∂e1, :∂v0]), ts_as_vs)
-  #edges from edge of triangle to triangle
-  add_edges!(d, e_to_v.(subpart(s, :∂e2)), ts_as_vs)
-  add_edges!(d, e_to_v.(subpart(s, :∂e1)), ts_as_vs)
-  add_edges!(d, e_to_v.(subpart(s, :∂e0)), ts_as_vs)
-  #triangles from vertex of edge of triangle to triangle
-  glue_triangles!(d,
-    subpart(s, [:∂e2, :∂v1]),
-    e_to_v.(subpart(s, :∂e2)),
-    ts_as_vs)
-  glue_triangles!(d,
-    subpart(s, [:∂e2, :∂v0]),
-    e_to_v.(subpart(s, :∂e2)),
-    ts_as_vs)
-    glue_triangles!(d,
-    subpart(s, [:∂e1, :∂v1]),
-    e_to_v.(subpart(s, :∂e1)),
-    ts_as_vs)
-  glue_triangles!(d,
-    subpart(s, [:∂e1, :∂v0]),
-    e_to_v.(subpart(s, :∂e1)),
-    ts_as_vs)
-    glue_triangles!(d,
-    subpart(s, [:∂e0, :∂v1]),
-    e_to_v.(subpart(s, :∂e0)),
-    ts_as_vs)
-  glue_triangles!(d,
-    subpart(s, [:∂e0, :∂v0]),
-    e_to_v.(subpart(s, :∂e0)),
-    ts_as_vs)
-  ##XX: orientations?
-  d
 end
 
 # 2D oriented simplicial sets
