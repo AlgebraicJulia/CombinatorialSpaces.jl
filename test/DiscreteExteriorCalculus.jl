@@ -562,13 +562,16 @@ X = [SVector(2,3), SVector(5,7)]
 @test ♭(s, DualVectorField(X)) == ♭(s′, DualVectorField(X))
 @test ♭_mat(s, DPPFlat()) * DualVectorField(X) == ♭_mat(s′, DPPFlat()) * DualVectorField(X)
 
-tg′ = triangulated_grid(100,100,10,10,Point2D);
-tg = dualize(tg′);
-subdivide_duals!(tg, Barycenter());
+tg′ = triangulated_grid(100,100,10,10,Point2D)
+tg = dualize(tg′)
+subdivide_duals!(tg, Barycenter())
 
-rect′ = loadmesh(Rectangle_30x10());
-rect = EmbeddedDeltaDualComplex2D{Bool,Float64,Point3D}(rect′);
-subdivide_duals!(rect, Barycenter());
+rect′ = loadmesh(Rectangle_30x10())
+rect = dualize(rect′)
+subdivide_duals!(rect, Barycenter(r))
+
+rect_fine_primal = extract_dual(rect)
+rect_fine = dualize(rect_fine_primal)
 
 flat_meshes = [tri_345(), tri_345_false(), right_scalene_unit_hypot(), grid_345(), (tg′, tg), (rect′, rect)];
 
