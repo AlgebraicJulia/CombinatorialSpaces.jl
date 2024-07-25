@@ -2,6 +2,7 @@ module TestSimplicialComplexes
 using Test 
 using CombinatorialSpaces
 using Catlab:@acset
+using LinearAlgebra: I
 
 # Triangulated commutative square.
 ss = DeltaSet2D()
@@ -49,5 +50,37 @@ h = compose(f,g)
 isc = id(sc)
 @test as_matrix(h) == as_matrix(compose(h,isc))
 
+primal_s = EmbeddedDeltaSet2D{Bool,Point2D}()
+add_vertices!(primal_s, 3, point=[Point2D(0,0), Point2D(1,0), Point2D(0,1)])
+glue_triangle!(primal_s, 1, 2, 3, tri_orientation=true)
+primal_s[:edge_orientation] = true
+f,g = subdivision_maps(primal_s)
+@test as_matrix(compose(g,f)) = I(3)*1.0
+
+fake_laplacian_builder(s::HasDeltaSet) = I(nv(s))*1.0
+fake_laplacian_builder(s::SimplicialComplex) = I(nv(s))*1.0
+laplacian_builder(s::HasDeltaSet) = -∇²(0,s)
+function heat_equation_multiscale(primal_s::HasDeltaSet, laplacian_builder::Function, initial::Vector,
+  step_size::Float64, n_steps_inner::Int, n_steps_outer::Int)
+  f, g = subdivision_maps(primal_s)
+  sc_fine, sc_coarse = dom(f), codom(f)
+  f, g = as_matrix.([f, g])
+  dual_s_fine,dual_s_coarse = dualize.([sc_fine.delta_set,sc_coarse.delta_set])
+  subdivide_duals!(dual_s_fine,Barycenter())
+  subdivide_duals!(dual_s_coarse,Barycenter())
+  Δ_fine, Δ_coarse = laplacian_builder.([dual_s_fine,dual_s_coarse])
+  u_fine = transpose(initial)
+  u_coarse = u_fine * g
+  for i in 1:n_steps_outer
+    # do a fine step
+    u_fine += step_size * u_fine * Δ_fine
+    u_coarse = u_fine * g
+    for j in 1:n_steps_inner
+      u_coarse += step_size * u_coarse * Δ_coarse
+    end
+    u_fine = u_coarse * f
+  end
+  transpose(u_fine)
+end
 
 end

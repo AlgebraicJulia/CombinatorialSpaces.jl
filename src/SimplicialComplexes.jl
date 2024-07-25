@@ -2,15 +2,15 @@
 The category of simplicial complexes and Kleisli maps for the convex space monad.
 """
 module SimplicialComplexes
-export SimplicialComplex, VertexList, has_simplex, GeometricPoint, has_point, has_span, GeometricMap, nv,
-as_matrix, compose, id, cocenter, primal_vertices
+export SimplicialComplex, VertexList, has_simplex, GeometricPoint, has_point, has_span, GeometricMap, nv, as_matrix, compose, id, cocenter, primal_vertices, subdivision_maps
 using ..Tries
-using ..SimplicialSets
+using ..SimplicialSets, ..DiscreteExteriorCalculus
+import ACSets: incident, subpart
 import AlgebraicInterfaces: dom,codom,compose,id 
 import Base:*
 import StaticArrays: MVector
 import LinearAlgebra: I
-import ..DiscreteExteriorCalculus: Barycenter
+import ..DiscreteExteriorCalculus: Barycenter, AbstractDeltaDualComplex
 import ..DiscreteExteriorCalculus: PrimalVectorField
 #import ..SimplicialSets: nv,ne
 
@@ -229,13 +229,15 @@ struct GeometricMap{D,D′}
   dom::SimplicialComplex{D}
   cod::SimplicialComplex{D′}
   points::Vector{GeometricPoint}
-  function GeometricMap(sc::SimplicialComplex{D}, sc′::SimplicialComplex{D′}, points::Vector{GeometricPoint},checked=true) where {D,D′}
-    length(points) == nv(sc) || error("Number of points must match number of vertices in domain")
-    all(map(x->has_span(sc′,points[x]),keys(sc.cache))) || error("Span of points in simplices of domain must lie in codomain") 
+  function GeometricMap(sc::SimplicialComplex{D}, sc′::SimplicialComplex{D′}, points::Vector{GeometricPoint};checked::Bool=true) where {D,D′}
+    if checked 
+      length(points) == nv(sc) || error("Number of points must match number of vertices in domain")
+      all(map(x->has_span(sc′,points[x]),keys(sc.cache))) || error("Span of points in simplices of domain must lie in codomain")
+    end
     new{D,D′}(sc, sc′, points)
   end
 end
-GeometricMap(sc,sc′,points::AbstractArray) = GeometricMap(sc,sc′,GeometricPoint.(eachcol(points)))
+GeometricMap(sc::SimplicialComplex{D},sc′::SimplicialComplex{D′},points::AbstractMatrix;checked::Bool=true) where {D,D′} = GeometricMap(sc,sc′,GeometricPoint.(eachcol(points)),checked=checked)
 dom(f::GeometricMap) = f.dom
 codom(f::GeometricMap) = f.cod
 #want f(n) to give values[n]?
@@ -260,22 +262,31 @@ end
 #accessors for the nonzeros in a column of the matrix
 
 """
-The geometric map from a deltaset's subdivision to itself
+The geometric maps from a deltaset's subdivision to itself and back again.
+
+Warning: the second returned map is not actually a valid geometric map as edges 
+of the primal delta set will run over multiple edges of the dual. So, careful composing
+with it etc.
 """
-function GeometricMap(primal_s::EmbeddedDeltaSet,alg)
-  dom = SimplicialComplex(primal_s)
+function subdivision_maps(primal_s::EmbeddedDeltaSet,alg=Barycenter())
+  prim = SimplicialComplex(primal_s)
   s = dualize(primal_s)
   subdivide_duals!(s,alg)
-  cod = SimplicialComplex(extract_dual(s))
-  mat = zeros(Float64,nv(cod),nv(dom))
-  pvs = map(i->primal_vertices(s,i),1:nv(dom))
+  dual = SimplicialComplex(extract_dual(s))
+  mat = zeros(Float64,nv(prim),nv(dual))
+  pvs = map(i->primal_vertices(s,i),1:nv(dual))
   weights = 1 ./(length.(pvs))
-  for j in 1:nv(dom)
+  for j in 1:nv(dual)
     for v in pvs[j]
       mat[v,j] = weights[j]
     end
   end
-  GeometricMap(dom,cod,mat)
+  a = GeometricMap(dual,prim,mat)
+  mat′ = zeros(Float64,nv(dual),nv(prim))
+  for i in 1:nv(prim)
+    mat′[subpart(s,i,:vertex_center),i] = 1
+  end
+  a, GeometricMap(prim,dual,mat′,checked=false)
 end
 
 function pullback_primal(f::GeometricMap, v::PrimalVectorField{T}) where T
@@ -310,7 +321,5 @@ primal_vertices(s::AbstractDeltaDualComplex,v::DualV) = simplex_vertices(s,cocen
 primal_vertices(s::AbstractDeltaDualComplex,n::Int) = simplex_vertices(s,cocenter(s,DualV(n)))
 
 #dimension(x::Simplex{n}) where {n} = n
-
-end
 
 end
