@@ -241,8 +241,8 @@ add_vertices!(primal_s, 3, point=[Point2D(0,0), Point2D(1,0), Point2D(0,1)])
 glue_triangle!(primal_s, 1, 2, 3, tri_orientation=true)
 primal_s[:edge_orientation] = true
 s = dualize(primal_s)
-
 subdivide_duals!(s, Barycenter())
+
 @test dual_point(s, triangle_center(s, 1)) ≈ Point2D(1/3, 1/3)
 @test volume(s, Tri(1)) ≈ 1/2
 @test volume(s, elementary_duals(s, V(1))) ≈ [1/12, 1/12]
