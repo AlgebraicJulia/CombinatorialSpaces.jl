@@ -3,7 +3,7 @@ The category of simplicial complexes and Kleisli maps for the convex space monad
 """
 module SimplicialComplexes
 export SimplicialComplex, VertexList, has_simplex, GeometricPoint, has_point, has_span, GeometricMap, nv,
-as_matrix, compose, id
+as_matrix, compose, id, cocenter, primal_vertices
 using ..Tries
 using ..SimplicialSets
 import AlgebraicInterfaces: dom,codom,compose,id 
@@ -259,11 +259,57 @@ function GeometricMap(sc::SimplicialComplex,::Barycenter)
 end
 #accessors for the nonzeros in a column of the matrix
 
+"""
+The geometric map from a deltaset's subdivision to itself
+"""
+function GeometricMap(primal_s::EmbeddedDeltaSet,alg)
+  dom = SimplicialComplex(primal_s)
+  s = dualize(primal_s)
+  subdivide_duals!(s,alg)
+  cod = SimplicialComplex(extract_dual(s))
+  mat = zeros(Float64,nv(cod),nv(dom))
+  pvs = map(i->primal_vertices(s,i),1:nv(dom))
+  weights = 1 ./(length.(pvs))
+  for j in 1:nv(dom)
+    for v in pvs[j]
+      mat[v,j] = weights[j]
+    end
+  end
+  GeometricMap(dom,cod,mat)
+end
+
 function pullback_primal(f::GeometricMap, v::PrimalVectorField{T}) where T
   nv(f.cod) == length(v) || error("Vector field must have same number of vertices as codomain")
   PrimalVectorField(T.(eachcol(hcat(v.data...)*as_matrix(f))))
 end
-*(f::GeometricMap,v::PrimalVectorField) = pullback_primal(f,v)
+*(f::GeometricMap,v::PrimalVectorField) = pullback_pr
 
+function dual_vertex_dimension(s::AbstractDeltaDualComplex,v::DualV)
+  n = v.data
+  !isempty(incident(s,n,:vertex_center)) ? 0 :
+  !isempty(incident(s,n,:edge_center)) ? 1 :
+  !isempty(incident(s,n,:tri_center)) ? 2 : 3
+end
+
+simplex_name_dict = Dict(0=>:vertex,1=>:edge,2=>:tri,3=>:tet)
+
+#XX: the parts data structure allowing data to be like whatever is awful
+function cocenter(s::AbstractDeltaDualComplex,v::DualV)
+  n = dimension(s)
+  v = v.data
+  for i in 0:n
+    inc = incident(s,v,Symbol(simplex_name_dict[i],:(_center)))
+    if !isempty(inc)
+      return Simplex{i}(only(inc))
+    end
+  end
+end
+cocenter(s::AbstractDeltaDualComplex,n::Int) = cocenter(s,DualV(n))
+primal_vertices(s::AbstractDeltaDualComplex,v::DualV) = simplex_vertices(s,cocenter(s,v))
+primal_vertices(s::AbstractDeltaDualComplex,n::Int) = simplex_vertices(s,cocenter(s,DualV(n)))
+
+#dimension(x::Simplex{n}) where {n} = n
+
+end
 
 end
