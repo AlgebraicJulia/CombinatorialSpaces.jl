@@ -775,6 +775,12 @@ for s in [tetrahedron_s, cube_s]
     # Desbrun, Kanso, Tong 2008, Equation 4.2.
     @test dual_derivative(3-k,s) == (-1)^k * d(k-1,s)'
   end
+#Type conversion utilities
+dt = DiscreteExteriorCalculus.dual_type
+fs = DiscreteExteriorCalculus.fancy_acset_schema
+@test all([dt(DeltaSet1D()) == DeltaDualComplex1D,dt(EmbeddedDeltaSet2D{Int,Vector{String}}()) == EmbeddedDeltaDualComplex2D{Int,String,Vector{String}}, dt(EmbeddedDeltaDualComplex1D{DeltaSet0D,Type,Real}()) == EmbeddedDeltaSet1D{DeltaSet0D,Real},dt(OrientedDeltaSet2D{Bool}()) == OrientedDeltaDualComplex2D{Bool}])
+@test fancy_acset_schema(DeltaSet1D()) == SchDeltaSet1D
+
 end
 
 # 3D embedded dual complex

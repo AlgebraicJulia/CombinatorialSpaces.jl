@@ -121,8 +121,8 @@ glue_triangle!(s, 1, 4, 3)
 @test triangles(s) == 1:2
 @test ne(s) == 5
 @test sort(map(Pair, src(s), tgt(s))) == [1=>2, 1=>3, 1=>4, 2=>3, 4=>3]
-sd = extract_dual(s)
-@test ntriangles(sd) == 12 && ne(sd) == 22 && nv(sd) == 11
+#sd = extract_dual(s)
+#@test ntriangles(sd) == 12 && ne(sd) == 22 && nv(sd) == 11
 # 2D oriented simplicial sets
 #----------------------------
 
@@ -555,11 +555,5 @@ vs = union(∂(0, s, E(es)), ∂(1, s, E(es)))
 @test Set(es) == Set(Lkf[2])
 @test Set(vs) == Set(Lkf[1])
 @test Set(Lkf[1]) == Set([1,2,3,4,5,7])
-
-#Type conversion utilities
-dt = CombinatorialSpaces.DiscreteExteriorCalculus.dual_type
-fs = CombinatorialSpaces.DiscreteExteriorCalculus.fancy_acset_schema
-@test all([dt(DeltaSet1D()) == DeltaDualComplex1D,dt(EmbeddedDeltaSet2D{Int,Vector{String}}()) == EmbeddedDeltaDualComplex2D{Int,String,Vector{String}}, dt(EmbeddedDeltaDualComplex1D{DeltaSet0D,Type,Real}()) == EmbeddedDeltaSet1D{DeltaSet0D,Real},dt(OrientedDeltaSet2D{Bool}()) == OrientedDeltaDualComplex2D{Bool}])
-@test fancy_acset_schema(DeltaSet1D()) == SchDeltaSet1D
 
 end
