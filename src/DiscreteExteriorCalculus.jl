@@ -428,7 +428,7 @@ end
 """
 @abstract_acset_type AbstractDeltaDualComplex2D <: HasDeltaSet2D
 
-const AbstractDeltaDualComplex = Union{AbstractDeltaDualComplex1D, AbstractDeltaDualComplex2D}
+
 """ Dual complex of a two-dimensional delta set.
 """
 @acset_type DeltaDualComplex2D(SchDeltaDualComplex2D,
@@ -943,7 +943,7 @@ end
 """ Abstract type for dual complex of a 3D delta set.
 """
 @abstract_acset_type AbstractDeltaDualComplex3D <: HasDeltaSet3D
-
+const AbstractDeltaDualComplex = Union{AbstractDeltaDualComplex1D, AbstractDeltaDualComplex2D, AbstractDeltaDualComplex3D}
 """ Dual complex of a three-dimensional delta set.
 """
 @acset_type DeltaDualComplex3D(SchDeltaDualComplex3D,

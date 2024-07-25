@@ -604,6 +604,7 @@ volume(::Type{Val{n}}, s::EmbeddedDeltaSet3D, x) where n =
 volume(::Type{Val{3}}, s::HasDeltaSet3D, t::Int, ::CayleyMengerDet) =
   volume(point(s, tetrahedron_vertices(s,t)))
 
+  const EmbeddedDeltaSet = Union{EmbeddedDeltaSet1D, EmbeddedDeltaSet2D, EmbeddedDeltaSet3D}
 # General operators
 ###################
 
