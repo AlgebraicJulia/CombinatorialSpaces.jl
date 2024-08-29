@@ -12,6 +12,8 @@ using Random
 using GeometryBasics: Point2, Point3
 using StaticArrays: SVector
 using Statistics: mean, var
+using IterativeSolvers
+using LinearMaps
 
 Point2D = Point2{Float64}
 Point3D = Point3{Float64}
@@ -342,6 +344,16 @@ function plot_dual0form(sd, f0)
   Colorbar(f[1,2], sct)
   f
 end
+
+x = rand(1113)
+Δᵣ = Δ(rect)
+@test IterativeSolvers.cg(Δᵣ,x) ≈ Δᵣ \ x
+
+
+
+
+
+
 
 function euler_equation_test(X♯, sd)
   interior_tris = setdiff(triangles(sd), boundary_inds(Val{2}, sd))
