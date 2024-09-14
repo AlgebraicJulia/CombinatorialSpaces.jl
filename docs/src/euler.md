@@ -16,7 +16,7 @@ Here, we see an exterior derivative, [`d`](@ref), a Lie derivative, [`ℒ`](@ref
 
 ## Discretizing
 
-Let's examine some particular cases of these equations. In this first case, we will provide a mesh, and explicitly provide initial values for `u`. We will solve for pressure and the time derivative of `u` and check that they are what we expect.
+Let's examine some particular cases of these equations. For both, we need a mesh and some discrete differential operators.
 
 ```@example euler
 using CairoMakie, CombinatorialSpaces, StaticArrays
@@ -48,31 +48,55 @@ s2 = dec_hodge_star(2, sd);
 ```
 
 ```@setup euler
+using ACSets
+
 sharp_dd = ♯_mat(sd, LLSDDSharp())
 function plot_dvf(sd, X; ls=1f0, title="Dual Vector Field")
   X♯ = sharp_dd * X
   # Makie will throw an error if the colorrange end points are not unique:
-  extX = extrema(norm.(X♯))
-  range = extX[1] ≈ extX[2] ? (0,extX[2]) : extX
   f = Figure()
   ax = Axis(f[1, 1], title=title)
   wireframe!(ax, sd, color=:gray95)
-  scatter!(ax, getindex.(sd[sd[:tri_center], :dual_point],1), getindex.(sd[sd[:tri_center], :dual_point],2), color = norm.(X♯), colorrange=range)
+  extX = extrema(norm.(X♯))
+  if (abs(extX[1] - extX[2]) > 1e-4)
+    range = extX
+    scatter!(ax, getindex.(sd[sd[:tri_center], :dual_point],1), getindex.(sd[sd[:tri_center], :dual_point],2), color = norm.(X♯), colorrange=range)
+    Colorbar(f[1,2], limits=range)
+  end
   arrows!(ax, getindex.(sd[sd[:tri_center], :dual_point],1), getindex.(sd[sd[:tri_center], :dual_point],2), getindex.(X♯,1), getindex.(X♯,2), lengthscale=ls)
-  Colorbar(f[1,2], limits=range)
   hidedecorations!(ax)
   f
 end
 
-function plot_dual0form(sd, f0)
+function plot_dual0form(sd, f0; title="Dual 0-form")
   ps  = (stack(sd[sd[:tri_center], :dual_point])[[1,2],:])'
-  f = Figure(); ax = CairoMakie.Axis(f[1,1]);
+  f = Figure(); ax = CairoMakie.Axis(f[1,1], title=title);
   sct = scatter!(ax, ps,
       color=f0);
   Colorbar(f[1,2], sct)
   f
 end
+
+function boundary_inds(::Type{Val{0}}, s)
+  ∂1_inds = boundary_inds(Val{1}, s)
+  unique(vcat(s[∂1_inds,:∂v0],s[∂1_inds,:∂v1]))
+end
+function boundary_inds(::Type{Val{1}}, s)
+  collect(findall(x -> x != 0, boundary(Val{2},s) * fill(1,ntriangles(s))))
+end
+function boundary_inds(::Type{Val{2}}, s)
+  ∂1_inds = boundary_inds(Val{1}, s)
+  inds = map([:∂e0, :∂e1, :∂e2]) do esym
+    vcat(incident(s, ∂1_inds, esym)...)
+  end
+  unique(vcat(inds...))
+end
 ```
+
+## First Case
+
+In this first case, we will explicitly provide initial values for `u`. We will solve for pressure and the time derivative of `u` and check that they are what we expect. Note that we will set the mass budget, `b`, to 0.
+
 Let's provide a flow field of unit magnitude, static throughout the domain.
 
 ```@example euler
@@ -90,13 +114,20 @@ selfadv = ℒ1(u,u) - 0.5*d0*ι1(u,u)
 plot_dvf(sd, selfadv, title="Self-Advection")
 ```
 
-Now, let's solve for pressure. We can set up a Poisson problem on the divergence of the self-advection term we computed. Recall that divergence can be computed as `\star d \star`, and the Laplacian as `d \star d \star`.
+Now, let's solve for pressure. We can set up a Poisson problem on the divergence of the self-advection term we computed. Recall that divergence can be computed as `\star d \star`, and the Laplacian as `d \star d \star`. To solve a Poisson problem, we reverse the order of the operations, and take advantage of the fact that solving the inverse hodge star is equivalent to multiplying by the hodge star.
 
 ```@example euler
 div(x) = s2 * d1 * (s1 \ x);
 solveΔ(x) = float.(d0) \ (s1 * (float.(d1) \ (s2 \ x)))
 
 p = (solveΔ ∘ div)(selfadv)
+
+plot_dual0form(sd, p, title="Pressure")
+```
+
+We see that we have a nonzero pressure of exactly 2 across the interior of the domain.
+
+```@example euler
 dp = d0*p
 
 plot_dvf(sd, dp, title="Pressure Gradient")
@@ -109,3 +140,77 @@ Based on our initial conditions and the way that we computed pressure, we expect
 
 plot_dvf(sd, ∂ₜu, title="Time Derivative")
 ```
+
+We see that we do indeed find zero-vectors throughout the interior of the domain as expected.
+
+## Second Case
+
+For this second case, we will specify that the time derivative of `u` is 0. We will assume a constant pressure, and then analyze the steady-states of `u`. We will again ignore any mass budget, `b`, and recall the gradient of a constant function (here, pressure) is 0. Recall our formula:
+
+```math
+\frac{\partial \textbf{u}^\flat}{\partial t} + \pounds_u \textbf{u}^\flat - \frac{1}{2} \textbf{d}(\textbf{u}^\flat(\textbf{u})) = - \frac{1}{\rho} \textbf{d} p + \textbf{b}^\flat.
+```
+
+Setting appropriate terms to 0, we have:
+
+```math
+\pounds_u \textbf{u}^\flat - \frac{1}{2} \textbf{d}(\textbf{u}^\flat(\textbf{u})) = 0.
+```
+
+We already allocated our discrete differential operators. Let us solve.
+
+```@setup euler
+println("Solving")
+```
+
+```@example euler
+using NLsolve
+
+steady_flow(u) = ℒ1(u,u) - 0.5*d0*ι1(u,u)
+
+starting_state = s1 * eval_constant_primal_form(sd, X♯)
+sol = nlsolve(steady_flow, starting_state)
+
+plot_dvf(sd, sol.zero, title="Steady State")
+```
+
+```@setup euler
+println("Solved")
+```
+
+We note that this steady flow of all zero-vectors does indeed satisfy the constraints that we set.
+
+## Third Case
+
+For this third case, we will again solve for `u`. However, we will set a Gaussian bubble of pressure at the center of the domain, and use Euler's method to solve Euler's equations.
+
+```math
+\frac{\partial \textbf{u}^\flat}{\partial t} = - \pounds_u \textbf{u}^\flat + \frac{1}{2} \textbf{d}(\textbf{u}^\flat(\textbf{u})) - \frac{1}{\rho} \textbf{d} p.
+```
+
+```@example euler
+center = [50.0, 50.0, 0.0]
+gauss(pnt) = 2 + 50/(√(2*π*10))*ℯ^(-(norm(center-pnt)^2)/(2*10))
+p = gauss.(sd[sd[:tri_center], :dual_point])
+
+u = s1 * eval_constant_primal_form(sd, X♯)
+du = copy(u)
+
+function euler_equation!(du,u,p)
+  du .= - ℒ1(u,u) + 0.5*d0*ι1(u,u) - d0*p
+end
+
+dt = 1e-3
+function eulers_method()
+  for _ in 0:dt:1
+    euler_equation!(du,u,p)
+    u .+= du * dt
+  end
+  u
+end
+
+eulers_method()
+
+plot_dvf(sd, u, title="Flow")
+```
+
