@@ -114,7 +114,7 @@ selfadv = ℒ1(u,u) - 0.5*d0*ι1(u,u)
 plot_dvf(sd, selfadv, title="Self-Advection")
 ```
 
-Now, let's solve for pressure. We can set up a Poisson problem on the divergence of the self-advection term we computed. Recall that divergence can be computed as `\star d \star`, and the Laplacian as `d \star d \star`. To solve a Poisson problem, we reverse the order of the operations, and take advantage of the fact that solving the inverse hodge star is equivalent to multiplying by the hodge star.
+Now, let's solve for pressure. We can set up a Poisson problem on the divergence of the self-advection term we computed. Recall that divergence can be computed as ``\star d \star``, and the Laplacian as ``d \star d \star``. To solve a Poisson problem, we reverse the order of the operations, and take advantage of the fact that solving the inverse hodge star is equivalent to multiplying by the hodge star.
 
 ```@example euler
 div(x) = s2 * d1 * (s1 \ x);
@@ -188,6 +188,8 @@ For this third case, we will again solve for `u`. However, we will set a Gaussia
 \frac{\partial \textbf{u}^\flat}{\partial t} = - \pounds_u \textbf{u}^\flat + \frac{1}{2} \textbf{d}(\textbf{u}^\flat(\textbf{u})) - \frac{1}{\rho} \textbf{d} p.
 ```
 
+### Case 3.1: Euler's method
+
 ```@example euler
 center = [50.0, 50.0, 0.0]
 gauss(pnt) = 2 + 50/(√(2*π*10))*ℯ^(-(norm(center-pnt)^2)/(2*10))
@@ -212,5 +214,39 @@ end
 eulers_method()
 
 plot_dvf(sd, u, title="Flow")
+```
+
+### Case 3.2: Euler's method with Projection
+
+In Case 3.1, we solved Euler's equation directly using the method of lines. However, we assume that our flow, `u`, is incompressible. That is, ``\delta u = 0``. In our finite updates, we did not check that the self-advection term is divergence free! One way to resolve this discrepancy is the "Projection method", and this is intimately related to the Hodge decomposition of the flow. (See the [Wikipedia entry](https://en.wikipedia.org/wiki/Projection_method_(fluid_dynamics)) on the projection method, for example.) Let's employ this method here.
+
+```@example euler
+center = [50.0, 50.0, 0.0]
+gauss(pnt) = 2 + 50/(√(2*π*10))*ℯ^(-(norm(center-pnt)^2)/(2*10))
+p = gauss.(sd[sd[:tri_center], :dual_point])
+
+u = s1 * eval_constant_primal_form(sd, X♯)
+du = copy(u)
+
+dt = 1e-3
+u_int = zeros(ne(sd))
+p_next = zeros(ntriangles(sd))
+
+function euler_equation_with_projection!(u)
+  u_int .= u .+ (- ℒ1(u,u) + 0.5*d0*ι1(u,u))*dt
+  p_next .= (solveΔ ∘ div)(u_int/dt)
+  u .= u_int - dt*(d0*p_next)
+end
+
+function eulers_method()
+  for _ in 0:dt:1
+    euler_equation_with_projection!(u)
+  end
+  u
+end
+
+eulers_method()
+
+plot_dvf(sd, u, title="Flow, with Projection Method")
 ```
 
