@@ -1479,6 +1479,11 @@ s = EmbeddedDeltaSet2D{Bool,SVector{Float64,Float64}}()
 dualize(s)::EmbeddedDeltaDualComplex2D{Bool,Float64,SVector{Float64,Float64}}
 """
 dualize(d::HasDeltaSet) = dual_type(d)(d)
+function dualize(d::HasDeltaSet,center::SimplexCenter) 
+  dd = dualize(d) 
+  subdivide_duals!(dd,center)
+  dd
+end
 
 """
 Get the acset schema, as a Presentation, of a HasDeltaSet.
