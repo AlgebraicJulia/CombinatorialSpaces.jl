@@ -9,6 +9,7 @@ using ACSets
 using ACSets.DenseACSets: attrtype_type
 using CombinatorialSpaces
 using CombinatorialSpaces.Meshes: tri_345, tri_345_false, grid_345, right_scalene_unit_hypot
+using CombinatorialSpaces.SimplicialSets: boundary_inds
 using CombinatorialSpaces.DiscreteExteriorCalculus: eval_constant_primal_form, eval_constant_dual_form
 using GeometryBasics: Point2, Point3
 
@@ -552,9 +553,33 @@ subdivide_duals!(rect, Barycenter());
 
 flat_meshes = [tri_345(), tri_345_false(), right_scalene_unit_hypot(), grid_345(), (tg′, tg), (rect′, rect)];
 
+# Test the primal-dual interior product.
+# The gradient of the interior product of a vector-field with itself should be 0.
+# d(ι(dx♯, dx)) = 0.
+# Note that whether the star makes v parallel or anti-parallel to u (i.e.
+# whether left vs. right-hand rule is enforced) is irrelevant to the property
+# of the gradient being 0.
+d0 = d(0,tg)
+s1 = hodge_star(1,tg)
+dd0 = dual_derivative(0,tg)
+
+v_potential = map(p -> p[2], point(tg)); # y: Ω₀
+u_potential = map(p -> p[1], point(tg)); # x: Ω₀
+v = d0 * v_potential; # dy: Ω₁
+u = s1 * d0 * u_potential; # -dy or dy, depending on left vs. right-hand rule: Ω̃₁
+# Only test the interior of the domain. Boundary conditions were not enforced.
+α = dd0 * (interior_product(tg, EForm(v), DualForm{1}(u)))# : Ω̃₁
+α_int = α[setdiff(parts(tg,:E), boundary_inds(Val{1}, tg))]
+@test all(x -> isapprox(x,0,atol=1e-14), α_int)
+# Test the Lie derivative (which employs the primal-dual interior product). 
+β = lie_derivative_flat(Val{1}, tg, v, u)
+β_int = β[setdiff(parts(tg,:E), boundary_inds(Val{1}, tg))]
+# Boundary conditions were not enforced.
+@test .85 < sum(map(x -> isapprox(x,0,atol=1e-14), β_int)) / length(β_int)
+
 # Test that the technique for evaluating 1-forms is consistent across primal
 # and dual forms.
--# ♭ᵈ_discrete(f_continuous) = ⋆₁_discrete∘♭ᵖ_discrete(⋆_continuous f_continuous)
+# ♭ᵈ_discrete(f_continuous) = ⋆₁_discrete∘♭ᵖ_discrete(⋆_continuous f_continuous)
 for (primal_s,s) in flat_meshes
   α = SVector(1/√2,1/√2,0)
   left_hand_α = SVector(1/√2,-1/√2,0)
@@ -640,19 +665,22 @@ end
 for (primal_s,s) in flat_meshes
   f = 2
   g = 7
-  ff_gg = f*f + g*g
+  ff_gg = (f*f + g*g)
 
   u_def = SVector{3,Float64}(f,g,0)
 
   u = eval_constant_primal_form(s, u_def)
   u_star = hodge_star(1,s) * u
 
+  v_def = SVector{3,Float64}(-g,f,0)
+  v = eval_constant_primal_form(s, v_def)
+  dec_hodge_star(2,s) * ∧(s, SimplexForm{1}(u), SimplexForm{1}(v))
+
   @test all(isapprox.(
     dec_hodge_star(2,s) * ∧(s, SimplexForm{1}(u), DualForm{1}(u_star)),
     ff_gg,
     atol=1e-12))
 end
-
 
 # 3D dual complex
 #################

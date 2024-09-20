@@ -995,4 +995,21 @@ end
 """
 Lk = link
 
+function boundary_inds(::Type{Val{0}}, s)
+  ∂1_inds = boundary_inds(Val{1}, s)
+  unique(vcat(s[∂1_inds,:∂v0],s[∂1_inds,:∂v1]))
+end
+
+function boundary_inds(::Type{Val{1}}, s)
+  collect(findall(x -> x != 0, boundary(Val{2},s) * fill(1,ntriangles(s))))
+end
+
+function boundary_inds(::Type{Val{2}}, s)
+  ∂1_inds = boundary_inds(Val{1}, s)
+  inds = map([:∂e0, :∂e1, :∂e2]) do esym
+    vcat(incident(s, ∂1_inds, esym)...)
+  end
+  unique(vcat(inds...))
+end
+
 end
