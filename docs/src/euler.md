@@ -12,6 +12,8 @@ The Euler equations are a concise model of fluid flow, but this model still demo
 \frac{\partial \textbf{u}^\flat}{\partial t} + \pounds_u \textbf{u}^\flat - \frac{1}{2} \textbf{d}(\textbf{u}^\flat(\textbf{u})) = - \frac{1}{\rho} \textbf{d} p + \textbf{b}^\flat.
 ```
 
+See Marsden, Ratiu, and Abraham's "Manifolds, Tensor Analysis, and Applications" for an overview in the exterior calculus.
+
 Here, we see an exterior derivative, [`d`](@ref), a Lie derivative, [`ℒ`](@ref), and an interior product, [`interior_product`](@ref).
 
 ## Discretizing
@@ -68,12 +70,34 @@ function plot_dvf(sd, X; ls=1f0, title="Dual Vector Field")
   f
 end
 
+sharp_pp = ♯_mat(sd, AltPPSharp())
+function plot_vf(sd, X; ls=1f0, title="Primal Vector Field")
+  X♯ = sharp_pp * X
+  # Makie will throw an error if the colorrange end points are not unique:
+  f = Figure()
+  ax = Axis(f[1, 1], title=title)
+  wireframe!(ax, sd, color=:gray95)
+  extX = extrema(norm.(X♯))
+  if (abs(extX[1] - extX[2]) > 1e-4)
+    range = extX
+    scatter!(ax, getindex.(sd[:point],1), getindex.(sd[:point],2), color = norm.(X♯), colorrange=range)
+    Colorbar(f[1,2], limits=range)
+  end
+  arrows!(ax, getindex.(sd[:point],1), getindex.(sd[:point],2), getindex.(X♯,1), getindex.(X♯,2), lengthscale=ls)
+  hidedecorations!(ax)
+  f
+end
+
 function plot_dual0form(sd, f0; title="Dual 0-form")
   ps  = (stack(sd[sd[:tri_center], :dual_point])[[1,2],:])'
   f = Figure(); ax = CairoMakie.Axis(f[1,1], title=title);
-  sct = scatter!(ax, ps,
-      color=f0);
-  Colorbar(f[1,2], sct)
+  if (minimum(f0) ≈ maximum(f0))
+    sct = scatter!(ax, ps)
+  else
+    sct = scatter!(ax, ps,
+        color=f0);
+    Colorbar(f[1,2], sct)
+  end
   f
 end
 
@@ -97,7 +121,7 @@ end
 
 In this first case, we will explicitly provide initial values for `u`. We will solve for pressure and the time derivative of `u` and check that they are what we expect. Note that we will set the mass budget, `b`, to 0.
 
-Let's provide a flow field of unit magnitude, static throughout the domain.
+Let's provide a flow field of unit magnitude, static throughout the domain. We want to store this as a 1-form. We can create a 1-form by "flattening" a vector field, performing many line integrals to store values on the edges of the mesh. Since we want to store our flow as a "dual" 1-form (on the edges of the dual mesh), we can use the Hodge star operator to convert from a primal 1-form to a dual 1-form. Since the values of a 1-form can be unintuitive, we will "sharpen" the 1-form back to a vector field when visualizing.
 
 ```@example euler
 X♯ = SVector{3,Float64}(1/√2,1/√2,0)
@@ -106,7 +130,15 @@ u = s1 * eval_constant_primal_form(sd, X♯)
 plot_dvf(sd, u, title="Flow")
 ```
 
-Let's look at the self-advection term, in which we take the lie derivative of `u` along itself, and subtract half of the gradient of its inner product. Recall that our flow `u` is static throughout the domain, so we should expect this term to be 0 throughout the interior of the domain, where it is not affected by boundary conditions:
+Let's look at the self-advection term, in which we take the lie derivative of `u` along itself, and subtract half of the gradient of its inner product. (See Marsden, Ratiu, and Abraham for a derivation.) Recall that our flow `u` is static throughout the domain, so we should expect this term to be 0 throughout the interior of the domain, where it is not affected by boundary conditions.
+
+The Lie derivative encodes how a differential form changes along a vector field. For our case of many parallel streamlines, and in which the magnitude is identical everywhere, we expect such a quantity to be 0. However, when discretizing, we have to make some assumptions about what is happening "outside" of the domain, and these assumptions have implications on the data stored on the boundary of the domain. In our discretization, we assume the flow outside the domain is 0. Thus, our Lie derivative along the boundary points inward:
+
+```@example euler
+lie_u_u = ℒ1(u,u)
+
+plot_dvf(sd, lie_u_u, title="Lie Derivative of Flow with Itself")
+```
 
 ```@example euler
 selfadv = ℒ1(u,u) - 0.5*d0*ι1(u,u)
@@ -221,10 +253,6 @@ plot_dvf(sd, u, title="Flow")
 In Case 3.1, we solved Euler's equation directly using the method of lines. However, we assume that our flow, `u`, is incompressible. That is, ``\delta u = 0``. In our finite updates, we did not check that the self-advection term is divergence free! One way to resolve this discrepancy is the "Projection method", and this is intimately related to the Hodge decomposition of the flow. (See the [Wikipedia entry](https://en.wikipedia.org/wiki/Projection_method_(fluid_dynamics)) on the projection method, for example.) Let's employ this method here.
 
 ```@example euler
-center = [50.0, 50.0, 0.0]
-gauss(pnt) = 2 + 50/(√(2*π*10))*ℯ^(-(norm(center-pnt)^2)/(2*10))
-p = gauss.(sd[sd[:tri_center], :dual_point])
-
 u = s1 * eval_constant_primal_form(sd, X♯)
 du = copy(u)
 
