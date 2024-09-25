@@ -285,10 +285,6 @@ end
 #XX: make the restriction map smoother
 """
 The geometric map from a deltaset's subdivision to itself.
-
-Warning: the second returned map is not actually a valid geometric map as edges 
-of the primal delta set will run over multiple edges of the dual. So, careful composing
-with it etc.
 """
 function subdivision_map(primal_s::EmbeddedDeltaSet,alg=Barycenter())
   prim = SimplicialComplex(primal_s)
