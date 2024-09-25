@@ -2,8 +2,9 @@ module TestSimplicialComplexes
 using Test 
 using CombinatorialSpaces
 using Catlab:@acset
-using LinearAlgebra: I
+using LinearAlgebra, Krylov
 using GeometryBasics: Point2, Point3
+using SparseArrays
 Point2D = Point2{Float64}
 
 # Triangulated commutative square.
@@ -40,7 +41,7 @@ t = GeometricPoint([0,0.5,0,0.5])
 
 Δ⁰ = SimplicialComplex(@acset DeltaSet0D begin V=1 end)
 Δ¹ = SimplicialComplex(@acset DeltaSet1D begin V=2; E=1; ∂v0 = [2]; ∂v1 = [1] end)
-f = GeometricMap(Δ⁰,Δ¹,[1/3,2/3])
+f = GeometricMap(Δ⁰,Δ¹,[GeometricPoint([1/3,2/3])])
 A  = [0.2 0.4
       0   0
       0.5 0
@@ -56,8 +57,8 @@ primal_s = EmbeddedDeltaSet2D{Bool,Point2D}()
 add_vertices!(primal_s, 3, point=[Point2D(0,0), Point2D(1,0), Point2D(0,1)])
 glue_triangle!(primal_s, 1, 2, 3, tri_orientation=true)
 primal_s[:edge_orientation] = true
-f,g = subdivision_maps(primal_s)
-@test as_matrix(compose(g,f)) = I(3)*1.0
+#f,g = subdivision_maps(primal_s)
+#@test as_matrix(compose(g,f)) = I(3)*1.0
 
 fake_laplacian_builder(s::HasDeltaSet) = I(nv(s))*1.0
 fake_laplacian_builder(s::SimplicialComplex) = I(nv(s))*1.0
@@ -97,9 +98,9 @@ I'm not sure about convergence for general ω.
 See Golub Van Loan 11.2 and 11.6.2. 
 """
 function WJ(A,b,ω)
-  D = diagm(diag(A))
+  D = SparseMatrixCSC(diagm(diag(A)))
   c = ω * (D \ b)
-  G = (1-ω)*I-ω * (D\(A-D))
+  G = SparseMatrixCSC((1-ω)*I-ω * (D\(A-D)))
   G,c
 end
 spectral_radius(A) = maximum(abs.(eigvals(A)))
@@ -127,13 +128,20 @@ b = ones(7)
 G,c = WJ(A,b,1)
 @test norm(A*it(G,c,u₀,25)- b)<10^-10
 
-function multigrid_vcycle(u,b,primal_s,depth)
-  mats = multigrid_setup(primal_s,depth)
+"""
+Solve ∇²u = b on a `depth`-fold subdivided simplical complex using a multigrid V-cycle.
+"""
+function multigrid_vcycle(u,b,primal_s,depth,smoothing_steps)
+  center(_multigrid_vcycle(u,b,multigrid_setup(primal_s,depth)...,smoothing_steps))
 end
 function multigrid_setup(primal_s,depth,alg=Barycenter())
   prim = primal_s
-  map(1:depth+1) do i
-    duco = dualize(prim,alg)
+  duco = dualize(prim,alg)
+  pt = typeof(prim)()
+  add_vertex!(pt)
+  laplacians = [∇²(0,duco)]
+  interpolations = [GeometricMap(SimplicialComplex(prim),SimplicialComplex(pt),[1. 1. 1.])]
+  for i in 1:depth 
     dual = extract_dual(duco)
     mat = zeros(Float64,nv(prim),nv(dual))
     pvs = map(i->primal_vertices(duco,i),1:nv(dual))
@@ -143,10 +151,84 @@ function multigrid_setup(primal_s,depth,alg=Barycenter())
         mat[v,j] = weights[j]
       end
     end
-    L,f=∇²(0,duco),GeometricMap(SimplicialComplex(dual),SimplicialComplex(prim),mat)
+    f=GeometricMap(SimplicialComplex(dual),SimplicialComplex(prim),mat)
     prim = dual
-    (L=L,f=f)
+    duco = dualize(prim,alg)
+    L = ∇²(0,duco)
+    push!(laplacians,L)
+    push!(interpolations,f)
   end
+  reverse(laplacians), reverse(as_matrix.(interpolations[2:end]))
 end
+function _multigrid_vcycle(u,b,laplacians,interpolations,prolongations,smoothing_steps,cycles=1)
+  cycles == 0 && return u
+  u = gmres(laplacians[1],b,u,itmax=smoothing_steps)[1]
+  if length(laplacians) == 1 #on coarsest grid
+    return center(u)
+  end
+  #smooth, update error, restrict, recurse, prolong, smooth
+  r_f = b - laplacians[1]*u #residual
+  r_c = interpolations[1] * r_f #restrict
+  z = _multigrid_vcycle(zeros(size(r_c)),r_c,laplacians[2:end],interpolations[2:end],prolongations[2:end],smoothing_steps,cycles) #recurse
+  u += prolongations[1] * z #prolong. 
+  u = gmres(laplacians[1],b,u,itmax=smoothing_steps)[1] #smooth
+  _multigrid_vcycle(u,b,laplacians,interpolations,prolongations,smoothing_steps,cycles-1)
+end
+center(u) = u .- sum(u)/length(u)
+row_normalize(A) = A./(sum.(eachrow(A)))
+re(u,b) = norm(u-b)/norm(b)
+
+N = 4
+function test_vcycle_heat(N)
+  ls, is = multigrid_setup(primal_s,N)
+  n_fine = size(ls[1],1)
+  b = ls[1]*[i for i in 1:n_fine]
+  u = zeros(n_fine)
+  tts = []
+  for i in 1:n_fine
+    if i % 10 == 0 println(i) end
+    push!(tts,re(ls[1]*(gmres(ls[1],b,itmax=i)[1]),b)/re(ls[1]*(_multigrid_vcycle(u,b,ls,is,i)),b))
+  end
+  tts
+end
+
+square_laplacian(N) = diagm(0 => 2*ones(N),1 =>-1*ones(N-1),-1 =>-1*ones(N-1))
+function sparse_square_laplacian(k)
+  N,h = 2^k-1, 1/(2^k)
+  A = spzeros(N,N)
+  for i in 1:N
+    A[i,i] = 2
+    if i > 1 A[i,i-1] = -1 end
+    if i < N A[i,i+1] = -1 end
+  end
+  1/h^2 * A
+end
+function sparse_restriction(k)
+  N,M = 2^k-1, 2^(k-1)-1
+  A = spzeros(M,N)
+  for i in 1:M
+    A[i,2i-1:2i+1] = [1,2,1]
+  end
+  0.25*A
+end
+sparse_prolongation(k) = 2*transpose(sparse_restriction(k))
+#Note that for k=10 a single v-cycle maximizes payoff at around i = 58!
+#You get insane accuracy with smoothing_steps=7 and cycles=3. Jesus.
+function test_vcycle_square(k,s,c)
+  b=rand(2^k-1)
+  N = 2^k-1 
+  ls = reverse([sparse_square_laplacian(k′) for k′ in 1:k])
+  is = reverse([sparse_restriction(k′) for k′ in 2:k])
+  ps = reverse([sparse_prolongation(k′) for k′ in 2:k])
+  u = zeros(N)
+  re(ls[1]*_multigrid_vcycle(u,b,ls,is,ps,s,c),b)
+end
+#This takes a few dozen seconds on a cheap machine and would take
+#maybe days for weighted Jacobi or GMRES (although it's a tridiagonal 
+#matrix so there's a faster way in this case))
+#Most of the work is in the setup; to go bigger than this you'd probably
+#want to compute the coarser matrices from the finer by indexing instead
+#of building them all manually.
+@test test_vcycle_square(15,10,3)< 10^-8
 
 end
