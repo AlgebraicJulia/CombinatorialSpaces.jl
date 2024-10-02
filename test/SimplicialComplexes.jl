@@ -1,4 +1,4 @@
-module TestSimplicialComplexes
+#module TestSimplicialComplexes
 using Test 
 using CombinatorialSpaces
 using Catlab:@acset
@@ -86,6 +86,10 @@ function heat_equation_multiscale(primal_s::HasDeltaSet, laplacian_builder::Func
   transpose(u_fine)
 end
 
+#ACTION ITEM: Reproduce Golub van Loan as doc page
+#Probably work on the hexagonal grid, compare "first order finite difference scheme"
+#Make sure to think about the difference between primal 0-form and dual 2-form
+
 #XX might be handy to make this an iterator
 """
 A weighted Jacobi iteration iterating toward a solution of 
@@ -128,6 +132,7 @@ b = ones(7)
 G,c = WJ(A,b,1)
 @test norm(A*it(G,c,u₀,25)- b)<10^-10
 
+<<<<<<< HEAD
 """
 Solve ∇²u = b on a `depth`-fold subdivided simplical complex using a multigrid V-cycle.
 """
@@ -142,6 +147,7 @@ function multigrid_setup(primal_s,depth,alg=Barycenter())
   laplacians = [∇²(0,duco)]
   interpolations = [GeometricMap(SimplicialComplex(prim),SimplicialComplex(pt),[1. 1. 1.])]
   for i in 1:depth 
+    duco = dualize(prim,alg)
     dual = extract_dual(duco)
     mat = zeros(Float64,nv(prim),nv(dual))
     pvs = map(i->primal_vertices(duco,i),1:nv(dual))
@@ -230,5 +236,3 @@ end
 #want to compute the coarser matrices from the finer by indexing instead
 #of building them all manually.
 @test test_vcycle_square(15,10,3)< 10^-8
-
-end
