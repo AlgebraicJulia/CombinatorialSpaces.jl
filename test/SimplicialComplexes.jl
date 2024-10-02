@@ -1,4 +1,4 @@
-module TestSimplicialComplexes
+#module TestSimplicialComplexes
 using Test 
 using CombinatorialSpaces
 using Catlab:@acset
@@ -85,6 +85,10 @@ function heat_equation_multiscale(primal_s::HasDeltaSet, laplacian_builder::Func
   end
   transpose(u_fine)
 end
+
+#ACTION ITEM: Reproduce Golub van Loan as doc page
+#Probably work on the hexagonal grid, compare "first order finite difference scheme"
+#Make sure to think about the difference between primal 0-form and dual 2-form
 
 #XX might be handy to make this an iterator
 """
@@ -231,4 +235,4 @@ end
 #of building them all manually.
 @test test_vcycle_square(15,10,3)< 10^-8
 
-end
+#end
