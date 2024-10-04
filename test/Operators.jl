@@ -6,6 +6,7 @@ using LinearAlgebra
 using Catlab
 using CombinatorialSpaces
 using CombinatorialSpaces.Meshes: tri_345, tri_345_false, grid_345, right_scalene_unit_hypot
+using CombinatorialSpaces.SimplicialSets: boundary_inds
 using CombinatorialSpaces.DiscreteExteriorCalculus: eval_constant_primal_form
 using Random
 using GeometryBasics: Point2, Point3
@@ -227,22 +228,6 @@ end
         @test all(expected_wedge .== (avg_mat * V_1 .* E_1))
         @test all(expected_wedge .== (avg₀₁(sd, VForm(V_1)) .* E_1))
     end
-end
-
-# TODO: Move all boundary helper functions into CombinatorialSpaces.
-function boundary_inds(::Type{Val{0}}, s)
-  ∂1_inds = boundary_inds(Val{1}, s)
-  unique(vcat(s[∂1_inds,:∂v0],s[∂1_inds,:∂v1]))
-end
-function boundary_inds(::Type{Val{1}}, s)
-  collect(findall(x -> x != 0, boundary(Val{2},s) * fill(1,ntriangles(s))))
-end
-function boundary_inds(::Type{Val{2}}, s)
-  ∂1_inds = boundary_inds(Val{1}, s)
-  inds = map([:∂e0, :∂e1, :∂e2]) do esym
-    vcat(incident(s, ∂1_inds, esym)...)
-  end
-  unique(vcat(inds...))
 end
 
 @testset "Primal-Dual Wedge Product 0-1" begin

@@ -317,7 +317,7 @@ Returns a cached function that computes the wedge product between a primal
 function dec_wedge_product_pd(::Type{Tuple{1,1}}, sd::HasDeltaSet)
   ♭♯_m = ♭♯_mat(sd)
   Λ_cached = dec_wedge_product(Tuple{1, 1}, sd)
-  (f, g) -> sign(2,sd) .* Λ_cached(f, ♭♯_m * g)
+  (f, g) -> Λ_cached(f, ♭♯_m * g)
 end
 
 """    dec_wedge_product_dp(::Type{Tuple{1,1}}, sd::HasDeltaSet)
@@ -328,7 +328,7 @@ and a primal 1-form.
 function dec_wedge_product_dp(::Type{Tuple{1,1}}, sd::HasDeltaSet)
   ♭♯_m = ♭♯_mat(sd)
   Λ_cached = dec_wedge_product(Tuple{1, 1}, sd)
-  (f, g) -> sign(2,sd) .* Λ_cached(♭♯_m * f, g)
+  (f, g) -> Λ_cached(♭♯_m * f, g)
 end
 
 """    ∧(s::HasDeltaSet, α::SimplexForm{1}, β::DualForm{1})
@@ -515,8 +515,8 @@ function dec_p_hodge_diag(::Type{Val{1}}, sd::EmbeddedDeltaDualComplex2D{Bool, f
 end
 
 function dec_p_hodge_diag(::Type{Val{2}}, sd::EmbeddedDeltaDualComplex2D{Bool, float_type, _p} where _p) where float_type
-    tri_areas::Vector{float_type} = sd[:area]
-    return 1 ./ tri_areas
+    signed_tri_areas::Vector{float_type} = sd[:area] .* sign(2,sd)
+    return 1 ./ signed_tri_areas
 end
 
 """
