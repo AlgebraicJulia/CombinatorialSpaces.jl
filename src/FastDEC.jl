@@ -105,18 +105,29 @@ end
   nothing
 end
 
-"""    dec_c_wedge_product!(::Type{Tuple{0,2}}, wedge_terms, f, α, p, c)
+@kernel function ka_c_wedge_product_11!(res, @Const(α), @Const(β), @Const(e), @Const(c))
+  i = @index(Global)
+  e0, e1, e2 = e[Int32(1), i], e[Int32(2), i], e[Int32(3), i]
+  c1, c2, c3 = c[Int32(1), i], c[Int32(2), i], c[Int32(3), i]
+  ae0, ae1, ae2 = α[e0], α[e1], α[e2]
+  be0, be1, be2 = β[e0], β[e1], β[e2]
+ @inbounds res[i] = (c1 * (ae2 * be1 - ae1 * be2) + c2 * (ae2 * be0 - ae0 * be2) + c3 * (ae1 * be0 - ae0 * be1))
+  nothing
+end
 
-Computes the wedge product between a 0 and 2-form.
-Use the precomputational "p" varient for the wedge_terms parameter.
-This relies on the assumption of a well ordering of the dual space simplices.
-Do NOT modify the mesh once it's dual mesh has been computed else this method may not function properly.
-"""
-function dec_c_wedge_product!(::Type{Tuple{0,2}}, wedge_terms, f, α, p, c)
+function auto_select_backend(kernel_function, wedge_terms, f, α, p, c)
   backend = get_backend(wedge_terms)
-  kernel = ka_c_wedge_product_02!(backend)
+  kernel = kernel_function(backend)
   kernel(wedge_terms, f, α, p, c, ndrange=size(wedge_terms))
   wedge_terms
+end
+
+function dec_c_wedge_product!(::Type{Tuple{0,2}}, wedge_terms, f, α, p, c)
+  auto_select_backend(ka_c_wedge_product_02!, wedge_terms, f, α, p, c)
+end
+
+function dec_c_wedge_product!(::Type{Tuple{1,1}}, wedge_terms, f, α, p, c)
+  auto_select_backend(ka_c_wedge_product_11!, wedge_terms, f, α, p, c)
 end
 
 """    dec_p_wedge_product(::Type{Tuple{1,1}}, sd::EmbeddedDeltaDualComplex2D{Bool, float_type, _p} where _p) where float_type
@@ -147,31 +158,6 @@ function dec_p_wedge_product(::Type{Tuple{1,1}}, sd::EmbeddedDeltaDualComplex2D{
     e[3, :] = ∂(2, 2, sd)
 
     return (e, coeffs, triangles(sd))
-end
-
-"""    dec_c_wedge_product!(::Type{Tuple{1,1}}, wedge_terms, f, α, val_pack)
-
-Computes the wedge product between a 1 and 1-form.
-Use the precomputational "p" varient for the wedge_terms parameter.
-This relies on the assumption of a well ordering of the dual space simplices.
-Do NOT modify the mesh once it's dual mesh has been computed else this method may not function properly.
-"""
-function dec_c_wedge_product!(::Type{Tuple{1,1}}, wedge_terms, α, β, val_pack)
-    e, coeffs, simples = val_pack
-
-    @inbounds for i in simples
-        ae0, ae1, ae2 = α[e[1, i]], α[e[2, i]], α[e[3, i]]
-        be0, be1, be2 = β[e[1, i]], β[e[2, i]], β[e[3, i]]
-
-        c1, c2, c3 = coeffs[1, i], coeffs[2, i], coeffs[3, i]
-
-        wedge_terms[i] = (c1 * (ae2 * be1 - ae1 * be2)
-                        + c2 * (ae2 * be0 - ae0 * be2)
-                        + c3 * (ae1 * be0 - ae0 * be1))
-
-    end
-
-    return wedge_terms
 end
 
 """    dec_c_wedge_product(::Type{Tuple{m,n}}, α, β, val_pack) where {m,n}

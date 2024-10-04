@@ -67,13 +67,20 @@ function dec_c_wedge_product!(::Type{Tuple{0,2}}, res, α, β, p, c, ::Type{Val{
   dec_c_wedge_product!(Tuple{0,2}, res, α, β, p, c)
 end
 
+function dec_c_wedge_product(::Type{Tuple{1,1}}, α, β, wedge_cache, ::Type{Val{:CUDA}})
+  res = CUDA.zeros(eltype(α), last(last(wedge_cache)))
+  dec_c_wedge_product!(Tuple{1,1}, res, α, β, CuArray(wedge_cache[1]), CuArray(wedge_cache[2]), Val{:CUDA})
+end
+
+function dec_c_wedge_product!(::Type{Tuple{1,1}}, res, α, β, p, c, ::Type{Val{:CUDA}})
+  dec_c_wedge_product!(Tuple{1,1}, res, α, β, p, c)
+end
+
 # Compute with a preallocated wedge product via CUDA in-place.
 function dec_c_wedge_product!(::Type{Tuple{j,k}}, res, α, β, wedge_cache, ::Type{Val{:CUDA}}) where {j,k}
   # Manually dispatch, since CUDA.jl kernels cannot.
   kernel = if (j,k) == (0,1)
     dec_cu_ker_c_wedge_product_01!
-  elseif (j,k) == (1,1)
-    dec_cu_ker_c_wedge_product_11!
   else
     error("Unsupported combination of degrees $j and $k. Ensure that their sum is not greater than the degree of the complex.")
   end
@@ -91,26 +98,6 @@ function dec_cu_ker_c_wedge_product_01!(res::CuDeviceArray{T}, f, α, wedge_cach
   i = index
   @inbounds while i <= Int32(length(res))
     res[i] = T(0.5) * α[i] * (f[p[i, Int32(1)]] + f[p[i, Int32(2)]])
-    i += stride
-  end
-  nothing
-end
-
-function dec_cu_ker_c_wedge_product_11!(res, α, β, wedge_cache)
-  e, c = wedge_cache[1], wedge_cache[2]
-  i = (blockIdx().x - Int32(1)) * blockDim().x + threadIdx().x   
-  stride = gridDim().x * blockDim().x
-
-  @inbounds while i <= Int32(length(res))
-    e0, e1, e2 = e[Int32(1), i], e[Int32(2), i], e[Int32(3), i]
-    c1, c2, c3 = c[Int32(1), i], c[Int32(2), i], c[Int32(3), i]
-    ae0, ae1, ae2 = α[e0], α[e1], α[e2]
-    be0, be1, be2 = β[e0], β[e1], β[e2]
-
-    res[i] =
-      (c1 * (ae2 * be1 - ae1 * be2) +
-       c2 * (ae2 * be0 - ae0 * be2) +
-       c3 * (ae1 * be0 - ae0 * be1))
     i += stride
   end
   nothing
