@@ -6,14 +6,18 @@ Some operators, like the exterior derivative are returned as sparse matrices whi
 like the wedge product, are instead returned as functions that will compute the product.
 """
 module FastDEC
-using LinearAlgebra: Diagonal, dot, norm, cross
-using StaticArrays: SVector, MVector
-using SparseArrays: sparse, spzeros, SparseMatrixCSC
-using LinearAlgebra
-using Base.Iterators
-using ACSets.DenseACSets: attrtype_type
-using Catlab, Catlab.CategoricalAlgebra.CSets
+
 using ..SimplicialSets, ..DiscreteExteriorCalculus
+
+using ACSets.DenseACSets: attrtype_type
+using Base.Iterators
+using Catlab, Catlab.CategoricalAlgebra.CSets
+using KernelAbstractions
+using LinearAlgebra
+using LinearAlgebra: Diagonal, dot, norm, cross
+using SparseArrays: sparse, spzeros, SparseMatrixCSC
+using StaticArrays: SVector, MVector
+
 import ..DiscreteExteriorCalculus: ∧
 import ..SimplicialSets: numeric_sign
 
@@ -93,22 +97,26 @@ function dec_p_wedge_product(::Type{Tuple{0,2}}, sd::EmbeddedDeltaDualComplex2D{
     return (primal_vertices, coeffs, triangles(sd))
 end
 
-"""    dec_c_wedge_product!(::Type{Tuple{0,2}}, wedge_terms, f, α, val_pack)
+@kernel function ka_c_wedge_product_02!(res, @Const(f), @Const(α), @Const(p), @Const(c))
+  i = @index(Global)
+  c1, c2, c3, c4, c5, c6 = c[Int32(1),i], c[Int32(2),i], c[Int32(3),i], c[Int32(4),i], c[Int32(5),i], c[Int32(6),i]
+  p1, p2, p3, p4, p5, p6 = p[Int32(1),i], p[Int32(2),i], p[Int32(3),i], p[Int32(4),i], p[Int32(5),i], p[Int32(6),i]
+  @inbounds res[i] = α[i] * (c1*f[p1] + c2*f[p2] + c3*f[p3] + c4*f[p4] + c5*f[p5] + c6*f[p6])
+  nothing
+end
+
+"""    dec_c_wedge_product!(::Type{Tuple{0,2}}, wedge_terms, f, α, p, c)
 
 Computes the wedge product between a 0 and 2-form.
 Use the precomputational "p" varient for the wedge_terms parameter.
 This relies on the assumption of a well ordering of the dual space simplices.
 Do NOT modify the mesh once it's dual mesh has been computed else this method may not function properly.
 """
-function dec_c_wedge_product!(::Type{Tuple{0,2}}, wedge_terms, f, α, val_pack)
-    pv, coeffs, simples = val_pack
-    @inbounds for i in simples
-        wedge_terms[i] = α[i] * (coeffs[1, i] * f[pv[1, i]] + coeffs[2, i] * f[pv[2, i]]
-                                 + coeffs[3, i] * f[pv[3, i]] + coeffs[4, i] * f[pv[4, i]]
-                                 + coeffs[5, i] * f[pv[5, i]] + coeffs[6, i] * f[pv[6, i]])
-    end
-
-    return wedge_terms
+function dec_c_wedge_product!(::Type{Tuple{0,2}}, wedge_terms, f, α, p, c)
+  backend = get_backend(wedge_terms)
+  kernel = ka_c_wedge_product_02!(backend)
+  kernel(wedge_terms, f, α, p, c, ndrange=size(wedge_terms))
+  wedge_terms
 end
 
 """    dec_p_wedge_product(::Type{Tuple{1,1}}, sd::EmbeddedDeltaDualComplex2D{Bool, float_type, _p} where _p) where float_type
@@ -177,6 +185,11 @@ function dec_c_wedge_product(::Type{Tuple{m,n}}, α, β, val_pack) where {m,n}
     # The last item in the val_pack should always be the range of simplices
     wedge_terms = zeros(eltype(α), last(last(val_pack)))
     return dec_c_wedge_product!(Tuple{m,n}, wedge_terms, α, β, val_pack)
+end
+
+function dec_c_wedge_product(::Type{Tuple{0,2}}, α, β, val_pack)
+    wedge_terms = zeros(eltype(α), last(last(val_pack)))
+    return dec_c_wedge_product!(Tuple{0,2}, wedge_terms, α, β, val_pack[1], val_pack[2])
 end
 
 dec_wedge_product(m::Int, n::Int, sd::HasDeltaSet) = dec_wedge_product(Tuple{m,n}, sd::HasDeltaSet)

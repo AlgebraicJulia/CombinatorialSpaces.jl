@@ -7,11 +7,12 @@ using CUDA
 using CUDA.CUSPARSE
 using LinearAlgebra
 using SparseArrays
+using KernelAbstractions
 using Krylov
 Point2D = Point2{Float64}
 Point3D = Point3{Float64}
-import CombinatorialSpaces: dec_wedge_product, dec_c_wedge_product, dec_c_wedge_product!, dec_p_wedge_product, 
-dec_boundary, dec_differential, dec_dual_derivative, dec_hodge_star, dec_inv_hodge_star
+import CombinatorialSpaces: dec_wedge_product, dec_c_wedge_product, dec_c_wedge_product!, dec_p_wedge_product,
+  dec_boundary, dec_differential, dec_dual_derivative, dec_hodge_star, dec_inv_hodge_star
 
 # Wedge Product
 #--------------
@@ -57,13 +58,20 @@ function dec_c_wedge_product(::Type{Tuple{m,n}}, α, β, wedge_cache, ::Type{Val
   dec_c_wedge_product!(Tuple{m,n}, res, α, β, wedge_cache, Val{:CUDA})
 end
 
+function dec_c_wedge_product(::Type{Tuple{0,2}}, α, β, wedge_cache, ::Type{Val{:CUDA}})
+  res = CUDA.zeros(eltype(α), last(last(wedge_cache)))
+  dec_c_wedge_product!(Tuple{0,2}, res, α, β, CuArray(wedge_cache[1]), CuArray(wedge_cache[2]), Val{:CUDA})
+end
+
+function dec_c_wedge_product!(::Type{Tuple{0,2}}, res, α, β, p, c, ::Type{Val{:CUDA}})
+  dec_c_wedge_product!(Tuple{0,2}, res, α, β, p, c)
+end
+
 # Compute with a preallocated wedge product via CUDA in-place.
 function dec_c_wedge_product!(::Type{Tuple{j,k}}, res, α, β, wedge_cache, ::Type{Val{:CUDA}}) where {j,k}
   # Manually dispatch, since CUDA.jl kernels cannot.
   kernel = if (j,k) == (0,1)
     dec_cu_ker_c_wedge_product_01!
-  elseif (j,k) == (0,2)
-    dec_cu_ker_c_wedge_product_02!
   elseif (j,k) == (1,1)
     dec_cu_ker_c_wedge_product_11!
   else
@@ -83,20 +91,6 @@ function dec_cu_ker_c_wedge_product_01!(res::CuDeviceArray{T}, f, α, wedge_cach
   i = index
   @inbounds while i <= Int32(length(res))
     res[i] = T(0.5) * α[i] * (f[p[i, Int32(1)]] + f[p[i, Int32(2)]])
-    i += stride
-  end
-  nothing
-end
-
-function dec_cu_ker_c_wedge_product_02!(res, f, α, wedge_cache)
-  p, c = wedge_cache[1], wedge_cache[2]
-  i = (blockIdx().x - Int32(1)) * blockDim().x + threadIdx().x   
-  stride = gridDim().x * blockDim().x
-
-  @inbounds while i <= Int32(length(res))
-    c1, c2, c3, c4, c5, c6 = c[Int32(1),i], c[Int32(2),i], c[Int32(3),i], c[Int32(4),i], c[Int32(5),i], c[Int32(6),i]
-    p1, p2, p3, p4, p5, p6 = p[Int32(1),i], p[Int32(2),i], p[Int32(3),i], p[Int32(4),i], p[Int32(5),i], p[Int32(6),i]
-    res[i] = α[i] * (c1*f[p1] + c2*f[p2] + c3*f[p3] + c4*f[p4] + c5*f[p5] + c6*f[p6])
     i += stride
   end
   nothing
