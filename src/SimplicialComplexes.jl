@@ -9,6 +9,7 @@ import ACSets: incident, subpart
 import AlgebraicInterfaces: dom,codom,compose,id 
 import Base:*
 import StaticArrays: MVector
+import SparseArrays: spzeros
 import LinearAlgebra: I
 import ..DiscreteExteriorCalculus: Barycenter, AbstractDeltaDualComplex
 import ..DiscreteExteriorCalculus: PrimalVectorField
@@ -291,7 +292,7 @@ function subdivision_map(primal_s::EmbeddedDeltaSet,alg=Barycenter())
   s = dualize(primal_s)
   subdivide_duals!(s,alg)
   dual = SimplicialComplex(extract_dual(s))
-  mat = zeros(Float64,nv(prim),nv(dual))
+  mat = spzeros(nv(prim),nv(dual))
   pvs = map(i->primal_vertices(s,i),1:nv(dual))
   weights = 1 ./(length.(pvs))
   for j in 1:nv(dual)

@@ -132,7 +132,6 @@ b = ones(7)
 G,c = WJ(A,b,1)
 @test norm(A*it(G,c,u₀,25)- b)<10^-10
 
-<<<<<<< HEAD
 """
 Solve ∇²u = b on a `depth`-fold subdivided simplical complex using a multigrid V-cycle.
 """
