@@ -154,6 +154,7 @@ end
 
 using CombinatorialSpaces
 using GeometryBasics: Point2, Point3
+using LinearAlgebra: norm
 Point2D = Point2{Float64}
 
 ss = EmbeddedDeltaSet1D{Bool,Point2D}()
@@ -170,30 +171,28 @@ function repeated_subdivisions(k,ss)
 end
 
 laplacian(ss) = ∇²(0,dualize(ss,Barycenter()))
-row_normalize(A) = A./(sum.(eachrow(A)))
 
 repeated_subdivisions(4,ss)[1]
 ```
 
 ```@example cs
-function test_vcycle_1D_cs(k,s,c)
+function test_vcycle_1D_cs_setup(k)
   b=rand(2^k-1)
   N = 2^k-1 
   u = zeros(N)
 
   sds = reverse(repeated_subdivisions(k,ss))
-  sses = map(x-> x.dom.delta_set, sds)
-  sorts = map(sses) do ss
-    sort(vertices(ss),by=x->ss[:point][x])
-  end
-  ls = map(i->laplacian(sses[i])[sorts[i],sorts[i]][2:end-1,2:end-1],eachindex(sses))
-  ps = transpose.(map(i->as_matrix(sds[i])[sorts[i+1],sorts[i]][2:end-1,2:end-1],1:length(sds)-1))
-  is = row_normalize.(transpose.(ps))
-  norm(ls[1]*multigrid_vcycles(u,b,ls,is,ps,s,c)-b)/norm(b)
+  sses = [sd.dom.delta_set for sd in sds]
+  sorts = [sort(vertices(ss),by=x->ss[:point][x]) for ss in sses]
+  ls = [laplacian(sses[i])[sorts[i],sorts[i]][2:end-1,2:end-1] for i in eachindex(sses)]
+  ps = transpose.([as_matrix(sds[i])[sorts[i+1],sorts[i]][2:end-1,2:end-1] for i in 1:length(sds)-1])
+  is = transpose.(ps)*1/2
+  u,b,ls,is,ps
 end
-test_vcycle_1D_cs(15,7,3)
+#This is slower because of the sort
+u,b,ls,is,ps = test_vcycle_1D_cs_setup(15)
+norm(ls[1]*multigrid_vcycles(u,b,ls,is,ps,7,3)-b)/norm(b)
 ```
-
 
 ###############################################
 ###############################################
