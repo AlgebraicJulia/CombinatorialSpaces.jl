@@ -31,17 +31,17 @@ vl′ = VertexList([1,2])∪VertexList([2,3])
 @test has_simplex(sc,vl′)
 @test !has_simplex(sc,VertexList([1,2])∪VertexList([2,4]))
 
-p = GeometricPoint([0.2,0,0.5,0.3])
-q = GeometricPoint([0,0.2,0.5,0.3])
-r = GeometricPoint([0.5,0,0,0.5])
-s = GeometricPoint([0.5,0,0.5,0])
-t = GeometricPoint([0,0.5,0,0.5])
+p = [0.2,0,0.5,0.3]
+q = [0,0.2,0.5,0.3]
+r = [0.5,0,0,0.5]
+s = [0.5,0,0.5,0]
+t = [0,0.5,0,0.5]
 @test has_point(sc,p) && !has_point(sc,q) 
-@test has_span(sc,[r,s]) && !has_span(sc,[r,t])
+@test has_span(sc,[r, s]) && !has_span(sc,[r, t])
 
 Δ⁰ = SimplicialComplex(@acset DeltaSet0D begin V=1 end)
 Δ¹ = SimplicialComplex(@acset DeltaSet1D begin V=2; E=1; ∂v0 = [2]; ∂v1 = [1] end)
-f = GeometricMap(Δ⁰,Δ¹,[GeometricPoint([1/3,2/3])])
+f = GeometricMap(Δ⁰,Δ¹,[1/3,2/3])
 A  = [0.2 0.4
       0   0
       0.5 0

@@ -2,7 +2,7 @@
 The category of simplicial complexes and Kleisli maps for the convex space monad.
 """
 module SimplicialComplexes
-export SimplicialComplex, VertexList, has_simplex, GeometricPoint, has_point, has_span, GeometricMap, nv, as_matrix, compose, id, cocenter, primal_vertices, subdivision_map
+export SimplicialComplex, VertexList, has_simplex, has_point, has_span, GeometricMap, nv, as_matrix, compose, dom,codom, id, cocenter, primal_vertices, subdivision_map
 using ..Tries
 using ..SimplicialSets, ..DiscreteExteriorCalculus
 import ACSets: incident, subpart
@@ -209,52 +209,32 @@ function Base.union(vs1::VertexList, vs2::VertexList)
     VertexList(out, sorted=true)
 end
 
-
-#XX: This type is maybe more trouble than it's worth?
-#yeah kill
 """
-A point in an unspecified simplicial complex, given by its barycentric coordinates.
-Constructed via a dense vector of coordinates.
-"""
-struct GeometricPoint
-  bcs::Vector{Float64} #XX: Need a sparse form?
-  function GeometricPoint(bcs, checked=true)
-    if checked
-      sum(bcs) ≈ 1 || error("Barycentric coordinates must sum to 1")
-      all(x -> 1 ≥ x ≥ 0, bcs) || error("Barycentric coordinates must be between 0 and 1")
-    end
-    new(bcs)
-  end
-end
-Base.show(p::GeometricPoint) = "GeometricPoint($(p.bcs))"
-coords(p::GeometricPoint)=p.bcs
-
-"""
-A simplicial complex contains a geometric point if and only if it contains the combinatorial simplex spanned
+A simplicial complex contains a point in barycentric coordinates 
+if and only if it contains the combinatorial simplex spanned
 by the vertices wrt which the point has a nonzero coordinate.
 """
-has_point(sc::SimplicialComplex, p::GeometricPoint) = has_simplex(sc, VertexList(findall(x->x>0,coords(p))))
+has_point(sc::SimplicialComplex, p::AbstractVector) = has_simplex(sc, VertexList(findall(x->x>0,p)))
 """
 A simplicial complex contains the geometric simplex spanned by a list of geometric points if and only if it 
 contains the combinatorial simplex spanned by all the vertices wrt which some geometric point has a nonzero coordinate.
 """
-has_span(sc::SimplicialComplex,ps::Vector{GeometricPoint}) = has_simplex(sc,reduce(union,VertexList.(map(cs->findall(x->x>0,cs),(coords.(ps))))))
+has_span(sc::SimplicialComplex,ps::AbstractVector) = has_simplex(sc,reduce(union,VertexList.(map(cs->findall(x->x>0,cs),ps))))
 
 #geoemtric map between simplicial complexes, given as a list of geometric points in the codomain 
 #indexed by the 0-simplices of the domain.
 struct GeometricMap{D,D′}
   dom::SimplicialComplex{D}
   cod::SimplicialComplex{D′}
-  points::Vector{GeometricPoint}
-  function GeometricMap(sc::SimplicialComplex{D}, sc′::SimplicialComplex{D′}, points::Vector{GeometricPoint};checked::Bool=true) where {D,D′}
+  points::AbstractArray
+  function GeometricMap(sc::SimplicialComplex{D}, sc′::SimplicialComplex{D′}, points::AbstractArray;checked::Bool=true) where {D,D′}
     if checked 
-      length(points) == nv(sc) || error("Number of points must match number of vertices in domain")
-      all(map(x->has_span(sc′,points[x]),keys(sc.cache))) || error("Span of points in simplices of domain must lie in codomain")
+      length(eachcol(points)) == nv(sc) || error("Number of points must match number of vertices in domain")
+      all(map(x->has_span(sc′,eachcol(points)[x]),keys(sc.cache))) || error("Span of points in simplices of domain must lie in codomain")
     end
     new{D,D′}(sc, sc′, points)
   end
 end
-GeometricMap(sc::SimplicialComplex{D},sc′::SimplicialComplex{D′},points::AbstractMatrix;checked::Bool=true) where {D,D′} = GeometricMap(sc,sc′,GeometricPoint.(eachcol(points)),checked=checked)
 dom(f::GeometricMap) = f.dom
 codom(f::GeometricMap) = f.cod
 Base.show(io::IO,f::GeometricMap) = 
@@ -274,15 +254,14 @@ Base.show(io::IO,::MIME"text/plain",f::GeometricMap) =
 Returns the data-centric view of f as a matrix whose i-th column 
 is the coordinates of the image of the i-th vertex under f.
 """
-as_matrix(f::GeometricMap) = hcat(coords.(f.points)...)
+as_matrix(f::GeometricMap) = f.points
 compose(f::GeometricMap, g::GeometricMap) = GeometricMap(f.dom, g.cod, as_matrix(g)*as_matrix(f))
-id(sc::SimplicialComplex) = GeometricMap(sc,sc,GeometricPoint.(eachcol(I(nv(sc)))))
+id(sc::SimplicialComplex) = GeometricMap(sc,sc,I(nv(sc)))
 
-#make sparse matrices
 function GeometricMap(sc::SimplicialComplex,::Barycenter)
   dom = SimplicialComplex(extract_dual(sc.delta_set))
   #Vertices of dom correspond to vertices, edges, triangles of sc.
-  mat = zeros(Float64,nv(sc),nv(dom))
+  mat = spzeros(Float64,nv(sc),nv(dom))
   for i in 1:nv(sc) mat[i,i] = 1 end
   for i in 1:ne(sc) for n in edge_vertices(sc.delta_set,i) mat[n,nv(sc)+i] = 1/2 end end
   for i in 1:ntriangles(sc) for n in triangle_vertices(sc.delta_set,i) mat[n,nv(sc)+ne(sc)+i] = 1/3 end end
@@ -290,7 +269,7 @@ function GeometricMap(sc::SimplicialComplex,::Barycenter)
 end
 #accessors for the nonzeros in a column of the matrix
 
-#XX: make the restriction map smoother
+#XX: make the restriction map smoother?
 """
 The geometric map from a deltaset's subdivision to itself.
 """
