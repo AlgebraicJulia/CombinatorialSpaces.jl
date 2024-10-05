@@ -120,7 +120,7 @@ with ``2^15+1`` points using just ``15*7*3`` steps of
 the conjugate gradient method. This is, honestly, pretty crazy.
 
 ```@example gvl
-function test_vcycle_1D(k,s,c)
+function test_vcycle_1D_gvl(k,s,c)
   b=rand(2^k-1)
   N = 2^k-1 
   ls = reverse([sparse_square_laplacian(k′) for k′ in 1:k])
@@ -129,9 +129,75 @@ function test_vcycle_1D(k,s,c)
   u = zeros(N)
   norm(ls[1]*multigrid_vcycles(u,b,ls,is,ps,s,c)-b)/norm(b)
 end
-@time test_vcycle_1D(15,7,3)
+test_vcycle_1D_gvl(15,7,3)
 ```
 
+## Reproducing the same solution with CombinatorialSpaces
+
+```@example cs
+using Krylov
+
+function multigrid_vcycles(u,b,As,rs,ps,steps,cycles=1)
+  cycles == 0 && return u
+  u = cg(As[1],b,u,itmax=steps)[1]
+  if length(As) == 1 #on coarsest grid
+    return u
+  end
+  #smooth, update error, restrict, recurse, prolong, smooth
+  r_f = b - As[1]*u #residual
+  r_c = rs[1] * r_f #restrict
+  z = multigrid_vcycles(zeros(size(r_c)),r_c,As[2:end],rs[2:end],ps[2:end],steps,cycles) #recurse
+  u += ps[1] * z #prolong. 
+  u = cg(As[1],b,u,itmax=steps)[1] #smooth again
+  multigrid_vcycles(u,b,As,rs,ps,steps,cycles-1)
+end
+
+using CombinatorialSpaces
+using GeometryBasics: Point2, Point3
+Point2D = Point2{Float64}
+
+ss = EmbeddedDeltaSet1D{Bool,Point2D}()
+add_vertices!(ss, 2, point=[Point2D(0, 0), Point2D(+1, 0)])
+add_edge!(ss, 1, 2, edge_orientation=true)
+
+function repeated_subdivisions(k,ss)
+  map(1:k) do k′
+    #sparsify subdivision_map
+    f = subdivision_map(ss) 
+    ss = dom(f).delta_set
+    f
+  end
+end
+
+laplacian(ss) = ∇²(0,dualize(ss,Barycenter()))
+row_normalize(A) = A./(sum.(eachrow(A)))
+
+repeated_subdivisions(4,ss)[1]
+```
+
+```@example cs
+function test_vcycle_1D_cs(k,s,c)
+  b=rand(2^k-1)
+  N = 2^k-1 
+  u = zeros(N)
+
+  sds = reverse(repeated_subdivisions(k,ss))
+  sses = map(x-> x.dom.delta_set, sds)
+  sorts = map(sses) do ss
+    sort(vertices(ss),by=x->ss[:point][x])
+  end
+  ls = map(i->laplacian(sses[i])[sorts[i],sorts[i]][2:end-1,2:end-1],eachindex(sses))
+  ps = transpose.(map(i->as_matrix(sds[i])[sorts[i+1],sorts[i]][2:end-1,2:end-1],1:length(sds)-1))
+  is = row_normalize.(transpose.(ps))
+  norm(ls[1]*multigrid_vcycles(u,b,ls,is,ps,s,c)-b)/norm(b)
+end
+test_vcycle_1D_cs(15,7,3)
+```
+
+
+###############################################
+###############################################
+###############################################
 
 Let's examine some particular cases of these equations. For both, we need a mesh and some discrete differential operators.
 
