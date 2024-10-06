@@ -36,12 +36,12 @@ export dec_boundary, dec_differential, dec_dual_derivative, dec_hodge_star, dec_
 #--------------
 
 # Cache terms to be used by wedge product kernels.
-function cache_wedge(::Type{Tuple{0,1}}, sd::Union{EmbeddedDeltaDualComplex1D, EmbeddedDeltaDualComplex2D})
+function cache_wedge(::Type{Tuple{0,1}}, sd::Union{EmbeddedDeltaDualComplex1D, EmbeddedDeltaDualComplex2D}, ::Type{Val{:CPU}})
   (hcat(convert(Vector{Int32}, sd[:∂v0])::Vector{Int32}, convert(Vector{Int32}, sd[:∂v1])::Vector{Int32}),
    simplices(1, sd))
 end
 
-function cache_wedge(::Type{Tuple{0,2}}, sd::EmbeddedDeltaDualComplex2D{Bool, float_type, _p} where _p) where float_type
+function cache_wedge(::Type{Tuple{0,2}}, sd::EmbeddedDeltaDualComplex2D{Bool, float_type, _p} where _p, ::Type{Val{:CPU}}) where float_type
   verts = Array{Int32}(undef, 6, ntriangles(sd))
   coeffs = Array{float_type}(undef, 6, ntriangles(sd))
   shift::Int = ntriangles(sd)
@@ -55,7 +55,7 @@ function cache_wedge(::Type{Tuple{0,2}}, sd::EmbeddedDeltaDualComplex2D{Bool, fl
   (verts, coeffs, triangles(sd))
 end
 
-function cache_wedge(::Type{Tuple{1,1}}, sd::EmbeddedDeltaDualComplex2D{Bool, float_type, _p} where _p) where float_type
+function cache_wedge(::Type{Tuple{1,1}}, sd::EmbeddedDeltaDualComplex2D{Bool, float_type, _p} where _p, ::Type{Val{:CPU}}) where float_type
   coeffs = Array{float_type}(undef, 3, ntriangles(sd))
   shift = ntriangles(sd)
   @inbounds for i in 1:ntriangles(sd)
@@ -69,7 +69,7 @@ function cache_wedge(::Type{Tuple{1,1}}, sd::EmbeddedDeltaDualComplex2D{Bool, fl
   (e, coeffs, triangles(sd))
 end
 
-# XXX: This assumes that the dual vertice on an edge is always the midpoint
+# XXX: This assumes that the dual vertex on an edge is always the midpoint.
 # TODO: Add options to change 0.5 to a different float
 @kernel function wedge_kernel_01!(res, @Const(f), @Const(α), @Const(p), @Const(simples))
   i = @index(Global)
@@ -100,6 +100,7 @@ function auto_select_backend(kernel_function, res, f, α, p, c)
 end
 
 # Manually dispatch, since CUDA.jl kernels cannot.
+# An alternative would wrap each wedge_kernel separately.
 function dec_c_wedge_product!(::Type{Tuple{j,k}}, res, α, β, p, c) where {j,k}
   kernel = if (j,k) == (0,1)
     wedge_kernel_01!
@@ -115,11 +116,10 @@ end
 
 # The last item in the wedge_cache is the range of simplices.
 function dec_c_wedge_product(::Type{Tuple{m,n}}, α, β, wedge_cache) where {m,n}
-  res = zeros(eltype(α), last(last(wedge_cache)))
+  arr_type = typeof(α isa EForm ? α.data : α)
+  res = arr_type(zeros(eltype(α isa EForm ? α.data : α), last(last(wedge_cache))))
   dec_c_wedge_product!(Tuple{m,n}, res, α, β, wedge_cache[1], wedge_cache[2])
 end
-
-dec_wedge_product(m::Int, n::Int, sd::HasDeltaSet) = dec_wedge_product(Tuple{m,n}, sd::HasDeltaSet)
 
 """    dec_wedge_product(::Type{Tuple{m,n}}, sd::HasDeltaSet) where {m,n}
 
@@ -133,22 +133,25 @@ function dec_wedge_product(::Type{Tuple{m,n}}, sd::HasDeltaSet) where {m,n}
   error("Unsupported combination of degrees $m and $n. Ensure that their sum is not greater than the degree of the complex.")
 end
 
-function dec_wedge_product(::Type{Tuple{0,0}}, sd::HasDeltaSet)
+dec_wedge_product(m::Int, n::Int, sd::HasDeltaSet) =
+  dec_wedge_product(Tuple{m,n}, sd::HasDeltaSet)
+
+function dec_wedge_product(::Type{Tuple{0,0}}, sd::HasDeltaSet, backend::Type=Val{:CPU})
   (f, g) -> f .* g
 end
 
-function dec_wedge_product(::Type{Tuple{k,0}}, sd::HasDeltaSet) where {k}
-  wedge_cache = cache_wedge(Tuple{0,k}, sd)
-  (α, g) -> dec_c_wedge_product(Tuple{0,k}, g, α, wedge_cache)
+function dec_wedge_product(::Type{Tuple{k,0}}, sd::HasDeltaSet, backend::Type=Val{:CPU}) where {k}
+  wedge_cache = cache_wedge(Tuple{0,k}, sd, backend)
+  (α, β) -> dec_c_wedge_product(Tuple{0,k}, β, α, wedge_cache)
 end
 
-function dec_wedge_product(::Type{Tuple{0,k}}, sd::HasDeltaSet) where {k}
-  wedge_cache = cache_wedge(Tuple{0,k}, sd)
-  (f, β) -> dec_c_wedge_product(Tuple{0,k}, f, β, wedge_cache)
+function dec_wedge_product(::Type{Tuple{0,k}}, sd::HasDeltaSet, backend::Type=Val{:CPU}) where {k}
+  wedge_cache = cache_wedge(Tuple{0,k}, sd, backend)
+  (α, β) -> dec_c_wedge_product(Tuple{0,k}, α, β, wedge_cache)
 end
 
-function dec_wedge_product(::Type{Tuple{1,1}}, sd::HasDeltaSet2D)
-  wedge_cache = cache_wedge(Tuple{1,1}, sd)
+function dec_wedge_product(::Type{Tuple{1,1}}, sd::HasDeltaSet2D, backend::Type=Val{:CPU})
+  wedge_cache = cache_wedge(Tuple{1,1}, sd, backend)
   (α, β) -> dec_c_wedge_product(Tuple{1,1}, α, β, wedge_cache)
 end
 

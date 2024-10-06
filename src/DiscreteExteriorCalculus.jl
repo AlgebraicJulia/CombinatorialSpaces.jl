@@ -1943,7 +1943,7 @@ end
 # XXX: This "left/right-hand-rule" trick only works when z=0.
 # XXX: So, do not use this function to test e.g. curved surfaces.
 function eval_constant_dual_form(s::EmbeddedDeltaDualComplex2D, α::SVector{3,Float64})
-  EForm(
+  DualForm{1}(
     hodge_star(1,s) *
       eval_constant_primal_form(s, SVector{3,Float64}(α[2], -α[1], α[3])))
 end
