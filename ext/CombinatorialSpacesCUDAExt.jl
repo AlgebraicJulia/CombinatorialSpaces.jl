@@ -2,17 +2,13 @@ module CombinatorialSpacesCUDAExt
 
 using CombinatorialSpaces
 using CombinatorialSpaces.DiscreteExteriorCalculus: DiscreteHodge
-using GeometryBasics
 using CUDA
 using CUDA.CUSPARSE
-using LinearAlgebra
-using SparseArrays
 using KernelAbstractions
 using Krylov
-Point2D = Point2{Float64}
-Point3D = Point3{Float64}
-import CombinatorialSpaces: dec_wedge_product, dec_c_wedge_product, cache_wedge,
-  dec_boundary, dec_differential, dec_dual_derivative, dec_hodge_star, dec_inv_hodge_star
+import CombinatorialSpaces: cache_wedge,
+  dec_boundary, dec_differential, dec_dual_derivative,
+  dec_hodge_star, dec_inv_hodge_star
 
 # Wedge Product
 #--------------

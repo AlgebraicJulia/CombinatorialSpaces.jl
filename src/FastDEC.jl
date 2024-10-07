@@ -8,29 +8,29 @@ like the wedge product, are instead returned as functions that will compute the 
 module FastDEC
 
 # TODO: Using Int32 for indices is valid for all but the largest meshes.
-# This type should be settable by the user and default set to Int32
+# This type should be user-settable, defaulting to Int32.
 
 using ..SimplicialSets, ..DiscreteExteriorCalculus
 using ..DiscreteExteriorCalculus: crossdot
 
-using ACSets.DenseACSets: attrtype_type
+using ACSets
 using Base.Iterators
-using Catlab, Catlab.CategoricalAlgebra.CSets
 using KernelAbstractions
-using LinearAlgebra
-using LinearAlgebra: Diagonal, dot, norm, cross
+using LinearAlgebra: cross, dot, Diagonal, factorize, norm
 using SparseArrays: sparse, spzeros, SparseMatrixCSC
 using StaticArrays: SVector, MVector
 
 import ..DiscreteExteriorCalculus: ∧
 import ..SimplicialSets: numeric_sign
 
-export dec_boundary, dec_differential, dec_dual_derivative, dec_hodge_star, dec_inv_hodge_star, dec_wedge_product, dec_c_wedge_product, cache_wedge, dec_c_wedge_product!,
-       dec_wedge_product_pd, dec_wedge_product_dp, ∧,
-       interior_product_dd, ℒ_dd,
-       dec_wedge_product_dd,
-       Δᵈ,
-       avg₀₁, avg_01, avg₀₁_mat, avg_01_mat
+export dec_wedge_product, cache_wedge, dec_c_wedge_product, dec_c_wedge_product!,
+  dec_boundary, dec_differential, dec_dual_derivative,
+  dec_hodge_star, dec_inv_hodge_star,
+  dec_wedge_product_pd, dec_wedge_product_dp, ∧,
+  interior_product_dd, ℒ_dd,
+  dec_wedge_product_dd,
+  Δᵈ,
+  avg₀₁, avg_01, avg₀₁_mat, avg_01_mat
 
 # Wedge Product
 #--------------
@@ -429,37 +429,15 @@ dec_hodge_star(n::Int, sd::HasDeltaSet, ::GeometricHodge) =
 dec_hodge_star(::Type{Val{k}}, sd::HasDeltaSet, ::DiagonalHodge) where {k} =
   Diagonal(dec_p_hodge_diag(Val{k}, sd))
 
-"""    dec_inv_hodge_star(n::Int, sd::HasDeltaSet; hodge=GeometricHodge())
-
-Return the inverse hodge matrix between dual `n`-simplices and 'n'-simplices.
-"""
-dec_inv_hodge_star(n::Int, sd::HasDeltaSet; hodge=GeometricHodge()) =
-  dec_inv_hodge_star(Val{n}, sd, hodge)
-dec_inv_hodge_star(n::Int, sd::HasDeltaSet, ::DiagonalHodge) =
-  dec_inv_hodge_star(Val{n}, sd, DiagonalHodge())
-dec_inv_hodge_star(n::Int, sd::HasDeltaSet, ::GeometricHodge) =
-  dec_inv_hodge_star(Val{n}, sd, GeometricHodge())
-
-function dec_inv_hodge_star(::Type{Val{k}}, sd::HasDeltaSet, ::DiagonalHodge) where {k}
-  hdg = dec_p_hodge_diag(Val{k}, sd)
-  mult_term = iseven(k * (ndims(sd) - k)) ? 1 : -1
-  hdg .= (1 ./ hdg) .* mult_term
-  Diagonal(hdg)
-end
-
 # Geometric Hodge Star
 #---------------------
 
 # TODO: Still need better implementation for Hodge 1 in 2D
-dec_hodge_star(::Type{Val{0}}, sd::EmbeddedDeltaDualComplex1D, ::GeometricHodge) =
-  dec_hodge_star(Val{0}, sd, DiagonalHodge())
-dec_hodge_star(::Type{Val{1}}, sd::EmbeddedDeltaDualComplex1D, ::GeometricHodge) =
-  dec_hodge_star(Val{1}, sd, DiagonalHodge())
+dec_hodge_star(::Type{Val{j}}, sd::EmbeddedDeltaDualComplex1D, ::GeometricHodge) where {j} =
+  dec_hodge_star(Val{j}, sd, DiagonalHodge())
 
-dec_hodge_star(::Type{Val{0}}, sd::EmbeddedDeltaDualComplex2D, ::GeometricHodge) =
-  dec_hodge_star(Val{0}, sd, DiagonalHodge())
-dec_hodge_star(::Type{Val{2}}, sd::EmbeddedDeltaDualComplex2D, ::GeometricHodge) =
-  dec_hodge_star(Val{2}, sd, DiagonalHodge())
+dec_hodge_star(::Type{Val{j}}, sd::EmbeddedDeltaDualComplex2D, ::GeometricHodge) where {j} =
+  dec_hodge_star(Val{j}, sd, DiagonalHodge())
 
 function dec_hodge_star(::Type{Val{1}}, sd::EmbeddedDeltaDualComplex2D{Bool, float_type, point_type}, ::GeometricHodge) where {float_type, point_type}
   I = Vector{Int32}(undef, ntriangles(sd) * 9)
@@ -518,20 +496,37 @@ function dec_hodge_star(::Type{Val{1}}, sd::EmbeddedDeltaDualComplex2D{Bool, flo
   sparse(view_I, view_J, view_V)
 end
 
-dec_inv_hodge_star(::Type{Val{0}}, sd::EmbeddedDeltaDualComplex1D, ::GeometricHodge) =
-  dec_inv_hodge_star(Val{0}, sd, DiagonalHodge())
-dec_inv_hodge_star(::Type{Val{1}}, sd::EmbeddedDeltaDualComplex1D, ::GeometricHodge) =
-  dec_inv_hodge_star(Val{1}, sd, DiagonalHodge())
-dec_inv_hodge_star(::Type{Val{0}}, sd::EmbeddedDeltaDualComplex2D, ::GeometricHodge) =
-  dec_inv_hodge_star(Val{0}, sd, DiagonalHodge())
+# Inverse Hodge Star
+#-------------------
 
-function dec_inv_hodge_star(::Type{Val{1}}, sd::EmbeddedDeltaDualComplex2D, ::GeometricHodge)
-  hdg_lu = LinearAlgebra.factorize(-1 * dec_hodge_star(1, sd, GeometricHodge()))
-  x -> hdg_lu \ x
+"""    dec_inv_hodge_star(n::Int, sd::HasDeltaSet; hodge=GeometricHodge())
+
+Return the inverse hodge matrix between dual `n`-simplices and 'n'-simplices.
+"""
+dec_inv_hodge_star(n::Int, sd::HasDeltaSet; hodge=GeometricHodge()) =
+  dec_inv_hodge_star(Val{n}, sd, hodge)
+dec_inv_hodge_star(n::Int, sd::HasDeltaSet, ::DiagonalHodge) =
+  dec_inv_hodge_star(Val{n}, sd, DiagonalHodge())
+dec_inv_hodge_star(n::Int, sd::HasDeltaSet, ::GeometricHodge) =
+  dec_inv_hodge_star(Val{n}, sd, GeometricHodge())
+
+function dec_inv_hodge_star(::Type{Val{k}}, sd::HasDeltaSet, ::DiagonalHodge) where {k}
+  hdg = dec_p_hodge_diag(Val{k}, sd)
+  mult_term = iseven(k * (ndims(sd) - k)) ? 1 : -1
+  hdg .= (1 ./ hdg) .* mult_term
+  Diagonal(hdg)
 end
 
-dec_inv_hodge_star(::Type{Val{2}}, sd::EmbeddedDeltaDualComplex2D, ::GeometricHodge) =
-  dec_inv_hodge_star(Val{2}, sd, DiagonalHodge())
+dec_inv_hodge_star(::Type{Val{j}}, sd::EmbeddedDeltaDualComplex1D, ::GeometricHodge) where {j} =
+  dec_inv_hodge_star(Val{j}, sd, DiagonalHodge())
+
+dec_inv_hodge_star(::Type{Val{j}}, sd::EmbeddedDeltaDualComplex2D, ::GeometricHodge) where {j} =
+  dec_inv_hodge_star(Val{j}, sd, DiagonalHodge())
+
+function dec_inv_hodge_star(::Type{Val{1}}, sd::EmbeddedDeltaDualComplex2D, ::GeometricHodge)
+  hdg_lu = factorize(-1 * dec_hodge_star(1, sd, GeometricHodge()))
+  x -> hdg_lu \ x
+end
 
 # Interior Product and Lie Derivative
 #------------------------------------
