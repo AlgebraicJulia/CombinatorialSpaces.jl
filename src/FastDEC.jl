@@ -94,7 +94,7 @@ end
 
 function auto_select_backend(kernel_function, res, f, α, p, c)
   backend = get_backend(res)
-  kernel = kernel_function(backend)
+  kernel = kernel_function(backend, backend == CPU() ? 64 : 256)
   kernel(res, f, α, p, c, ndrange=size(res))
   res
 end
