@@ -50,6 +50,8 @@ where it started.
 ## The problem solved directly via multigrid
 
 ```@example gvl
+using Random # hide
+Random.seed!(77777) # hide
 using SparseArrays
 using LinearAlgebra: norm
 
@@ -116,8 +118,8 @@ with a random target vector,
 and continuing through the entire cycle ``c`` times. 
 
 In the example, we are solving the Poisson equation on a grid
-with ``2^15+1`` points using just ``15*7*3`` steps of
-the conjugate gradient method. This is, honestly, pretty crazy.
+with ``2^{15}+1`` points using just ``15\cdot 7\cdot 3`` steps of
+the conjugate gradient method. 
 
 ```@example gvl
 function test_vcycle_1D_gvl(k,s,c)
@@ -134,49 +136,70 @@ test_vcycle_1D_gvl(15,7,3)
 
 ## Reproducing the same solution with CombinatorialSpaces
 
+Now we can show how to do the same thing with CombinatorialSpaces.
+We'll use the same `multigrid_vcycles` function as before but
+produce its inputs via types and data structures in CombinatorialSpaces.
+
+In particular, `repeated_subdivisions` below produces a sequence of barycentric
+subdivisions of a delta-set, which is exactly what we need to produce the
+repeated halvings of the radius of the 1-D mesh in our example.
+
 ```@example cs
+using Random # hide
+Random.seed!(77777) # hide
 using Krylov
-
-function multigrid_vcycles(u,b,As,rs,ps,steps,cycles=1)
-  cycles == 0 && return u
-  u = cg(As[1],b,u,itmax=steps)[1]
-  if length(As) == 1 #on coarsest grid
-    return u
-  end
-  #smooth, update error, restrict, recurse, prolong, smooth
-  r_f = b - As[1]*u #residual
-  r_c = rs[1] * r_f #restrict
-  z = multigrid_vcycles(zeros(size(r_c)),r_c,As[2:end],rs[2:end],ps[2:end],steps,cycles) #recurse
-  u += ps[1] * z #prolong. 
-  u = cg(As[1],b,u,itmax=steps)[1] #smooth again
-  multigrid_vcycles(u,b,As,rs,ps,steps,cycles-1)
-end
-
 using CombinatorialSpaces
 using GeometryBasics: Point2, Point3
 using LinearAlgebra: norm
 Point2D = Point2{Float64}
 
-ss = EmbeddedDeltaSet1D{Bool,Point2D}()
-add_vertices!(ss, 2, point=[Point2D(0, 0), Point2D(+1, 0)])
-add_edge!(ss, 1, 2, edge_orientation=true)
+#Same definition as above
+function multigrid_vcycles(u,b,As,rs,ps,steps,cycles=1)
+  cycles == 0 && return u # hide
+  u = cg(As[1],b,u,itmax=steps)[1] # hide
+  if length(As) == 1 # hide
+    return u # hide
+  end # hide
+  r_f = b - As[1]*u # hide
+  r_c = rs[1] * r_f # hide
+  z = multigrid_vcycles(zeros(size(r_c)),r_c,As[2:end],rs[2:end],ps[2:end],steps,cycles) # hide
+  u += ps[1] * z # hide
+  u = cg(As[1],b,u,itmax=steps)[1] # hide
+  multigrid_vcycles(u,b,As,rs,ps,steps,cycles-1) # hide
+end 
 
 function repeated_subdivisions(k,ss)
   map(1:k) do k′
-    #sparsify subdivision_map
     f = subdivision_map(ss) 
     ss = dom(f).delta_set
     f
   end
 end
-
 laplacian(ss) = ∇²(0,dualize(ss,Barycenter()))
+```
+
+We first construct the *coarsest* stage in the 1-D mesh, with just two vertices
+and one edge running from ``(0,0)`` to ``(1,0)``.
+
+```@example cs
+ss = EmbeddedDeltaSet1D{Bool,Point2D}()
+add_vertices!(ss, 2, point=[Point2D(0, 0), Point2D(+1, 0)])
+add_edge!(ss, 1, 2, edge_orientation=true)
 
 repeated_subdivisions(4,ss)[1]
 ```
 
+The setup function below constructs ``k`` subdivision maps and
+their domains, then computes their Laplacians using CombinatorialSpaces'
+general capabilities, as well as the prolongation matrices straight from the
+subdivision maps and the interpolation matrices be renormalizing the transposed
+prolongations.
+
+We first construct everything with a sort on the vertices to show that 
+we get the exact same results as in the first example.
+
 ```@example cs
-function test_vcycle_1D_cs_setup(k)
+function test_vcycle_1D_cs_setup_sorted(k)
   b=rand(2^k-1)
   N = 2^k-1 
   u = zeros(N)
@@ -189,272 +212,34 @@ function test_vcycle_1D_cs_setup(k)
   is = transpose.(ps)*1/2
   u,b,ls,is,ps
 end
-#This is slower because of the sort
-u,b,ls,is,ps = test_vcycle_1D_cs_setup(15)
+u,b,ls,is,ps = test_vcycle_1D_cs_setup_sorted(4)
+ls[1]
+```
+
+```@example cs
+ps[1]
+```
+
+Finally, we run a faster and simpler algorithm by avoiding all the sorting.
+This version makes the truncation of each matrix to ignore the boundary vertices
+more obvious (and truncates different rows and columns because of skipping the sort.) This is mathematically correct as long as the boundary conditions
+are zero.
+
+```@example cs
+function test_vcycle_1D_cs_setup(k)
+  b=rand(2^k-1)
+  N = 2^k-1 
+  u = zeros(N)
+
+  sds = reverse(repeated_subdivisions(k,ss))
+  sses = [sd.dom.delta_set for sd in sds]
+  ls = [laplacian(sses[i])[3:end,3:end] for i in eachindex(sses)]
+  ps = transpose.([as_matrix(sds[i])[3:end,3:end] for i in 1:length(sds)-1])
+  is = transpose.(ps)*1/2
+  u,b,ls,is,ps
+end
+uu,bb,lls,iis,pps = test_vcycle_1D_cs_setup(15)
 norm(ls[1]*multigrid_vcycles(u,b,ls,is,ps,7,3)-b)/norm(b)
 ```
 
-###############################################
-###############################################
-###############################################
-
-Let's examine some particular cases of these equations. For both, we need a mesh and some discrete differential operators.
-
-```@example euler
-using CairoMakie, CombinatorialSpaces, StaticArrays
-using CombinatorialSpaces.DiscreteExteriorCalculus: eval_constant_primal_form
-using GeometryBasics: Point3d
-using LinearAlgebra: norm
-
-s = triangulated_grid(100,100,5,5,Point3d);
-sd = EmbeddedDeltaDualComplex2D{Bool,Float64,Point3d}(s);
-subdivide_duals!(sd, Barycenter());
-
-f = Figure()
-ax = CairoMakie.Axis(f[1,1])
-wireframe!(ax, s)
-
-f
-```
-
-Now that we have our mesh, let's allocate our discrete differential operators:
-
-```@example euler
-d0 = dec_dual_derivative(0, sd)
-d1 = dec_differential(1, sd);
-s1 = dec_hodge_star(1, sd);
-s2 = dec_hodge_star(2, sd);
-ι1 = interior_product_dd(Tuple{1,1}, sd)
-ι2 = interior_product_dd(Tuple{1,2}, sd)
-ℒ1 = ℒ_dd(Tuple{1,1}, sd);
-```
-
-```@setup euler
-using ACSets
-
-sharp_dd = ♯_mat(sd, LLSDDSharp())
-function plot_dvf(sd, X; ls=1f0, title="Dual Vector Field")
-  X♯ = sharp_dd * X
-  # Makie will throw an error if the colorrange end points are not unique:
-  f = Figure()
-  ax = Axis(f[1, 1], title=title)
-  wireframe!(ax, sd, color=:gray95)
-  extX = extrema(norm.(X♯))
-  if (abs(extX[1] - extX[2]) > 1e-4)
-    range = extX
-    scatter!(ax, getindex.(sd[sd[:tri_center], :dual_point],1), getindex.(sd[sd[:tri_center], :dual_point],2), color = norm.(X♯), colorrange=range)
-    Colorbar(f[1,2], limits=range)
-  end
-  arrows!(ax, getindex.(sd[sd[:tri_center], :dual_point],1), getindex.(sd[sd[:tri_center], :dual_point],2), getindex.(X♯,1), getindex.(X♯,2), lengthscale=ls)
-  hidedecorations!(ax)
-  f
-end
-
-sharp_pp = ♯_mat(sd, AltPPSharp())
-function plot_vf(sd, X; ls=1f0, title="Primal Vector Field")
-  X♯ = sharp_pp * X
-  # Makie will throw an error if the colorrange end points are not unique:
-  f = Figure()
-  ax = Axis(f[1, 1], title=title)
-  wireframe!(ax, sd, color=:gray95)
-  extX = extrema(norm.(X♯))
-  if (abs(extX[1] - extX[2]) > 1e-4)
-    range = extX
-    scatter!(ax, getindex.(sd[:point],1), getindex.(sd[:point],2), color = norm.(X♯), colorrange=range)
-    Colorbar(f[1,2], limits=range)
-  end
-  arrows!(ax, getindex.(sd[:point],1), getindex.(sd[:point],2), getindex.(X♯,1), getindex.(X♯,2), lengthscale=ls)
-  hidedecorations!(ax)
-  f
-end
-
-function plot_dual0form(sd, f0; title="Dual 0-form")
-  ps  = (stack(sd[sd[:tri_center], :dual_point])[[1,2],:])'
-  f = Figure(); ax = CairoMakie.Axis(f[1,1], title=title);
-  if (minimum(f0) ≈ maximum(f0))
-    sct = scatter!(ax, ps)
-  else
-    sct = scatter!(ax, ps,
-        color=f0);
-    Colorbar(f[1,2], sct)
-  end
-  f
-end
-
-function boundary_inds(::Type{Val{0}}, s)
-  ∂1_inds = boundary_inds(Val{1}, s)
-  unique(vcat(s[∂1_inds,:∂v0],s[∂1_inds,:∂v1]))
-end
-function boundary_inds(::Type{Val{1}}, s)
-  collect(findall(x -> x != 0, boundary(Val{2},s) * fill(1,ntriangles(s))))
-end
-function boundary_inds(::Type{Val{2}}, s)
-  ∂1_inds = boundary_inds(Val{1}, s)
-  inds = map([:∂e0, :∂e1, :∂e2]) do esym
-    vcat(incident(s, ∂1_inds, esym)...)
-  end
-  unique(vcat(inds...))
-end
-```
-
-## First Case
-
-In this first case, we will explicitly provide initial values for `u`. We will solve for pressure and the time derivative of `u` and check that they are what we expect. Note that we will set the mass budget, `b`, to 0.
-
-Let's provide a flow field of unit magnitude, static throughout the domain. We want to store this as a 1-form. We can create a 1-form by "flattening" a vector field, performing many line integrals to store values on the edges of the mesh. Since we want to store our flow as a "dual" 1-form (on the edges of the dual mesh), we can use the Hodge star operator to convert from a primal 1-form to a dual 1-form. Since the values of a 1-form can be unintuitive, we will "sharpen" the 1-form back to a vector field when visualizing.
-
-```@example euler
-X♯ = SVector{3,Float64}(1/√2,1/√2,0)
-u = s1 * eval_constant_primal_form(sd, X♯)
-
-plot_dvf(sd, u, title="Flow")
-```
-
-Let's look at the self-advection term, in which we take the lie derivative of `u` along itself, and subtract half of the gradient of its inner product. (See Marsden, Ratiu, and Abraham for a derivation.) Recall that our flow `u` is static throughout the domain, so we should expect this term to be 0 throughout the interior of the domain, where it is not affected by boundary conditions.
-
-The Lie derivative encodes how a differential form changes along a vector field. For our case of many parallel streamlines, and in which the magnitude is identical everywhere, we expect such a quantity to be 0. However, when discretizing, we have to make some assumptions about what is happening "outside" of the domain, and these assumptions have implications on the data stored on the boundary of the domain. In our discretization, we assume the flow outside the domain is 0. Thus, our Lie derivative along the boundary points inward:
-
-```@example euler
-lie_u_u = ℒ1(u,u)
-
-plot_dvf(sd, lie_u_u, title="Lie Derivative of Flow with Itself")
-```
-
-```@example euler
-selfadv = ℒ1(u,u) - 0.5*d0*ι1(u,u)
-
-plot_dvf(sd, selfadv, title="Self-Advection")
-```
-
-Now, let's solve for pressure. We can set up a Poisson problem on the divergence of the self-advection term we computed. Recall that divergence can be computed as ``\star d \star``, and the Laplacian as ``d \star d \star``. To solve a Poisson problem, we reverse the order of the operations, and take advantage of the fact that solving the inverse hodge star is equivalent to multiplying by the hodge star.
-
-```@example euler
-div(x) = s2 * d1 * (s1 \ x);
-solveΔ(x) = float.(d0) \ (s1 * (float.(d1) \ (s2 \ x)))
-
-p = (solveΔ ∘ div)(selfadv)
-
-plot_dual0form(sd, p, title="Pressure")
-```
-
-We see that we have a nonzero pressure of exactly 2 across the interior of the domain.
-
-```@example euler
-dp = d0*p
-
-plot_dvf(sd, dp, title="Pressure Gradient")
-```
-
-Based on our initial conditions and the way that we computed pressure, we expect that the time derivative of `u` should be 0 on the interior of the domain, where it is not affected by boundary conditions.
-
-```@example euler
-∂ₜu = -selfadv - dp;
-
-plot_dvf(sd, ∂ₜu, title="Time Derivative")
-```
-
-We see that we do indeed find zero-vectors throughout the interior of the domain as expected.
-
-## Second Case
-
-For this second case, we will specify that the time derivative of `u` is 0. We will assume a constant pressure, and then analyze the steady-states of `u`. We will again ignore any mass budget, `b`, and recall the gradient of a constant function (here, pressure) is 0. Recall our formula:
-
-```math
-\frac{\partial \textbf{u}^\flat}{\partial t} + \pounds_u \textbf{u}^\flat - \frac{1}{2} \textbf{d}(\textbf{u}^\flat(\textbf{u})) = - \frac{1}{\rho} \textbf{d} p + \textbf{b}^\flat.
-```
-
-Setting appropriate terms to 0, we have:
-
-```math
-\pounds_u \textbf{u}^\flat - \frac{1}{2} \textbf{d}(\textbf{u}^\flat(\textbf{u})) = 0.
-```
-
-We already allocated our discrete differential operators. Let us solve.
-
-```@setup euler
-println("Solving")
-```
-
-```@example euler
-using NLsolve
-
-steady_flow(u) = ℒ1(u,u) - 0.5*d0*ι1(u,u)
-
-starting_state = s1 * eval_constant_primal_form(sd, X♯)
-sol = nlsolve(steady_flow, starting_state)
-
-plot_dvf(sd, sol.zero, title="Steady State")
-```
-
-```@setup euler
-println("Solved")
-```
-
-We note that this steady flow of all zero-vectors does indeed satisfy the constraints that we set.
-
-## Third Case
-
-For this third case, we will again solve for `u`. However, we will set a Gaussian bubble of pressure at the center of the domain, and use Euler's method to solve Euler's equations.
-
-```math
-\frac{\partial \textbf{u}^\flat}{\partial t} = - \pounds_u \textbf{u}^\flat + \frac{1}{2} \textbf{d}(\textbf{u}^\flat(\textbf{u})) - \frac{1}{\rho} \textbf{d} p.
-```
-
-### Case 3.1: Euler's method
-
-```@example euler
-center = [50.0, 50.0, 0.0]
-gauss(pnt) = 2 + 50/(√(2*π*10))*ℯ^(-(norm(center-pnt)^2)/(2*10))
-p = gauss.(sd[sd[:tri_center], :dual_point])
-
-u = s1 * eval_constant_primal_form(sd, X♯)
-du = copy(u)
-
-function euler_equation!(du,u,p)
-  du .= - ℒ1(u,u) + 0.5*d0*ι1(u,u) - d0*p
-end
-
-dt = 1e-3
-function eulers_method()
-  for _ in 0:dt:1
-    euler_equation!(du,u,p)
-    u .+= du * dt
-  end
-  u
-end
-
-eulers_method()
-
-plot_dvf(sd, u, title="Flow")
-```
-
-### Case 3.2: Euler's method with Projection
-
-In Case 3.1, we solved Euler's equation directly using the method of lines. However, we assume that our flow, `u`, is incompressible. That is, ``\delta u = 0``. In our finite updates, we did not check that the self-advection term is divergence free! One way to resolve this discrepancy is the "Projection method", and this is intimately related to the Hodge decomposition of the flow. (See the [Wikipedia entry](https://en.wikipedia.org/wiki/Projection_method_(fluid_dynamics)) on the projection method, for example.) Let's employ this method here.
-
-```@example euler
-u = s1 * eval_constant_primal_form(sd, X♯)
-du = copy(u)
-
-dt = 1e-3
-u_int = zeros(ne(sd))
-p_next = zeros(ntriangles(sd))
-
-function euler_equation_with_projection!(u)
-  u_int .= u .+ (- ℒ1(u,u) + 0.5*d0*ι1(u,u))*dt
-  p_next .= (solveΔ ∘ div)(u_int/dt)
-  u .= u_int - dt*(d0*p_next)
-end
-
-function eulers_method()
-  for _ in 0:dt:1
-    euler_equation_with_projection!(u)
-  end
-  u
-end
-
-eulers_method()
-
-plot_dvf(sd, u, title="Flow, with Projection Method")
-```
 
