@@ -15,6 +15,7 @@ makedocs(
     "simplicial_sets.md",
     "discrete_exterior_calculus.md",
     "combinatorial_maps.md",
+    "grid_laplace.md",
     "meshes.md",
     "euler.md"
   ]
