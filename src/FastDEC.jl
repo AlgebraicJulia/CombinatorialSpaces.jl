@@ -72,8 +72,9 @@ end
 # XXX: This assumes that the dual vertex on an edge is always the midpoint.
 # TODO: Add options to change 0.5 to a different float
 @kernel function wedge_kernel_01!(res, @Const(f), @Const(α), @Const(p), @Const(simples))
+  @uniform half = eltype(f)(0.5)
   i = @index(Global)
-  @inbounds res[i] = 0.5 * α[i] * (f[p[i, 1]] + f[p[i, 2]])
+  @inbounds res[i] = half * α[i] * (f[p[i, 1]] + f[p[i, 2]])
 end
 
 @kernel function wedge_kernel_02!(res, @Const(f), @Const(α), @Const(p), @Const(c))
