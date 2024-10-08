@@ -130,7 +130,8 @@ lazy(::typeof(vcat), args...) = ApplyArray(vcat, args...)
 # Wrapped arrays
 ################
 
-""" Generate struct for a named vector struct.
+""" Generate struct for a named vector struct. A special case of `@parts_array_struct`
+when we need only vectors of the type.
 """
 macro vector_struct(struct_sig)
   name, params = parse_struct_signature(struct_sig)
