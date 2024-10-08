@@ -10,7 +10,7 @@ In general, the Poisson equation asks for a function on a manifold ``M`` with bo
 boundary conditions that may be given in various forms, such as the Dirichlet conditions:
 
 ```math
-\Delta u = -f,u\mid_{\partial M} = f_0
+\Delta u = -f,u\!\mid_{\partial M} = f_0
 ```
 
 In one dimension, on the interval ``[0,1]``, this specializes to the equation
@@ -18,13 +18,18 @@ In one dimension, on the interval ``[0,1]``, this specializes to the equation
 \frac{d^2u}{dx^2} = -f(x), u(0)=u_0, u(1)=u_1.
 ```
 
-If we subdivide the interval into ``m`` congruent pieces of radius ``h=1/m``, then we get the discretized equations
+If we subdivide the interval into ``m`` congruent pieces of width ``h=1/m``, then we get the discretized equations
 ```math
 \frac{u((i-1)h)-2u(ih)+u((i+1)h)}{h^2}\approx -f(ih)
 ```
 for ``i\in \{1,\ldots,m-1\}``. Since ``u(0)=u_0,u(1)=u_1`` are given by the boundary conditions, we can move them to 
 the right-hand side of the first and last equations, producing the linear system ``Au=b`` for 
-``u=[u(h),u(2h),\ldots,u((m-1)h)],b=[h^2f(h)+u_0,h^2f(2h),\ldots,h^2f((m-1)h),h^2f(mh)+u_1],`` and
+```math
+u=[u(h),u(2h),\ldots,u((m-1)h)],
+```
+```math
+b=[h^2f(h)+u_0,h^2f(2h),\ldots,h^2f((m-1)h),h^2f(mh)+u_1], \text{ and }
+```
 ```math
 A=\left(\begin{matrix}
 2&-1&0&0&\cdots&0\\
@@ -212,7 +217,7 @@ function test_vcycle_1D_cs_setup_sorted(k)
   is = transpose.(ps)*1/2
   u,b,ls,is,ps
 end
-u,b,ls,is,ps = test_vcycle_1D_cs_setup_sorted(4)
+u,b,ls,is,ps = test_vcycle_1D_cs_setup_sorted(3)
 ls[1]
 ```
 
