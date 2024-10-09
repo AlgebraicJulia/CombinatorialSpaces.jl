@@ -677,7 +677,7 @@ hodge_diag(::Type{Val{0}}, s::AbstractDeltaDualComplex2D, v::Int) =
 hodge_diag(::Type{Val{1}}, s::AbstractDeltaDualComplex2D, e::Int) =
   sum(dual_volume(Val{1}, s, elementary_duals(Val{1},s,e))) / volume(Val{1},s,e)
 hodge_diag(::Type{Val{2}}, s::AbstractDeltaDualComplex2D, t::Int) =
-  1 / volume(Val{2},s,t)
+  1 / volume(Val{2},s,t) * sign(2,s,t)
 
 function ♭(s::AbstractDeltaDualComplex2D, X::AbstractVector, ::DPPFlat)
   # XXX: Creating this lookup table shouldn't be necessary. Of course, we could
