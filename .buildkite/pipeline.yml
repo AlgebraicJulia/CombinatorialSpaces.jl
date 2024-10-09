@@ -10,7 +10,7 @@ steps:
 
   - wait
 
-  - label: ":race_car: Build docs and run tests on A100 GPU partition"
+  - label: ":racehorse: Build docs and run tests on A100 GPU partition"
     command:
       - "srun --cpus-per-task=16 --mem=16G  --gres=gpu:a100:1 --time=1:00:00 -p gpu --output=.buildkite/log_gpu_a100_%j.log --unbuffered .buildkite/jobscript.sh"
 
