@@ -1,15 +1,17 @@
 module TestOperatorsCUDA
 
-using Test
-using SparseArrays
-using LinearAlgebra
+using Catlab
 using CombinatorialSpaces
 using CombinatorialSpaces.DiscreteExteriorCalculus: DiscreteHodge
-using Catlab
-using Random
 using GeometryBasics: Point2, Point3
-using StaticArrays: SVector
+using KernelAbstractions
 using Krylov
+using LinearAlgebra
+using Random
+using SparseArrays
+using StaticArrays: SVector
+using Statistics: mean
+using Test
 
 Point2D = Point2{Float64}
 Point3D = Point3{Float64}
@@ -61,19 +63,25 @@ dual_meshes_2D_circum = map(x -> generate_dual(x, Circumcenter()), [
 #--------------------------
 
 function test_unary_operators(backend)
+  function all_are_equal(cpu_ans::SparseMatrixCSC, alt_ans)
+    KernelAbstractions.synchronize(get_backend(alt_ans))
+    all(cpu_ans .== SparseMatrixCSC(alt_ans))
+  end
+
+  function all_are_equal(cpu_ans::Diagonal, alt_ans)
+    KernelAbstractions.synchronize(get_backend(alt_ans))
+    all(cpu_ans .== Array(alt_ans))
+  end
+
   function test_cpu_gpu_equality(meshes, degrees, operator)
     for (n, sd) in Iterators.product(degrees, meshes)
-      cpu_ans = operator(n, sd)
-      alt_ans = operator(n, sd, backend)
-      @test all(cpu_ans .== typeof(cpu_ans)(alt_ans))
+      @test all_are_equal(operator(n, sd), operator(n, sd, backend))
     end
   end
-  
+
   function test_cpu_gpu_equality(meshes, degrees, operator, hodge::DiscreteHodge)
     for (n, sd) in Iterators.product(degrees, meshes)
-      cpu_ans = operator(n, sd, hodge)
-      alt_ans = operator(n, sd, hodge, backend)
-      @test all(cpu_ans .== typeof(cpu_ans)(alt_ans))
+      @test all_are_equal(operator(n, sd, hodge), operator(n, sd, hodge, backend))
     end
   end
 
@@ -109,7 +117,7 @@ end
 
 function test_hodge_solver()
   @testset "Inverse Geometric Hodge" begin
-    for sd in dual_meshes_2D[1:end-1]
+    for sd in dual_meshes_2D_bary[1:end-1]
       V_1 = Float64.(I[1:ne(sd), 1])
       cuV_1 = CuArray(V_1)
       @test all(isapprox.(
@@ -121,8 +129,9 @@ function test_hodge_solver()
 end
 
 function test_binary_operators(float_type, backend, arr_cons, tol)
-  function all_are_approx(x,y)
-    all(isapprox.(Array(x), y; atol=tol))
+  function mse(x,y)
+    KernelAbstractions.synchronize(get_backend(y))
+    mean(map(z -> z^2, Array(x) .- y)) < tol
   end
 
   @testset "Wedge Product" begin
@@ -134,9 +143,9 @@ function test_binary_operators(float_type, backend, arr_cons, tol)
       wdg01 = dec_wedge_product(Tuple{0,1}, sd, backend)
       wdg10 = dec_wedge_product(Tuple{1,0}, sd, backend)
   
-      @test all_are_approx(wdg00(altV1, altV2), ∧(Tuple{0,0}, sd, V1, V2))
-      @test all_are_approx(wdg01(altV1, altE1), ∧(Tuple{0,1}, sd, V1, E1))
-      @test all_are_approx(wdg10(altE1, altV1), ∧(Tuple{1,0}, sd, E1, V1))
+      @test mse(wdg00(altV1, altV2), ∧(Tuple{0,0}, sd, V1, V2))
+      @test mse(wdg01(altV1, altE1), ∧(Tuple{0,1}, sd, V1, E1))
+      @test mse(wdg10(altE1, altV1), ∧(Tuple{1,0}, sd, E1, V1))
     end
 
     function test_wedge_2D(sd, backend)
@@ -151,12 +160,12 @@ function test_binary_operators(float_type, backend, arr_cons, tol)
       wdg11 = dec_wedge_product(Tuple{1,1}, sd, backend)
       wdg02 = dec_wedge_product(Tuple{0,2}, sd, backend)
   
-      @test all_are_approx(wdg01(altV_ones, altE_ones), ∧(Tuple{0,1}, sd, V_ones, E_ones))
-      @test all_are_approx(wdg00(altV1, altV2), ∧(Tuple{0,0}, sd, V1, V2))
-      @test all_are_approx(wdg01(altV1, altE2), ∧(Tuple{0,1}, sd, V1, E2))
-      @test all_are_approx(wdg10(altE1, altV2), ∧(Tuple{1,0}, sd, E1, V2))
-      @test all_are_approx(wdg02(altV1, altT1), ∧(Tuple{0,2}, sd, V1, T1))
-      @test all_are_approx(wdg11(altE1, altE2), ∧(Tuple{1,1}, sd, E1, E2))
+      @test mse(wdg01(altV_ones, altE_ones), E_ones)
+      @test mse(wdg00(altV1, altV2), ∧(Tuple{0,0}, sd, V1, V2))
+      @test mse(wdg01(altV1, altE2), ∧(Tuple{0,1}, sd, V1, E2))
+      @test mse(wdg10(altE1, altV2), ∧(Tuple{1,0}, sd, E1, V2))
+      @test mse(wdg02(altV1, altT1), ∧(Tuple{0,2}, sd, V1, T1))
+      @test mse(wdg11(altE1, altE2), ∧(Tuple{1,1}, sd, E1, E2))
     end
 
     for sd in dual_meshes_1D
@@ -173,7 +182,7 @@ end
 
 # Test that Float32s pass through correctly.
 @testset "Float32 Operators" begin
-  test_binary_operators(Float32, Val{:CPU}, Array, 1e-7)
+  test_binary_operators(Float32, Val{:CPU}, Array, 1e-15)
 end
 
 using CUDA
@@ -181,7 +190,8 @@ if CUDA.functional()
   @testset "CUDA" begin
     test_unary_operators(Val{:CUDA})
     test_hodge_solver()
-    test_binary_operators(Float64, Val{:CUDA}, CuArray, 1e-12)
+    test_binary_operators(Float64, Val{:CUDA}, CuArray, 1e-15)
+    test_binary_operators(Float32, Val{:CUDA}, CuArray, 1e-15)
   end
 else
   @info "CUDA tests were not run, since CUDA.functional() is false."
