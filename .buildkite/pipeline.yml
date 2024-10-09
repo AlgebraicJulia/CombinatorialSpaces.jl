@@ -16,6 +16,6 @@ steps:
 
   - label: ":racecar: Build docs and run tests on Quadro GPU partition"
     command:
-      - "srun --cpus-per-task=16 --mem=16G  --gres=gpu:quadro:1 --time=1:00:00 -p gpu --output=.buildkite/log_gpu_quadro_%j.log --unbuffered .buildkite/jobscript.sh"
+      - "srun --cpus-per-task=16 --mem=16G  --gres=gpu:geforce:1 --time=1:00:00 -p gpu --output=.buildkite/log_gpu_quadro_%j.log --unbuffered .buildkite/jobscript.sh"
 
   - wait
