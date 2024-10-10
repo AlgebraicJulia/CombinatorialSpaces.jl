@@ -58,11 +58,12 @@ where it started.
 using Random # hide
 Random.seed!(77777) # hide
 using SparseArrays
-using LinearAlgebra: norm
+using LinearAlgebra
 
-#The tridiagonal Laplacian discussed above, with m=2^k.
-function sparse_square_laplacian(k)
-  N,h = 2^k-1, 1/(2^k)
+#The tridiagonal Laplacian discussed above, with single-variable method
+#for power-of-2 grids. 
+sparse_square_laplacian(k) = sparse_square_laplacian(2^k-1,1/(2^k))
+function sparse_square_laplacian(N,h)
   A = spzeros(N,N)
   for i in 1:N
     A[i,i] = 2
@@ -246,5 +247,77 @@ end
 uu,bb,lls,iis,pps = test_vcycle_1D_cs_setup(15)
 norm(ls[1]*multigrid_vcycles(u,b,ls,is,ps,7,3)-b)/norm(b)
 ```
+
+
+# The 2-D Poisson equation
+
+Next we consider the two-dimensional Poisson equation ``\Delta u = -F(x,y)`` on the unit square with Dirichlet boundary conditions; for concreteness we'll again focus on the case where
+the boundary values are zero.
+
+## A traditional approach
+
+Divide the unit square ``[0,1]\times [0,1]`` into a square mesh with squares of side length
+``h``. For each interior point ``(ih,jh)``, divided differences produce the equation
+```math
+4u(ih,jh)-u(ih,(j+1)h)-u(ih,(j-1)h)-u((i+1)h,jh)-u((i-1)h,jh) = h^2F(ih,jh).
+```
+
+If we write ``L(n)`` for the 1-D discretized Laplacian in ``n`` pieces on ``[0,1]``, thus with 
+diameter ``h=1/n``, then it can be shown that, if we index the off-boundary grid points 
+lexicographically by rows, the matrix encoding all the above equations is given by
+```math
+I_{n-1}\otimes L(n-1) + L(n-1)\otimes I_{n-1},
+```
+where ``I_{n-1}`` is the identity matrix of size ``n-1`` and ``\otimes`` is the Kronecker product.
+In code, with the Laplacian for the interior of a ``5\times 5`` grid:
+
+```@example gvl
+sym_kron(A,B) = kron(A,B)+kron(B,A)
+sparse_square_laplacian_2D(N,h) = sym_kron(I(N),sparse_square_laplacian(N,h))
+sparse_square_laplacian_2D(k) = sparse_square_laplacian_2D(2^k-1,1/(2^k))
+sparse_square_laplacian_2D(2)
+```
+
+To prolong a scalar field from a coarse grid (taking every other row and every other column)
+to a fine one, the natural rule is to send a coarse grid value to itself, 
+a value in an even row and odd column or vice versa to the average of its directly 
+adjacent coarse grid values, and a value in an odd row and column to the average of its
+four diagonally adjacent coarse grid valus. This produces the prolongation
+matrix below:
+
+```@example gvl
+sparse_prolongation_2D(k) = kron(sparse_prolongation(k),sparse_prolongation(k))
+sparse_prolongation_2D(3)[1:14,:]
+```
+
+We'll impose a Galerkin condition that the prolongation and restriction operators be adjoints of each other up to constants. This leads to the interesting consequence that the restriction
+operator takens a weighted average of all nine nearby values, including those at the diagonally
+nearest points, even though those points don't come up in computing second-order divided
+differences.
+
+```@example gvl
+sparse_restriction_2D(k) = transpose(sparse_prolongation_2D(k))/4
+sparse_restriction_2D(3)[1,:]
+```
+
+Now we can do the same multigrid v-cycles as before, but with the 2-D Laplacian and prolongation operators! Here we'll solve on a grid with about a million points in just a few seconds.
+
+```@example gvl
+function test_vcycle_2D_gvl(k,s,c)
+  ls = reverse([sparse_square_laplacian_2D(k′) for k′ in 1:k])
+  is = reverse([sparse_restriction_2D(k′) for k′ in 2:k])
+  ps = reverse([sparse_prolongation_2D(k′) for k′ in 2:k])
+  b=rand(size(ls[1],1))
+  u = zeros(size(ls[1],1))
+  norm(ls[1]*multigrid_vcycles(u,b,ls,is,ps,s,c)-b)/norm(b)
+end
+
+test_vcycle_2D_gvl(8,20,3)
+```
+
+# TODO: 2D with CombinatorialSpaces, make an actual multigrid module, smarter 
+# calculations for s and c, input arbitrary iterative solver, weighted Jacobi.
+
+
 
 
