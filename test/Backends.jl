@@ -139,9 +139,9 @@ function test_binary_operators(float_type, backend, arr_cons, tol)
       V1, V2, E1 = rand.(float_type, [nv(sd), nv(sd), ne(sd)])
       altV1, altV2, altE1 = arr_cons.([V1, V2, E1])
   
-      wdg00 = dec_wedge_product(Tuple{0,0}, sd, backend)
-      wdg01 = dec_wedge_product(Tuple{0,1}, sd, backend)
-      wdg10 = dec_wedge_product(Tuple{1,0}, sd, backend)
+      wdg00 = dec_wedge_product(Tuple{0,0}, sd, backend, arr_cons, float_type)
+      wdg01 = dec_wedge_product(Tuple{0,1}, sd, backend, arr_cons, float_type)
+      wdg10 = dec_wedge_product(Tuple{1,0}, sd, backend, arr_cons, float_type)
   
       @test mse(wdg00(altV1, altV2), ∧(Tuple{0,0}, sd, V1, V2))
       @test mse(wdg01(altV1, altE1), ∧(Tuple{0,1}, sd, V1, E1))
@@ -154,11 +154,11 @@ function test_binary_operators(float_type, backend, arr_cons, tol)
       V_ones, E_ones = ones(float_type, nv(sd)), ones(float_type, ne(sd))
       altV_ones, altE_ones = arr_cons.([V_ones, E_ones])
   
-      wdg00 = dec_wedge_product(Tuple{0,0}, sd, backend)
-      wdg01 = dec_wedge_product(Tuple{0,1}, sd, backend)
-      wdg10 = dec_wedge_product(Tuple{1,0}, sd, backend)
-      wdg11 = dec_wedge_product(Tuple{1,1}, sd, backend)
-      wdg02 = dec_wedge_product(Tuple{0,2}, sd, backend)
+      wdg00 = dec_wedge_product(Tuple{0,0}, sd, backend, arr_cons, float_type)
+      wdg01 = dec_wedge_product(Tuple{0,1}, sd, backend, arr_cons, float_type)
+      wdg10 = dec_wedge_product(Tuple{1,0}, sd, backend, arr_cons, float_type)
+      wdg11 = dec_wedge_product(Tuple{1,1}, sd, backend, arr_cons, float_type)
+      wdg02 = dec_wedge_product(Tuple{0,2}, sd, backend, arr_cons, float_type)
   
       @test mse(wdg01(altV_ones, altE_ones), E_ones)
       @test mse(wdg00(altV1, altV2), ∧(Tuple{0,0}, sd, V1, V2))
@@ -198,15 +198,20 @@ else
   @info CUDA.functional(true)
 end
 
-using Metal
-if Metal.functional()
-  @testset "Metal" begin
-    test_binary_operators(Float32, Val{:Metal}, MtlArray, 0.5e-6)
-    test_binary_operators(Float16, Val{:Metal}, MtlArray, 0.5e-3)
+if Sys.isapple()
+  using Pkg
+  Pkg.add("Metal")
+  using Metal
+  if length(Metal.MTL.devices()) != 0
+    @testset "Metal" begin
+      test_binary_operators(Float32, Val{:Metal}, MtlArray, 0.5e-6)
+      test_binary_operators(Float16, Val{:Metal}, MtlArray, 0.5e-3)
+    end
+  else
+    @info "Metal tests were not run, since no Metal device was found."
   end
 else
-  @info "Metal tests were not run, since Metal.functional() is false."
-  @info Metal.functional(true)
+  @info "Metal tests were not run, since Sys.isapple() is false."
 end
 
 end

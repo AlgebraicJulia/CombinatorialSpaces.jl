@@ -13,10 +13,11 @@ import CombinatorialSpaces: cache_wedge,
 # Wedge Product
 #--------------
 
-# Cast all but the last argument to CuArray.
-function cache_wedge(::Type{Tuple{m,n}}, sd, ::Type{Val{:CUDA}}) where {m,n}
-  wedge_cache = cache_wedge(Tuple{m,n}, sd, Val{:CPU})
-  (CuArray.(wedge_cache[1:end-1])..., wedge_cache[end])
+function cache_wedge(::Type{Tuple{m,n}}, sd::EmbeddedDeltaDualComplex1D{Bool, float_type, _p}, ::Type{Val{:CUDA}}, arr_cons=CuArray, cast_float=nothing) where {float_type,_p,m,n}
+  cache_wedge(m, n, sd, float_type, arr_cons, cast_float)
+end
+function cache_wedge(::Type{Tuple{m,n}}, sd::EmbeddedDeltaDualComplex2D{Bool, float_type, _p}, ::Type{Val{:CUDA}}, arr_cons=CuArray, cast_float=nothing) where {float_type,_p,m,n}
+  cache_wedge(m, n, sd, float_type, arr_cons, cast_float)
 end
 
 # Boundary and Co-boundary
