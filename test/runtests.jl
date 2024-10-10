@@ -21,8 +21,8 @@ end
   include("MeshGraphics.jl")
 end
 
-@testset "CUDA" begin
-  include("OperatorsCUDA.jl")
+@testset "Alternate Backends" begin
+  include("Backends.jl")
 end
 
 end
