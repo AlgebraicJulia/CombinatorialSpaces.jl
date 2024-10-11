@@ -69,10 +69,10 @@ function cache_wedge_kernel(::Type{Tuple{1,1}}, sd::EmbeddedDeltaDualComplex2D{B
   (e, coeffs, triangles(sd))
 end
 
-function cache_wedge(::Type{Tuple{m,n}}, sd::EmbeddedDeltaDualComplex1D{Bool, float_type, _p}, ::Type{Val{:CPU}}, arr_cons=identity, cast_float=nothing) where {float_type,_p,m,n}
+function cache_wedge(::Type{Tuple{m,n}}, sd::EmbeddedDeltaDualComplex1D{Bool, float_type, _p}, backend, arr_cons=identity, cast_float=nothing) where {float_type,_p,m,n}
   cache_wedge(m, n, sd, float_type, arr_cons, cast_float)
 end
-function cache_wedge(::Type{Tuple{m,n}}, sd::EmbeddedDeltaDualComplex2D{Bool, float_type, _p}, ::Type{Val{:CPU}}, arr_cons=identity, cast_float=nothing) where {float_type,_p,m,n}
+function cache_wedge(::Type{Tuple{m,n}}, sd::EmbeddedDeltaDualComplex2D{Bool, float_type, _p}, backend, arr_cons=identity, cast_float=nothing) where {float_type,_p,m,n}
   cache_wedge(m, n, sd, float_type, arr_cons, cast_float)
 end
 function cache_wedge(m::Int, n::Int, sd::HasDeltaSet1D, float_type::DataType, arr_cons, cast_float::Union{Nothing, DataType})
