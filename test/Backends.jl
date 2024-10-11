@@ -202,13 +202,14 @@ if Sys.isapple()
   using Pkg
   Pkg.add("Metal")
   using Metal
-  if length(Metal.MTL.devices()) != 0
+  dev = Metal.device()
+  if Metal.supports_family(dev, Metal.MTL.MTLGPUFamilyApple7) && Metal.supports_family(dev, Metal.MTL.MTLGPUFamilyMetal3)
     @testset "Metal" begin
       test_binary_operators(Float32, Val{:Metal}, MtlArray, 0.5e-6)
       test_binary_operators(Float16, Val{:Metal}, MtlArray, 0.5e-3)
     end
   else
-    @info "Metal tests were not run, since no Metal device was found."
+    @info "Metal tests were not run, since the current device does not support Apple7 and Metal3."
   end
 else
   @info "Metal tests were not run, since Sys.isapple() is false."
