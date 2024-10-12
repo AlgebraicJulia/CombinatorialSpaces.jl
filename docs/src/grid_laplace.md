@@ -155,9 +155,9 @@ using Random # hide
 Random.seed!(77777) # hide
 using Krylov
 using CombinatorialSpaces
-using GeometryBasics: Point2, Point3
+using StaticArrays
 using LinearAlgebra: norm
-Point2D = Point2{Float64}
+Point2D = SVector{2,Float64}
 
 #Same definition as above
 function multigrid_vcycles(u,b,As,rs,ps,steps,cycles=1)
@@ -315,9 +315,60 @@ end
 test_vcycle_2D_gvl(8,20,3)
 ```
 
-# TODO: 2D with CombinatorialSpaces, make an actual multigrid module, smarter 
-# calculations for s and c, input arbitrary iterative solver, weighted Jacobi.
 
 
+Below we show how to reconstruct the grid Laplacian using 
+CombinatorialSpaces.
+```@example cs
+using Random # hide
+Random.seed!(77777) # hide
+using Krylov
+using CombinatorialSpaces
+using GeometryBasics
+using LinearAlgebra: norm
+Point2D = Point2{Float64}
+Point3D = Point3{Float64}
+
+function multigrid_vcycles(u,b,As,rs,ps,steps,cycles=1)
+  cycles == 0 && return u # hide
+  u = cg(As[1],b,u,itmax=steps)[1] # hide
+  if length(As) == 1 # hide
+    return u # hide
+  end # hide
+  r_f = b - As[1]*u # hide
+  r_c = rs[1] * r_f # hide
+  z = multigrid_vcycles(zeros(size(r_c)),r_c,As[2:end],rs[2:end],ps[2:end],steps,cycles) # hide
+  u += ps[1] * z # hide
+  u = cg(As[1],b,u,itmax=steps)[1] # hide
+  multigrid_vcycles(u,b,As,rs,ps,steps,cycles-1) # hide
+end 
+
+laplacian(ss) = ∇²(0,dualize(ss,Barycenter()))
+
+#Copies of the primal square above in an N x N grid covering unit square in plane
+function square_tiling(N)
+  ss = EmbeddedDeltaSet2D{Bool,Point3D}()
+  h = 1/(N-1)
+  points = Point3D.([[i*h,1-j*h,0] for j in 0:N-1 for i in 0:N-1])
+  add_vertices!(ss, N^2, point=points)
+  for i in 1:N^2
+    #vertices not in the left column or bottom row
+    if (i-1)%N != 0 && (i-1) ÷ N < N-1
+      glue_sorted_triangle!(ss, i, i+N-1,i+N)
+    end
+    #vertices not in the right column or bottom row
+    if i %N != 0 && (i-1) ÷ N < N-1
+      glue_sorted_triangle!(ss, i, i+1,i+N)
+    end
+  end
+  orient!(ss)
+  ss
+end
 
 
+inner(N) = vcat([2+k*N:N-1+k*N for k ∈ 1:N-2]...)
+inlap(N) = laplacian(square_tiling(N))[inner(N),inner(N)]
+inlap(5)
+```
+
+# TODO: Make an actual multigrid module, smarter calculations for s and c, input arbitrary iterative solver, weighted Jacobi.
