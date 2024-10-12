@@ -12,7 +12,7 @@ import StaticArrays: MVector
 import SparseArrays: spzeros
 import LinearAlgebra: I
 import ..DiscreteExteriorCalculus: Barycenter, AbstractDeltaDualComplex
-import ..DiscreteExteriorCalculus: PrimalVectorField
+import ..DiscreteExteriorCalculus: PrimalVectorField, dualize
 #import ..SimplicialSets: nv,ne
 
 function add_0_cells(d::HasDeltaSet, t::Trie{Int, Int})
@@ -274,9 +274,8 @@ end
 The geometric map from a deltaset's subdivision to itself.
 """
 function subdivision_map(primal_s::EmbeddedDeltaSet,alg=Barycenter())
+  s = dualize(primal_s,alg)
   prim = SimplicialComplex(primal_s)
-  s = dualize(primal_s)
-  subdivide_duals!(s,alg)
   dual = SimplicialComplex(extract_dual(s))
   mat = spzeros(nv(prim),nv(dual))
   pvs = map(i->primal_vertices(s,i),1:nv(dual))
