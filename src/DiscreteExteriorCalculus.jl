@@ -1475,8 +1475,8 @@ and (2) their dual type has the same parameter set as their primal type. At the
 time of writing (July 2024) only "Embedded" types fail criterion (2) and get special treatment.
 
 # Examples
-s = EmbeddedDeltaSet2D{Bool,SVector{Float64,Float64}}()
-dualize(s)::EmbeddedDeltaDualComplex2D{Bool,Float64,SVector{Float64,Float64}}
+s = EmbeddedDeltaSet2D{Bool,SVector{2,Float64}}()
+dualize(s)::EmbeddedDeltaDualComplex2D{Bool,Float64,SVector{2,Float64}}
 """
 dualize(d::HasDeltaSet) = dual_type(d)(d)
 function dualize(d::HasDeltaSet,center::SimplexCenter) 
