@@ -48,7 +48,7 @@ function wedge_kernel_coeffs(::Type{Tuple{0,2}}, sd::EmbeddedDeltaDualComplex2D{
   @inbounds for t in triangles(sd)
     for dt in 1:6
       dt_real = t + (dt - 1) * shift
-      verts[dt, t] = sd[sd[dt_real, :D_∂e2], :D_∂v1]
+      verts[dt, t] = sd[sd[dt_real, :dual_∂e2], :dual_∂v1]
       coeffs[dt, t] = sd[dt_real, :dual_area] / sd[t, :area]
     end
   end
@@ -401,7 +401,7 @@ function dec_p_hodge_diag(::Type{Val{0}}, sd::EmbeddedDeltaDualComplex1D{Bool, f
   nvsd = nv(sd)
   h_0 = zeros(float_type, nvsd)
   for de in parts(sd, :DualE)
-    v1 = sd[de, :D_∂v1]
+    v1 = sd[de, :dual_∂v1]
     if 1 <= v1 <= nvsd
       h_0[v1] += sd[de, :dual_length]
     end
@@ -418,7 +418,7 @@ end
 function dec_p_hodge_diag(::Type{Val{0}}, sd::EmbeddedDeltaDualComplex2D{Bool, float_type, _p} where _p) where float_type
   h_0 = zeros(float_type, nv(sd))
   for dt in parts(sd, :DualTri)
-    v = sd[sd[dt, :D_∂e1], :D_∂v1]
+    v = sd[sd[dt, :dual_∂e1], :dual_∂v1]
     h_0[v] += sd[dt, :dual_area]
   end
   h_0
@@ -428,7 +428,7 @@ function dec_p_hodge_diag(::Type{Val{1}}, sd::EmbeddedDeltaDualComplex2D{Bool, f
   nvsd, nesd = nv(sd), ne(sd)
   h_1 = zeros(float_type, nesd)
   for de in parts(sd, :DualE)
-    v1_shift = sd[de, :D_∂v1] - nvsd
+    v1_shift = sd[de, :dual_∂v1] - nvsd
     if (1 <= v1_shift <= nesd)
       h_1[v1_shift] += sd[de, :dual_length] / sd[v1_shift, :length]
     end
