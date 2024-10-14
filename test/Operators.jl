@@ -188,7 +188,7 @@ end
         V_1, V_2 = rand(nv(sd)), rand(nv(sd))
         E_1 = rand(ne(sd))
         @test all(dec_wedge_product(Tuple{0, 0}, sd)(V_1, V_2) .== ∧(Tuple{0, 0}, sd, V_1, V_2))
-        @test all(dec_wedge_product(Tuple{0, 1}, sd)(V_1, E_1) .== ∧(Tuple{0, 1}, sd, V_1, E_1))
+        @test all(isapprox.(dec_wedge_product(Tuple{0, 1}, sd)(V_1, E_1), ∧(Tuple{0, 1}, sd, V_1, E_1); atol=1e-15))
     end
 
     for sd in dual_meshes_2D
