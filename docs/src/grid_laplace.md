@@ -1,4 +1,4 @@
-# Solving Poisson's equation on a multiscale regular 1-D mesh
+# Solving Poisson's equation in multiscale
 
 CombinatorialSpaces provides advanced capabilities for working with irregular and complex meshes
 in up to three dimensions. For a first example of working across meshes of multiple scales at once,
