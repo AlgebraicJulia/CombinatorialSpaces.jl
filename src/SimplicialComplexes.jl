@@ -2,7 +2,7 @@
 The category of simplicial complexes and Kleisli maps for the convex space monad.
 """
 module SimplicialComplexes
-export SimplicialComplex, VertexList, has_simplex, has_point, has_span, GeometricMap, nv, as_matrix, compose, dom,codom, id, cocenter, primal_vertices, subdivision_map
+export SimplicialComplex, VertexList, has_simplex, has_point, has_span, GeometricMap, nv, as_matrix, compose, dom,codom, id, cocenter, primal_vertices, subdivision_map,triforce_subdivision, triforce_subdivision_map, repeated_subdivisions
 using ..Tries
 using ..SimplicialSets, ..DiscreteExteriorCalculus
 import ACSets: incident, subpart
@@ -13,6 +13,7 @@ import SparseArrays: spzeros
 import LinearAlgebra: I
 import ..DiscreteExteriorCalculus: Barycenter, AbstractDeltaDualComplex
 import ..DiscreteExteriorCalculus: PrimalVectorField, dualize
+import ..Meshes: triangulated_grid
 #import ..SimplicialSets: nv,ne
 
 function add_0_cells(d::HasDeltaSet, t::Trie{Int, Int})
@@ -288,6 +289,38 @@ function subdivision_map(primal_s::EmbeddedDeltaSet,alg=Barycenter())
   GeometricMap(dual,prim,mat)
 end
 
+function triforce_subdivision(s)
+  sd = typeof(s)()
+  add_vertices!(sd,nv(s))
+  add_vertices!(sd,ne(s))
+  sd[:point] = [s[:point];
+                (subpart(s,(:∂v0,:point)).+subpart(s,(:∂v1,:point)))/2]
+  succ3(i) = (i+1)%3 == 0 ? 3 : (i+1)%3
+  for t in triangles(s)
+    es = triangle_edges(s,t)
+    glue_sorted_triangle!(sd,(es.+nv(s))...)
+    for i in 1:3
+      glue_sorted_triangle!(sd,
+        triangle_vertices(s,t)[i],
+        triangle_edges(s,t)[succ3(i)]+nv(s),
+        triangle_edges(s,t)[succ3(i+1)]+nv(s))
+    end
+  end
+  sd
+end
+
+function triforce_subdivision_map(s)
+  sd = triforce_subdivision(s)
+  mat = spzeros(nv(s),nv(sd))
+  for i in 1:nv(s) mat[i,i] = 1. end
+  for i in 1:ne(s) 
+    x,y = s[:∂v0][i],s[:∂v1][i]
+    mat[x,i+nv(s)] = 1/2
+    mat[y,i+nv(s)] = 1/2
+  end
+  GeometricMap(SimplicialComplex(sd),SimplicialComplex(s),mat)
+end
+
 function pullback_primal(f::GeometricMap, v::PrimalVectorField{T}) where T
   nv(f.cod) == length(v) || error("Vector field must have same number of vertices as codomain")
   PrimalVectorField(T.(eachcol(hcat(v.data...)*as_matrix(f))))
@@ -320,5 +353,13 @@ primal_vertices(s::AbstractDeltaDualComplex,v::DualV) = simplex_vertices(s,cocen
 primal_vertices(s::AbstractDeltaDualComplex,n::Int) = simplex_vertices(s,cocenter(s,DualV(n)))
 
 #dimension(x::Simplex{n}) where {n} = n
+
+function repeated_subdivisions(k,ss,subdivider)
+  map(1:k) do k′
+    f = subdivider(ss) 
+    ss = dom(f).delta_set
+    f
+  end
+end
 
 end

@@ -71,10 +71,8 @@ loadmesh_icosphere_helper(obj_file_name) = EmbeddedDeltaSet2D(
 # This function was once the gridmeshes.jl file from Decapodes.jl.
 """    function triangulated_grid(max_x, max_y, dx, dy, point_type)
 
-Return a grid of (near) equilateral triangles.
-
-Note that dx will be slightly less than what is given, since points are
-compressed to lie within max_x.
+Triangulate the rectangle [0,max_x] x [0,max_y] by equilateralish 
+triangles of width dx and height dy.
 """
 function triangulated_grid(max_x, max_y, dx, dy, point_type)
 
@@ -88,14 +86,6 @@ function triangulated_grid(max_x, max_y, dx, dy, point_type)
       row .+ [dx/2, 0, 0]
     else
       row .+ [dx/2, 0]
-    end
-  end
-  # The perturbation moved the right-most points past max_x, so compress along x.
-  map!(coords, coords) do coord
-    if point_type == Point3D
-      diagm([max_x/(max_x+dx/2), 1, 1]) * coord
-    else
-      diagm([max_x/(max_x+dx/2), 1]) * coord
     end
   end
 

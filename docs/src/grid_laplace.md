@@ -93,29 +93,6 @@ sparse_restriction(3)
 sparse_prolongation(3)
 ```
 
-Here is the function that actually runs some multigrid v-cycles, 
-using the conjugate gradient method from `Krylov.jl` to iterate toward
-solution on each grid.
-
-```@example gvl
-using Krylov
-
-function multigrid_vcycles(u,b,As,rs,ps,steps,cycles=1)
-  cycles == 0 && return u
-  u = cg(As[1],b,u,itmax=steps)[1]
-  if length(As) == 1 #on coarsest grid
-    return u
-  end
-  #smooth, update error, restrict, recurse, prolong, smooth
-  r_f = b - As[1]*u #residual
-  r_c = rs[1] * r_f #restrict
-  z = multigrid_vcycles(zeros(size(r_c)),r_c,As[2:end],rs[2:end],ps[2:end],steps,cycles) #recurse
-  u += ps[1] * z #prolong. 
-  u = cg(As[1],b,u,itmax=steps)[1] #smooth again
-  multigrid_vcycles(u,b,As,rs,ps,steps,cycles-1)
-end
-```
-
 Here is a function that sets up and runs a v-cycle for the 
 Poisson problem on a mesh with ``2^k+1`` points, on all
 meshes down to ``3`` points,
@@ -124,8 +101,8 @@ with a random target vector,
 and continuing through the entire cycle ``c`` times. 
 
 In the example, we are solving the Poisson equation on a grid
-with ``2^{15}+1`` points using just ``15\cdot 7\cdot 3`` steps of
-the conjugate gradient method. 
+with ``2^{15}+1`` points using just ``15\cdot 7\cdot 3`` 
+total steps of the conjugate gradient method. 
 
 ```@example gvl
 function test_vcycle_1D_gvl(k,s,c)
@@ -153,46 +130,20 @@ repeated halvings of the radius of the 1-D mesh in our example.
 ```@example cs
 using Random # hide
 Random.seed!(77777) # hide
-using Krylov
 using CombinatorialSpaces
 using StaticArrays
 using LinearAlgebra: norm
-Point2D = SVector{2,Float64}
-
-#Same definition as above
-function multigrid_vcycles(u,b,As,rs,ps,steps,cycles=1)
-  cycles == 0 && return u # hide
-  u = cg(As[1],b,u,itmax=steps)[1] # hide
-  if length(As) == 1 # hide
-    return u # hide
-  end # hide
-  r_f = b - As[1]*u # hide
-  r_c = rs[1] * r_f # hide
-  z = multigrid_vcycles(zeros(size(r_c)),r_c,As[2:end],rs[2:end],ps[2:end],steps,cycles) # hide
-  u += ps[1] * z # hide
-  u = cg(As[1],b,u,itmax=steps)[1] # hide
-  multigrid_vcycles(u,b,As,rs,ps,steps,cycles-1) # hide
-end 
-
-function repeated_subdivisions(k,ss)
-  map(1:k) do k′
-    f = subdivision_map(ss) 
-    ss = dom(f).delta_set
-    f
-  end
-end
-laplacian(ss) = ∇²(0,dualize(ss,Barycenter()))
 ```
 
 We first construct the *coarsest* stage in the 1-D mesh, with just two vertices
 and one edge running from ``(0,0)`` to ``(1,0)``.
 
 ```@example cs
-ss = EmbeddedDeltaSet1D{Bool,Point2D}()
-add_vertices!(ss, 2, point=[Point2D(0, 0), Point2D(+1, 0)])
+ss = EmbeddedDeltaSet1D{Bool,Point3D}()
+add_vertices!(ss, 2, point=[(0,0,0),(1,0,0)])
 add_edge!(ss, 1, 2, edge_orientation=true)
 
-repeated_subdivisions(4,ss)[1]
+repeated_subdivisions(4,ss,subdivision_map)[1]
 ```
 
 The setup function below constructs ``k`` subdivision maps and
@@ -210,7 +161,7 @@ function test_vcycle_1D_cs_setup_sorted(k)
   N = 2^k-1 
   u = zeros(N)
 
-  sds = reverse(repeated_subdivisions(k,ss))
+  sds = reverse(repeated_subdivisions(k,ss,subdivision_map))
   sses = [sd.dom.delta_set for sd in sds]
   sorts = [sort(vertices(ss),by=x->ss[:point][x]) for ss in sses]
   ls = [laplacian(sses[i])[sorts[i],sorts[i]][2:end-1,2:end-1] for i in eachindex(sses)]
@@ -237,7 +188,7 @@ function test_vcycle_1D_cs_setup(k)
   N = 2^k-1 
   u = zeros(N)
 
-  sds = reverse(repeated_subdivisions(k,ss))
+  sds = reverse(repeated_subdivisions(k,ss,subdivision_map))
   sses = [sd.dom.delta_set for sd in sds]
   ls = [laplacian(sses[i])[3:end,3:end] for i in eachindex(sses)]
   ps = transpose.([as_matrix(sds[i])[3:end,3:end] for i in 1:length(sds)-1])
@@ -329,19 +280,7 @@ using LinearAlgebra: norm
 Point2D = Point2{Float64}
 Point3D = Point3{Float64}
 
-function multigrid_vcycles(u,b,As,rs,ps,steps,cycles=1)
-  cycles == 0 && return u # hide
-  u = cg(As[1],b,u,itmax=steps)[1] # hide
-  if length(As) == 1 # hide
-    return u # hide
-  end # hide
-  r_f = b - As[1]*u # hide
-  r_c = rs[1] * r_f # hide
-  z = multigrid_vcycles(zeros(size(r_c)),r_c,As[2:end],rs[2:end],ps[2:end],steps,cycles) # hide
-  u += ps[1] * z # hide
-  u = cg(As[1],b,u,itmax=steps)[1] # hide
-  multigrid_vcycles(u,b,As,rs,ps,steps,cycles-1) # hide
-end 
+ 
 
 laplacian(ss) = ∇²(0,dualize(ss,Barycenter()))
 
@@ -371,4 +310,83 @@ inlap(N) = laplacian(square_tiling(N))[inner(N),inner(N)]
 inlap(5)
 ```
 
-# TODO: Make an actual multigrid module, smarter calculations for s and c, input arbitrary iterative solver, weighted Jacobi.
+It was a bit annoying to have to manually subdivide the 
+square grid; we can automate this with the `repeated_subdivisions` 
+function, but the non-uniformity of neighborhoods in a barycentric
+subdivision of a 2-D simplicial set means we should use a different
+subdivider. We focus on the "triforce" subdivision, which splits
+each triangle into four by connecting the midpoints of its edges.
+
+```math
+    v̇ == μ * Δ(v)-d₀(P) + φ
+    Ṗ == ⋆₀⁻¹(dual_d₁(⋆₁(v)))
+```
+
+```@example stokes
+using Krylov, LinearOperators, CombinatorialSpaces, LinearAlgebra
+s = triangulated_grid(1,1,1/4,sqrt(3)/2*1/4,Point3D)
+fs = reverse(repeated_subdivisions(4,s,triforce_subdivision_map))
+sses = map(fs) do f dom(f).delta_set end
+push!(sses,s)
+
+function form_operator(μ,s)
+  @info "Forming operator for $(nv(s)) vertices"
+  sd = dualize(s,Circumcenter())
+  L1 = ∇²(1,sd)
+  d0 = dec_differential(0,sd)
+  s1 = dec_hodge_star(1,sd)
+  s0inv = inv_hodge_star(0,sd)
+  d1 = dec_dual_derivative(1,sd)
+  [μ*L1 -d0
+  s0inv*d1*s1 0*I]
+end
+
+ops = map(s->form_operator(1,s),sses)
+
+#=
+len(s,e) = sqrt(sum((s[:point][s[:∂v0][e]]- s[:point][s[:∂v1][e]]) .^2))
+diam(s) = minimum(len(s,e) for e in edges(s))
+ε = diam(s0)
+bvs(s) = findall(x -> abs(x[1]) < ε || abs(x[1]-1) < ε || x[2] == 0 || abs(x[2]-1)< ε*sqrt(3)/2, s[:point])
+ivs(s) = filter(x -> !(x in bvs(s)), 1:nv(s))
+bes(s) = begin bvs_s = bvs(s) ; 
+  findall(x -> s[:∂v0][x] ∈ bvs_s ||  s[:∂v1][x] ∈ bvs_s , parts(s,:E)) end
+ies(s) = begin b = bes(s);  [e for e in edges(s) if !(e in b)] end
+sd = dualize(s,Circumcenter())
+gensim(StokesDynamics)
+f! = evalsim(StokesDynamics)(sd,nothing)
+=#
+nw(s) = ne(s)+nv(s)
+fine_op = ops[1]
+
+b = fine_op* ones(nw(sses[1]))
+sol = gmres(fine_op,b)
+norm(fine_op*sol[1]-b)/norm(b)
+rs = transpose.(as_matrix.(fs))
+ps = transpose.(is) .* 1/4
+S = ♯_mat(dualize(s,Circumcenter()),AltPPSharp())
+
+#XXX: need to sharpen and flatten
+u = zeros(nw(sses[1]))
+multigrid_vcycles(u,b,ops,rs,ps,5,3)
+```
+
+Let's back up for a minute and make sure we can run the heat equation with our lovely triangular meshes.
+
+```@example heat-on-triangles
+using Krylov, CombinatorialSpaces, LinearAlgebra
+
+s = triangulated_grid(1,1,1/4,sqrt(3)/2*1/4,Point3D)
+fs = reverse(repeated_subdivisions(4,s,triforce_subdivision_map));
+sses = map(fs) do f dom(f).delta_set end
+push!(sses,s)
+sds = map(sses) do s dualize(s,Circumcenter()) end
+Ls = map(sds) do sd ∇²(0,sd) end
+ps = transpose.(as_matrix.(fs))
+rs = transpose.(ps)./4.0 #4 is the biggest row sum that occurs for triforce, this is not clearly the correct scaling
+
+u0 = zeros(nv(sds[1]))
+b = Ls[1]*rand(nv(sds[1])) #put into range of the Laplacian for solvability
+u = multigrid_vcycles(u0,b,Ls,rs,ps,3,10) #3,10 chosen empirically, presumably there's deep lore and chaos here
+norm(Ls[1]*u-b)/norm(b)
+```
