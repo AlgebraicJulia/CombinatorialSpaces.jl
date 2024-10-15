@@ -12,6 +12,7 @@ include("MeshInterop.jl")
 include("SimplicialComplexes.jl")
 include("FastDEC.jl")
 include("Meshes.jl")
+include("Multigrid.jl")
 
 @reexport using .Tries
 @reexport using .SimplicialSets
@@ -20,5 +21,6 @@ include("Meshes.jl")
 @reexport using .FastDEC
 @reexport using .MeshInterop
 @reexport using .Meshes
+@reexport using .Multigrid
 
 end

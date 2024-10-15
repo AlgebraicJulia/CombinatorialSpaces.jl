@@ -329,19 +329,7 @@ using LinearAlgebra: norm
 Point2D = Point2{Float64}
 Point3D = Point3{Float64}
 
-function multigrid_vcycles(u,b,As,rs,ps,steps,cycles=1)
-  cycles == 0 && return u # hide
-  u = cg(As[1],b,u,itmax=steps)[1] # hide
-  if length(As) == 1 # hide
-    return u # hide
-  end # hide
-  r_f = b - As[1]*u # hide
-  r_c = rs[1] * r_f # hide
-  z = multigrid_vcycles(zeros(size(r_c)),r_c,As[2:end],rs[2:end],ps[2:end],steps,cycles) # hide
-  u += ps[1] * z # hide
-  u = cg(As[1],b,u,itmax=steps)[1] # hide
-  multigrid_vcycles(u,b,As,rs,ps,steps,cycles-1) # hide
-end 
+ 
 
 laplacian(ss) = ∇²(0,dualize(ss,Barycenter()))
 
@@ -371,4 +359,3 @@ inlap(N) = laplacian(square_tiling(N))[inner(N),inner(N)]
 inlap(5)
 ```
 
-# TODO: Make an actual multigrid module, smarter calculations for s and c, input arbitrary iterative solver, weighted Jacobi.
