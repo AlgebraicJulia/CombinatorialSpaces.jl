@@ -42,11 +42,18 @@ struct SimplicialComplex{D}
   delta_set::D
   cache::Trie{Int,Int}
 
-  function SimplicialComplex(d::DeltaSet0D)
-    t = Trie{Int,Int}()
-    add_0_cells(d, t)
-    new{DeltaSet0D}(d, t)
-  end
+    function SimplicialComplex(d::DeltaSet0D)
+      t = Trie{Int, Int}()
+      add_0_cells(d, t)
+      new{DeltaSet0D}(d, t)
+    end
+
+    function SimplicialComplex(d::D) where {D<:AbstractDeltaSet1D}
+        t = Trie{Int, Int}()
+        add_0_cells(d, t)
+        add_1_cells(d, t)
+        new{D}(d, t)
+    end
 
   function SimplicialComplex(d::D) where {D<:AbstractDeltaSet1D}
     t = Trie{Int,Int}()
