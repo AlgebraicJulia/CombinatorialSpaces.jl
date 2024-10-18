@@ -157,6 +157,7 @@ We first construct everything with a sort on the vertices to show that
 we get the exact same results as in the first example.
 
 ```@example cs
+laplacian(s) = ∇²(0,dualize(s,Barycenter()))
 function test_vcycle_1D_cs_setup_sorted(k)
   b=rand(2^k-1)
   N = 2^k-1 
@@ -191,7 +192,6 @@ function test_vcycle_1D_cs_setup(k)
 
   sds = reverse(repeated_subdivisions(k,ss,subdivision_map))
   sses = [sd.dom.delta_set for sd in sds]
-  laplacian(s) = ∇²(0,dualize(s,Barycenter()))
   ls = [laplacian(sses[i])[3:end,3:end] for i in eachindex(sses)]
   ps = transpose.([as_matrix(sds[i])[3:end,3:end] for i in 1:length(sds)-1])
   is = transpose.(ps)*1/2
