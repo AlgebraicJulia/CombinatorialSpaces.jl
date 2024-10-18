@@ -279,7 +279,6 @@ using CombinatorialSpaces
 using GeometryBasics
 using LinearAlgebra: norm
 Point2D = Point2{Float64}
-Point3D = Point3{Float64}
 
  
 
