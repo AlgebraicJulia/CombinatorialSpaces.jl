@@ -29,7 +29,7 @@ export DualSimplex, DualV, DualE, DualTri, DualTet, DualChain, DualForm,
   ℒ, lie_derivative, lie_derivative_flat,
   vertex_center, edge_center, triangle_center, tetrahedron_center, dual_tetrahedron_vertices, dual_triangle_vertices, dual_edge_vertices,
   dual_point, dual_volume, subdivide_duals!, DiagonalHodge, GeometricHodge,
-  PPSharp, AltPPSharp, DesbrunSharp, LLSDDSharp, de_sign,
+  subdivide, PPSharp, AltPPSharp, DesbrunSharp, LLSDDSharp, de_sign,
   ♭♯, ♭♯_mat, flat_sharp, flat_sharp_mat, dualize, dual_extractor, extract_dual
 
 import Base: ndims
@@ -1419,6 +1419,13 @@ function dual_derivative(::Type{Val{n}}, s::HasDeltaSet, args...) where n
   end
 end
 
+"""
+Checks whethere a DeltaSet is embedded by (droolingly) searching for 'Embedded'
+in the name of its type. This could also check for 'Point' in the schema, which
+would feel better but be less trustworthy.
+"""
+is_embedded(d::HasDeltaSet) = is_embedded(typeof(t))
+is_embedded(t::Type{T}) where {T<:HasDeltaSet} = !isnothing(findfirst("Embedded",string(t.name.name)))
 const REPLACEMENT_FOR_DUAL_TYPE = "Set" => "DualComplex"
 rename_to_dual(s::Symbol) = Symbol(replace(string(s),REPLACEMENT_FOR_DUAL_TYPE))
 rename_from_dual(s::Symbol) = Symbol(replace(string(s),reverse(REPLACEMENT_FOR_DUAL_TYPE)))

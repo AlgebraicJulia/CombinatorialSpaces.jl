@@ -48,4 +48,6 @@ h = compose(f,g)
 @test as_matrix(h) ≈ [1/3, 0, 1/6, 1/2]
 isc = id(sc)
 @test as_matrix(h) == as_matrix(compose(h,isc))
+
+
 end

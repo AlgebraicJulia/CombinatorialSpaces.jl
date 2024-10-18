@@ -51,6 +51,32 @@ function wedge_kernel_coeffs(::Type{Tuple{0,2}}, sd::EmbeddedDeltaDualComplex2D{
       verts[dt, t] = sd[sd[dt_real, :D_∂e2], :D_∂v1]
       coeffs[dt, t] = sd[dt_real, :dual_area] / sd[t, :area]
     end
+
+    return wedge_terms
+end
+
+"""    dec_p_wedge_product(::Type{Tuple{0,2}}, sd::EmbeddedDeltaDualComplex2D{Bool, float_type, _p} where _p) where float_type
+
+Precomputes values for the wedge product between a 0 and 2-form.
+The values are to be fed into the wedge_terms parameter for the computational "c" varient.
+This relies on the assumption of a well ordering of the dual space simplices.
+Do NOT modify the mesh once it's dual mesh has been computed else this method may not function properly.
+"""
+function dec_p_wedge_product(::Type{Tuple{0,2}}, sd::EmbeddedDeltaDualComplex2D{Bool, float_type, _p} where _p) where float_type
+    # XXX: This is assuming that meshes don't have too many entries
+    # TODO: This type should be settable by the user and default set to Int32
+    primal_vertices = Array{Int32}(undef, 6, ntriangles(sd))
+    coeffs = Array{float_type}(undef, 6, ntriangles(sd))
+
+    shift::Int = ntriangles(sd)
+
+    @inbounds for primal_tri in triangles(sd)
+      for dual_tri_idx in 1:6
+        dual_tri_real = primal_tri + (dual_tri_idx - 1) * shift
+
+        primal_vertices[dual_tri_idx, primal_tri] = sd[sd[dual_tri_real, :dual_∂e2], :dual_∂v1]
+        coeffs[dual_tri_idx, primal_tri] = sd[dual_tri_real, :dual_area] / sd[primal_tri, :area]
+      end
   end
   (verts, coeffs, ntriangles(sd))
 end
