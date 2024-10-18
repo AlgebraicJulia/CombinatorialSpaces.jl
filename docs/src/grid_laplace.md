@@ -371,6 +371,8 @@ u = zeros(nw(sses[1]))
 multigrid_vcycles(u,b,ops,rs,ps,5,3)
 ```
 
+
+
 Let's back up for a minute and make sure we can run the heat equation with our lovely triangular meshes.
 
 ```@example heat-on-triangles
