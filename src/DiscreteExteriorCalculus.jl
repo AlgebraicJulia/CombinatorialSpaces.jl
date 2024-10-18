@@ -26,6 +26,7 @@ export DualSimplex, DualV, DualE, DualTri, DualTet, DualChain, DualForm,
   vertex_center, edge_center, triangle_center, tetrahedron_center, dual_tetrahedron_vertices, dual_triangle_vertices, dual_edge_vertices,
   dual_point, dual_volume, subdivide_duals!, DiagonalHodge, GeometricHodge,
   subdivide, PPSharp, AltPPSharp, DesbrunSharp, LLSDDSharp, de_sign,
+  DPPFlat, PPFlat,
   ♭♯, ♭♯_mat, flat_sharp, flat_sharp_mat
 
 import Base: ndims
@@ -34,6 +35,7 @@ import LinearAlgebra: mul!
 using LinearAlgebra: Diagonal, dot, norm, cross, pinv, qr, ColumnNorm
 using SparseArrays
 using StaticArrays: @SVector, SVector, SMatrix, MVector, MMatrix
+using Statistics: mean
 using GeometryBasics: Point2, Point3
 
 const Point2D = SVector{2,Float64}
@@ -53,6 +55,7 @@ import ..SimplicialSets: ∂, d, volume
 
 abstract type DiscreteFlat end
 struct DPPFlat <: DiscreteFlat end
+struct PPFlat <: DiscreteFlat end
 
 abstract type DiscreteSharp end
 struct PPSharp <: DiscreteSharp end
@@ -737,6 +740,18 @@ function ♭_mat(s::AbstractDeltaDualComplex2D, p2s)
     end
   end
   ♭_mat
+end
+
+# TODO: Add kernel or matrix version.
+function ♭(s::AbstractDeltaDualComplex2D, X::AbstractVector, ::PPFlat)
+  map(edges(s)) do e
+    # Assume linear-interpolation the vector field across the edge,
+    # determined solely by the values of the vector-field at the endpoints.
+    vs = edge_vertices(s,e)
+    l_vec = mean(X[vs])
+    e_vec = (point(s, tgt(s,e)) - point(s, src(s,e))) * sign(1,s,e)
+    dot(l_vec, e_vec)
+  end
 end
 
 function ♯(s::AbstractDeltaDualComplex2D, α::AbstractVector, DS::DiscreteSharp)

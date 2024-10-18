@@ -12,6 +12,7 @@ using CombinatorialSpaces.Meshes: tri_345, tri_345_false, grid_345, right_scalen
 using CombinatorialSpaces.SimplicialSets: boundary_inds
 using CombinatorialSpaces.DiscreteExteriorCalculus: eval_constant_primal_form, eval_constant_dual_form
 using GeometryBasics: Point2, Point3
+using Statistics: mean
 
 const Point2D = SVector{2,Float64}
 const Point3D = SVector{3,Float64}
@@ -552,6 +553,29 @@ rect = EmbeddedDeltaDualComplex2D{Bool,Float64,Point3D}(rect′);
 subdivide_duals!(rect, Barycenter());
 
 flat_meshes = [tri_345(), tri_345_false(), right_scalene_unit_hypot(), grid_345(), (tg′, tg), (rect′, rect)];
+
+# Test the primal-primal flat operation:
+# ... over a static vector-field.
+mse(x,y) = mean(map(z -> z^2, x .- y))
+s = tg;
+X_pvf = fill(SVector(1.0,2.0), nv(s));
+X_dvf = fill(SVector(1.0,2.0), ntriangles(s));
+α_from_primal = ♭(s, X_pvf, PPFlat())
+α_from_dual = ♭(s, X_dvf, DPPFlat())
+@test maximum(abs.(α_from_primal .- α_from_dual)) < 1e-14
+@test mse(α_from_primal, α_from_dual) < 1e-29
+
+# ... over a non-static vector-field.
+s′ = triangulated_grid(100,100,1,1,Point2D);
+s = EmbeddedDeltaDualComplex2D{Bool,Float64,Point2D}(s′);
+subdivide_duals!(s, Barycenter());
+nv(s)
+X_func(p) = SVector(p[1], p[2]^2)
+X_pvf = map(X_func, point(s))
+X_dvf = map(X_func, s[s[:tri_center], :dual_point])
+α_from_primal = ♭(s, X_pvf, PPFlat())
+α_from_dual = ♭(s, X_dvf, DPPFlat())
+@test mse(α_from_primal, α_from_dual) < 3
 
 # Test the primal-dual interior product.
 # The gradient of the interior product of a vector-field with itself should be 0.
