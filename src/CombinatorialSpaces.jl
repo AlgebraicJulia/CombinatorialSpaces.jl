@@ -9,10 +9,12 @@ include("ExteriorCalculus.jl")
 include("SimplicialSets.jl")
 include("DiscreteExteriorCalculus.jl")
 include("MeshInterop.jl")
-include("SimplicialComplexes.jl")
 include("FastDEC.jl")
 include("Meshes.jl")
+include("SimplicialComplexes.jl")
 include("Multigrid.jl")
+
+
 
 @reexport using .Tries
 @reexport using .SimplicialSets

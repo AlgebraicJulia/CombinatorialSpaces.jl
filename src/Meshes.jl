@@ -72,7 +72,7 @@ loadmesh_icosphere_helper(obj_file_name) = EmbeddedDeltaSet2D(
 """    function triangulated_grid(max_x, max_y, dx, dy, point_type)
 
 Triangulate the rectangle [0,max_x] x [0,max_y] by equilateralish 
-triangles of width a bit less than dx and height dy.
+triangles of width dx and height dy.
 """
 function triangulated_grid(max_x, max_y, dx, dy, point_type)
 
