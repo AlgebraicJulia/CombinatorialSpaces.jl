@@ -15,7 +15,7 @@ exterior derivative) operators. For additional operators, see the
 module SimplicialSets
 export Simplex, V, E, Tri, Tet, SimplexChain, VChain, EChain, TriChain, TetChain,
   SimplexForm, VForm, EForm, TriForm, TetForm, HasDeltaSet,
-  HasDeltaSet1D, AbstractDeltaSet1D, DeltaSet1D, SchDeltaSet1D,
+  HasDeltaSet1D, DeltaSet0D, AbstractDeltaSet1D, DeltaSet1D, SchDeltaSet1D,
   OrientedDeltaSet1D, SchOrientedDeltaSet1D,
   EmbeddedDeltaSet1D, SchEmbeddedDeltaSet1D,
   HasDeltaSet2D, AbstractDeltaSet2D, DeltaSet2D, SchDeltaSet2D,
@@ -47,12 +47,6 @@ import Catlab.Graphs: src, tgt, nv, ne, vertices, edges, has_vertex, has_edge,
   add_vertex!, add_vertices!, add_edge!, add_edges!
 using ..ArrayUtils
 
-# 0-D simplicial sets
-#####################
-
-@present SchDeltaSet0D(FreeSchema) begin
-  V::Ob
-end
 
 """ Abstract type for C-sets that contain a delta set of some dimension.
 
@@ -68,6 +62,17 @@ nsimplices(::Type{Val{0}}, s::HasDeltaSet) = nv(s)
 has_vertex(s::HasDeltaSet, v) = has_part(s, :V, v)
 add_vertex!(s::HasDeltaSet; kw...) = add_part!(s, :V; kw...)
 add_vertices!(s::HasDeltaSet, n::Int; kw...) = add_parts!(s, :V, n; kw...)
+
+# 0-D simplicial sets
+#####################
+
+@present SchDeltaSet0D(FreeSchema) begin
+  V::Ob
+end
+""" A 0-dimensional delta set, aka a set of vertices.
+"""
+@acset_type DeltaSet0D(SchDeltaSet0D) <: HasDeltaSet
+ne(::DeltaSet0D) = error("0-dimensional Δ-set lacks edges.")
 
 # 1D simplicial sets
 ####################
