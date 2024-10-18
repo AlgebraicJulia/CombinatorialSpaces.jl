@@ -48,7 +48,7 @@ function wedge_kernel_coeffs(::Type{Tuple{0,2}}, sd::EmbeddedDeltaDualComplex2D{
   @inbounds for t in triangles(sd)
     for dt in 1:6
       dt_real = t + (dt - 1) * shift
-      verts[dt, t] = sd[sd[dt_real, :D_∂e2], :D_∂v1]
+      verts[dt, t] = sd[sd[dt_real, :dual_∂e2], :dual_∂v1]
       coeffs[dt, t] = sd[dt_real, :dual_area] / sd[t, :area]
     end
 
