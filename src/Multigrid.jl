@@ -1,9 +1,9 @@
 module Multigrid
-using GeometryBasics:Point3
+using GeometryBasics:Point3, Point2
 using Krylov
-#using ..SimplicialComplexes: triforce_subdivision_map
-export multigrid_vcycles, Point3D
+export multigrid_vcycles, Point3D, Point2D
 Point3D = Point3{Float64}
+Point2D = Point2{Float64}
 
 # TODO: Smarter calculations for steps and cycles, input arbitrary iterative solver, implement weighted Jacobi and maybe Gauss-Seidel, masking for boundary condtions
 
@@ -33,19 +33,5 @@ function multigrid_vcycles(u,b,As,rs,ps,steps,cycles=1,alg=cg)
   u = alg(As[1],b,u,itmax=steps)[1] 
   multigrid_vcycles(u,b,As,rs,ps,steps,cycles-1) 
 end
-
-
-#masked(A,x,b)
-#=
-using CairoMakie
-s1 = triangulated_grid(1,1,1/2,1/2,Point3D)
-s2 = triangulated_grid(1,1,1/4,1/4,Point3D)
-fr = Figure();
-ax = CairoMakie.Axis(fr[1,1],aspect=sqrt(3))
-wireframe!(ax,s1)
-wireframe!(ax,s2,color=(:orange,0.5))
-fr
-=#
-
 
 end

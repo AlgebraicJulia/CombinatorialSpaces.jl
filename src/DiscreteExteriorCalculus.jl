@@ -58,6 +58,8 @@ import ..SimplicialSets: ∂, d, volume
 
 abstract type DiscreteFlat end
 struct DPPFlat <: DiscreteFlat end
+struct PPFlat <: DiscreteFlat end
+
 
 abstract type DiscreteSharp end
 struct PPSharp <: DiscreteSharp end
@@ -646,6 +648,17 @@ function ♭(s::AbstractDeltaDualComplex2D, X::AbstractVector, ::DPPFlat)
       # When done, sum these weights up and divide by the total length.
     end / sum(dual_lengths)
   end
+end
+
+function ♭(s::AbstractDeltaDualComplex2D, X::AbstractVector, ::PPFlat)
+  map(edges(s)) do e
+  # Assume linear-interpolation of the vector field across the edge,
+ # determined solely by the values of the vector-field at the endpoints.
+    vs = edge_vertices(s,e)
+    l_vec = 1/2*(X[vs][1]+X[vs][2])
+    e_vec = (point(s, tgt(s,e)) - point(s, src(s,e))) * sign(1,s,e)
+    dot(l_vec, e_vec)
+ end
 end
 
 function ♭_mat(s::AbstractDeltaDualComplex2D)

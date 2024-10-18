@@ -325,8 +325,8 @@ function pullback_primal(f::GeometricMap, v::PrimalVectorField{T}) where T
   nv(f.cod) == length(v) || error("Vector field must have same number of vertices as codomain")
   PrimalVectorField(T.(eachcol(hcat(v.data...)*as_matrix(f))))
 end
-#Is restriction the transpose?
-*(f::GeometricMap,v::PrimalVectorField) = pullback_primal(f,v)
+pullback_primal(f::GeometricMap,v) = v * as_matrix(f)
+*(f::GeometricMap,v) = pullback_primal(f,v)
 
 function dual_vertex_dimension(s::AbstractDeltaDualComplex,v::DualV)
   n = v.data
