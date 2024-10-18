@@ -268,7 +268,7 @@ end
 test_vcycle_2D_gvl(8,20,3)
 ```
 
-
+## Via combinatorial spaces
 
 Below we show how to reconstruct the grid Laplacian using 
 CombinatorialSpaces.
@@ -310,69 +310,248 @@ inner(N) = vcat([2+k*N:N-1+k*N for k ∈ 1:N-2]...)
 inlap(N) = laplacian(square_tiling(N))[inner(N),inner(N)]
 inlap(5)
 ```
+# Triangular grids
+
+#XXX: fill in edges of triangular grids 
+
+## Stokes flow 
 
 It was a bit annoying to have to manually subdivide the 
 square grid; we can automate this with the `repeated_subdivisions` 
 function, but the non-uniformity of neighborhoods in a barycentric
-subdivision of a 2-D simplicial set means we should use a different
+subdivision of a 2-D simplicial set means we might prefer a different
 subdivider. We focus on the "triforce" subdivision, which splits
 each triangle into four by connecting the midpoints of its edges.
 
 ```math
-    v̇ == μ * Δ(v)-d₀(P) + φ
     Ṗ == ⋆₀⁻¹(dual_d₁(⋆₁(v)))
+    v̇ == μ * Δ(v)-d₀(P) + φ
 ```
 
 ```@example stokes
-using Krylov, LinearOperators, CombinatorialSpaces, LinearAlgebra
-s = triangulated_grid(1,1,1/4,sqrt(3)/2*1/4,Point3D)
-fs = reverse(repeated_subdivisions(4,s,triforce_subdivision_map))
-sses = map(fs) do f dom(f).delta_set end
-push!(sses,s)
+using Pkg; Pkg.activate("docs") #hide ##XX: testing
+using Krylov, LinearOperators, CombinatorialSpaces, LinearAlgebra, StaticArrays, SparseArrays, ACSets
 
-function form_operator(μ,s)
-  @info "Forming operator for $(nv(s)) vertices"
+# TODO: Check signs.
+# TODO: Add kernel or matrix version.
+s = triangulated_grid(1,1,1/4,sqrt(3)/2*1/4,Point2D)
+sd = dualize(s,Circumcenter())
+f = triforce_subdivision_map(s)
+
+nw(s) = ne(s)+nv(s)
+
+X_pvf(s) = fill(SVector(1.0,2.0), nv(s));
+X_dvf(s) = fill(SVector(1.0,2.0), ntriangles(s));
+
+"""
+Flatten a field of `n`-vectors into a vector.
+"""
+function flatten_vfield(v,n=2) 
+  w = zeros(eltype(eltype(v)),n*length(v))
+  for i in 1:length(v)
+    w[n*i-n+1:n*i] .= v[i]
+  end
+  w
+end
+function unflatten_vfield(w,n=2)
+  v = [SVector(Tuple(w[n*i-n+1:n*i])) for i in 1:length(w)÷n]
+end
+unflatten_vfield(flatten_vfield(X_pvf(s))) == X_pvf(s)
+
+"""
+A 2-dimensional vector field being flattened to a vector
+with the `i`th entry of the field in the `2i-1`th and `2i`th
+entries of the vector, prolong it along a geometric map
+as if it were two scalar fields right next to each other.
+"""
+function prolong_flattened_vfield(f::GeometricMap)
+  M = transpose(as_matrix(f))
+  N = similar(M,2*size(M,1),2*size(M,2))
+  N[1:2:end,1:2:end] = M
+  N[2:2:end,2:2:end] = M
+  N
+end
+F_P(f) = LinearOperator(prolong_flattened_vfield(f))
+
+M = prolong_flattened_vfield(f)
+M[1:2:end,17] == M[2:2:end,18] == transpose(as_matrix(f))[:,9]
+N = as_matrix(f)
+X = X_pvf(s)
+flatten_vfield(transpose(N)*X) ≈ F_P(f)*flatten_vfield(X)
+"""
+Take in a vector field given with values vertically
+concatenated into a vector and return the flattened
+1-form.
+"""
+function form_♭(sd) 
+  f = x -> ♭(sd,x,PPFlat())
+  (res,v) -> begin
+    sv = SVector.([(v[2i-1],v[2i]) for i in 1:nv(sd)])
+    res .= f(sv)
+  end
+end
+F_♭(sd) = LinearOperator(Float64,ne(sd),2*nv(sd),false,false,form_♭(sd))
+
+v = vcat(X_pvf(sd)...)
+F_♭(sd) * v == ♭(sd, X_pvf(sd), PPFlat())
+α_from_primal(s) = ♭(s, X_pvf(s), PPFlat())
+α_from_dual(s) = ♭(s, X_dvf(s), DPPFlat())
+maximum(abs.(α_from_primal(sd) .- α_from_dual(sd))) < 1e-14
+
+#Hard-coded dimension of vector field values for now
+"""
+Get the sharp matrix from primal 1-forms to vector fields,
+where the vector field on vertex `k` is stored in 
+`M[2k-1:2k,:]`.
+"""
+function ♯_mat_flattened(sd)
+  M = ♯_mat(sd,AltPPSharp())
+  M′ = spzeros(2*size(M,1),size(M,2))
+  for (i,j,v) in zip(findnz(M)...)
+    M′[2*i-1,j] = v[1]
+    M′[2*i,j] = v[2]
+  end
+  M′
+end
+F_♯(sd) = LinearOperator(♯_mat_flattened(sd))
+
+
+♯_mat_flattened(sd)[11,:] == map(first,♯_mat(sd,AltPPSharp())[6,:])
+ω = ones(ne(sd))
+F_♯(sd) * ω ≈ reduce(vcat,♯(sd, ω, AltPPSharp()))
+
+
+"""
+Sharpen a 1-form to a vector field (given in columns) on the codomain, 
+restrict it along
+the geometric map `f`, then flatten it back to a form on the domain.
+"""
+function prolong_1form(f::GeometricMap)
+  sdom,scod = dom(f).delta_set, codom(f).delta_set
+  sddom,sdcod = dualize(sdom,Circumcenter()),dualize(scod,Circumcenter())
+  f_♭ = F_♭(sddom)
+  f_♯ = F_♯(sdcod)
+  f_P = F_P(f)
+  f_♭*f_P*f_♯
+end
+
+prolong_1form(f)*ones(56)
+"""
+Just the direct sum of prolongation for scalars and
+1-forms.
+"""
+function prolong_0form_and_1form(f::GeometricMap)
+  sdom,scod = dom(f).delta_set, codom(f).delta_set
+  f_0 = transpose(as_matrix(f))
+  f_1 = prolong_1form(f)
+  LinearOperator(Float64,nw(sdom),nw(scod),false,false,
+    (res,v) -> begin
+     res[1:nv(sdom)] .= f_0*v[1:nv(scod)]
+     res[nv(sdom)+1:end] .= f_1*v[nv(scod)+1:end]
+    end)
+end
+
+prolong_0form_and_1form(f)*ones(nw(s))
+
+#4.0 hard-coded for now, only applicable for triforce subdivision
+"""
+Restrict a 1-form from the domain to the codomain of a geometric
+map, roughly by transposing the prolongation.
+"""
+function restrict_1form(f::GeometricMap)
+  sdom,scod = dom(f).delta_set, codom(f).delta_set
+  sddom,sdcod = dualize(sdom,Circumcenter()),dualize(scod,Circumcenter())
+  f_♭ = F_♭(sdcod)
+  f_♯ = F_♯(sddom)
+  f_P = transpose(F_P(f))/4.0
+  f_♭*f_P*f_♯
+end
+
+restrict_1form(f)*ones(ne(dom(f)))
+
+
+function restrict_0form_and_1form(f::GeometricMap)
+  sdom,scod = dom(f).delta_set, codom(f).delta_set
+  f_0 = as_matrix(f)/4.0
+  f_1 = restrict_1form(f)
+  LinearOperator(Float64,nw(scod),nw(sdom),false,false,
+  (res,v) -> begin
+    res[1:nv(scod)] .= f_0*v[1:nv(sdom)]
+    res[nv(scod)+1:end] .= f_1*v[nv(sdom)+1:end]
+  end)
+end
+
+restrict_0form_and_1form(f)*ones(nw(dom(f)))
+
+function form_stokes_operator(μ,s)
+  @info "Forming operator for sset w $(nv(s)) vertices"
   sd = dualize(s,Circumcenter())
   L1 = ∇²(1,sd)
   d0 = dec_differential(0,sd)
   s1 = dec_hodge_star(1,sd)
   s0inv = inv_hodge_star(0,sd)
   d1 = dec_dual_derivative(1,sd)
-  [μ*L1 -d0
-  s0inv*d1*s1 0*I]
+  [0*I  s0inv*d1*s1
+  -d0 μ*L1]
 end
 
-ops = map(s->form_operator(1,s),sses)
-
-#=
-len(s,e) = sqrt(sum((s[:point][s[:∂v0][e]]- s[:point][s[:∂v1][e]]) .^2))
-diam(s) = minimum(len(s,e) for e in edges(s))
-ε = diam(s0)
-bvs(s) = findall(x -> abs(x[1]) < ε || abs(x[1]-1) < ε || x[2] == 0 || abs(x[2]-1)< ε*sqrt(3)/2, s[:point])
-ivs(s) = filter(x -> !(x in bvs(s)), 1:nv(s))
-bes(s) = begin bvs_s = bvs(s) ; 
+diam(s) = minimum(norm(s[:point][s[:∂v0][e]]-s[:point][s[:∂v1][e]]) for e in edges(s))
+bvs(s) = begin ɛ = diam(s); findall(x -> abs(x[1]) < ε || abs(x[1]-1) < ε || x[2] == 0 || abs(x[2]-1)< ε*sqrt(3)/2, s[:point]) end
+bes(s) = begin ɛ = diam(s); bvs_s = bvs(s) ; 
   findall(x -> s[:∂v0][x] ∈ bvs_s ||  s[:∂v1][x] ∈ bvs_s , parts(s,:E)) end
-ies(s) = begin b = bes(s);  [e for e in edges(s) if !(e in b)] end
-sd = dualize(s,Circumcenter())
-gensim(StokesDynamics)
-f! = evalsim(StokesDynamics)(sd,nothing)
-=#
-nw(s) = ne(s)+nv(s)
-fine_op = ops[1]
 
+function lap1(μ,s)
+    sd = dualize(s,Circumcenter())
+    L1 = ∇²(1,sd) #Not sparse?!
+    LinearOperator(Float64,ne(s),ne(s),false,false,
+      (res,v) -> begin 
+        res .= μ*L1*v
+        res[bes(s)] .= v[bes(s)]
+        end)
+end
+
+s = triangulated_grid(1,1,1/4,sqrt(3)/2*1/4,Point2D)
+fs = reverse(repeated_subdivisions(2,s,triforce_subdivision_map));
+sses = map(fs) do f dom(f).delta_set end
+push!(sses,s)
+
+ops = map(s->form_stokes_operator(1,s),sses)
+rs = restrict_0form_and_1form.(fs)
+ps = prolong_0form_and_1form.(fs)
+
+fine_op = ops[1]
 b = fine_op* ones(nw(sses[1]))
 sol = gmres(fine_op,b)
 norm(fine_op*sol[1]-b)/norm(b)
-rs = transpose.(as_matrix.(fs))
-ps = transpose.(rs) .* 1/4
-S = ♯_mat(dualize(s,Circumcenter()),AltPPSharp())
 
-#XXX: need to sharpen and flatten
 u = zeros(nw(sses[1]))
-multigrid_vcycles(u,b,ops,rs,ps,5,3)
+v = multigrid_vcycles(u,b,ops,rs,ps,100,5,gmres)
+#Doesn't work yet
+norm(fine_op*v-b)/norm(b)
+
+ops = map(s->lap1(1,s),sses)
+rs = restrict_1form.(fs)
+ps = prolong_1form.(fs)
+
+fine_op = ops[1]
+b = fine_op* ones(ne(sses[1]))
+u = zeros(ne(sses[1]))
+v = multigrid_vcycles(u,b,ops,rs,ps,10,3,gmres)
+#Doesn't work yet
+norm(fine_op*v-b)/norm(b)
+function matrix(f) 
+  n,m = size(f)
+  A = spzeros(n,m)
+  for i in 1:n
+    e = spzeros(n)
+    e[i] = 1
+    A[:,i] = f*e
+  end
+  A
+end
 ```
 
-
+## Back to heat
 
 Let's back up for a minute and make sure we can run the heat equation with our lovely triangular meshes.
 
