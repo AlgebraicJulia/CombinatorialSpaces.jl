@@ -363,7 +363,7 @@ b = fine_op* ones(nw(sses[1]))
 sol = gmres(fine_op,b)
 norm(fine_op*sol[1]-b)/norm(b)
 rs = transpose.(as_matrix.(fs))
-ps = transpose.(is) .* 1/4
+ps = transpose.(rs) .* 1/4
 S = ♯_mat(dualize(s,Circumcenter()),AltPPSharp())
 
 #XXX: need to sharpen and flatten
