@@ -59,6 +59,7 @@ using Random # hide
 Random.seed!(77777) # hide
 using SparseArrays
 using LinearAlgebra
+using CombinatorialSpaces
 
 #The tridiagonal Laplacian discussed above, with single-variable method
 #for power-of-2 grids. 
@@ -156,6 +157,7 @@ We first construct everything with a sort on the vertices to show that
 we get the exact same results as in the first example.
 
 ```@example cs
+laplacian(s) = ∇²(0,dualize(s,Barycenter()))
 function test_vcycle_1D_cs_setup_sorted(k)
   b=rand(2^k-1)
   N = 2^k-1 
@@ -278,7 +280,6 @@ using CombinatorialSpaces
 using GeometryBasics
 using LinearAlgebra: norm
 Point2D = Point2{Float64}
-Point3D = Point3{Float64}
 
  
 
@@ -363,13 +364,15 @@ b = fine_op* ones(nw(sses[1]))
 sol = gmres(fine_op,b)
 norm(fine_op*sol[1]-b)/norm(b)
 rs = transpose.(as_matrix.(fs))
-ps = transpose.(is) .* 1/4
+ps = transpose.(rs) .* 1/4
 S = ♯_mat(dualize(s,Circumcenter()),AltPPSharp())
 
 #XXX: need to sharpen and flatten
 u = zeros(nw(sses[1]))
 multigrid_vcycles(u,b,ops,rs,ps,5,3)
 ```
+
+
 
 Let's back up for a minute and make sure we can run the heat equation with our lovely triangular meshes.
 
