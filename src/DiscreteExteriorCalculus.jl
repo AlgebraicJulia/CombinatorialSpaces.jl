@@ -1442,6 +1442,13 @@ function dual_derivative(::Type{Val{n}}, s::HasDeltaSet, args...) where n
   end
 end
 
+"""
+Checks whethere a DeltaSet is embedded by (droolingly) searching for 'Embedded'
+in the name of its type. This could also check for 'Point' in the schema, which
+would feel better but be less trustworthy.
+"""
+is_embedded(d::HasDeltaSet) = is_embedded(typeof(t))
+is_embedded(t::Type{T}) where {T<:HasDeltaSet} = !isnothing(findfirst("Embedded",string(t.name.name)))
 const REPLACEMENT_FOR_DUAL_TYPE = "Set" => "DualComplex"
 rename_to_dual(s::Symbol) = Symbol(replace(string(s),REPLACEMENT_FOR_DUAL_TYPE))
 rename_from_dual(s::Symbol) = Symbol(replace(string(s),reverse(REPLACEMENT_FOR_DUAL_TYPE)))
