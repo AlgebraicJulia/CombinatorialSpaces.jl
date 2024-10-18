@@ -8,6 +8,7 @@ Point3D = Point3{Float64}
 # TODO: Smarter calculations for steps and cycles, input arbitrary iterative solver, implement weighted Jacobi and maybe Gauss-Seidel, masking for boundary condtions
 
 #This could use Galerkin conditions to construct As from As[1]
+#Add maxcycles and tolerances
 """
 Solve `Ax=b` on `s` with initial guess `u` using fine grid 
 operator `A`, restriction operators `rs`, and prolongation
