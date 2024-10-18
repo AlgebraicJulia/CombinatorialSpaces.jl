@@ -18,6 +18,7 @@ export DualSimplex, DualV, DualE, DualTri, DualTet, DualChain, DualForm,
   AbstractDeltaDualComplex3D, DeltaDualComplex3D, SchDeltaDualComplex3D,
   OrientedDeltaDualComplex3D, SchOrientedDeltaDualComplex3D,
   EmbeddedDeltaDualComplex3D, SchEmbeddedDeltaDualComplex3D,
+  DeltaDualComplex, EmbeddedDeltaDualComplex, OrientedDeltaDualComplex,
   SimplexCenter, Barycenter, Circumcenter, Incenter, geometric_center,
   subsimplices, primal_vertex, elementary_duals, dual_boundary, dual_derivative,
   ⋆, hodge_star, inv_hodge_star, δ, codifferential, ∇², laplace_beltrami, Δ, laplace_de_rham,
@@ -44,6 +45,7 @@ const Point3D = SVector{3,Float64}
 using ACSets.DenseACSets: attrtype_type
 using Catlab, Catlab.CategoricalAlgebra.CSets
 using Catlab.CategoricalAlgebra.FinSets: deleteat
+using Catlab.CategoricalAlgebra.FunctorialDataMigrations: DeltaMigration, migrate
 import Catlab.CategoricalAlgebra.CSets: ∧
 import Catlab.Theories: Δ
 using DataMigrations: @migrate
@@ -126,7 +128,7 @@ end
 @present SchDeltaDualComplex1D <: SchDeltaSet1D begin
   # Dual vertices and edges.
   (DualV, DualE)::Ob
-  (D_∂v0, D_∂v1)::Hom(DualE, DualV)
+  (dual_∂v0, dual_∂v1)::Hom(DualE, DualV)
 
   # Centers of primal simplices are dual vertices.
   vertex_center::Hom(V, DualV)
@@ -136,10 +138,10 @@ end
   #
   # (∂v0_dual, ∂v1_dual)::Hom(E,DualE)
   #
-  # ∂v0_dual ⋅ D_∂v1 == ∂v0 ⋅ vertex_center
-  # ∂v1_dual ⋅ D_∂v1 == ∂v1 ⋅ vertex_center
-  # ∂v0_dual ⋅ D_∂v0 == edge_center
-  # ∂v1_dual ⋅ D_∂v0 == edge_center
+  # ∂v0_dual ⋅ dual_∂v1 == ∂v0 ⋅ vertex_center
+  # ∂v1_dual ⋅ dual_∂v1 == ∂v1 ⋅ vertex_center
+  # ∂v0_dual ⋅ dual_∂v0 == edge_center
+  # ∂v1_dual ⋅ dual_∂v0 == edge_center
   #
   # We could, and arguably should, track these through dedicated morphisms, as
   # in the commented code above. We don't because it scales badly in dimension:
@@ -160,7 +162,7 @@ The data structure includes both the primal complex and the dual complex, as
 well as the mapping between them.
 """
 @acset_type DeltaDualComplex1D(SchDeltaDualComplex1D,
-  index=[:∂v0,:∂v1,:D_∂v0,:D_∂v1]) <: AbstractDeltaDualComplex1D
+  index=[:∂v0,:∂v1,:dual_∂v0,:dual_∂v1]) <: AbstractDeltaDualComplex1D
 
 """ Dual vertex corresponding to center of primal vertex.
 """
@@ -171,12 +173,12 @@ vertex_center(s::HasDeltaSet, args...) = s[args..., :vertex_center]
 edge_center(s::HasDeltaSet1D, args...) = s[args..., :edge_center]
 
 subsimplices(::Type{Val{1}}, s::HasDeltaSet1D, e::Int) =
-  SVector{2}(incident(s, edge_center(s, e), :D_∂v0))
+  SVector{2}(incident(s, edge_center(s, e), :dual_∂v0))
 
-primal_vertex(::Type{Val{1}}, s::HasDeltaSet1D, e...) = s[e..., :D_∂v1]
+primal_vertex(::Type{Val{1}}, s::HasDeltaSet1D, e...) = s[e..., :dual_∂v1]
 
 elementary_duals(::Type{Val{0}}, s::AbstractDeltaDualComplex1D, v::Int) =
-  incident(s, vertex_center(s,v), :D_∂v1)
+  incident(s, vertex_center(s,v), :dual_∂v1)
 elementary_duals(::Type{Val{1}}, s::AbstractDeltaDualComplex1D, e::Int) =
   SVector(edge_center(s,e))
 
@@ -185,8 +187,8 @@ elementary_duals(::Type{Val{1}}, s::AbstractDeltaDualComplex1D, e::Int) =
 This accessor assumes that the simplicial identities for the dual hold.
 """
 function dual_edge_vertices(s::HasDeltaSet1D, t...)
-    SVector(s[t..., :D_∂v0],
-            s[t..., :D_∂v1])
+    SVector(s[t..., :dual_∂v0],
+            s[t..., :dual_∂v1])
 end
 
 
@@ -194,10 +196,10 @@ end
 
 This accessor assumes that the simplicial identities for the dual hold.
 """
-function dual_triangle_vertices(s::HasDeltaSet2D, t...)
-  SVector(s[s[t..., :D_∂e1], :D_∂v1],
-          s[s[t..., :D_∂e0], :D_∂v1],
-          s[s[t..., :D_∂e0], :D_∂v0])
+function dual_triangle_vertices(s::HasDeltaSet1D, t...)
+  SVector(s[s[t..., :dual_∂e1], :dual_∂v1],
+          s[s[t..., :dual_∂e0], :dual_∂v1],
+          s[s[t..., :dual_∂e0], :dual_∂v0])
 end
 
 
@@ -209,13 +211,13 @@ end
 @present SchOrientedDeltaDualComplex1D <: SchDeltaDualComplex1D begin
   Orientation::AttrType
   edge_orientation::Attr(E, Orientation)
-  D_edge_orientation::Attr(DualE, Orientation)
+  dual_edge_orientation::Attr(DualE, Orientation)
 end
 
 """ Oriented dual complex of an oriented 1D delta set.
 """
 @acset_type OrientedDeltaDualComplex1D(SchOrientedDeltaDualComplex1D,
-  index=[:∂v0,:∂v1,:D_∂v0,:D_∂v1]) <: AbstractDeltaDualComplex1D
+  index=[:∂v0,:∂v1,:dual_∂v0,:dual_∂v1]) <: AbstractDeltaDualComplex1D
 
 dual_boundary_nz(::Type{Val{1}}, s::AbstractDeltaDualComplex1D, x::Int) =
   # Boundary vertices of dual 1-cell ↔
@@ -278,9 +280,9 @@ function make_dual_simplices_1d!(s::HasDeltaSet1D, ::Type{Simplex{n}}) where n
   # Make dual vertices and edges.
   s[:vertex_center] = vcenters = add_parts!(s, :DualV, nv(s))
   s[:edge_center] = ecenters = add_parts!(s, :DualV, ne(s))
-  D_edges = map((0,1)) do i
+  dual_edges = map((0,1)) do i
     add_parts!(s, :DualE, ne(s);
-               D_∂v0 = ecenters, D_∂v1 = view(vcenters, ∂(1,i,s)))
+               dual_∂v0 = ecenters, dual_∂v1 = view(vcenters, ∂(1,i,s)))
   end
 
   # Orient elementary dual edges.
@@ -296,11 +298,11 @@ function make_dual_simplices_1d!(s::HasDeltaSet1D, ::Type{Simplex{n}}) where n
       end
     end
     edge_orient = s[:edge_orientation]
-    s[D_edges[1], :D_edge_orientation] = negate.(edge_orient)
-    s[D_edges[2], :D_edge_orientation] = edge_orient
+    s[dual_edges[1], :dual_edge_orientation] = negate.(edge_orient)
+    s[dual_edges[2], :dual_edge_orientation] = edge_orient
   end
 
-  D_edges
+  dual_edges
 end
 
 # TODO: Instead of copying-and-pasting the DeltaSet1D version:
@@ -355,7 +357,7 @@ Although they are redundant information, the lengths of the primal and dual
 edges are precomputed and stored.
 """
 @acset_type EmbeddedDeltaDualComplex1D(SchEmbeddedDeltaDualComplex1D,
-  index=[:∂v0,:∂v1,:D_∂v0,:D_∂v1]) <: AbstractDeltaDualComplex1D
+  index=[:∂v0,:∂v1,:dual_∂v0,:dual_∂v1]) <: AbstractDeltaDualComplex1D
 
 """ Point associated with dual vertex of complex.
 """
@@ -373,7 +375,7 @@ dual_volume(::Type{Val{1}}, s::HasDeltaSet1D, e, ::PrecomputedVol) =
   s[e, :dual_length]
 
 dual_volume(::Type{Val{1}}, s::HasDeltaSet1D, e::Int, ::CayleyMengerDet) =
-  volume(dual_point(s, SVector(s[e,:D_∂v0], s[e,:D_∂v1])))
+  volume(dual_point(s, SVector(s[e,:dual_∂v0], s[e,:dual_∂v1])))
 
 hodge_diag(::Type{Val{0}}, s::AbstractDeltaDualComplex1D, v::Int) =
   sum(dual_volume(Val{1}, s, elementary_duals(Val{0},s,v)))
@@ -452,13 +454,13 @@ end
 @present SchDeltaDualComplex2D <: SchDeltaSet2D begin
   # Dual vertices, edges, and triangles.
   (DualV, DualE, DualTri)::Ob
-  (D_∂v0, D_∂v1)::Hom(DualE, DualV)
-  (D_∂e0, D_∂e1, D_∂e2)::Hom(DualTri, DualE)
+  (dual_∂v0, dual_∂v1)::Hom(DualE, DualV)
+  (dual_∂e0, dual_∂e1, dual_∂e2)::Hom(DualTri, DualE)
 
   # Simplicial identities for dual simplices.
-  D_∂e1 ⋅ D_∂v1 == D_∂e2 ⋅ D_∂v1
-  D_∂e0 ⋅ D_∂v1 == D_∂e2 ⋅ D_∂v0
-  D_∂e0 ⋅ D_∂v0 == D_∂e1 ⋅ D_∂v0
+  dual_∂e1 ⋅ dual_∂v1 == dual_∂e2 ⋅ dual_∂v1
+  dual_∂e0 ⋅ dual_∂v1 == dual_∂e2 ⋅ dual_∂v0
+  dual_∂e0 ⋅ dual_∂v0 == dual_∂e1 ⋅ dual_∂v0
 
   # Centers of primal simplices are dual vertices.
   vertex_center::Hom(V, DualV)
@@ -479,25 +481,26 @@ end
 """
 @abstract_acset_type AbstractDeltaDualComplex2D <: HasDeltaSet2D
 
+const AbstractDeltaDualComplex = Union{AbstractDeltaDualComplex1D, AbstractDeltaDualComplex2D}
 """ Dual complex of a two-dimensional delta set.
 """
 @acset_type DeltaDualComplex2D(SchDeltaDualComplex2D,
-  index=[:∂v0,:∂v1,:∂e0,:∂e1,:∂e2,:D_∂v0,:D_∂v1,:D_∂e0,:D_∂e1,:D_∂e2]) <: AbstractDeltaDualComplex2D
+  index=[:∂v0,:∂v1,:∂e0,:∂e1,:∂e2,:dual_∂v0,:dual_∂v1,:dual_∂e0,:dual_∂e1,:dual_∂e2]) <: AbstractDeltaDualComplex2D
 
 """ Dual vertex corresponding to center of primal triangle.
 """
 triangle_center(s::HasDeltaSet2D, args...) = s[args..., :tri_center]
 
 subsimplices(::Type{Val{2}}, s::HasDeltaSet2D, t::Int) =
-  SVector{6}(incident(s, triangle_center(s,t), @SVector [:D_∂e1, :D_∂v0]))
+  SVector{6}(incident(s, triangle_center(s,t), @SVector [:dual_∂e1, :dual_∂v0]))
 
 primal_vertex(::Type{Val{2}}, s::HasDeltaSet2D, t...) =
-  primal_vertex(Val{1}, s, s[t..., :D_∂e2])
+  primal_vertex(Val{1}, s, s[t..., :dual_∂e2])
 
 elementary_duals(::Type{Val{0}}, s::AbstractDeltaDualComplex2D, v::Int) =
-  incident(s, vertex_center(s,v), @SVector [:D_∂e1, :D_∂v1])
+  incident(s, vertex_center(s,v), @SVector [:dual_∂e1, :dual_∂v1])
 elementary_duals(::Type{Val{1}}, s::AbstractDeltaDualComplex2D, e::Int) =
-  incident(s, edge_center(s,e), :D_∂v1)
+  incident(s, edge_center(s,e), :dual_∂v1)
 elementary_duals(::Type{Val{2}}, s::AbstractDeltaDualComplex2D, t::Int) =
   SVector(triangle_center(s,t))
 
@@ -508,14 +511,14 @@ elementary_duals(::Type{Val{2}}, s::AbstractDeltaDualComplex2D, t::Int) =
   Orientation::AttrType
   edge_orientation::Attr(E, Orientation)
   tri_orientation::Attr(Tri, Orientation)
-  D_edge_orientation::Attr(DualE, Orientation)
-  D_tri_orientation::Attr(DualTri, Orientation)
+  dual_edge_orientation::Attr(DualE, Orientation)
+  dual_tri_orientation::Attr(DualTri, Orientation)
 end
 
 """ Oriented dual complex of an oriented 2D delta set.
 """
 @acset_type OrientedDeltaDualComplex2D(SchOrientedDeltaDualComplex2D,
-  index=[:∂v0,:∂v1,:∂e0,:∂e1,:∂e2,:D_∂v0,:D_∂v1,:D_∂e0,:D_∂e1,:D_∂e2]) <: AbstractDeltaDualComplex2D
+  index=[:∂v0,:∂v1,:∂e0,:∂e1,:∂e2,:dual_∂v0,:dual_∂v1,:dual_∂e0,:dual_∂e1,:dual_∂e2]) <: AbstractDeltaDualComplex2D
 
 dual_boundary_nz(::Type{Val{1}}, s::AbstractDeltaDualComplex2D, x::Int) =
   # Boundary vertices of dual 1-cell ↔
@@ -573,24 +576,24 @@ relative to the primal triangles they subdivide.
 """
 function make_dual_simplices_2d!(s::HasDeltaSet2D, ::Type{Simplex{n}}) where n
   # Make dual vertices and edges.
-  D_edges01 = make_dual_simplices_1d!(s)
+  dual_edges01 = make_dual_simplices_1d!(s)
   s[:tri_center] = tri_centers = add_parts!(s, :DualV, ntriangles(s))
-  D_edges12 = map((0,1,2)) do e
+  dual_edges12 = map((0,1,2)) do e
     add_parts!(s, :DualE, ntriangles(s);
-               D_∂v0=tri_centers, D_∂v1=edge_center(s, ∂(2,e,s)))
+               dual_∂v0=tri_centers, dual_∂v1=edge_center(s, ∂(2,e,s)))
   end
-  D_edges02 = map(triangle_vertices(s)) do vs
+  dual_edges02 = map(triangle_vertices(s)) do vs
     add_parts!(s, :DualE, ntriangles(s);
-               D_∂v0=tri_centers, D_∂v1=vertex_center(s, vs))
+               dual_∂v0=tri_centers, dual_∂v1=vertex_center(s, vs))
   end
 
   # Make dual triangles.
   # Counterclockwise order in drawing with vertices 0, 1, 2 from left to right.
-  D_triangle_schemas = ((0,1,1),(0,2,1),(1,2,0),(1,0,1),(2,0,0),(2,1,0))
-  D_triangles = map(D_triangle_schemas) do (v,e,ev)
+  dual_triangle_schemas = ((0,1,1),(0,2,1),(1,2,0),(1,0,1),(2,0,0),(2,1,0))
+  dual_triangles = map(dual_triangle_schemas) do (v,e,ev)
     add_parts!(s, :DualTri, ntriangles(s);
-               D_∂e0=D_edges12[e+1], D_∂e1=D_edges02[v+1],
-               D_∂e2=view(D_edges01[ev+1], ∂(2,e,s)))
+               dual_∂e0=dual_edges12[e+1], dual_∂e1=dual_edges02[v+1],
+               dual_∂e2=view(dual_edges01[ev+1], ∂(2,e,s)))
   end
 
   if has_subpart(s, :tri_orientation)
@@ -607,21 +610,21 @@ function make_dual_simplices_2d!(s::HasDeltaSet2D, ::Type{Simplex{n}}) where n
     # Orient elementary dual triangles.
     tri_orient = s[:tri_orientation]
     rev_tri_orient = negate.(tri_orient)
-    for (i, D_tris) in enumerate(D_triangles)
-      s[D_tris, :D_tri_orientation] = isodd(i) ? rev_tri_orient : tri_orient
+    for (i, dual_tris) in enumerate(dual_triangles)
+      s[dual_tris, :dual_tri_orientation] = isodd(i) ? rev_tri_orient : tri_orient
     end
 
     # Orient elementary dual edges.
     for e in (0,1,2)
-      s[D_edges12[e+1], :D_edge_orientation] = relative_sign.(
+      s[dual_edges12[e+1], :dual_edge_orientation] = relative_sign.(
         s[∂(2,e,s), :edge_orientation],
         isodd(e) ? rev_tri_orient : tri_orient)
     end
     # Remaining dual edges are oriented arbitrarily.
-    s[lazy(vcat, D_edges02...), :D_edge_orientation] = one(attrtype_type(s, :Orientation))
+    s[lazy(vcat, dual_edges02...), :dual_edge_orientation] = one(attrtype_type(s, :Orientation))
   end
 
-  D_triangles
+  dual_triangles
 end
 
 relative_sign(x, y) = sign(x*y)
@@ -646,7 +649,7 @@ Although they are redundant information, the lengths and areas of the
 primal/dual edges and triangles are precomputed and stored.
 """
 @acset_type EmbeddedDeltaDualComplex2D(SchEmbeddedDeltaDualComplex2D,
-  index=[:∂v0,:∂v1,:∂e0,:∂e1,:∂e2,:D_∂v0,:D_∂v1,:D_∂e0,:D_∂e1,:D_∂e2]) <: AbstractDeltaDualComplex2D
+  index=[:∂v0,:∂v1,:∂e0,:∂e1,:∂e2,:dual_∂v0,:dual_∂v1,:dual_∂e0,:dual_∂e1,:dual_∂e2]) <: AbstractDeltaDualComplex2D
 
 volume(::Type{Val{n}}, s::EmbeddedDeltaDualComplex2D, x) where n =
   volume(Val{n}, s, x, PrecomputedVol())
@@ -658,9 +661,9 @@ dual_volume(::Type{Val{2}}, s::HasDeltaSet2D, t, ::PrecomputedVol) =
   s[t, :dual_area]
 
 function dual_volume(::Type{Val{2}}, s::HasDeltaSet2D, t::Int, ::CayleyMengerDet)
-  dual_vs = SVector(s[s[t, :D_∂e1], :D_∂v1],
-                    s[s[t, :D_∂e2], :D_∂v0],
-                    s[s[t, :D_∂e0], :D_∂v0])
+  dual_vs = SVector(s[s[t, :dual_∂e1], :dual_∂v1],
+                    s[s[t, :dual_∂e2], :dual_∂v0],
+                    s[s[t, :dual_∂e0], :dual_∂v0])
   volume(dual_point(s, dual_vs))
 end
 
@@ -690,7 +693,7 @@ function ♭(s::AbstractDeltaDualComplex2D, X::AbstractVector, ::DPPFlat)
     # For each of these dual edges:
     mapreduce(+, dual_edges, dual_lengths) do dual_e, dual_length
       # Get the vector at the center of the triangle this edge is pointing at.
-      X_vec = X[tri_map[s[dual_e, :D_∂v0]]]
+      X_vec = X[tri_map[s[dual_e, :dual_∂v0]]]
       # Take their dot product and multiply by the length of this dual edge.
       dual_length * dot(X_vec, e_vec)
       # When done, sum these weights up and divide by the total length.
@@ -716,7 +719,7 @@ function ♭_mat(s::AbstractDeltaDualComplex2D, p2s, ::DPPFlat)
     # The dual edge pointing to each triangle.
     des = map(dvs) do dv
       # (This is the edges(s,src,tgt) function.)
-      only(de for de in incident(s, dv, :D_∂v0) if s[de, :D_∂v1] == center)
+      only(de for de in incident(s, dv, :dual_∂v0) if s[de, :dual_∂v1] == center)
     end
     # The lengths of those dual edges.
     dels = volume(s, DualE(des))
@@ -766,7 +769,7 @@ function ♯(s::AbstractDeltaDualComplex2D, α::AbstractVector, DS::DiscreteShar
       for e in deleteat(tri_edges, i)
         v, sgn = src(s,e) == v₀ ? (tgt(s,e), -1) : (src(s,e), +1)
         dual_area = sum(dual_volume(2,s,d) for d in elementary_duals(0,s,v)
-                        if s[s[d, :D_∂e0], :D_∂v0] == tri_center)
+                        if s[s[d, :dual_∂e0], :dual_∂v0] == tri_center)
         area = ♯_denominator(s, v, t, DS)
         α♯[v] += sgn * sign(1,s,e) * α[e] * (dual_area / area) * out_vec
       end
@@ -819,7 +822,7 @@ function ♯_assign!(♯_mat::AbstractSparseMatrix, s::AbstractDeltaDualComplex2
     v, sgn = src(s,e) == v₀ ? (tgt(s,e), -1) : (src(s,e), +1)
     # | ⋆vₓ ∩ σⁿ |
     dual_area = sum(dual_volume(2,s,d) for d in elementary_duals(0,s,v)
-                    if s[s[d, :D_∂e0], :D_∂v0] == tri_center)
+                    if s[s[d, :dual_∂e0], :dual_∂v0] == tri_center)
     area = ♯_denominator(s, v, t, DS)
     ♯_mat[v,e] += sgn * sign(1,s,e) * (dual_area / area) * out_vec
   end
@@ -832,7 +835,7 @@ function ♯_assign!(♯_mat::AbstractSparseMatrix, s::AbstractDeltaDualComplex2
     sgn = v == tgt(s,e₀) ? -1 : +1
     # | ⋆vₓ ∩ σⁿ |
     dual_area = sum(dual_volume(2,s,d) for d in elementary_duals(0,s,v)
-                    if s[s[d, :D_∂e0], :D_∂v0] == tri_center)
+                    if s[s[d, :dual_∂e0], :dual_∂v0] == tri_center)
     area = ♯_denominator(s, v, t, DS)
     ♯_mat[v,e₀] += sgn * sign(1,s,e₀) * (dual_area / area) * out_vec
   end
@@ -860,7 +863,7 @@ function ♯_mat(s::AbstractDeltaDualComplex2D, DS::DiscreteSharp)
   ♯_mat
 end
 
-de_sign(s,de) = s[de, :D_edge_orientation] ? +1 : -1
+de_sign(s,de) = s[de, :dual_edge_orientation] ? +1 : -1
 
 """    function ♯_mat(s::AbstractDeltaDualComplex2D, ::LLSDDSharp)
 
@@ -880,12 +883,12 @@ function ♯_mat(s::AbstractDeltaDualComplex2D, ::LLSDDSharp)
     # | ⋆eₓ ∩ σⁿ |
     star_e_cap_t = map(tri_edges) do e
       only(filter(elementary_duals(1,s,e)) do de
-        s[de, :D_∂v0] == tri_center
+        s[de, :dual_∂v0] == tri_center
       end)
     end
     de_vecs = map(star_e_cap_t) do de
       de_sign(s,de) *
-        (dual_point(s,s[de, :D_∂v0]) - dual_point(s,s[de, :D_∂v1]))
+        (dual_point(s,s[de, :dual_∂v0]) - dual_point(s,s[de, :dual_∂v1]))
     end
     weights = s[star_e_cap_t, :dual_length] ./
       map(tri_edges) do e
@@ -909,10 +912,10 @@ function ∧(::Type{Tuple{1,1}}, s::HasDeltaSet2D, α, β, x::Int)
   # XXX: This calculation of the volume coefficients is awkward due to the
   # design decision described in `SchDeltaDualComplex1D`.
   dual_vs = vertex_center(s, triangle_vertices(s, x))
-  dual_es = sort(SVector{6}(incident(s, triangle_center(s, x), :D_∂v0)),
-                 by=e -> s[e,:D_∂v1] .== dual_vs, rev=true)[1:3]
+  dual_es = sort(SVector{6}(incident(s, triangle_center(s, x), :dual_∂v0)),
+                 by=e -> s[e,:dual_∂v1] .== dual_vs, rev=true)[1:3]
   coeffs = map(dual_es) do e
-    sum(dual_volume(2, s, SVector{2}(incident(s, e, :D_∂e1))))
+    sum(dual_volume(2, s, SVector{2}(incident(s, e, :dual_∂e1))))
   end / volume(2, s, x)
 
   # Wedge product of two primal 1-forms, as in (Hirani 2003, Example 7.1.2).
@@ -1488,6 +1491,72 @@ function dual_derivative(::Type{Val{n}}, s::HasDeltaSet, args...) where n
     dual_derivative_nz(Val{n}, s, x)
   end
 end
+
+"""
+Checks whethere a DeltaSet is embedded by (droolingly) searching for 'Embedded'
+in the name of its type. This could also check for 'Point' in the schema, which
+would feel better but be less trustworthy.
+"""
+is_embedded(d::HasDeltaSet) = is_embedded(typeof(t))
+is_embedded(t::Type{T}) where {T<:HasDeltaSet} = !isnothing(findfirst("Embedded",string(t.name.name)))
+const REPLACEMENT_FOR_DUAL_TYPE = "Set" => "DualComplex"
+rename_to_dual(s::Symbol) = Symbol(replace(string(s),REPLACEMENT_FOR_DUAL_TYPE))
+rename_from_dual(s::Symbol) = Symbol(replace(string(s),reverse(REPLACEMENT_FOR_DUAL_TYPE)))
+
+#adds the Real type for lengths in the Embedded case. Will need further customization
+#if we add another type whose dual has more parameters than its primal.
+function dual_param_list(t) 
+  is_embedded(t) ?  [t.parameters[1],eltype(t.parameters[2]),t.parameters[2]] : t.parameters
+end
+"""
+Calls the constructor for d's dual type on d, including parameters.
+Does not call `subdivide_duals!` on the result.
+Should work out of the box on new DeltaSet types if (1) their dual type
+has the same name as their primal type with "Set" substituted by "DualComplex"
+and (2) their dual type has the same parameter set as their primal type. At the
+time of writing (July 2024) only "Embedded" types fail criterion (2) and get special treatment.
+
+# Examples
+s = EmbeddedDeltaSet2D{Bool,SVector{Float64,Float64}}()
+dualize(s)::EmbeddedDeltaDualComplex2D{Bool,Float64,SVector{Float64,Float64}}
+"""
+function dualize(d::HasDeltaSet) #add embedded keyword?
+  t = typeof(d) 
+  n = dualize_type_name(t)
+  ps = dual_param_list(t)
+  length(ps) > 0 ? n{ps...}(d) : n(d)
+end
+#Note this can only successfully dualize types whose duals are defined in the scope of this module!
+dualize_type_name(t::Type) = eval(rename_to_dual(t.name.name))
+
+dual_extractor(d::HasDeltaSet) = dual_extractor(typeof(d))
+function dual_extractor(t::Type{T}) where {T <: HasDeltaSet}
+  n = t.name.name
+  sch_name = Symbol("Sch",n)
+  sch = eval(sch_name)
+  dual_sch = eval(rename_to_dual(sch_name))
+  C = FinCat(sch)
+  D = FinCat(dual_sch)
+  o = Dict(nameof(a) => Symbol("Dual",nameof(a)) for a in sch.generators[:Ob])
+  for a in sch.generators[:AttrType] o[nameof(a)] = nameof(a) end
+  h = Dict(nameof(a) => Symbol("dual_",nameof(a)) for a in hom_generators(C))
+  DeltaMigration(FinDomFunctor(o,h,C,D))
+end
+dual_extractor(t::Type{T}) where {T <: AbstractDeltaDualComplex} = dual_extractor(eval(rename_from_dual(t.name.name)))
+
+"""
+Get the subdivision of a `DeltaSet` `d` as a `DeltaSet` of the same type, 
+or extract just the subdivided part of a `DeltaDualComplex` as a `DeltaSet`.
+"""
+extract_dual(d::HasDeltaSet) = migrate(typeof(d),dualize(d),dual_extractor(d))
+function extract_dual(d::HasDeltaSet,alg)
+  is_embedded(d) || error("Cannot subdivide duals for a non-embedded DeltaSet.")
+  s = dualize(d)
+  subdivide_duals!(s,alg)
+  migrate(typeof(d),s,dual_extractor(d))
+end
+extract_dual(d::AbstractDeltaDualComplex) = migrate(eval(rename_from_dual(typeof(d).name.name)),d,dual_extractor(d))
+
 
 """ Hodge star operator from primal ``n``-forms to dual ``N-n``-forms.
 
