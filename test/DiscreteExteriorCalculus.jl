@@ -208,7 +208,7 @@ end
 @test all(♭(s, DualVectorField(X))) do i
   isapprox(i, 0.0; atol=1e-15)
 end
-♭_m = ♭_mat(s)
+♭_m = ♭_mat(s, DPPFlat())
 @test all(reinterpret(Float64, ♭_m * X)) do i
   isapprox(i, 0.0; atol=1e-15)
 end
@@ -397,7 +397,7 @@ glue_triangle!(primal_s, 1, 3, 4, tri_orientation=true)
 primal_s[:edge_orientation] = true
 s = EmbeddedDeltaDualComplex2D{Bool,Float64,Point2D}(primal_s)
 subdivide_duals!(s, Barycenter())
-♭_m = ♭_mat(s)
+♭_m = ♭_mat(s, DPPFlat())
 
 x̂, ŷ, ẑ = @SVector([1,0]), @SVector([0,1]), @SVector([0,0])
 @test ♭(s, DualVectorField([x̂, -x̂])) ≈ EForm([2,0,0,2,0])
@@ -508,7 +508,7 @@ glue_triangle!(primal_s, 1, 3, 4)
 s = EmbeddedDeltaDualComplex2D{Bool,Float64,Point2D}(primal_s)
 subdivide_duals!(s, Barycenter())
 X = [SVector(2,3), SVector(5,7)]
-♭_m = ♭_mat(s)
+♭_m = ♭_mat(s, DPPFlat())
 X♭ = zeros(ne(s))
 mul!(X♭, ♭_m,  DualVectorField(X))
 @test all(map(♭(s, DualVectorField(X)), X♭) do orig, new
@@ -542,7 +542,7 @@ subdivide_duals!(s′, Barycenter())
 X = [SVector(2,3), SVector(5,7)]
 
 @test ♭(s, DualVectorField(X)) == ♭(s′, DualVectorField(X))
-@test ♭_mat(s) * DualVectorField(X) == ♭_mat(s′) * DualVectorField(X)
+@test ♭_mat(s, DPPFlat()) * DualVectorField(X) == ♭_mat(s′, DPPFlat()) * DualVectorField(X)
 
 tg′ = triangulated_grid(100,100,10,10,Point2D);
 tg = EmbeddedDeltaDualComplex2D{Bool,Float64,Point2D}(tg′);
@@ -554,8 +554,8 @@ subdivide_duals!(rect, Barycenter());
 
 flat_meshes = [tri_345(), tri_345_false(), right_scalene_unit_hypot(), grid_345(), (tg′, tg), (rect′, rect)];
 
-# Test the primal-primal flat operation:
-# ... over a static vector-field.
+# Over a static vector-field...
+# ... Test the primal-to-primal flat operation agrees with the dual-to-primal flat operation.
 mse(x,y) = mean(map(z -> z^2, x .- y))
 s = tg;
 X_pvf = fill(SVector(1.0,2.0), nv(s));
@@ -564,8 +564,12 @@ X_dvf = fill(SVector(1.0,2.0), ntriangles(s));
 α_from_dual = ♭(s, X_dvf, DPPFlat())
 @test maximum(abs.(α_from_primal .- α_from_dual)) < 1e-14
 @test mse(α_from_primal, α_from_dual) < 1e-29
+# ...  Test the matrix primal-to-primal flat agrees with the simple loop.
+♭_m = ♭_mat(s, PPFlat())
+@test all(only.(♭_m * X_pvf) .== α_from_primal)
 
-# ... over a non-static vector-field.
+# Over a non-static vector-field,
+# ... Test the primal-to-primal flat operation agrees with the dual-to-primal flat operation.
 s′ = triangulated_grid(100,100,1,1,Point2D);
 s = EmbeddedDeltaDualComplex2D{Bool,Float64,Point2D}(s′);
 subdivide_duals!(s, Barycenter());
@@ -576,6 +580,9 @@ X_dvf = map(X_func, s[s[:tri_center], :dual_point])
 α_from_primal = ♭(s, X_pvf, PPFlat())
 α_from_dual = ♭(s, X_dvf, DPPFlat())
 @test mse(α_from_primal, α_from_dual) < 3
+# ...  Test the matrix primal-to-primal flat agrees with the simple loop.
+♭_m = ♭_mat(s, PPFlat())
+@test maximum(abs.(only.(♭_m * X_pvf) .- α_from_primal)) < 1e-11
 
 # Test the primal-dual interior product.
 # The gradient of the interior product of a vector-field with itself should be 0.
@@ -639,7 +646,7 @@ for (primal_s,s) in flat_meshes
   # This tests that numerically raising-then-lowering indices is equivalent to
   # evaluating a 1-form directly.
   # Demonstrate how to cache the chained musical isomorphisms.
-  ♭_m = ♭_mat(s)
+  ♭_m = ♭_mat(s, DPPFlat())
   ♭_♯_m = ♭_m * ♯_m
   # Note that we check explicitly both cases of signedness, because orient!
   # picks in/outside without regard to the embedding.

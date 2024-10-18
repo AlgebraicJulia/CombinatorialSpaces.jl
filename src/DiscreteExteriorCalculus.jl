@@ -709,11 +709,10 @@ function ♭(s::AbstractDeltaDualComplex2D, X::AbstractVector, ::DPPFlat)
   end
 end
 
-function ♭_mat(s::AbstractDeltaDualComplex2D)
-  ♭_mat(s, ∂(2,s))
-end
+♭_mat(s::AbstractDeltaDualComplex2D, f::DPPFlat) =
+  ♭_mat(s, ∂(2,s), f)
 
-function ♭_mat(s::AbstractDeltaDualComplex2D, p2s)
+function ♭_mat(s::AbstractDeltaDualComplex2D, p2s, ::DPPFlat)
   mat_type = SMatrix{1, length(eltype(s[:point])), eltype(eltype(s[:point])), length(eltype(s[:point]))}
   ♭_mat = spzeros(mat_type, ne(s), ntriangles(s))
   for e in edges(s)
@@ -742,16 +741,25 @@ function ♭_mat(s::AbstractDeltaDualComplex2D, p2s)
   ♭_mat
 end
 
-# TODO: Add kernel or matrix version.
 function ♭(s::AbstractDeltaDualComplex2D, X::AbstractVector, ::PPFlat)
   map(edges(s)) do e
-    # Assume linear-interpolation the vector field across the edge,
-    # determined solely by the values of the vector-field at the endpoints.
     vs = edge_vertices(s,e)
     l_vec = mean(X[vs])
     e_vec = (point(s, tgt(s,e)) - point(s, src(s,e))) * sign(1,s,e)
     dot(l_vec, e_vec)
   end
+end
+
+function ♭_mat(s::AbstractDeltaDualComplex2D, ::PPFlat)
+  mat_type = SMatrix{1, length(eltype(s[:point])), eltype(eltype(s[:point])), length(eltype(s[:point]))}
+  ♭_mat = spzeros(mat_type, ne(s), nv(s))
+  for e in edges(s)
+    e_vec = (point(s, tgt(s,e)) - point(s, src(s,e))) * sign(1,s,e)
+    vs = edge_vertices(s,e)
+    ♭_mat[e, vs[1]] = 0.5 * mat_type(e_vec)
+    ♭_mat[e, vs[2]] = 0.5 * mat_type(e_vec)
+  end
+  ♭_mat
 end
 
 function ♯(s::AbstractDeltaDualComplex2D, α::AbstractVector, DS::DiscreteSharp)
@@ -1768,9 +1776,11 @@ const laplace_de_rham = Δ
 
 """ Flat operator converting vector fields to 1-forms.
 
-A generic function for discrete flat operators. Currently only the DPP-flat from
+A generic function for discrete flat operators. Currently the DPP-flat from
 (Hirani 2003, Definition 5.5.2) and (Desbrun et al 2005, Definition 7.3) is
-implemented.
+implemented,
+as well as a primal-to-primal flat, which assumes linear-interpolation of the
+vector field across an edge, determined solely by the values at the endpoints.
 
 See also: the sharp operator [`♯`](@ref).
 """
@@ -1820,7 +1830,7 @@ Make a dual 1-form primal by chaining ♭ᵈᵖ♯ᵈᵈ.
 This returns a matrix which can be multiplied by a dual 1-form.
 See also [`♭♯`](@ref).
 """
-♭♯_mat(s::HasDeltaSet) = only.(♭_mat(s) * ♯_mat(s, LLSDDSharp()))
+♭♯_mat(s::HasDeltaSet) = only.(♭_mat(s, DPPFlat()) * ♯_mat(s, LLSDDSharp()))
 
 """    ♭♯(s::HasDeltaSet, α::SimplexForm{1})
 
