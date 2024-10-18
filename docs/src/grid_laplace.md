@@ -59,6 +59,7 @@ using Random # hide
 Random.seed!(77777) # hide
 using SparseArrays
 using LinearAlgebra
+using CombinatorialSpaces
 
 #The tridiagonal Laplacian discussed above, with single-variable method
 #for power-of-2 grids. 
