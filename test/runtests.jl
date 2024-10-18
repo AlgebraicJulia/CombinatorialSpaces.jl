@@ -25,4 +25,8 @@ end
   include("Backends.jl")
 end
 
+@testset "Restrictions" begin
+  include("restrictions.jl")
+end
+
 end
