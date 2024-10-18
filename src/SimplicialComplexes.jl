@@ -1,7 +1,14 @@
+"""
+The category of simplicial complexes and Kleisli maps for the convex space monad.
+"""
 module SimplicialComplexes
-export SimplicialComplex, VertexList, has_simplex
+export SimplicialComplex, VertexList, has_simplex, GeometricPoint, has_point, has_span, GeometricMap, nv,
+as_matrix, compose, id
 using ..Tries
 using ..SimplicialSets
+import AlgebraicInterfaces: dom,codom,compose,id 
+import LinearAlgebra: I
+#import ..SimplicialSets: nv,ne
 
 function add_0_cells(d::HasDeltaSet, t::Trie{Int, Int})
     for v in vertices(d)
@@ -21,7 +28,7 @@ end
 function add_2_cells(d::HasDeltaSet, t::Trie{Int, Int})
     for tr in triangles(d)
         vs = sort(triangle_vertices(d, tr))
-        allunique(vs) || error("Degenerate triangle: $tr")
+        allunique(vs) || error("Degenerate triangle: $tr") 
         haskey(t, vs) && error("Duplicate triangle: $tr")
         t[vs] = tr
     end
@@ -30,6 +37,12 @@ end
 struct SimplicialComplex{D}
     delta_set::D
     cache::Trie{Int, Int}
+
+    function SimplicialComplex(d::DeltaSet0D)
+      t = Trie{Int, Int}()
+      add_0_cells(d, t)
+      new{DeltaSet0D}(d, t)
+    end
 
     function SimplicialComplex(d::D) where {D<:AbstractDeltaSet1D}
         t = Trie{Int, Int}()
@@ -47,7 +60,14 @@ struct SimplicialComplex{D}
     end
 end
 
-struct VertexList #XX parameterize by n? remember to replace sort! w sort
+#nv(sc::SimplicialComplex) = nv(sc.delta_set)
+
+for f in [:nv,:ne] 
+    @eval SimplicialSets.$f(sc::SimplicialComplex) = $f(sc.delta_set)
+end
+
+
+struct VertexList #XX parameterize by n? 
     vs::Vector{Int} # must be sorted
     function VertexList(vs::Vector{Int}; sorted=false)
         new(sorted ? vs : sort(vs))
@@ -94,5 +114,58 @@ function Base.union(vs1::VertexList, vs2::VertexList)
     VertexList(out, sorted=true)
 end
 
-#TODO: get a point by barycentric coordinates, maps
+#A point in an unspecified simplicial complex, given by its barycentric coordinates.
+#Constructed via a dense vector of coordinates.
+#XX: This type is maybe more trouble than it's worth?
+struct GeometricPoint
+  bcs::Vector{Float64} #XX: Need a sparse form?
+  function GeometricPoint(bcs, checked=true)
+    if checked
+      sum(bcs) ≈ 1 || error("Barycentric coordinates must sum to 1")
+      all(x -> 1 ≥ x ≥ 0, bcs) || error("Barycentric coordinates must be between 0 and 1")
+    end
+    new(bcs)
+  end
+end
+Base.show(p::GeometricPoint) = "GeometricPoint($(p.bcs))"
+coords(p::GeometricPoint)=p.bcs
+
+"""
+A simplicial complex contains a geometric point if and only if it contains the combinatorial simplex spanned
+by the vertices wrt which the point has a nonzero coordinate.
+"""
+has_point(sc::SimplicialComplex, p::GeometricPoint) = has_simplex(sc, VertexList(findall(x->x>0,coords(p))))
+"""
+A simplicial complex contains the geometric simplex spanned by a list of geometric points if and only if it 
+contains the combinatorial simplex spanned by all the vertices wrt which some geometric point has a nonzero coordinate.
+"""
+has_span(sc::SimplicialComplex,ps::Vector{GeometricPoint}) = has_simplex(sc,reduce(union,VertexList.(map(cs->findall(x->x>0,cs),(coords.(ps))))))
+
+#geoemtric map between simplicial complexes, given as a list of geometric points in the codomain 
+#indexed by the 0-simplices of the domain.
+struct GeometricMap{D,D′}
+  dom::SimplicialComplex{D}
+  cod::SimplicialComplex{D′}
+  points::Vector{GeometricPoint}
+  function GeometricMap(sc::SimplicialComplex{D}, sc′::SimplicialComplex{D′}, points::Vector{GeometricPoint},checked=true) where {D,D′}
+    length(points) == nv(sc) || error("Number of points must match number of vertices in domain")
+    all(map(x->has_span(sc′,points[x]),keys(sc.cache))) || error("Span of points in simplices of domain must lie in codomain") #lol wrong
+    new{D,D′}(sc, sc′, points)
+  end
+end
+GeometricMap(sc,sc′,points::AbstractArray) = GeometricMap(sc,sc′,GeometricPoint.(eachcol(points)))
+dom(f::GeometricMap) = f.dom
+codom(f::GeometricMap) = f.cod
+#want f(n) to give values[n]?
+"""
+Returns the data-centric view of f as a matrix whose i-th column 
+is the coordinates of the image of the i-th vertex under f.
+"""
+as_matrix(f::GeometricMap) = hcat(coords.(f.points)...)
+compose(f::GeometricMap, g::GeometricMap) = GeometricMap(f.dom, g.cod, as_matrix(g)*as_matrix(f))
+id(sc::SimplicialComplex) = GeometricMap(sc,sc,GeometricPoint.(eachcol(I(nv(sc)))))
+
+
+
+#TODO: composition of maps!
 end
