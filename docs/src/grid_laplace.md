@@ -191,6 +191,7 @@ function test_vcycle_1D_cs_setup(k)
 
   sds = reverse(repeated_subdivisions(k,ss,subdivision_map))
   sses = [sd.dom.delta_set for sd in sds]
+  laplacian(s) = ∇²(0,dualize(s,Barycenter()))
   ls = [laplacian(sses[i])[3:end,3:end] for i in eachindex(sses)]
   ps = transpose.([as_matrix(sds[i])[3:end,3:end] for i in 1:length(sds)-1])
   is = transpose.(ps)*1/2
