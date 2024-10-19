@@ -2,7 +2,7 @@ using CombinatorialSpaces, CombinatorialSpaces.SimplicialSets
 
 export restrict, mask!
 
-"""    restrict(sd::HasDeltaSet,  
+"""    restrict(sd::HasDeltaSet, func::Function, form)
 
 restrict a form to a subset of the points.
 
