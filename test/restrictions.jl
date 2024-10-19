@@ -7,8 +7,8 @@ rect = EmbeddedDeltaDualComplex2D{Bool,Float64,Point3D}(rect′);
 subdivide_duals!(rect, Barycenter());
 
 left_wall_idxs(sd) = begin
-    min_y = minimum(p -> p[2], sd[:point])
-    findall(p -> abs(p[2] - min_y) ≤ sd[1,:length]+1e-4, sd[:point])
+  min_y = minimum(p -> p[2], sd[:point])
+  findall(p -> abs(p[2] - min_y) ≤ sd[1,:length]+1e-4, sd[:point])
 end
 
 # 0-form
