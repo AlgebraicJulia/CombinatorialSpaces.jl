@@ -13,12 +13,14 @@ end
 
 # 0-form
 zero_form = 2*ones(nv(rect));
+idxlen = length(left_wall_idxs(rect))
+max = Float64(length(zero_form) + 1)
 
-@test restrict(left_wall_idxs(rect), zero_form) == fill(2.0, 106)
-@test restrict(rect, left_wall_idxs, zero_form) == fill(2.0, 106)
+@test restrict(left_wall_idxs(rect), zero_form) == fill(2.0, idxlen)
+@test restrict(rect, left_wall_idxs, zero_form) == fill(2.0, idxlen)
 
 copy_zero_form = copy(zero_form);
-mask!(rect, left_wall_idxs, copy_zero_form, fill(1114.0, 106));
+mask!(rect, left_wall_idxs, copy_zero_form, fill(max, idxlen));
 
-@test copy_zero_form[copy_zero_form .== 1114.0] == fill(1114.0, 106)
+@test copy_zero_form[copy_zero_form .== max] == fill(max, idxlen)
 
