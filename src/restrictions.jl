@@ -6,6 +6,7 @@ export restrict, mask!
 
 restrict a form to a subset of the points.
 
+# Arguments:
 `sd`: the mesh,
 `func`: a function that chooses the submesh indices corresponding to the boundary
 `form`: the vector you want to restrict 
