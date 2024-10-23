@@ -17,7 +17,11 @@ dom(f::PrimitiveGeometricMap) = f.domain
 codom(f::PrimitiveGeometricMap) = f.codomain
 as_matrix(f::PrimitiveGeometricMap) = f.matrix
 
-is_simplicial_complex(s) = true
+function is_simplicial_complex(s)
+  allunique(map(1:ne(s)) do i edge_vertices(s,i) end) &&
+  allunique(map(1:ntriangles(s)) do i triangle_vertices(s,i) end)
+end
+
 function triforce_subdivision(s)
   is_simplicial_complex(s) || error("Subdivision is supported only for simplicial complexes.")
   sd = typeof(s)()
