@@ -3,7 +3,7 @@ using GeometryBasics:Point3, Point2
 using Krylov, Catlab, SparseArrays
 using ..SimplicialSets
 import Catlab: dom,codom
-export multigrid_vcycles, multigrid_wcycles, repeated_subdivisions, Point3D, Point2D, triforce_subdivision_map, dom, codom, as_matrix, MultigridData
+export multigrid_vcycles, multigrid_wcycles, full_multigrid, repeated_subdivisions, Point3D, Point2D, triforce_subdivision_map, dom, codom, as_matrix, MultigridData
 Point3D = Point3{Float64}
 Point2D = Point2{Float64}
 
@@ -115,16 +115,33 @@ at this point.
 `alg` is a Krylov.jl method, probably either the default `cg` or
 `gmres`.
 """
-function multigrid_vcycles(u,b,md::MultigridData,cycles,alg=cg) 
+multigrid_vcycles(u,b,md,cycles,alg=cg) = multigrid_μ_cycles(u,b,md,cycles,alg,1)
+"""
+Just the same as `multigrid_vcycles` but with W-cycles.
+"""
+multigrid_wcycles(u,b,md,cycles,alg=cg) = multigrid_μ_cycles(u,b,md,cycles,alg,2)
+function multigrid_μ_cycles(u,b,md::MultigridData,cycles,alg=cg,μ=1) 
   cycles == 0 && return u 
-  u = _multigrid_μ_cycle(u,b,md,alg)
-  multigrid_vcycles(u,b,md,cycles-1,alg) 
+  u = _multigrid_μ_cycle(u,b,md,alg,μ)
+  multigrid_μ_cycles(u,b,md,cycles-1,alg,μ) 
 end
-function multigrid_wcycles(u,b,md::MultigridData,cycles,alg=cg) 
-  cycles == 0 && return u 
-  u = _multigrid_μ_cycle(u,b,md,alg,2)
-  multigrid_wcycles(u,b,md,cycles-1,alg) 
+"""
+The full multigrid framework: start at the coarsest grid and 
+work your way up, applying V-cycles or W-cycles at each level
+according as μ is 1 or 2.
+"""
+function full_multigrid(b,md::MultigridData,cycles,alg=cg,μ=1)
+  z_f = zeros(size(b))
+  if length(md) > 1 
+    r,p = car(md)[2:3]
+    b_c = r * b
+    z_c = full_multigrid(b_c,cdr(md),cycles,alg,μ)
+    z_f = p * z_c
+  end
+  multigrid_μ_cycles(z_f,b,md,cycles,alg,μ)
 end
+
+
 
 function _multigrid_μ_cycle(u,b,md::MultigridData,alg=cg,μ=1)
   A,r,p,s = car(md)
