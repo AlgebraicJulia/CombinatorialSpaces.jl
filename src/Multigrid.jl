@@ -3,7 +3,7 @@ using GeometryBasics:Point3, Point2
 using Krylov, Catlab, SparseArrays
 using ..SimplicialSets
 import Catlab: dom,codom
-export multigrid_vcycles, repeated_subdivisions, Point3D, Point2D, triforce_subdivision_map, dom, codom, as_matrix
+export multigrid_vcycles, multigrid_wcycles, repeated_subdivisions, Point3D, Point2D, triforce_subdivision_map, dom, codom, as_matrix, MultigridData
 Point3D = Point3{Float64}
 Point2D = Point2{Float64}
 
@@ -63,14 +63,51 @@ function repeated_subdivisions(k,ss,subdivider)
   end
 end
 
+"""
+A cute little package contain your multigrid data. If there are 
+`n` grids, there are `n-1` restrictions and prolongations and `n` 
+step radii. This structure does not contain the solution `u` or
+the right-hand side `b` because those would have to mutate.
+"""
+struct MultigridData{Gv,Mv}
+  operators::Gv
+  restrictions::Mv
+  prolongations::Mv
+  steps::Vector{Int}
+end
+MultigridData(g,r,p,s) = MultigridData{typeof(g),typeof(r)}(g,r,p,s)
+"""
+Construct a `MultigridData` with a constant step radius
+on each grid.
+"""
+MultigridData(g,r,p,s::Int) = MultigridData{typeof(g),typeof(r)}(g,r,p,fill(s,length(g)))
+
+"""
+Get the leading grid, restriction, prolongation, and step radius.
+"""
+car(md::MultigridData) = length(md) > 1 ? (md.operators[1],md.restrictions[1],md.prolongations[1],md.steps[1]) : length(md) > 0 ? (md.operators[1],nothing,nothing,md.steps[1]) : (nothing,nothing,nothing,nothing)
+
+"""
+Remove the leading grid, restriction, prolongation, and step radius.
+"""
+cdr(md::MultigridData) = length(md) > 1 ? MultigridData(md.operators[2:end],md.restrictions[2:end],md.prolongations[2:end],md.steps[2:end]) : error("Not enough grids remaining in $md to take the cdr.")
+
+"""
+The lengh of a `MultigridData` is its number of grids.
+"""
+Base.length(md::MultigridData) = length(md.operators)
+
+"""
+Decrement the number of (eg V-)cycles left to be performed.
+"""
+decrement_cycles(md::MultigridData) = MultigridData(md.operators,md.restrictions,md.prolongations,md.steps,md.cycles-1)
+
 # TODO: Smarter calculations for steps and cycles, input arbitrary iterative solver, implement weighted Jacobi and maybe Gauss-Seidel, masking for boundary condtions
 
 #This could use Galerkin conditions to construct As from As[1]
 #Add maxcycles and tolerances
 """
-Solve `Ax=b` on `s` with initial guess `u` using fine grid 
-operator `A`, restriction operators `rs`, and prolongation
-operators `ps`, for V-cycles, performing `steps` steps of the 
+Solve `Ax=b` on `s` with initial guess `u` using , for `cycles` V-cycles, performing `steps` steps of the 
 conjugate gradient method on each mesh and going through 
 `cycles` total V-cycles. Everything is just matrices and vectors
 at this point.
@@ -78,18 +115,31 @@ at this point.
 `alg` is a Krylov.jl method, probably either the default `cg` or
 `gmres`.
 """
-function multigrid_vcycles(u,b,As,rs,ps,steps,cycles=1,alg=cg)
+function multigrid_vcycles(u,b,md::MultigridData,cycles,alg=cg) 
   cycles == 0 && return u 
-  u = alg(As[1],b,u,itmax=steps)[1] 
-  if length(As) == 1 
+  u = _multigrid_μ_cycle(u,b,md,alg)
+  multigrid_vcycles(u,b,md,cycles-1,alg) 
+end
+function multigrid_wcycles(u,b,md::MultigridData,cycles,alg=cg) 
+  cycles == 0 && return u 
+  u = _multigrid_μ_cycle(u,b,md,alg,2)
+  multigrid_wcycles(u,b,md,cycles-1,alg) 
+end
+
+function _multigrid_μ_cycle(u,b,md::MultigridData,alg=cg,μ=1)
+  A,r,p,s = car(md)
+  u = alg(A,b,u,itmax=s)[1] 
+  if length(md) == 1 
     return u 
   end 
-  r_f = b - As[1]*u 
-  r_c = rs[1] * r_f 
-  z = multigrid_vcycles(zeros(size(r_c)),r_c,As[2:end],rs[2:end],ps[2:end],steps,cycles)
-  u += ps[1] * z 
-  u = alg(As[1],b,u,itmax=steps)[1] 
-  multigrid_vcycles(u,b,As,rs,ps,steps,cycles-1) 
+  r_f = b - A*u 
+  r_c = r * r_f 
+  z = _multigrid_μ_cycle(zeros(size(r_c)),r_c,cdr(md),alg,μ)
+  if μ > 1
+    z = _multigrid_μ_cycle(z,r_c,cdr(md),alg,μ-1)
+  end
+  u += p * z 
+  u = alg(A,b,u,itmax=s)[1] 
 end
 
 end

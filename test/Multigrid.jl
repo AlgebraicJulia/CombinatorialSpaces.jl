@@ -12,7 +12,10 @@ rs = transpose.(ps)./4.0 #4 is the biggest row sum that occurs for triforce, thi
 
 u0 = zeros(nv(sds[1]))
 b = Ls[1]*rand(nv(sds[1])) #put into range of the Laplacian for solvability
-u = multigrid_vcycles(u0,b,Ls,rs,ps,3,10) #3,10 chosen empirically, presumably there's deep lore and chaos here
-
-  @test norm(Ls[1]*u-b)/norm(b) < 10^-6
+md = MultigridData(Ls,rs,ps,3) #3,10 chosen empirically, presumably there's deep lore and chaos here
+u = multigrid_vcycles(u0,b,md,5)
+@test norm(Ls[1]*u-b)/norm(b) < 10^-6
+u0 = zeros(nv(sds[1]))
+u = multigrid_wcycles(u0,b,md,5)
+@test norm(Ls[1]*u-b)/norm(b) < 10^-7
 end
