@@ -57,13 +57,6 @@ struct SimplicialComplex{D}
         new{D}(d, t)
     end
 
-  function SimplicialComplex(d::D) where {D<:AbstractDeltaSet1D}
-    t = Trie{Int,Int}()
-    add_0_cells(d, t)
-    add_1_cells(d, t)
-    new{D}(d, t)
-  end
-
   function SimplicialComplex(d::D) where {D<:AbstractDeltaSet2D}
     t = Trie{Int,Int}()
     add_0_cells(d, t)

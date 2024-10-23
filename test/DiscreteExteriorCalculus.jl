@@ -562,15 +562,9 @@ X = [SVector(2,3), SVector(5,7)]
 @test ♭(s, DualVectorField(X)) == ♭(s′, DualVectorField(X))
 @test ♭_mat(s, DPPFlat()) * DualVectorField(X) == ♭_mat(s′, DPPFlat()) * DualVectorField(X)
 
-<<<<<<< HEAD
 tg′ = triangulated_grid(100,100,10,10,Point2D)
 tg = dualize(tg′)
 subdivide_duals!(tg, Barycenter())
-=======
-tg′ = triangulated_grid(100,100,10,10,Point2D);
-tg = dualize(tg′);
-subdivide_duals!(tg, Barycenter());
->>>>>>> 4954314 (Implementing subdivision functions for all DeltaSet types.)
 
 rect′ = loadmesh(Rectangle_30x10())
 rect = dualize(rect′)

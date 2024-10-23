@@ -44,10 +44,10 @@ end
 function wedge_kernel_coeffs(::Type{Tuple{0,2}}, sd::EmbeddedDeltaDualComplex2D{Bool, float_type, _p}) where {float_type, _p}
   verts = Array{Int32}(undef, 6, ntriangles(sd))
   coeffs = Array{float_type}(undef, 6, ntriangles(sd))
-  shift::Int = ntriangles(sd)
+#  shift = ntriangles(sd)
   @inbounds for t in triangles(sd)
     for dt in 1:6
-      dt_real = t + (dt - 1) * shift
+      dt_real = t + (dt - 1) * ntriangles(sd)
       verts[dt, t] = sd[sd[dt_real, :dual_∂e2], :dual_∂v1]
       coeffs[dt, t] = sd[dt_real, :dual_area] / sd[t, :area]
     end
@@ -466,7 +466,6 @@ function dec_p_hodge_diag(::Type{Val{1}}, sd::EmbeddedDeltaDualComplex2D{Bool, f
           hodge_diag_1[v1_shift] += sd[d_edge_idx, :dual_length] / sd[v1_shift, :length]
       end
     end
-  end
   h_1
 end
 
@@ -703,5 +702,6 @@ const avg_01 = avg₀₁
 """    Alias for the averaging matrix [`avg₀₁_mat`](@ref).
 """
 const avg_01_mat = avg₀₁_mat
+
 
 end
