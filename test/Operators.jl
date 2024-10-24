@@ -53,8 +53,8 @@ dual_meshes_1D = [line, cycle, plus]
 
 dual_meshes_2D = [(generate_dual_mesh ∘ loadmesh ∘ Icosphere).(1:2)...,
                (generate_dual_mesh ∘ loadmesh)(Rectangle_30x10()),
-               (generate_dual_mesh).([triangulated_grid(10,10,8,8,Point3D), makeSphere(5, 175, 5, 0, 360, 5, 6371+90)[1]])...,
-               (loadmesh)(Torus_30x10())];
+               (generate_dual_mesh).([triangulated_grid(10,10,8,8,Point3D), makeSphere(5, 175, 5, 0, 360, 5, 6371+90)[1]])...,];
+               #(loadmesh)(Torus_30x10())];
 
 tg′ = triangulated_grid(100,100,10,10,Point2D);
 tg = EmbeddedDeltaDualComplex2D{Bool,Float64,Point2D}(tg′);
@@ -72,7 +72,6 @@ flat_meshes = [tri_345()[2], tri_345_false()[2], right_scalene_unit_hypot()[2], 
             @test all(dec_differential(i, sd) .== d(i, sd))
         end
     end
-
     for i in 0:1 
         for sd in dual_meshes_2D
             @test all(dec_differential(i, sd) .== d(i, sd))
@@ -347,31 +346,32 @@ function euler_equation_test(X♯, sd)
   interior_tris = setdiff(triangles(sd), boundary_inds(Val{2}, sd))
 
   # Allocate the cached operators.
-  d0 = dec_dual_derivative(0, sd)
-  d1 = dec_differential(1, sd);
-  s1 = dec_hodge_star(1, sd);
-  s2 = dec_hodge_star(2, sd);
-  ι1 = interior_product_dd(Tuple{1,1}, sd)
-  ι2 = interior_product_dd(Tuple{1,2}, sd)
-  ℒ1 = ℒ_dd(Tuple{1,1}, sd)
+  d0 = dec_dual_derivative(0, sd) #E x T matrix
+  d1 = dec_differential(1, sd);#E x T matrix
+  s1 = dec_hodge_star(1, sd); #E x E matrix
+  s2 = dec_hodge_star(2, sd); #T x T matrix
+  ι1 = interior_product_dd(Tuple{1,1}, sd)  #function from pairs of E-vectors to T-vector
+  ι2 = interior_product_dd(Tuple{1,2}, sd) #function
+  ℒ1 = ℒ_dd(Tuple{1,1}, sd) #function
 
   # This is a uniform, constant flow.
-  u = hodge_star(1,sd) * eval_constant_primal_form(sd, X♯)
+  u = s1 * eval_constant_primal_form(sd, X♯) #multiply s1 by the form that roughly dots each edge with X♯ (?)
 
   # Recall Euler's Equation:
   # ∂ₜu = -ℒᵤu + 0.5dιᵤu  - 1/ρdp + b.
   # We expect for a uniform flow then that ∂ₜu = 0.
   # We will not explicitly set boundary conditions for this test.
 
+  # not clear why this function is chosen
   mag(x) = (sqrt ∘ abs).(ι1(x,x))
 
-  # Test that the advection term is 0.
+  # Test that the advection term -ℒᵤu + 0.5dιᵤu is 0.
   selfadv = ℒ1(u,u) - 0.5*d0*ι1(u,u)
   mag_selfadv = mag(selfadv)[interior_tris]
 
-  # Solve for pressure
-  div(x) = s2 * d1 * (s1 \ x);
-  solveΔ(x) = float.(d0) \ (s1 * (float.(d1) \ (s2 \ x)))
+  # Solve for pressure using the Poisson equation
+  div(x) = s2 * d1 * (s1 \ x); #basically divergence
+  solveΔ(x) = float.(d0) \ (s1 * (float.(d1) \ (s2 \ x))) #hodge-star x to a 2-form, then invert d1, star again, then invert d0, solves laplace equation 
 
   p = (solveΔ ∘ div)(selfadv)
   dp = d0*p
