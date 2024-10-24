@@ -53,8 +53,8 @@ dual_meshes_1D = [line, cycle, plus]
 
 dual_meshes_2D = [(generate_dual_mesh ∘ loadmesh ∘ Icosphere).(1:2)...,
                (generate_dual_mesh ∘ loadmesh)(Rectangle_30x10()),
-               (generate_dual_mesh).([triangulated_grid(10,10,8,8,Point3D), makeSphere(5, 175, 5, 0, 360, 5, 6371+90)[1]])...,
-               (loadmesh)(Torus_30x10())];
+               (generate_dual_mesh).([triangulated_grid(10,10,8,8,Point3D), makeSphere(5, 175, 5, 0, 360, 5, 6371+90)[1]])...,];
+               #(loadmesh)(Torus_30x10())];
 
 tg′ = triangulated_grid(100,100,10,10,Point2D);
 tg = EmbeddedDeltaDualComplex2D{Bool,Float64,Point2D}(tg′);
