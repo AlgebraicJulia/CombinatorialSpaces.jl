@@ -23,7 +23,7 @@ struct Rectangle_30x10 <: AbstractMeshKey end
 struct Torus_30x10 <: AbstractMeshKey end
 struct Point_Map <: AbstractMeshKey end
 
-const Icosphere(n) = Icosphere(n, 1.0)
+Icosphere(n) = Icosphere(n, 1.0)
 
 """    loadmesh(s::Icosphere)
 

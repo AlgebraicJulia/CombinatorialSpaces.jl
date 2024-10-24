@@ -12,7 +12,6 @@ using Random
 using GeometryBasics: Point2, Point3
 using StaticArrays: SVector
 using Statistics: mean, var
-using CairoMakie
 
 Point2D = Point2{Float64}
 Point3D = Point3{Float64}
@@ -73,7 +72,6 @@ flat_meshes = [tri_345()[2], tri_345_false()[2], right_scalene_unit_hypot()[2], 
             @test all(dec_differential(i, sd) .== d(i, sd))
         end
     end
-t
     for i in 0:1 
         for sd in dual_meshes_2D
             @test all(dec_differential(i, sd) .== d(i, sd))
@@ -344,16 +342,6 @@ function plot_dual0form(sd, f0)
   f
 end
 
-x = rand(1113)
-Δᵣ = Δ(rect)
-@test IterativeSolvers.cg(Δᵣ,x) ≈ Δᵣ \ x
-
-
-
-
-
-
-
 function euler_equation_test(X♯, sd)
   interior_tris = setdiff(triangles(sd), boundary_inds(Val{2}, sd))
 
@@ -396,57 +384,45 @@ function euler_equation_test(X♯, sd)
   mag_selfadv, mag_dp, mag_∂ₜu
 end
 
+@testset "Dual-Dual Interior Product and Lie Derivative" begin
+  X♯ = SVector{3,Float64}(1/√2,1/√2,0)
+  mag_selfadv, mag_dp, mag_∂ₜu = euler_equation_test(X♯, rect)
+  # Note that "error" accumulates in the first two layers around ∂Ω.
+  # That is not really error, but rather the effect of boundary conditions.
+  #mag(x) = (sqrt ∘ abs).(ι1(x,x))
+  #plot_dual0form(sd, mag(selfadv))
+  #plot_dual0form(sd, mag(dp))
+  #plot_dual0form(sd, mag(∂ₜu))
+  @test .75 < (count(mag_selfadv .< 1e-8) / length(mag_selfadv))
+  @test .80 < (count(mag_dp .< 1e-2) / length(mag_dp))
+  @test .75 < (count(mag_∂ₜu .< 1e-2) / length(mag_∂ₜu))
 
-X♯ = SVector{3,Float64}(1 / √2, 1 / √2, 0)
-new_grid′ = loadmesh(Icosphere(4))
-new_grid = EmbeddedDeltaDualComplex2D{Bool,Float64,Point3D}(new_grid′)
-subdivide_duals!(new_grid, Barycenter())
-mag_selfadv, mag_dp, mag_∂ₜu = euler_equation_test(X♯, rect,false)
-nmag_selfadv, nmag_dp, nmag_∂ₜu = euler_equation_test(X♯, new_grid,false)
+  # This smaller mesh is proportionally more affected by boundary conditions.
+  X♯ = SVector{3,Float64}(1/√2,1/√2,0)
+  mag_selfadv, mag_dp, mag_∂ₜu  = euler_equation_test(X♯, tg)
+  @test .64 < (count(mag_selfadv .< 1e-2) / length(mag_selfadv))
+  @test .64 < (count(mag_dp .< 1e-2) / length(mag_dp))
+  @test .60 < (count(mag_∂ₜu .< 1e-2) / length(mag_∂ₜu))
 
-plot_dual0form(new_grid, nmag_selfadv)
-plot_dual0form(new_grid, nmag_dp)
-plot_dual0form(new_grid, nmag_∂ₜu)
+  X♯ = SVector{3,Float64}(3,3,0)
+  mag_selfadv, mag_dp, mag_∂ₜu  = euler_equation_test(X♯, tg)
+  @test .60 < (count(mag_selfadv .< 1e-1) / length(mag_selfadv))
+  @test .60 < (count(mag_dp .< 1e-1) / length(mag_dp))
+  @test .60 < (count(mag_∂ₜu .< 1e-1) / length(mag_∂ₜu))
 
-# Note that "error" accumulates in the first two layers around ∂Ω.
-# That is not really error, but rather the effect of boundary conditions.
-#mag(x) = (sqrt ∘ abs).(ι1(x,x))
-
-mag_selfadv = map(mag_selfadv) do x x > 0.01 ? 0 : x end
-
-plot_dual0form(rect, mag_selfadv)
-plot_dual0form(rect, mag_dp)
-plot_dual0form(rect, mag_∂ₜu)
-@test 0.75 < (count(mag_selfadv .< 1e-8) / length(mag_selfadv))
-@test 0.80 < (count(mag_dp .< 1e-2) / length(mag_dp))
-@test 0.75 < (count(mag_∂ₜu .< 1e-2) / length(mag_∂ₜu))
-
-# This smaller mesh is proportionally more affected by boundary conditions.
-X♯ = SVector{3,Float64}(1 / √2, 1 / √2, 0)
-mag_selfadv, mag_dp, mag_∂ₜu = euler_equation_test(X♯, tg)
-@test 0.64 < (count(mag_selfadv .< 1e-2) / length(mag_selfadv))
-@test 0.64 < (count(mag_dp .< 1e-2) / length(mag_dp))
-@test 0.60 < (count(mag_∂ₜu .< 1e-2) / length(mag_∂ₜu))
-
-X♯ = SVector{3,Float64}(3, 3, 0)
-mag_selfadv, mag_dp, mag_∂ₜu = euler_equation_test(X♯, tg)
-@test 0.60 < (count(mag_selfadv .< 1e-1) / length(mag_selfadv))
-@test 0.60 < (count(mag_dp .< 1e-1) / length(mag_dp))
-@test 0.60 < (count(mag_∂ₜu .< 1e-1) / length(mag_∂ₜu))
-
-# u := ⋆xdx
-# ιᵤu = x²
-sd = rect
-f = map(point(sd)) do p
-  p[1]
+  # u := ⋆xdx
+  # ιᵤu = x²
+  sd = rect;
+  f = map(point(sd)) do p
+    p[1]
+  end
+  dx = eval_constant_primal_form(sd, SVector{3,Float64}(1,0,0))
+  u = hodge_star(1,sd) * dec_wedge_product(Tuple{0,1}, sd)(f, dx)
+  ι1 = interior_product_dd(Tuple{1,1}, sd)
+  interior_tris = setdiff(triangles(sd), boundary_inds(Val{2}, sd))
+  @test all(<(8e-3), (ι1(u,u) .- map(sd[sd[:tri_center], :dual_point]) do (x,_,_)
+    x*x
+  end)[interior_tris])
 end
-dx = eval_constant_primal_form(sd, SVector{3,Float64}(1, 0, 0))
-u = hodge_star(1, sd) * dec_wedge_product(Tuple{0,1}, sd)(f, dx)
-ι1 = interior_product_dd(Tuple{1,1}, sd)
-interior_tris = setdiff(triangles(sd), boundary_inds(Val{2}, sd))
-@test all(<(8e-3), (ι1(u, u).-map(sd[sd[:tri_center], :dual_point]) do (x, _, _)
-  x * x
-end)[interior_tris])
-
 
 end
