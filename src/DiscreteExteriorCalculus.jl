@@ -653,20 +653,6 @@ end
 
 ♭_mat(s::AbstractDeltaDualComplex2D, f::DPPFlat) =
   ♭_mat(s, ∂(2,s), f)
-function ♭(s::AbstractDeltaDualComplex2D, X::AbstractVector, ::PPFlat)
-  map(edges(s)) do e
-  # Assume linear-interpolation of the vector field across the edge,
- # determined solely by the values of the vector-field at the endpoints.
-    vs = edge_vertices(s,e)
-    l_vec = 1/2*(X[vs][1]+X[vs][2])
-    e_vec = (point(s, tgt(s,e)) - point(s, src(s,e))) * sign(1,s,e)
-    dot(l_vec, e_vec)
- end
-end
-
-function ♭_mat(s::AbstractDeltaDualComplex2D)
-  ♭_mat(s, ∂(2,s))
-end
 
 function ♭_mat(s::AbstractDeltaDualComplex2D, p2s, ::DPPFlat)
   mat_type = SMatrix{1, length(eltype(s[:point])), eltype(eltype(s[:point])), length(eltype(s[:point]))}
@@ -693,6 +679,27 @@ function ♭_mat(s::AbstractDeltaDualComplex2D, p2s, ::DPPFlat)
     for (tri, del) in zip(tris, dels)
       ♭_mat[e, tri] = del * mat_type(e_vec) / dels_sum
     end
+  end
+  ♭_mat
+end
+
+function ♭(s::AbstractDeltaDualComplex2D, X::AbstractVector, ::PPFlat)
+  map(edges(s)) do e
+    vs = edge_vertices(s,e)
+    l_vec = mean(X[vs])
+    e_vec = (point(s, tgt(s,e)) - point(s, src(s,e))) * sign(1,s,e)
+    dot(l_vec, e_vec)
+  end
+end
+
+function ♭_mat(s::AbstractDeltaDualComplex2D, ::PPFlat)
+  mat_type = SMatrix{1, length(eltype(s[:point])), eltype(eltype(s[:point])), length(eltype(s[:point]))}
+  ♭_mat = spzeros(mat_type, ne(s), nv(s))
+  for e in edges(s)
+    e_vec = (point(s, tgt(s,e)) - point(s, src(s,e))) * sign(1,s,e)
+    vs = edge_vertices(s,e)
+    ♭_mat[e, vs[1]] = 0.5 * mat_type(e_vec)
+    ♭_mat[e, vs[2]] = 0.5 * mat_type(e_vec)
   end
   ♭_mat
 end
