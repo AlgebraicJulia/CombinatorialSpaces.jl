@@ -31,7 +31,7 @@ export DualSimplex, DualV, DualE, DualTri, DualTet, DualChain, DualForm,
   dual_point, dual_volume, subdivide_duals!, DiagonalHodge, GeometricHodge,
   subdivide, PPSharp, AltPPSharp, DesbrunSharp, LLSDDSharp, de_sign,
   DPPFlat, PPFlat,
-  ♭♯, ♭♯_mat, flat_sharp, flat_sharp_mat
+  ♭♯, ♭♯_mat, flat_sharp, flat_sharp_mat, extract_dual, dual_extractor, dualize
 
 import Base: ndims
 import Base: *
