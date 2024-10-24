@@ -3,9 +3,9 @@ using GeometryBasics:Point3, Point2
 using Krylov, Catlab, SparseArrays
 using ..SimplicialSets
 import Catlab: dom,codom
-export multigrid_vcycles, multigrid_wcycles, full_multigrid, repeated_subdivisions, Point3D, Point2D, triforce_subdivision_map, dom, codom, as_matrix, MultigridData
-Point3D = Point3{Float64}
-Point2D = Point2{Float64}
+export multigrid_vcycles, multigrid_wcycles, full_multigrid, repeated_subdivisions, triforce_subdivision_map, dom, codom, as_matrix, MultigridData
+const Point3D = Point3{Float64}
+const Point2D = Point2{Float64}
 
 struct PrimitiveGeometricMap{D,M}
   domain::D
