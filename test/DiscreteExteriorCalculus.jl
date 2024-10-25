@@ -33,13 +33,8 @@ dual_v = elementary_duals(1,s,4)
 
 dual_es = elementary_duals(0,s,5)
 @test length(dual_es) == 4
-@test s[dual_es, :dual_∂v0] == edge_center(s, 1:4)
+@test s[dual_es, :D_∂v0] == edge_center(s, 1:4)
 @test elementary_duals(s, V(5)) == DualE(dual_es)
-
-primal_s′ = extract_dual(primal_s)
-#@test !is_isomorphic(primal_s′,extract_dual(s)) #XX: They're opposites!
-@test nv(primal_s′) == nv(primal_s) + ne(primal_s)
-@test ne(primal_s′) == 2*ne(primal_s)
 
 # 1D oriented dual complex
 #-------------------------
@@ -48,18 +43,13 @@ primal_s = OrientedDeltaSet1D{Bool}()
 add_vertices!(primal_s, 3)
 add_edges!(primal_s, [1,2], [2,3], edge_orientation=[true,false])
 s = dualize(primal_s)
-@test s[only(elementary_duals(0,s,1)), :dual_edge_orientation] == true
-@test s[only(elementary_duals(0,s,3)), :dual_edge_orientation] == true
+@test s[only(elementary_duals(0,s,1)), :D_edge_orientation] == true
+@test s[only(elementary_duals(0,s,3)), :D_edge_orientation] == true
 
 @test ∂(s, DualChain{1}([1,0,1])) isa DualChain{0}
 @test d(s, DualForm{0}([1,1])) isa DualForm{1}
 @test dual_boundary(1,s) == ∂(1,s)'
 @test dual_derivative(0,s) == -d(0,s)'
-
-primal_s′ = extract_dual(primal_s)
-@test nv(primal_s′) == nv(primal_s) + ne(primal_s)
-@test ne(primal_s′) == 2*ne(primal_s)
-@test orient!(primal_s′)
 
 # 1D embedded dual complex
 #-------------------------
@@ -140,8 +130,8 @@ s = DeltaDualComplex2D(primal_s)
 dual_vs = elementary_duals(2,s,2)
 @test dual_vs == [triangle_center(s,2)]
 @test elementary_duals(s, Tri(2)) == DualV(dual_vs)
-@test s[elementary_duals(1,s,2), :dual_∂v1] == [edge_center(s,2)]
-@test s[elementary_duals(1,s,3), :dual_∂v1] == repeat([edge_center(s,3)], 2)
+@test s[elementary_duals(1,s,2), :D_∂v1] == [edge_center(s,2)]
+@test s[elementary_duals(1,s,3), :D_∂v1] == repeat([edge_center(s,3)], 2)
 @test [length(elementary_duals(s, V(i))) for i in 1:4] == [4,2,4,2]
 @test dual_triangle_vertices(s, 1) == [1,7,10]
 @test dual_edge_vertices(s, 1) == [5,2]
@@ -164,10 +154,10 @@ glue_triangle!(implicit_s, 1, 3, 4)
 
 for primal_s in [explicit_s, implicit_s]
   s = dualize(primal_s)
-  @test sum(s[:dual_tri_orientation]) == nparts(s, :DualTri) ÷ 2
-  @test [sum(s[elementary_duals(0,s,i), :dual_tri_orientation])
+  @test sum(s[:D_tri_orientation]) == nparts(s, :DualTri) ÷ 2
+  @test [sum(s[elementary_duals(0,s,i), :D_tri_orientation])
         for i in 1:4] == [2,1,2,1]
-  @test sum(s[elementary_duals(1,s,3), :dual_edge_orientation]) == 1
+  @test sum(s[elementary_duals(1,s,3), :D_edge_orientation]) == 1
 
   for k in 0:1
     @test dual_boundary(2-k,s) == (-1)^k * ∂(k+1,s)'
@@ -535,8 +525,8 @@ glue_triangle!(primal_s′, 1, 3, 4)
 s′ = EmbeddedDeltaDualComplex2D{Bool,Float64,Point2D}(primal_s′)
 s′[1, :tri_center] = 11
 s′[2, :tri_center] = 10
-s′[[11,13,15,17,19,21], :dual_∂v0] = 11
-s′[[12,14,16,18,20,22], :dual_∂v0] = 10
+s′[[11,13,15,17,19,21], :D_∂v0] = 11
+s′[[12,14,16,18,20,22], :D_∂v0] = 10
 subdivide_duals!(s′, Barycenter())
 #@assert is_isomorphic(s,s′)
 
@@ -734,14 +724,14 @@ dual_v = elementary_duals(3,s,1)
 @test dual_v == [tetrahedron_center(s,1)]
 @test elementary_duals(s, Tet(1)) == DualV(dual_v)
 dual_e = elementary_duals(2,s,1)
-@test s[dual_e, :dual_∂v0] == [tetrahedron_center(s,1)]
-@test s[dual_e, :dual_∂v1] == [triangle_center(s,1)]
+@test s[dual_e, :D_∂v0] == [tetrahedron_center(s,1)]
+@test s[dual_e, :D_∂v1] == [triangle_center(s,1)]
 @test elementary_duals(s, Tri(1)) == DualE(dual_e)
 dual_ts = elementary_duals(1,s,1)
-@test s[dual_ts, [:dual_∂e0, :dual_∂v0]] == [tetrahedron_center(s,1), tetrahedron_center(s,1)]
+@test s[dual_ts, [:D_∂e0, :D_∂v0]] == [tetrahedron_center(s,1), tetrahedron_center(s,1)]
 @test elementary_duals(s, E(1)) == DualTri(dual_ts)
 dual_tets = elementary_duals(0,s,1)
-@test s[dual_tets, [:dual_∂t0, :dual_∂e0, :dual_∂v0]] == fill(tetrahedron_center(s,1), 6)
+@test s[dual_tets, [:D_∂t0, :D_∂e0, :D_∂v0]] == fill(tetrahedron_center(s,1), 6)
 @test elementary_duals(s, V(1)) == DualTet(dual_tets)
 
 # Two tetrahedra forming a square pyramid.
@@ -849,7 +839,7 @@ orient!(primal_s)
 #@test_throws sum(dual_volume(3,s,parts(s,:DualTet))) ≈ 1
 
 # Barycentric subdivision avoids the above issue.
-s = EmbeddedDeltaDualComplex3D{Bool,Float64,Point3D}(primal_s)
+s = EmbeddedDeltaDualComplex3D{Bool, Float64,Point3D}(primal_s)
 subdivide_duals!(s, Barycenter())
 @test sum(dual_volume(3,s,parts(s,:DualTet))) ≈ 1
 @test all(dual_volume(3,s,parts(s,:DualTet)) .≈ 1/nparts(s,:DualTet))
