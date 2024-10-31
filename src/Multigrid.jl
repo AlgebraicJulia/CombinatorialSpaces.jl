@@ -3,7 +3,7 @@ using GeometryBasics:Point3, Point2
 using Krylov, Catlab, SparseArrays
 using ..SimplicialSets
 import Catlab: dom,codom
-export multigrid_vcycles, multigrid_wcycles, full_multigrid, repeated_subdivisions, triforce_subdivision_map, dom, codom, as_matrix, MultigridData
+export multigrid_vcycles, multigrid_wcycles, full_multigrid, repeated_subdivisions, binary_subdivision_map, dom, codom, as_matrix, MultigridData
 const Point3D = Point3{Float64}
 const Point2D = Point2{Float64}
 
@@ -22,7 +22,12 @@ function is_simplicial_complex(s)
   allunique(map(1:ntriangles(s)) do i triangle_vertices(s,i) end)
 end
 
-function triforce_subdivision(s)
+"""
+Subdivide each triangle into 4 via "binary" a.k.a. "medial" subdivision, returning a primal simplicial complex.
+
+Binary subdivision results in triangles that resemble the "tri-force" symbol from Legend of Zelda.
+"""
+function binary_subdivision(s)
   is_simplicial_complex(s) || error("Subdivision is supported only for simplicial complexes.")
   sd = typeof(s)()
   add_vertices!(sd,nv(s))
@@ -43,12 +48,12 @@ function triforce_subdivision(s)
   sd
 end
 
-function triforce_subdivision_map(s)
-  sd = triforce_subdivision(s)
+function binary_subdivision_map(s)
+  sd = binary_subdivision(s)
   mat = spzeros(nv(s),nv(sd))
   for i in 1:nv(s) mat[i,i] = 1. end
   for i in 1:ne(s) 
-    x,y = s[:∂v0][i],s[:∂v1][i]
+    x, y = s[:∂v0][i], s[:∂v1][i]
     mat[x,i+nv(s)] = 1/2
     mat[y,i+nv(s)] = 1/2
   end
@@ -102,10 +107,13 @@ Decrement the number of (eg V-)cycles left to be performed.
 """
 decrement_cycles(md::MultigridData) = MultigridData(md.operators,md.restrictions,md.prolongations,md.steps,md.cycles-1)
 
-# TODO: Smarter calculations for steps and cycles, input arbitrary iterative solver, implement weighted Jacobi and maybe Gauss-Seidel, masking for boundary condtions
-
-#This could use Galerkin conditions to construct As from As[1]
-#Add maxcycles and tolerances
+# TODO:
+# - Smarter calculations for steps and cycles,
+# - Input arbitrary iterative solver,
+# - Implement weighted Jacobi and maybe Gauss-Seidel,
+# - Masking for boundary condtions
+# - This could use Galerkin conditions to construct As from As[1]
+# - Add maxcycles and tolerances
 """
 Solve `Ax=b` on `s` with initial guess `u` using , for `cycles` V-cycles, performing `steps` steps of the 
 conjugate gradient method on each mesh and going through 
@@ -116,6 +124,7 @@ at this point.
 `gmres`.
 """
 multigrid_vcycles(u,b,md,cycles,alg=cg) = multigrid_μ_cycles(u,b,md,cycles,alg,1)
+
 """
 Just the same as `multigrid_vcycles` but with W-cycles.
 """
@@ -125,6 +134,7 @@ function multigrid_μ_cycles(u,b,md::MultigridData,cycles,alg=cg,μ=1)
   u = _multigrid_μ_cycle(u,b,md,alg,μ)
   multigrid_μ_cycles(u,b,md,cycles-1,alg,μ) 
 end
+
 """
 The full multigrid framework: start at the coarsest grid and 
 work your way up, applying V-cycles or W-cycles at each level
@@ -140,8 +150,6 @@ function full_multigrid(b,md::MultigridData,cycles,alg=cg,μ=1)
   end
   multigrid_μ_cycles(z_f,b,md,cycles,alg,μ)
 end
-
-
 
 function _multigrid_μ_cycle(u,b,md::MultigridData,alg=cg,μ=1)
   A,r,p,s = car(md)

@@ -41,6 +41,7 @@ function wedge_kernel_coeffs(::Type{Tuple{0,1}}, sd::Union{EmbeddedDeltaDualComp
    ne(sd))
 end
 
+# TODO: Tagging `shift` as `::Int` can sometimes increase efficiency.
 function wedge_kernel_coeffs(::Type{Tuple{0,2}}, sd::EmbeddedDeltaDualComplex2D{Bool, float_type, _p}) where {float_type, _p}
   verts = Array{Int32}(undef, 6, ntriangles(sd))
   coeffs = Array{float_type}(undef, 6, ntriangles(sd))
@@ -404,8 +405,8 @@ function dec_p_hodge_diag(::Type{Val{0}}, sd::EmbeddedDeltaDualComplex1D{Bool, f
     v1 = sd[de, :D_∂v1]
     if 1 <= v1 <= nvsd
       h_0[v1] += sd[de, :dual_length]
-      end
     end
+  end
   h_0
 end
 
@@ -420,7 +421,7 @@ function dec_p_hodge_diag(::Type{Val{0}}, sd::EmbeddedDeltaDualComplex2D{Bool, f
   for dt in parts(sd, :DualTri)
     v = sd[sd[dt, :D_∂e1], :D_∂v1]
     h_0[v] += sd[dt, :dual_area]
-    end
+  end
   h_0
 end
 
@@ -431,8 +432,8 @@ function dec_p_hodge_diag(::Type{Val{1}}, sd::EmbeddedDeltaDualComplex2D{Bool, f
     v1_shift = sd[de, :D_∂v1] - nvsd
     if (1 <= v1_shift <= nesd)
       h_1[v1_shift] += sd[de, :dual_length] / sd[v1_shift, :length]
-      end
     end
+  end
   h_1
 end
 
@@ -669,6 +670,5 @@ const avg_01 = avg₀₁
 """    Alias for the averaging matrix [`avg₀₁_mat`](@ref).
 """
 const avg_01_mat = avg₀₁_mat
-
 
 end

@@ -320,7 +320,7 @@ It was a bit annoying to have to manually subdivide the
 square grid; we can automate this with the `repeated_subdivisions` 
 function, but the non-uniformity of neighborhoods in a barycentric
 subdivision of a 2-D simplicial set means we might prefer a different
-subdivider. We focus on the "triforce" subdivision, which splits
+subdivider. We focus on the "binary" subdivision, which splits
 each triangle into four by connecting the midpoints of its edges.
 
 ```math
@@ -334,9 +334,9 @@ using Krylov, LinearOperators, CombinatorialSpaces, LinearAlgebra, StaticArrays,
 
 # TODO: Check signs.
 # TODO: Add kernel or matrix version.
-s = triangulated_grid(1,1,1/4,sqrt(3)/2*1/4,Point2D)
+s = triangulated_grid(1,1,1/4,sqrt(3)/2*1/4,Point2D,false)
 sd = dualize(s,Circumcenter())
-f = triforce_subdivision_map(s)
+f = binary_subdivision_map(s)
 
 nw(s) = ne(s)+nv(s)
 
@@ -453,7 +453,7 @@ end
 
 prolong_0form_and_1form(f)*ones(nw(s))
 
-#4.0 hard-coded for now, only applicable for triforce subdivision
+#4.0 hard-coded for now, only applicable for binary subdivision
 """
 Restrict a 1-form from the domain to the codomain of a geometric
 map, roughly by transposing the prolongation.
@@ -510,8 +510,8 @@ function lap1(μ,s)
         end)
 end
 
-s = triangulated_grid(1,1,1/4,sqrt(3)/2*1/4,Point2D)
-fs = reverse(repeated_subdivisions(2,s,triforce_subdivision_map));
+s = triangulated_grid(1,1,1/4,sqrt(3)/2*1/4,Point2D,false)
+fs = reverse(repeated_subdivisions(2,s,binary_subdivision_map));
 sses = map(fs) do f dom(f).delta_set end
 push!(sses,s)
 
@@ -558,14 +558,14 @@ Let's back up for a minute and make sure we can run the heat equation with our l
 ```@example heat-on-triangles
 using Krylov, CombinatorialSpaces, LinearAlgebra
 
-s = triangulated_grid(1,1,1/4,sqrt(3)/2*1/4,Point3D)
-fs = reverse(repeated_subdivisions(4,s,triforce_subdivision_map));
+s = triangulated_grid(1,1,1/4,sqrt(3)/2*1/4,Point3D,false)
+fs = reverse(repeated_subdivisions(4,s,binary_subdivision_map));
 sses = map(fs) do f dom(f).delta_set end
 push!(sses,s)
 sds = map(sses) do s dualize(s,Circumcenter()) end
 Ls = map(sds) do sd ∇²(0,sd) end
 ps = transpose.(as_matrix.(fs))
-rs = transpose.(ps)./4.0 #4 is the biggest row sum that occurs for triforce, this is not clearly the correct scaling
+rs = transpose.(ps)./4.0 #4 is the biggest row sum that occurs for binary, this is not clearly the correct scaling
 
 u0 = zeros(nv(sds[1]))
 b = Ls[1]*rand(nv(sds[1])) #put into range of the Laplacian for solvability

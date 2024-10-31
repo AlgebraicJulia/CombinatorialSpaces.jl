@@ -12,7 +12,7 @@ all geometric applications, namely the boundary and coboundary (discrete
 exterior derivative) operators. For additional operators, see the
 `DiscreteExteriorCalculus` module.
 """
-module SimplicialSets 
+module SimplicialSets
 export Simplex, V, E, Tri, Tet, SimplexChain, VChain, EChain, TriChain, TetChain,
   SimplexForm, VForm, EForm, TriForm, TetForm, HasDeltaSet,
   HasDeltaSet1D, DeltaSet, DeltaSet0D, AbstractDeltaSet1D, DeltaSet1D, SchDeltaSet1D,
@@ -72,11 +72,10 @@ Assumes that vertices, edges, triangles, and tetrahedra are
 named :V, :E, :Tri, and :Tet respectively.
 """
 function dimension(d::HasDeltaSet)
-  S = acset_schema(d)
-  :E in ob(S) ? :Tri in ob(S) ? :Tet in ob(S) ? 3 : 2 : 1 : 0
+  obS = ob(acset_schema(d))
+  :E in obS ? :Tri in obS ? :Tet in obS ? 3 : 2 : 1 : 0
 end
 dimension(dt::Type{D}) where {D<:HasDeltaSet} = dimension(D())
-
 
 # 0-D simplicial sets
 #####################
@@ -84,6 +83,7 @@ dimension(dt::Type{D}) where {D<:HasDeltaSet} = dimension(D())
 @present SchDeltaSet0D(FreeSchema) begin
   V::Ob
 end
+
 """ A 0-dimensional delta set, aka a set of vertices.
 """
 @acset_type DeltaSet0D(SchDeltaSet0D) <: HasDeltaSet
@@ -113,7 +113,7 @@ More generally, this type implements the graphs interface in `Catlab.Graphs`.
 """
 @acset_type DeltaSet1D(SchDeltaSet1D, index=[:∂v0,:∂v1]) <: AbstractDeltaSet1D
 
-edges(::HasDeltaSet) = error("0-dimensional simplicial sets have no edges")
+edges(::HasDeltaSet) = 1:0 # XXX: 0D simplicial sets have no edges.
 edges(s::HasDeltaSet1D) = parts(s, :E)
 edges(s::HasDeltaSet1D, src::Int, tgt::Int) =
   (e for e in coface(1,1,s,src) if ∂(1,0,s,e) == tgt)
@@ -347,6 +347,7 @@ function get_edge!(s::HasDeltaSet1D, src::Int, tgt::Int)
   es = edges(s, src, tgt)
   isempty(es) ? add_edge!(s, src, tgt) : first(es)
 end
+
 function glue_triangles!(s,v₀s,v₁s,v₂s; kw...)
   for (v₀,v₁,v₂) in zip(v₀s,v₁s,v₂s)
     glue_triangle!(s, v₀, v₁, v₂; kw...)
@@ -604,7 +605,8 @@ volume(::Type{Val{n}}, s::EmbeddedDeltaSet3D, x) where n =
 volume(::Type{Val{3}}, s::HasDeltaSet3D, t::Int, ::CayleyMengerDet) =
   volume(point(s, tetrahedron_vertices(s,t)))
 
-  const EmbeddedDeltaSet = Union{EmbeddedDeltaSet1D, EmbeddedDeltaSet2D, EmbeddedDeltaSet3D}
+const EmbeddedDeltaSet = Union{EmbeddedDeltaSet1D, EmbeddedDeltaSet2D, EmbeddedDeltaSet3D}
+
 # General operators
 ###################
 
@@ -618,7 +620,6 @@ for symb in [:DeltaSet,:EmbeddedDeltaSet,:OrientedDeltaSet]
   #defines eg DeltaSet(2) = DeltaSet2D
   eval(Expr(:(=),Expr(:call,symb,:n),Expr(:ref,:DeltaSetTypes,Expr(:tuple,QuoteNode(symb),:n))))
 end
-
 
 """ Wrapper for simplex or simplices of dimension `n`.
 

@@ -19,9 +19,6 @@ export DualSimplex, DualV, DualE, DualTri, DualTet, DualChain, DualForm,
   OrientedDeltaDualComplex3D, SchOrientedDeltaDualComplex3D,
   EmbeddedDeltaDualComplex3D, SchEmbeddedDeltaDualComplex3D,
   DeltaDualComplex, EmbeddedDeltaDualComplex, OrientedDeltaDualComplex,
-  AbstractDeltaDualComplex3D, DeltaDualComplex3D, SchDeltaDualComplex3D,
-  OrientedDeltaDualComplex3D, SchOrientedDeltaDualComplex3D,
-  EmbeddedDeltaDualComplex3D, SchEmbeddedDeltaDualComplex3D,
   SimplexCenter, Barycenter, Circumcenter, Incenter, geometric_center,
   subsimplices, primal_vertex, elementary_duals, dual_boundary, dual_derivative,
   ⋆, hodge_star, inv_hodge_star, δ, codifferential, ∇², laplace_beltrami, Δ, laplace_de_rham,
@@ -203,9 +200,6 @@ function dual_triangle_vertices(s::HasDeltaSet1D, t...)
           s[s[t..., :D_∂e0], :D_∂v1],
           s[s[t..., :D_∂e0], :D_∂v0])
 end
-
-
-
 
 # 1D oriented dual complex
 #-------------------------
@@ -426,11 +420,9 @@ end
   tri_center::Hom(Tri, DualV)
 end
 
-
 """ Abstract type for dual complex of a 2D delta set.
 """
 @abstract_acset_type AbstractDeltaDualComplex2D <: HasDeltaSet2D
-
 
 """ Dual complex of a two-dimensional delta set.
 """
@@ -1442,9 +1434,10 @@ function dual_derivative(::Type{Val{n}}, s::HasDeltaSet, args...) where n
   end
 end
 
+# TODO: Determine whether an ACSetType is Embedded in a more principled way.
 """
-Checks whethere a DeltaSet is embedded by (droolingly) searching for 'Embedded'
-in the name of its type. This could also check for 'Point' in the schema, which
+Checks whether a DeltaSet is embedded by  searching for 'Embedded' in the name
+of its type. This could also check for 'Point' in the schema, which
 would feel better but be less trustworthy.
 """
 is_embedded(d::HasDeltaSet) = is_embedded(typeof(t))
@@ -1455,6 +1448,7 @@ rename_from_dual(s::Symbol) = Symbol(replace(string(s),reverse(REPLACEMENT_FOR_D
 
 const EmbeddedDeltaSet = Union{EmbeddedDeltaSet1D,EmbeddedDeltaSet2D,EmbeddedDeltaSet3D}
 const EmbeddedDeltaDualComplex = Union{EmbeddedDeltaDualComplex1D,EmbeddedDeltaDualComplex2D}
+
 """
 Adds the Real type for lengths in the EmbeddedDeltaSet case, and removes it in the EmbeddedDeltaDualComplex case. 
 Will need further customization
@@ -1466,7 +1460,6 @@ dual_param_list(d::EmbeddedDeltaSet) =
 dual_param_list(d::EmbeddedDeltaDualComplex) = 
   begin t = typeof(d); [t.parameters[1],t.parameters[3]] end
 
-
 """
 Keys are symbols for all the DeltaSet and DeltaDualComplex types.
 Values are the types themselves, without parameters, so mostly UnionAlls.
@@ -1476,10 +1469,10 @@ type_dict = Dict{Symbol,Type}()
 const prefixes = ["Embedded","Oriented",""]
 const postfixes = ["1D","2D"]
 const midfixes = ["DeltaDualComplex","DeltaSet"]
-for pre in prefixes for mid in midfixes for post in postfixes
-    s = Symbol(pre,mid,post)
-    type_dict[s] = eval(s)
-end end end
+for (pre,mid,post) in Iterators.product(prefixes, midfixes, postfixes)
+  s = Symbol(pre,mid,post)
+  type_dict[s] = eval(s)
+end
 
 """
 Get the dual type of a plain, oriented, or embedded DeltaSet1D or 2D.
@@ -1502,7 +1495,7 @@ Does not call `subdivide_duals!` on the result.
 Should work out of the box on new DeltaSet types if (1) their dual type
 has the same name as their primal type with "Set" substituted by "DualComplex"
 and (2) their dual type has the same parameter set as their primal type. At the
-time of writing (July 2024) only "Embedded" types fail criterion (2) and get special treatment.
+time of writing (PR 117) only "Embedded" types fail criterion (2) and get special treatment.
 
 # Examples
 s = EmbeddedDeltaSet2D{Bool,SVector{2,Float64}}()

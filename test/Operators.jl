@@ -346,23 +346,23 @@ function euler_equation_test(X♯, sd)
   interior_tris = setdiff(triangles(sd), boundary_inds(Val{2}, sd))
 
   # Allocate the cached operators.
-  d0 = dec_dual_derivative(0, sd) #E x T matrix
-  d1 = dec_differential(1, sd);#E x T matrix
-  s1 = dec_hodge_star(1, sd); #E x E matrix
-  s2 = dec_hodge_star(2, sd); #T x T matrix
-  ι1 = interior_product_dd(Tuple{1,1}, sd)  #function from pairs of E-vectors to T-vector
-  ι2 = interior_product_dd(Tuple{1,2}, sd) #function
-  ℒ1 = ℒ_dd(Tuple{1,1}, sd) #function
+  d0 = dec_dual_derivative(0, sd)
+  d1 = dec_differential(1, sd);
+  s1 = dec_hodge_star(1, sd);
+  s2 = dec_hodge_star(2, sd);
+  ι1 = interior_product_dd(Tuple{1,1}, sd)
+  ι2 = interior_product_dd(Tuple{1,2}, sd)
+  ℒ1 = ℒ_dd(Tuple{1,1}, sd)
 
   # This is a uniform, constant flow.
-  u = s1 * eval_constant_primal_form(sd, X♯) #multiply s1 by the form that roughly dots each edge with X♯ (?)
+  u = s1 * eval_constant_primal_form(sd, X♯)
 
   # Recall Euler's Equation:
   # ∂ₜu = -ℒᵤu + 0.5dιᵤu  - 1/ρdp + b.
   # We expect for a uniform flow then that ∂ₜu = 0.
   # We will not explicitly set boundary conditions for this test.
 
-  # not clear why this function is chosen
+  # The square root of the inner product is a suitable notion of magnitude.
   mag(x) = (sqrt ∘ abs).(ι1(x,x))
 
   # Test that the advection term -ℒᵤu + 0.5dιᵤu is 0.
@@ -370,8 +370,8 @@ function euler_equation_test(X♯, sd)
   mag_selfadv = mag(selfadv)[interior_tris]
 
   # Solve for pressure using the Poisson equation
-  div(x) = s2 * d1 * (s1 \ x); #basically divergence
-  solveΔ(x) = float.(d0) \ (s1 * (float.(d1) \ (s2 \ x))) #hodge-star x to a 2-form, then invert d1, star again, then invert d0, solves laplace equation 
+  div(x) = s2 * d1 * (s1 \ x);
+  solveΔ(x) = float.(d0) \ (s1 * (float.(d1) \ (s2 \ x)))
 
   p = (solveΔ ∘ div)(selfadv)
   dp = d0*p

@@ -839,7 +839,7 @@ orient!(primal_s)
 #@test_throws sum(dual_volume(3,s,parts(s,:DualTet))) ≈ 1
 
 # Barycentric subdivision avoids the above issue.
-s = EmbeddedDeltaDualComplex3D{Bool, Float64,Point3D}(primal_s)
+s = EmbeddedDeltaDualComplex3D{Bool,Float64,Point3D}(primal_s)
 subdivide_duals!(s, Barycenter())
 @test sum(dual_volume(3,s,parts(s,:DualTet))) ≈ 1
 @test all(dual_volume(3,s,parts(s,:DualTet)) .≈ 1/nparts(s,:DualTet))
