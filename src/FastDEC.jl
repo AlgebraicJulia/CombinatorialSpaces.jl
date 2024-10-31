@@ -41,10 +41,11 @@ function wedge_kernel_coeffs(::Type{Tuple{0,1}}, sd::Union{EmbeddedDeltaDualComp
    ne(sd))
 end
 
+# TODO: Tagging `shift` as `::Int` can sometimes increase efficiency.
 function wedge_kernel_coeffs(::Type{Tuple{0,2}}, sd::EmbeddedDeltaDualComplex2D{Bool, float_type, _p}) where {float_type, _p}
   verts = Array{Int32}(undef, 6, ntriangles(sd))
   coeffs = Array{float_type}(undef, 6, ntriangles(sd))
-  shift::Int = ntriangles(sd)
+  shift = ntriangles(sd)
   @inbounds for t in triangles(sd)
     for dt in 1:6
       dt_real = t + (dt - 1) * shift

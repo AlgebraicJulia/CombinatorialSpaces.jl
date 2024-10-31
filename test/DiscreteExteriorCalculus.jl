@@ -36,17 +36,13 @@ dual_es = elementary_duals(0,s,5)
 @test s[dual_es, :D_∂v0] == edge_center(s, 1:4)
 @test elementary_duals(s, V(5)) == DualE(dual_es)
 
-primal_s′ = subdivide(primal_s)
-@test nv(primal_s′) == nv(primal_s) + ne(primal_s)
-@test ne(primal_s′) == 2*ne(primal_s)
-
 # 1D oriented dual complex
 #-------------------------
 
 primal_s = OrientedDeltaSet1D{Bool}()
 add_vertices!(primal_s, 3)
 add_edges!(primal_s, [1,2], [2,3], edge_orientation=[true,false])
-s = OrientedDeltaDualComplex1D{Bool}(primal_s)
+s = dualize(primal_s)
 @test s[only(elementary_duals(0,s,1)), :D_edge_orientation] == true
 @test s[only(elementary_duals(0,s,3)), :D_edge_orientation] == true
 
@@ -54,11 +50,6 @@ s = OrientedDeltaDualComplex1D{Bool}(primal_s)
 @test d(s, DualForm{0}([1,1])) isa DualForm{1}
 @test dual_boundary(1,s) == ∂(1,s)'
 @test dual_derivative(0,s) == -d(0,s)'
-
-primal_s′ = subdivide(primal_s)
-@test nv(primal_s′) == nv(primal_s) + ne(primal_s)
-@test ne(primal_s′) == 2*ne(primal_s)
-@test orient!(primal_s′)
 
 # 1D embedded dual complex
 #-------------------------
@@ -162,7 +153,7 @@ glue_triangle!(implicit_s, 1, 2, 3)
 glue_triangle!(implicit_s, 1, 3, 4)
 
 for primal_s in [explicit_s, implicit_s]
-  s = OrientedDeltaDualComplex2D{Bool}(primal_s)
+  s = dualize(primal_s)
   @test sum(s[:D_tri_orientation]) == nparts(s, :DualTri) ÷ 2
   @test [sum(s[elementary_duals(0,s,i), :D_tri_orientation])
         for i in 1:4] == [2,1,2,1]

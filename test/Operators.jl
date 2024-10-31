@@ -72,7 +72,6 @@ flat_meshes = [tri_345()[2], tri_345_false()[2], right_scalene_unit_hypot()[2], 
             @test all(dec_differential(i, sd) .== d(i, sd))
         end
     end
-
     for i in 0:1 
         for sd in dual_meshes_2D
             @test all(dec_differential(i, sd) .== d(i, sd))
@@ -356,20 +355,21 @@ function euler_equation_test(X♯, sd)
   ℒ1 = ℒ_dd(Tuple{1,1}, sd)
 
   # This is a uniform, constant flow.
-  u = hodge_star(1,sd) * eval_constant_primal_form(sd, X♯)
+  u = s1 * eval_constant_primal_form(sd, X♯)
 
   # Recall Euler's Equation:
   # ∂ₜu = -ℒᵤu + 0.5dιᵤu  - 1/ρdp + b.
   # We expect for a uniform flow then that ∂ₜu = 0.
   # We will not explicitly set boundary conditions for this test.
 
+  # The square root of the inner product is a suitable notion of magnitude.
   mag(x) = (sqrt ∘ abs).(ι1(x,x))
 
-  # Test that the advection term is 0.
+  # Test that the advection term -ℒᵤu + 0.5dιᵤu is 0.
   selfadv = ℒ1(u,u) - 0.5*d0*ι1(u,u)
   mag_selfadv = mag(selfadv)[interior_tris]
 
-  # Solve for pressure
+  # Solve for pressure using the Poisson equation
   div(x) = s2 * d1 * (s1 \ x);
   solveΔ(x) = float.(d0) \ (s1 * (float.(d1) \ (s2 \ x)))
 

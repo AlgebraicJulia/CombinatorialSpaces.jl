@@ -18,6 +18,7 @@ export DualSimplex, DualV, DualE, DualTri, DualTet, DualChain, DualForm,
   AbstractDeltaDualComplex3D, DeltaDualComplex3D, SchDeltaDualComplex3D,
   OrientedDeltaDualComplex3D, SchOrientedDeltaDualComplex3D,
   EmbeddedDeltaDualComplex3D, SchEmbeddedDeltaDualComplex3D,
+  DeltaDualComplex, EmbeddedDeltaDualComplex, OrientedDeltaDualComplex,
   SimplexCenter, Barycenter, Circumcenter, Incenter, geometric_center,
   subsimplices, primal_vertex, elementary_duals, dual_boundary, dual_derivative,
   ⋆, hodge_star, inv_hodge_star, δ, codifferential, ∇², laplace_beltrami, Δ, laplace_de_rham,
@@ -27,7 +28,7 @@ export DualSimplex, DualV, DualE, DualTri, DualTet, DualChain, DualForm,
   dual_point, dual_volume, subdivide_duals!, DiagonalHodge, GeometricHodge,
   subdivide, PPSharp, AltPPSharp, DesbrunSharp, LLSDDSharp, de_sign,
   DPPFlat, PPFlat,
-  ♭♯, ♭♯_mat, flat_sharp, flat_sharp_mat
+  ♭♯, ♭♯_mat, flat_sharp, flat_sharp_mat, dualize
 
 import Base: ndims
 import Base: *
@@ -44,6 +45,7 @@ const Point3D = SVector{3,Float64}
 using ACSets.DenseACSets: attrtype_type
 using Catlab, Catlab.CategoricalAlgebra.CSets
 using Catlab.CategoricalAlgebra.FinSets: deleteat
+using Catlab.CategoricalAlgebra.FunctorialDataMigrations: DeltaMigration, migrate
 import Catlab.CategoricalAlgebra.CSets: ∧
 import Catlab.Theories: Δ
 using DataMigrations: @migrate
@@ -69,7 +71,6 @@ struct DiagonalHodge  <: DiscreteHodge end
 
 # Euclidean geometry
 ####################
-
 """ A notion of "geometric center" of a simplex.
 
 See also: [`geometric_center`](@ref).
@@ -194,33 +195,10 @@ end
 
 This accessor assumes that the simplicial identities for the dual hold.
 """
-function dual_triangle_vertices(s::HasDeltaSet2D, t...)
+function dual_triangle_vertices(s::HasDeltaSet1D, t...)
   SVector(s[s[t..., :D_∂e1], :D_∂v1],
           s[s[t..., :D_∂e0], :D_∂v1],
           s[s[t..., :D_∂e0], :D_∂v0])
-end
-
-""" Subdivide a 1D delta set.
-"""
-function subdivide(s::HasDeltaSet1D)
-  @migrate typeof(s) s begin
-    V => @cases begin
-      v::V
-      e::E
-    end
-    E => @cases begin
-      e₁::E
-      e₂::E
-    end
-    ∂v1 => begin
-      e₁ => e
-      e₂ => e
-    end
-    ∂v0 => begin
-      e₁ => (v∘∂v1)
-      e₂ => (v∘∂v0)
-    end
-  end
 end
 
 # 1D oriented dual complex
@@ -284,7 +262,7 @@ end
 
 make_dual_simplices_1d!(s::AbstractDeltaDualComplex1D) = make_dual_simplices_1d!(s, E)
 
-""" Make dual vertice and edges for dual complex of dimension ≧ 1.
+""" Make dual vertices and edges for dual complex of dimension ≧ 1.
 
 Although zero-dimensional duality is geometrically trivial (subdividing a vertex
 gives back the same vertex), we treat the dual vertices as disjoint from the
@@ -323,40 +301,6 @@ function make_dual_simplices_1d!(s::HasDeltaSet1D, ::Type{Simplex{n}}) where n
   D_edges
 end
 
-# TODO: Instead of copying-and-pasting the DeltaSet1D version:
-# - Use metaprogramming, or
-# - Don't use the migration DSL, but rather the lower-level functor interface.
-# TODO: When Catlab PR #823 "Data migrations with Julia functions on attributes"
-# is merged, ensure that oriented-ness is preserved. (Flip one of the
-# orientations.)
-""" Subdivide an oriented 1D delta set.
-
-Note that this function does NOT currently guarantee that if the input is
-oriented, then the output will be.
-"""
-function subdivide(s::OrientedDeltaSet1D{T}) where T
-  @migrate typeof(s) s begin
-    V => @cases begin
-      v::V
-      e::E
-    end
-    E => @cases begin
-      e₁::E
-      e₂::E
-    end
-    ∂v1 => begin
-      e₁ => e
-      e₂ => e
-    end
-    ∂v0 => begin
-      e₁ => (v∘∂v1)
-      e₂ => (v∘∂v0)
-    end
-    Orientation => Orientation
-    # TODO: One of these edge orientations must be flipped. (e₂?)
-    edge_orientation => (e₁ => edge_orientation; e₂ => edge_orientation)
-  end
-end
 
 # 1D embedded dual complex
 #-------------------------
@@ -451,17 +395,7 @@ function precompute_volumes_1d!(sd::HasDeltaSet1D, ::Type{point_type}) where poi
   end
 end
 
-# TODO: When Catlab PR #823 "Data migrations with Julia functions on attributes"
-# is merged, encode subdivision like so:
-#function subdivide(s::EmbeddedDeltaSet1D{T,U}, alg::V) where {T,U,V <: SimplexCenter}
-#  @migrate typeof(s) s begin
-#    ...
-#    edge_orientation => (e₁ => edge_orientation; e₂ => !(edge_orientation))
-#    Point => Point
-#    point => (v => point; e => geometric_center([e₁ ⋅ point, e₂ ⋅ point], alg))
-#    ...
-#  end
-#end
+# TODO: Orientation on subdivisions
 
 # 2D dual complex
 #################
@@ -1024,7 +958,7 @@ end
 """ Abstract type for dual complex of a 3D delta set.
 """
 @abstract_acset_type AbstractDeltaDualComplex3D <: HasDeltaSet3D
-
+const AbstractDeltaDualComplex = Union{AbstractDeltaDualComplex1D, AbstractDeltaDualComplex2D, AbstractDeltaDualComplex3D}
 """ Dual complex of a three-dimensional delta set.
 """
 @acset_type DeltaDualComplex3D(SchDeltaDualComplex3D,
@@ -1499,6 +1433,86 @@ function dual_derivative(::Type{Val{n}}, s::HasDeltaSet, args...) where n
     dual_derivative_nz(Val{n}, s, x)
   end
 end
+
+# TODO: Determine whether an ACSetType is Embedded in a more principled way.
+"""
+Checks whether a DeltaSet is embedded by  searching for 'Embedded' in the name
+of its type. This could also check for 'Point' in the schema, which
+would feel better but be less trustworthy.
+"""
+is_embedded(d::HasDeltaSet) = is_embedded(typeof(t))
+is_embedded(t::Type{T}) where {T<:HasDeltaSet} = !isnothing(findfirst("Embedded",string(t.name.name)))
+const REPLACEMENT_FOR_DUAL_TYPE = "Set" => "DualComplex"
+rename_to_dual(s::Symbol) = Symbol(replace(string(s),REPLACEMENT_FOR_DUAL_TYPE))
+rename_from_dual(s::Symbol) = Symbol(replace(string(s),reverse(REPLACEMENT_FOR_DUAL_TYPE)))
+
+const EmbeddedDeltaSet = Union{EmbeddedDeltaSet1D,EmbeddedDeltaSet2D,EmbeddedDeltaSet3D}
+const EmbeddedDeltaDualComplex = Union{EmbeddedDeltaDualComplex1D,EmbeddedDeltaDualComplex2D}
+
+"""
+Adds the Real type for lengths in the EmbeddedDeltaSet case, and removes it in the EmbeddedDeltaDualComplex case. 
+Will need further customization
+if we add another type whose dual has different parameters than its primal.
+"""
+dual_param_list(d::HasDeltaSet) = typeof(d).parameters
+dual_param_list(d::EmbeddedDeltaSet) = 
+  begin t = typeof(d) ; [t.parameters[1],eltype(t.parameters[2]),t.parameters[2]] end
+dual_param_list(d::EmbeddedDeltaDualComplex) = 
+  begin t = typeof(d); [t.parameters[1],t.parameters[3]] end
+
+"""
+Keys are symbols for all the DeltaSet and DeltaDualComplex types.
+Values are the types themselves, without parameters, so mostly UnionAlls.
+Note there aren't any 0D or 3D types in here thus far.
+"""
+type_dict = Dict{Symbol,Type}()
+const prefixes = ["Embedded","Oriented",""]
+const postfixes = ["1D","2D"]
+const midfixes = ["DeltaDualComplex","DeltaSet"]
+for (pre,mid,post) in Iterators.product(prefixes, midfixes, postfixes)
+  s = Symbol(pre,mid,post)
+  type_dict[s] = eval(s)
+end
+
+"""
+Get the dual type of a plain, oriented, or embedded DeltaSet1D or 2D.
+Will always return a `DataType`, i.e. any parameters will be evaluated.
+"""
+function dual_type(d::HasDeltaSet) 
+  n = type_dict[rename_to_dual(typeof(d).name.name)]
+  ps = dual_param_list(d)
+  length(ps) > 0 ? n{ps...} : n
+end
+function dual_type(d::AbstractDeltaDualComplex) 
+  n = type_dict[rename_from_dual(typeof(d).name.name)]
+  ps = dual_param_list(d)
+  length(ps) > 0 ? n{ps...} : n
+end
+
+"""
+Calls the constructor for d's dual type on d, including parameters.
+Does not call `subdivide_duals!` on the result.
+Should work out of the box on new DeltaSet types if (1) their dual type
+has the same name as their primal type with "Set" substituted by "DualComplex"
+and (2) their dual type has the same parameter set as their primal type. At the
+time of writing (PR 117) only "Embedded" types fail criterion (2) and get special treatment.
+
+# Examples
+s = EmbeddedDeltaSet2D{Bool,SVector{2,Float64}}()
+dualize(s)::EmbeddedDeltaDualComplex2D{Bool,Float64,SVector{2,Float64}}
+"""
+dualize(d::HasDeltaSet) = dual_type(d)(d)
+function dualize(d::HasDeltaSet,center::SimplexCenter) 
+  dd = dualize(d) 
+  subdivide_duals!(dd,center)
+  dd
+end
+
+"""
+Get the acset schema, as a Presentation, of a HasDeltaSet.
+XXX: upstream to Catlab.
+"""
+fancy_acset_schema(d::HasDeltaSet) = Presentation(acset_schema(d)) 
 
 """ Hodge star operator from primal ``n``-forms to dual ``N-n``-forms.
 

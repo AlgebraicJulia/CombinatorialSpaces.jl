@@ -14,7 +14,7 @@ end
   include("DiscreteExteriorCalculus.jl")
   include("Operators.jl")
 end
-
+ 
 @testset "Meshes" begin
   include("Meshes.jl")
   include("MeshInterop.jl")
@@ -27,6 +27,10 @@ end
 
 @testset "Restrictions" begin
   include("restrictions.jl")
+end
+
+@testset "Multigrid" begin
+  include("Multigrid.jl")
 end
 
 end

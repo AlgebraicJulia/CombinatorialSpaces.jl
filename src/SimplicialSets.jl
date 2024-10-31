@@ -15,7 +15,7 @@ exterior derivative) operators. For additional operators, see the
 module SimplicialSets
 export Simplex, V, E, Tri, Tet, SimplexChain, VChain, EChain, TriChain, TetChain,
   SimplexForm, VForm, EForm, TriForm, TetForm, HasDeltaSet,
-  HasDeltaSet1D, AbstractDeltaSet1D, DeltaSet1D, SchDeltaSet1D,
+  HasDeltaSet1D, DeltaSet, DeltaSet0D, AbstractDeltaSet1D, DeltaSet1D, SchDeltaSet1D,
   OrientedDeltaSet1D, SchOrientedDeltaSet1D,
   EmbeddedDeltaSet1D, SchEmbeddedDeltaSet1D,
   HasDeltaSet2D, AbstractDeltaSet2D, DeltaSet2D, SchDeltaSet2D,
@@ -31,11 +31,12 @@ export Simplex, V, E, Tri, Tet, SimplexChain, VChain, EChain, TriChain, TetChain
   add_vertex!, add_vertices!, add_edge!, add_edges!,
   add_sorted_edge!, add_sorted_edges!,
   triangle_edges, triangle_vertices, ntriangles, triangles,
-  add_triangle!, glue_triangle!, glue_sorted_triangle!,
+  add_triangle!, glue_triangle!, glue_triangles!, glue_sorted_triangle!,
   tetrahedron_triangles, tetrahedron_edges, tetrahedron_vertices, ntetrahedra,
   tetrahedra, add_tetrahedron!, glue_tetrahedron!, glue_sorted_tetrahedron!,
   glue_sorted_tet_cube!, is_manifold_like, nonboundaries,
-  star, St, closed_star, St̄, link, Lk
+  star, St, closed_star, St̄, link, Lk, simplex_vertices, dimension, 
+  DeltaSet, OrientedDeltaSet, EmbeddedDeltaSet
 
 using LinearAlgebra: det
 using SparseArrays
@@ -45,21 +46,17 @@ using ACSets.DenseACSets: attrtype_type
 using Catlab, Catlab.CategoricalAlgebra, Catlab.Graphs
 import Catlab.Graphs: src, tgt, nv, ne, vertices, edges, has_vertex, has_edge,
   add_vertex!, add_vertices!, add_edge!, add_edges!
+import DataMigrations: @migrate
 using ..ArrayUtils
 
-# 0-D simplicial sets
-#####################
-
-@present SchDeltaSet0D(FreeSchema) begin
-  V::Ob
-end
 
 """ Abstract type for C-sets that contain a delta set of some dimension.
 
 This dimension could be zero, in which case the delta set consists only of
 vertices (0-simplices).
 """
-@abstract_acset_type HasDeltaSet
+@abstract_acset_type HasDeltaSet 
+const HasDeltaSet0D = HasDeltaSet
 
 vertices(s::HasDeltaSet) = parts(s, :V)
 nv(s::HasDeltaSet) = nparts(s, :V)
@@ -68,6 +65,28 @@ nsimplices(::Type{Val{0}}, s::HasDeltaSet) = nv(s)
 has_vertex(s::HasDeltaSet, v) = has_part(s, :V, v)
 add_vertex!(s::HasDeltaSet; kw...) = add_part!(s, :V; kw...)
 add_vertices!(s::HasDeltaSet, n::Int; kw...) = add_parts!(s, :V, n; kw...)
+
+"""
+Calculate the dimension of a delta set from its acset schema.
+Assumes that vertices, edges, triangles, and tetrahedra are
+named :V, :E, :Tri, and :Tet respectively.
+"""
+function dimension(d::HasDeltaSet)
+  obS = ob(acset_schema(d))
+  :E in obS ? :Tri in obS ? :Tet in obS ? 3 : 2 : 1 : 0
+end
+dimension(dt::Type{D}) where {D<:HasDeltaSet} = dimension(D())
+
+# 0-D simplicial sets
+#####################
+
+@present SchDeltaSet0D(FreeSchema) begin
+  V::Ob
+end
+
+""" A 0-dimensional delta set, aka a set of vertices.
+"""
+@acset_type DeltaSet0D(SchDeltaSet0D) <: HasDeltaSet
 
 # 1D simplicial sets
 ####################
@@ -94,10 +113,12 @@ More generally, this type implements the graphs interface in `Catlab.Graphs`.
 """
 @acset_type DeltaSet1D(SchDeltaSet1D, index=[:∂v0,:∂v1]) <: AbstractDeltaSet1D
 
+edges(::HasDeltaSet) = 1:0 # XXX: 0D simplicial sets have no edges.
 edges(s::HasDeltaSet1D) = parts(s, :E)
 edges(s::HasDeltaSet1D, src::Int, tgt::Int) =
   (e for e in coface(1,1,s,src) if ∂(1,0,s,e) == tgt)
 
+ne(::HasDeltaSet) = 0
 ne(s::HasDeltaSet1D) = nparts(s, :E)
 nsimplices(::Type{Val{1}}, s::HasDeltaSet1D) = ne(s)
 
@@ -168,7 +189,7 @@ function d_nz(::Type{Val{0}}, s::HasDeltaSet1D, v::Int)
   (lazy(vcat, e₀, e₁), lazy(vcat, sign(1,s,e₀), -sign(1,s,e₁)))
 end
 
-# 1D embedded simplicial sets
+# 1D embedded, oriented simplicial sets
 #----------------------------
 
 @present SchEmbeddedDeltaSet1D <: SchOrientedDeltaSet1D begin
@@ -258,6 +279,7 @@ function triangles(s::HasDeltaSet2D, v₀::Int, v₁::Int, v₂::Int)
 end
 
 ntriangles(s::HasDeltaSet2D) = nparts(s, :Tri)
+ntriangles(s::HasDeltaSet) = 0
 nsimplices(::Type{Val{2}}, s::HasDeltaSet2D) = ntriangles(s)
 
 face(::Type{Val{(2,0)}}, s::HasDeltaSet2D, args...) = subpart(s, args..., :∂e0)
@@ -324,6 +346,12 @@ end
 function get_edge!(s::HasDeltaSet1D, src::Int, tgt::Int)
   es = edges(s, src, tgt)
   isempty(es) ? add_edge!(s, src, tgt) : first(es)
+end
+
+function glue_triangles!(s,v₀s,v₁s,v₂s; kw...)
+  for (v₀,v₁,v₂) in zip(v₀s,v₁s,v₂s)
+    glue_triangle!(s, v₀, v₁, v₂; kw...)
+  end
 end
 
 """ Glue a triangle onto a simplicial set, respecting the order of the vertices.
@@ -577,8 +605,21 @@ volume(::Type{Val{n}}, s::EmbeddedDeltaSet3D, x) where n =
 volume(::Type{Val{3}}, s::HasDeltaSet3D, t::Int, ::CayleyMengerDet) =
   volume(point(s, tetrahedron_vertices(s,t)))
 
+const EmbeddedDeltaSet = Union{EmbeddedDeltaSet1D, EmbeddedDeltaSet2D, EmbeddedDeltaSet3D}
+
 # General operators
 ###################
+
+DeltaSetTypes = Dict{Tuple{Symbol,Int},Type}()
+add_type!(s,n) = DeltaSetTypes[(s,n)] = eval(Symbol(string(s)*string(n)*"D"))
+add_type!(:DeltaSet,0)
+for symb in [:DeltaSet,:EmbeddedDeltaSet,:OrientedDeltaSet]
+  for n in 1:3
+    add_type!(symb,n)
+  end
+  #defines eg DeltaSet(2) = DeltaSet2D
+  eval(Expr(:(=),Expr(:call,symb,:n),Expr(:ref,:DeltaSetTypes,Expr(:tuple,QuoteNode(symb),:n))))
+end
 
 """ Wrapper for simplex or simplices of dimension `n`.
 
@@ -602,7 +643,22 @@ const Tri = Simplex{2}
 """
 const Tet = Simplex{3}
 
-""" Wrapper for chain of oriented simplices of dimension `n`.
+# could generalize to Simplex{n, N}
+function simplex_vertices(s::HasDeltaSet, x::Simplex{n,0}) where n
+  simplex_vertices(Val{n}, s, x)
+end
+
+function simplex_vertices(::Type{Val{n}},s::HasDeltaSet,x::Simplex{n,0}) where n
+  n == 0 && return [x.data]
+  n == 1 && return edge_vertices(s, x.data)
+  n == 2 && return triangle_vertices(s, x.data)
+  n == 3 && return tetrahedron_vertices(s, x.data)
+end
+
+""" Wrapper for simplex chain of dimension `n`.
+
+Example: EChain([2,-1,1]) represents the chain 2a-b+c in the 
+simplicial set with edges a,b,c.
 """
 @vector_struct SimplexChain{n}
 
