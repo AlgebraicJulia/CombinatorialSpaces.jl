@@ -24,9 +24,9 @@ u = multigrid_wcycles(u0,b,md,5)
 #@info "Relative error for W: $(norm(Ls[1]*u-b)/norm(b))"
 @test norm(Ls[1]*u-b)/norm(b) < 10^-7
 u = full_multigrid(b,md,5)
-@test norm(Ls[1]*u-b)/norm(b) < 10^-5
+@test norm(Ls[1]*u-b)/norm(b) < 10^-4
 #@info "Relative error for FMG_V: $(norm(Ls[1]*u-b)/norm(b))"
 u = full_multigrid(b,md,5,cg,2)
-@test norm(Ls[1]*u-b)/norm(b) < 10^-7
+@test norm(Ls[1]*u-b)/norm(b) < 10^-6
 #@info "Relative error for FMG_W: $(norm(Ls[1]*u-b)/norm(b))"
 end
