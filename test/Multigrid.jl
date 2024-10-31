@@ -5,7 +5,7 @@ const Point3D = Point3{Float64}
 const Point2D = Point2{Float64}
 
 s = triangulated_grid(1,1,1/4,sqrt(3)/2*1/4,Point3D,false)
-fs = reverse(repeated_subdivisions(4,s,triforce_subdivision_map));
+fs = reverse(repeated_subdivisions(4,s,binary_subdivision_map));
 sses = map(fs) do f dom(f) end
 push!(sses,s)
 sds = map(sses) do s dualize(s,Circumcenter()) end
