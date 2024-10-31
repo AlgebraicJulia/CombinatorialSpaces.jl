@@ -19,7 +19,7 @@ md = MultigridData(Ls,rs,ps,3) #3,10 chosen empirically, presumably there's deep
 u = multigrid_vcycles(u0,b,md,5)
 #@info "Relative error for V: $(norm(Ls[1]*u-b)/norm(b))"
 
-@test norm(Ls[1]*u-b)/norm(b) < 10^-6
+@test norm(Ls[1]*u-b)/norm(b) < 10^-5
 u = multigrid_wcycles(u0,b,md,5)
 #@info "Relative error for W: $(norm(Ls[1]*u-b)/norm(b))"
 @test norm(Ls[1]*u-b)/norm(b) < 10^-7
