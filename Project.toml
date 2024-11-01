@@ -37,6 +37,7 @@ CombinatorialSpacesMakieExt = "Makie"
 
 [compat]
 ACSets = "0.2"
+AlgebraicInterfaces = "0.1"
 Artifacts = "1.9, 1"
 BenchmarkTools = "1.4.0"
 CUDA = "5.2"
