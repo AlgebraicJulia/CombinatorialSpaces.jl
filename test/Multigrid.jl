@@ -8,14 +8,15 @@ s = triangulated_grid(1,1,1/4,sqrt(3)/2*1/4,Point3D,false)
 series = PrimitiveGeometricMapSeries(s, binary_subdivision_map, 4);
 
 md = MultigridData(series, sd -> ∇²(0, sd), 3) #3, (and 5 below) chosen empirically, presumably there's deep lore and chaos here
-
 sd = finest_mesh(series)
-
 L = first(md.operators)
-
-u0 = zeros(nv(sd))
 b = L*rand(nv(sd)) #put into range of the Laplacian for solvability
 
+mgv_lapl = dec_Δ⁻¹(Val{0}, series)
+u = mgv_lapl(b)
+@test norm(L*u-b)/norm(b) < 10^-6
+
+u0 = zeros(nv(sd))
 u = multigrid_vcycles(u0,b,md,5)
 #@info "Relative error for V: $(norm(L*u-b)/norm(b))"
 

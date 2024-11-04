@@ -19,9 +19,12 @@ using KernelAbstractions
 using LinearAlgebra: cross, dot, Diagonal, factorize, norm
 using SparseArrays: sparse, spzeros, SparseMatrixCSC
 using StaticArrays: SVector, MVector
+using Krylov: cg
 
 import ..DiscreteExteriorCalculus: ∧
 import ..SimplicialSets: numeric_sign
+import ..Multigrid: PrimitiveGeometricMapSeries, MultigridData
+import ..Multigrid: full_multigrid
 
 export dec_wedge_product, cache_wedge, dec_c_wedge_product, dec_c_wedge_product!,
   dec_boundary, dec_differential, dec_dual_derivative,
@@ -29,7 +32,7 @@ export dec_wedge_product, cache_wedge, dec_c_wedge_product, dec_c_wedge_product!
   dec_wedge_product_pd, dec_wedge_product_dp, ∧,
   interior_product_dd, ℒ_dd,
   dec_wedge_product_dd,
-  Δᵈ,
+  Δᵈ, dec_Δ⁻¹,
   avg₀₁, avg_01, avg₀₁_mat, avg_01_mat
 
 # Wedge Product
@@ -630,6 +633,11 @@ function Δᵈ(::Type{Val{1}}, s::SimplicialSets.HasDeltaSet)
     m * x +
     n * ihs1(x)
   end
+end
+
+function dec_Δ⁻¹(::Type{Val{0}}, s::PrimitiveGeometricMapSeries; steps = 3, cycles = 5, alg = cg, μ = 2)
+  md = MultigridData(s, sd -> ∇²(0, sd), steps)
+  b -> full_multigrid(b, md, cycles, alg, μ)
 end
 
 # Average Operator

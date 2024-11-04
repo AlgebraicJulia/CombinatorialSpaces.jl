@@ -131,7 +131,7 @@ Remove the leading grid, restriction, prolongation, and step radius.
 cdr(md::MultigridData) = length(md) > 1 ? MultigridData(md.operators[2:end],md.restrictions[2:end],md.prolongations[2:end],md.steps[2:end]) : error("Not enough grids remaining in $md to take the cdr.")
 
 """
-The lengh of a `MultigridData` is its number of grids.
+The length of a `MultigridData` is its number of grids.
 """
 Base.length(md::MultigridData) = length(md.operators)
 
