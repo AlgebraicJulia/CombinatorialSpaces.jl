@@ -1,9 +1,10 @@
 module Multigrid
+using CombinatorialSpaces
 using GeometryBasics:Point3, Point2
 using Krylov, Catlab, SparseArrays
 using ..SimplicialSets
 import Catlab: dom,codom
-export multigrid_vcycles, multigrid_wcycles, full_multigrid, repeated_subdivisions, binary_subdivision_map, dom, codom, as_matrix, MultigridData
+export multigrid_vcycles, multigrid_wcycles, full_multigrid, repeated_subdivisions, binary_subdivision_map, dom, codom, as_matrix, MultigridData, PrimitiveGeometricMapSeries, finest_mesh
 const Point3D = Point3{Float64}
 const Point2D = Point2{Float64}
 
@@ -69,6 +70,30 @@ function repeated_subdivisions(k,ss,subdivider)
 end
 
 """
+This struct is meant to organize the mesh data required for multigrid methods.
+"""
+struct PrimitiveGeometricMapSeries{D<:HasDeltaSet, M<:AbstractMatrix}
+  meshes::AbstractVector{D}
+  matrices::AbstractVector{M}
+
+  function PrimitiveGeometricMapSeries{D, M}(meshes, matrices) where {D, M}
+    new(meshes, matrices)
+  end
+
+  function PrimitiveGeometricMapSeries(s, subdivider, levels, alg = Circumcenter())
+    subdivs = reverse(repeated_subdivisions(levels, s, binary_subdivision_map));
+    meshes = map(subdivs) do subdiv dom(subdiv) end
+    push!(meshes,s)
+
+    dual_meshes = map(meshes) do s dualize(s, alg) end
+    matrices = as_matrix.(subdivs)
+    PrimitiveGeometricMapSeries{typeof(first(dual_meshes)), typeof(first(matrices))}(dual_meshes, matrices)
+  end
+end
+
+finest_mesh(series::PrimitiveGeometricMapSeries) = first(series.meshes)
+
+"""
 A cute little package contain your multigrid data. If there are 
 `n` grids, there are `n-1` restrictions and prolongations and `n` 
 step radii. This structure does not contain the solution `u` or
@@ -86,6 +111,14 @@ Construct a `MultigridData` with a constant step radius
 on each grid.
 """
 MultigridData(g,r,p,s::Int) = MultigridData{typeof(g),typeof(r)}(g,r,p,fill(s,length(g)))
+
+function MultigridData(series::PrimitiveGeometricMapSeries, op::Function, s)
+  ops = map(series.meshes) do sd op(sd) end
+  ps = transpose.(series.matrices)
+  rs = transpose.(ps)./4.0 #4 is the biggest row sum that occurs for triforce, this is not clearly the correct scaling
+
+  MultigridData(ops, rs, ps, s)
+end
 
 """
 Get the leading grid, restriction, prolongation, and step radius.
