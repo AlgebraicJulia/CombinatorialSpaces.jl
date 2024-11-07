@@ -15,9 +15,9 @@ include("FastDEC.jl")
 
 @reexport using .SimplicialSets
 @reexport using .DiscreteExteriorCalculus
-@reexport using .Multigrid
-@reexport using .FastDEC
 @reexport using .MeshInterop
 @reexport using .Meshes
+@reexport using .Multigrid
+@reexport using .FastDEC
 
 end

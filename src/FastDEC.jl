@@ -12,6 +12,7 @@ module FastDEC
 
 using ..SimplicialSets, ..DiscreteExteriorCalculus
 using ..DiscreteExteriorCalculus: crossdot
+using ..Multigrid: PrimitiveGeometricMapSeries, MultigridData, full_multigrid
 
 using ACSets
 using Base.Iterators
@@ -23,8 +24,6 @@ using Krylov: cg
 
 import ..DiscreteExteriorCalculus: ∧
 import ..SimplicialSets: numeric_sign
-import ..Multigrid: PrimitiveGeometricMapSeries, MultigridData
-import ..Multigrid: full_multigrid
 
 export dec_wedge_product, cache_wedge, dec_c_wedge_product, dec_c_wedge_product!,
   dec_boundary, dec_differential, dec_dual_derivative,
@@ -635,6 +634,10 @@ function Δᵈ(::Type{Val{1}}, s::SimplicialSets.HasDeltaSet)
   end
 end
 
+"""    dec_Δ⁻¹(::Type{Val{0}}, s::PrimitiveGeometricMapSeries; steps = 3, cycles = 5, alg = cg, μ = 2)
+
+Return a function that solves the inverse Laplacian problem.
+"""
 function dec_Δ⁻¹(::Type{Val{0}}, s::PrimitiveGeometricMapSeries; steps = 3, cycles = 5, alg = cg, μ = 2)
   md = MultigridData(s, sd -> ∇²(0, sd), steps)
   b -> full_multigrid(b, md, cycles, alg, μ)

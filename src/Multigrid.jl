@@ -53,7 +53,7 @@ function binary_subdivision_map(s)
   sd = binary_subdivision(s)
   mat = spzeros(nv(s),nv(sd))
   for i in 1:nv(s) mat[i,i] = 1. end
-  for i in 1:ne(s) 
+  for i in 1:ne(s)
     x, y = s[:∂v0][i], s[:∂v1][i]
     mat[x,i+nv(s)] = 1/2
     mat[y,i+nv(s)] = 1/2
@@ -63,39 +63,37 @@ end
 
 function repeated_subdivisions(k,ss,subdivider)
   map(1:k) do k′
-    f = subdivider(ss) 
+    f = subdivider(ss)
     ss = dom(f)
     f
   end
 end
 
 """
-This struct is meant to organize the mesh data required for multigrid methods.
+Organizes the mesh data that results from mesh refinement through a subdivision method.
 """
 struct PrimitiveGeometricMapSeries{D<:HasDeltaSet, M<:AbstractMatrix}
   meshes::AbstractVector{D}
   matrices::AbstractVector{M}
-
-  function PrimitiveGeometricMapSeries{D, M}(meshes, matrices) where {D, M}
-    new(meshes, matrices)
-  end
-
-  function PrimitiveGeometricMapSeries(s, subdivider, levels, alg = Circumcenter())
-    subdivs = reverse(repeated_subdivisions(levels, s, binary_subdivision_map));
-    meshes = map(subdivs) do subdiv dom(subdiv) end
-    push!(meshes,s)
-
-    dual_meshes = map(meshes) do s dualize(s, alg) end
-    matrices = as_matrix.(subdivs)
-    PrimitiveGeometricMapSeries{typeof(first(dual_meshes)), typeof(first(matrices))}(dual_meshes, matrices)
-  end
 end
+
+function PrimitiveGeometricMapSeries(s::HasDeltaSet, subdivider::Function, levels::Int, alg = Circumcenter())
+  subdivs = reverse(repeated_subdivisions(levels, s, binary_subdivision_map));
+  meshes = dom.(subdivs)
+  push!(meshes, s)
+
+  dual_meshes = map(s -> dualize(s, alg), meshes)
+
+  matrices = as_matrix.(subdivs)
+  PrimitiveGeometricMapSeries{typeof(first(dual_meshes)), typeof(first(matrices))}(dual_meshes, matrices)
+end
+
 
 finest_mesh(series::PrimitiveGeometricMapSeries) = first(series.meshes)
 
 """
-A cute little package contain your multigrid data. If there are 
-`n` grids, there are `n-1` restrictions and prolongations and `n` 
+Contains the data require for multigrid methods. If there are
+`n` grids, there are `n-1` restrictions and prolongations and `n`
 step radii. This structure does not contain the solution `u` or
 the right-hand side `b` because those would have to mutate.
 """
