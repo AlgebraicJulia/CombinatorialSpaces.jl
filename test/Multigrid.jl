@@ -5,7 +5,7 @@ const Point3D = Point3{Float64}
 const Point2D = Point2{Float64}
 
 s = triangulated_grid(1,1,1/4,sqrt(3)/2*1/4,Point3D,false)
-series = PrimitiveGeometricMapSeries(s, binary_subdivision_map, 4);
+series = PrimalGeometricMapSeries(s, binary_subdivision_map, 4);
 
 md = MultigridData(series, sd -> ∇²(0, sd), 3) #3, (and 5 below) chosen empirically, presumably there's deep lore and chaos here
 sd = finest_mesh(series)
