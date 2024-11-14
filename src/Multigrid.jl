@@ -1,21 +1,22 @@
 module Multigrid
+using CombinatorialSpaces
 using GeometryBasics:Point3, Point2
 using Krylov, Catlab, SparseArrays
 using ..SimplicialSets
 import Catlab: dom,codom
-export multigrid_vcycles, multigrid_wcycles, full_multigrid, repeated_subdivisions, binary_subdivision_map, dom, codom, as_matrix, MultigridData
+export multigrid_vcycles, multigrid_wcycles, full_multigrid, repeated_subdivisions, binary_subdivision_map, dom, codom, as_matrix, MultigridData, AbstractGeometricMapSeries, PrimalGeometricMapSeries, finest_mesh, meshes, matrices
 const Point3D = Point3{Float64}
 const Point2D = Point2{Float64}
 
-struct PrimitiveGeometricMap{D,M}
+struct PrimalGeometricMap{D,M}
   domain::D
   codomain::D
   matrix::M
 end
 
-dom(f::PrimitiveGeometricMap) = f.domain
-codom(f::PrimitiveGeometricMap) = f.codomain
-as_matrix(f::PrimitiveGeometricMap) = f.matrix
+dom(f::PrimalGeometricMap) = f.domain
+codom(f::PrimalGeometricMap) = f.codomain
+as_matrix(f::PrimalGeometricMap) = f.matrix
 
 function is_simplicial_complex(s)
   allunique(map(1:ne(s)) do i edge_vertices(s,i) end) &&
@@ -52,25 +53,72 @@ function binary_subdivision_map(s)
   sd = binary_subdivision(s)
   mat = spzeros(nv(s),nv(sd))
   for i in 1:nv(s) mat[i,i] = 1. end
-  for i in 1:ne(s) 
+  for i in 1:ne(s)
     x, y = s[:∂v0][i], s[:∂v1][i]
     mat[x,i+nv(s)] = 1/2
     mat[y,i+nv(s)] = 1/2
   end
-  PrimitiveGeometricMap(sd,s,mat)
+  PrimalGeometricMap(sd,s,mat)
 end
 
 function repeated_subdivisions(k,ss,subdivider)
   map(1:k) do k′
-    f = subdivider(ss) 
+    f = subdivider(ss)
     ss = dom(f)
     f
   end
 end
 
+# Different means of representing a series of complexes with maps between them should sub-type this abstract type.
+# Those concrete types should then provide a constructor for `MultigridData`.
 """
-A cute little package contain your multigrid data. If there are 
-`n` grids, there are `n-1` restrictions and prolongations and `n` 
+Organizes the mesh data that results from mesh refinement through a subdivision method.
+
+See also: [`PrimalGeometricMapSeries`](@ref).
+"""
+abstract type AbstractGeometricMapSeries end
+
+"""
+Organize a series of dual complexes and maps between primal vertices between them.
+
+See also: [`AbstractGeometricMapSeries`](@ref).
+"""
+struct PrimalGeometricMapSeries{D<:HasDeltaSet, M<:AbstractMatrix} <: AbstractGeometricMapSeries
+  meshes::AbstractVector{D}
+  matrices::AbstractVector{M}
+end
+
+meshes(series::PrimalGeometricMapSeries) = series.meshes
+matrices(series::PrimalGeometricMapSeries) = series.matrices
+
+"""    function PrimalGeometricMapSeries(s::HasDeltaSet, subdivider::Function, levels::Int, alg = Circumcenter())
+
+Construct a `PrimalGeometricMapSeries` given a primal mesh `s` and a subdivider function like `binary_subdivision`, `levels` times.
+
+The `PrimalGeometricMapSeries` returned contains a list of `levels + 1` dual complexes, with `levels` matrices between the primal vertices of each.
+
+See also: [`AbstractGeometricMapSeries`](@ref), [`finest_mesh`](@ref).
+"""
+function PrimalGeometricMapSeries(s::HasDeltaSet, subdivider::Function, levels::Int, alg = Circumcenter())
+  subdivs = reverse(repeated_subdivisions(levels, s, binary_subdivision_map));
+  meshes = dom.(subdivs)
+  push!(meshes, s)
+
+  dual_meshes = map(s -> dualize(s, alg), meshes)
+
+  matrices = as_matrix.(subdivs)
+  PrimalGeometricMapSeries{typeof(first(dual_meshes)), typeof(first(matrices))}(dual_meshes, matrices)
+end
+
+"""    finest_mesh(series::PrimalGeometricMapSeries)
+
+Return the mesh in a `PrimalGeometricMapSeries` with the highest resolution.
+"""
+finest_mesh(series::PrimalGeometricMapSeries) = first(series.meshes)
+
+"""
+Contains the data require for multigrid methods. If there are
+`n` grids, there are `n-1` restrictions and prolongations and `n`
 step radii. This structure does not contain the solution `u` or
 the right-hand side `b` because those would have to mutate.
 """
@@ -87,6 +135,14 @@ on each grid.
 """
 MultigridData(g,r,p,s::Int) = MultigridData{typeof(g),typeof(r)}(g,r,p,fill(s,length(g)))
 
+function MultigridData(series::PrimalGeometricMapSeries, op::Function, s)
+  ops = map(meshes(series)) do sd op(sd) end
+  ps = transpose.(matrices(series))
+  rs = transpose.(ps)./4.0 #4 is the biggest row sum that occurs for triforce, this is not clearly the correct scaling
+
+  MultigridData(ops, rs, ps, s)
+end
+
 """
 Get the leading grid, restriction, prolongation, and step radius.
 """
@@ -98,7 +154,7 @@ Remove the leading grid, restriction, prolongation, and step radius.
 cdr(md::MultigridData) = length(md) > 1 ? MultigridData(md.operators[2:end],md.restrictions[2:end],md.prolongations[2:end],md.steps[2:end]) : error("Not enough grids remaining in $md to take the cdr.")
 
 """
-The lengh of a `MultigridData` is its number of grids.
+The length of a `MultigridData` is its number of grids.
 """
 Base.length(md::MultigridData) = length(md.operators)
 
