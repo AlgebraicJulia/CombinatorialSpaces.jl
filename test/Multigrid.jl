@@ -1,6 +1,7 @@
 module TestMultigrid
 using Krylov, CombinatorialSpaces, LinearAlgebra, Test
 using GeometryBasics: Point3, Point2
+using Random
 const Point3D = Point3{Float64}
 const Point2D = Point2{Float64}
 
@@ -10,6 +11,8 @@ series = PrimalGeometricMapSeries(s, binary_subdivision_map, 4);
 md = MultigridData(series, sd -> ∇²(0, sd), 3) #3, (and 5 below) chosen empirically, presumably there's deep lore and chaos here
 sd = finest_mesh(series)
 L = first(md.operators)
+
+Random.seed!(0)
 b = L*rand(nv(sd)) #put into range of the Laplacian for solvability
 
 mgv_lapl = dec_Δ⁻¹(Val{0}, series)
