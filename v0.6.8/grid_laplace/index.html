@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Solving Poisson&#39;s equation in multiscale · CombinatorialSpaces.jl</title><meta name="title" content="Solving Poisson&#39;s equation in multiscale · CombinatorialSpaces.jl"/><meta property="og:title" content="Solving Poisson&#39;s equation in multiscale · CombinatorialSpaces.jl"/><meta property="twitter:title" content="Solving Poisson&#39;s equation in multiscale · CombinatorialSpaces.jl"/><meta name="description" content="Documentation for CombinatorialSpaces.jl."/><meta property="og:description" content="Documentation for CombinatorialSpaces.jl."/><meta property="twitter:description" content="Documentation for CombinatorialSpaces.jl."/><script data-outdated-warner src="../assets/warner.js"></script><link href="https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.050/juliamono.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.8/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL=".."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../assets/documenter.js"></script><script src="../search_index.js"></script><script src="../siteinfo.js"></script><script src="../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/catppuccin-mocha.css" data-theme-name="catppuccin-mocha"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/catppuccin-macchiato.css" data-theme-name="catppuccin-macchiato"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/catppuccin-frappe.css" data-theme-name="catppuccin-frappe"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/catppuccin-latte.css" data-theme-name="catppuccin-latte"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../assets/themeswap.js"></script></head><body><div id="documenter"><nav class="docs-sidebar"><div class="docs-package-name"><span class="docs-autofit"><a href="../simplicial_sets/">CombinatorialSpaces.jl</a></span></div><button class="docs-search-query input is-rounded is-small is-clickable my-2 mx-auto py-1 px-2" id="documenter-search-query">Search docs (Ctrl + /)</button><ul class="docs-menu"><li><a class="tocitem" href="../simplicial_sets/">Simplicial sets</a></li><li><a class="tocitem" href="../discrete_exterior_calculus/">Discrete exterior calculus</a></li><li><a class="tocitem" href="../combinatorial_maps/">Combinatorial maps</a></li><li class="is-active"><a class="tocitem" href>Solving Poisson&#39;s equation in multiscale</a><ul class="internal"><li><a class="tocitem" href="#Poisson-equation"><span>Poisson equation</span></a></li><li><a class="tocitem" href="#The-problem-solved-directly-via-multigrid"><span>The problem solved directly via multigrid</span></a></li><li><a class="tocitem" href="#Reproducing-the-same-solution-with-CombinatorialSpaces"><span>Reproducing the same solution with CombinatorialSpaces</span></a></li><li class="toplevel"><a class="tocitem" href="#The-2-D-Poisson-equation"><span>The 2-D Poisson equation</span></a></li><li><a class="tocitem" href="#A-traditional-approach"><span>A traditional approach</span></a></li><li><a class="tocitem" href="#Via-combinatorial-spaces"><span>Via combinatorial spaces</span></a></li><li class="toplevel"><a class="tocitem" href="#Triangular-grids"><span>Triangular grids</span></a></li><li><a class="tocitem" href="#Stokes-flow"><span>Stokes flow</span></a></li><li><a class="tocitem" href="#Back-to-heat"><span>Back to heat</span></a></li></ul></li><li><a class="tocitem" href="../meshes/">Meshes</a></li><li><a class="tocitem" href="../euler/">Steady-State Euler Equations</a></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><a class="docs-sidebar-button docs-navbar-link fa-solid fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a><nav class="breadcrumb"><ul class="is-hidden-mobile"><li class="is-active"><a href>Solving Poisson&#39;s equation in multiscale</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>Solving Poisson&#39;s equation in multiscale</a></li></ul></nav><div class="docs-right"><a class="docs-navbar-link" href="https://github.com/AlgebraicJulia/CombinatorialSpaces.jl" title="View the repository on GitHub"><span class="docs-icon fa-brands"></span><span class="docs-label is-hidden-touch">GitHub</span></a><a class="docs-navbar-link" href="https://github.com/AlgebraicJulia/CombinatorialSpaces.jl/blob/main/docs/src/grid_laplace.md" title="Edit source on GitHub"><span class="docs-icon fa-solid"></span></a><a class="docs-settings-button docs-navbar-link fa-solid fa-gear" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-article-toggle-button fa-solid fa-chevron-up" id="documenter-article-toggle-button" href="javascript:;" title="Collapse all docstrings"></a></div></header><article class="content" id="documenter-page"><h1 id="Solving-Poisson&#39;s-equation-in-multiscale"><a class="docs-heading-anchor" href="#Solving-Poisson&#39;s-equation-in-multiscale">Solving Poisson&#39;s equation in multiscale</a><a id="Solving-Poisson&#39;s-equation-in-multiscale-1"></a><a class="docs-heading-anchor-permalink" href="#Solving-Poisson&#39;s-equation-in-multiscale" title="Permalink"></a></h1><p>CombinatorialSpaces provides advanced capabilities for working with irregular and complex meshes in up to three dimensions. For a first example of working across meshes of multiple scales at once, we reproduce a 1-D Poisson equation example from Golub and van Loan&#39;s &quot;Matrix Computations&quot;, 11.6.</p><h2 id="Poisson-equation"><a class="docs-heading-anchor" href="#Poisson-equation">Poisson equation</a><a id="Poisson-equation-1"></a><a class="docs-heading-anchor-permalink" href="#Poisson-equation" title="Permalink"></a></h2><p>In general, the Poisson equation asks for a function on a manifold <span>$M$</span> with boundary with a fixed Laplacian on the interior, satisfying boundary conditions that may be given in various forms, such as the Dirichlet conditions:</p><p class="math-container">\[\Delta u = -f,u\!\mid_{\partial M} = f_0\]</p><p>In one dimension, on the interval <span>$[0,1]$</span>, this specializes to the equation</p><p class="math-container">\[\frac{d^2u}{dx^2} = -f(x), u(0)=u_0, u(1)=u_1.\]</p><p>If we subdivide the interval into <span>$m$</span> congruent pieces of width <span>$h=1/m$</span>, then we get the discretized equations</p><p class="math-container">\[\frac{u((i-1)h)-2u(ih)+u((i+1)h)}{h^2}\approx -f(ih)\]</p><p>for <span>$i\in \{1,\ldots,m-1\}$</span>. Since <span>$u(0)=u_0,u(1)=u_1$</span> are given by the boundary conditions, we can move them to  the right-hand side of the first and last equations, producing the linear system <span>$Au=b$</span> for </p><p class="math-container">\[u=[u(h),u(2h),\ldots,u((m-1)h)],\]</p><p class="math-container">\[b=[h^2f(h)+u_0,h^2f(2h),\ldots,h^2f((m-1)h),h^2f(mh)+u_1], \text{ and }\]</p><p class="math-container">\[A=\left(\begin{matrix}
+2&amp;-1&amp;0&amp;0&amp;\cdots&amp;0\\
+-1&amp;2&amp;-1&amp;0&amp;\cdots&amp;0\\
+0&amp;-1&amp;2&amp;-1&amp;\cdots&amp;0\\
+\vdots&amp;&amp;&amp;&amp;\vdots\\
+0&amp;\cdots&amp;0&amp;-1&amp;2&amp;-1\\
+0&amp;\cdots&amp;0&amp;0&amp;-1&amp;2
+\end{matrix}\right)\]</p><p>We are thus led to consider the solution of  <span>$Au=b$</span> for this tridiagonal <span>$A$</span>. Tridiagonal systems are easy to solve naively,  of course, but this example also gives a nice illustration of the multi-grid method. The latter proceeds by mixing steps of solution via some iterative solver with approximate corrections obtained on a coarser grid, and works particularly well for this equation where there is a neat division between high-frequency and low-frequency contributors to the solution.</p><p>Specifically, we will proceed by restricting discretized functions from a grid of radius <span>$h$</span> to one of radius <span>$2h$</span> and prolonging back from there, by taking the weighted average of values near a coarse-grid point, weighting the point itself double, for restriction, and making the value at a fine-grid point not in the coarse grid average the adjacent coarse values for prolongation. It&#39;s interesting to note that restriction after prolongation is not idempotent, but instead smears some heat around away from where it started.</p><h2 id="The-problem-solved-directly-via-multigrid"><a class="docs-heading-anchor" href="#The-problem-solved-directly-via-multigrid">The problem solved directly via multigrid</a><a id="The-problem-solved-directly-via-multigrid-1"></a><a class="docs-heading-anchor-permalink" href="#The-problem-solved-directly-via-multigrid" title="Permalink"></a></h2><pre><code class="language-julia hljs">using SparseArrays
+using LinearAlgebra
+using CombinatorialSpaces
+
+#The tridiagonal Laplacian discussed above, with single-variable method
+#for power-of-2 grids.
+sparse_square_laplacian(k) = sparse_square_laplacian(2^k-1,1/(2^k))
+function sparse_square_laplacian(N,h)
+  A = spzeros(N,N)
+  for i in 1:N
+    A[i,i] = 2
+    if i &gt; 1 A[i,i-1] = -1 end
+    if i &lt; N A[i,i+1] = -1 end
+  end
+  1/h^2 * A
+end
+#The restriction matrix to half as fine a grid.
+function sparse_restriction(k)
+  N,M = 2^k-1, 2^(k-1)-1
+  A = spzeros(M,N)
+  for i in 1:M
+    A[i,2i-1:2i+1] = [1,2,1]
+  end
+  1/4*A
+end
+#The prolongation matrix from coarse to fine.
+sparse_prolongation(k) = 2*transpose(sparse_restriction(k))
+
+sparse_square_laplacian(3)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">7×7 SparseArrays.SparseMatrixCSC{Float64, Int64} with 19 stored entries:
+ 128.0  -64.0     ⋅      ⋅      ⋅      ⋅      ⋅ 
+ -64.0  128.0  -64.0     ⋅      ⋅      ⋅      ⋅ 
+    ⋅   -64.0  128.0  -64.0     ⋅      ⋅      ⋅ 
+    ⋅      ⋅   -64.0  128.0  -64.0     ⋅      ⋅ 
+    ⋅      ⋅      ⋅   -64.0  128.0  -64.0     ⋅ 
+    ⋅      ⋅      ⋅      ⋅   -64.0  128.0  -64.0
+    ⋅      ⋅      ⋅      ⋅      ⋅   -64.0  128.0</code></pre><pre><code class="language-julia hljs">sparse_restriction(3)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">3×7 SparseArrays.SparseMatrixCSC{Float64, Int64} with 9 stored entries:
+ 0.25  0.5  0.25   ⋅    ⋅     ⋅    ⋅ 
+  ⋅     ⋅   0.25  0.5  0.25   ⋅    ⋅ 
+  ⋅     ⋅    ⋅     ⋅   0.25  0.5  0.25</code></pre><pre><code class="language-julia hljs">sparse_prolongation(3)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">7×3 SparseArrays.SparseMatrixCSC{Float64, Int64} with 9 stored entries:
+ 0.5   ⋅    ⋅ 
+ 1.0   ⋅    ⋅ 
+ 0.5  0.5   ⋅ 
+  ⋅   1.0   ⋅ 
+  ⋅   0.5  0.5
+  ⋅    ⋅   1.0
+  ⋅    ⋅   0.5</code></pre><p>Here is a function that sets up and runs a v-cycle for the  Poisson problem on a mesh with <span>$2^k+1$</span> points, on all meshes down to <span>$3$</span> points, smoothing using <span>$s$</span> steps of the Krylov method on each mesh, with a random target vector, and continuing through the entire cycle <span>$c$</span> times. </p><p>In the example, we are solving the Poisson equation on a grid with <span>$2^{15}+1$</span> points using just <span>$15\cdot 7\cdot 3$</span>  total steps of the conjugate gradient method. </p><pre><code class="language- hljs">function test_vcycle_1D_gvl(k,s,c)
+  b=rand(2^k-1)
+  N = 2^k-1 
+  ls = reverse([sparse_square_laplacian(k′) for k′ in 1:k])
+  is = reverse([sparse_restriction(k′) for k′ in 2:k])
+  ps = reverse([sparse_prolongation(k′) for k′ in 2:k])
+  u = zeros(N)
+  norm(ls[1]*multigrid_vcycles(u,b,ls,is,ps,s,c)-b)/norm(b)
+end
+test_vcycle_1D_gvl(15,7,3)</code></pre><h2 id="Reproducing-the-same-solution-with-CombinatorialSpaces"><a class="docs-heading-anchor" href="#Reproducing-the-same-solution-with-CombinatorialSpaces">Reproducing the same solution with CombinatorialSpaces</a><a id="Reproducing-the-same-solution-with-CombinatorialSpaces-1"></a><a class="docs-heading-anchor-permalink" href="#Reproducing-the-same-solution-with-CombinatorialSpaces" title="Permalink"></a></h2><p>Now we can show how to do the same thing with CombinatorialSpaces. We&#39;ll use the same <code>multigrid_vcycles</code> function as before but produce its inputs via types and data structures in CombinatorialSpaces.</p><p>In particular, <code>repeated_subdivisions</code> below produces a sequence of barycentric subdivisions of a delta-set, which is exactly what we need to produce the repeated halvings of the radius of the 1-D mesh in our example.</p><pre><code class="language-julia hljs">using CombinatorialSpaces
+using StaticArrays
+using LinearAlgebra: norm</code></pre><p>We first construct the <em>coarsest</em> stage in the 1-D mesh, with just two vertices and one edge running from <span>$(0,0)$</span> to <span>$(1,0)$</span>.</p><pre><code class="language- hljs">ss = EmbeddedDeltaSet1D{Bool,Point3D}()
+add_vertices!(ss, 2, point=[(0,0,0),(1,0,0)])
+add_edge!(ss, 1, 2, edge_orientation=true)
+
+repeated_subdivisions(4,ss,subdivision_map)[1]</code></pre><p>The setup function below constructs <span>$k$</span> subdivision maps and their domains, then computes their Laplacians using CombinatorialSpaces&#39; general capabilities, as well as the prolongation matrices straight from the subdivision maps and the interpolation matrices be renormalizing the transposed prolongations.</p><p>We first construct everything with a sort on the vertices to show that  we get the exact same results as in the first example.</p><pre><code class="language- hljs">laplacian(s) = ∇²(0,dualize(s,Barycenter()))
+function test_vcycle_1D_cs_setup_sorted(k)
+  b=rand(2^k-1)
+  N = 2^k-1 
+  u = zeros(N)
+
+  sds = reverse(repeated_subdivisions(k,ss,subdivision_map))
+  sses = [sd.dom.delta_set for sd in sds]
+  sorts = [sort(vertices(ss),by=x-&gt;ss[:point][x]) for ss in sses]
+  ls = [laplacian(sses[i])[sorts[i],sorts[i]][2:end-1,2:end-1] for i in eachindex(sses)]
+  ps = transpose.([as_matrix(sds[i])[sorts[i+1],sorts[i]][2:end-1,2:end-1] for i in 1:length(sds)-1])
+  is = transpose.(ps)*1/2
+  u,b,ls,is,ps
+end
+u,b,ls,is,ps = test_vcycle_1D_cs_setup_sorted(3)
+ls[1]</code></pre><pre><code class="language- hljs">ps[1]</code></pre><p>Finally, we run a faster and simpler algorithm by avoiding all the sorting. This version makes the truncation of each matrix to ignore the boundary vertices more obvious (and truncates different rows and columns because of skipping the sort.) This is mathematically correct as long as the boundary conditions are zero.</p><pre><code class="language- hljs">function test_vcycle_1D_cs_setup(k)
+  b=rand(2^k-1)
+  N = 2^k-1 
+  u = zeros(N)
+
+  sds = reverse(repeated_subdivisions(k,ss,subdivision_map))
+  sses = [sd.dom.delta_set for sd in sds]
+  ls = [laplacian(sses[i])[3:end,3:end] for i in eachindex(sses)]
+  ps = transpose.([as_matrix(sds[i])[3:end,3:end] for i in 1:length(sds)-1])
+  is = transpose.(ps)*1/2
+  u,b,ls,is,ps
+end
+uu,bb,lls,iis,pps = test_vcycle_1D_cs_setup(15)
+norm(ls[1]*multigrid_vcycles(u,b,ls,is,ps,7,3)-b)/norm(b)</code></pre><h1 id="The-2-D-Poisson-equation"><a class="docs-heading-anchor" href="#The-2-D-Poisson-equation">The 2-D Poisson equation</a><a id="The-2-D-Poisson-equation-1"></a><a class="docs-heading-anchor-permalink" href="#The-2-D-Poisson-equation" title="Permalink"></a></h1><p>Next we consider the two-dimensional Poisson equation <span>$\Delta u = -F(x,y)$</span> on the unit square with Dirichlet boundary conditions; for concreteness we&#39;ll again focus on the case where the boundary values are zero.</p><h2 id="A-traditional-approach"><a class="docs-heading-anchor" href="#A-traditional-approach">A traditional approach</a><a id="A-traditional-approach-1"></a><a class="docs-heading-anchor-permalink" href="#A-traditional-approach" title="Permalink"></a></h2><p>Divide the unit square <span>$[0,1]\times [0,1]$</span> into a square mesh with squares of side length <span>$h$</span>. For each interior point <span>$(ih,jh)$</span>, divided differences produce the equation</p><p class="math-container">\[4u(ih,jh)-u(ih,(j+1)h)-u(ih,(j-1)h)-u((i+1)h,jh)-u((i-1)h,jh) = h^2F(ih,jh).\]</p><p>If we write <span>$L(n)$</span> for the 1-D discretized Laplacian in <span>$n$</span> pieces on <span>$[0,1]$</span>, thus with  diameter <span>$h=1/n$</span>, then it can be shown that, if we index the off-boundary grid points  lexicographically by rows, the matrix encoding all the above equations is given by</p><p class="math-container">\[I_{n-1}\otimes L(n-1) + L(n-1)\otimes I_{n-1},\]</p><p>where <span>$I_{n-1}$</span> is the identity matrix of size <span>$n-1$</span> and <span>$\otimes$</span> is the Kronecker product. In code, with the Laplacian for the interior of a <span>$5\times 5$</span> grid:</p><pre><code class="language-julia hljs">sym_kron(A,B) = kron(A,B)+kron(B,A)
+sparse_square_laplacian_2D(N,h) = sym_kron(I(N),sparse_square_laplacian(N,h))
+sparse_square_laplacian_2D(k) = sparse_square_laplacian_2D(2^k-1,1/(2^k))
+sparse_square_laplacian_2D(2)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">9×9 SparseArrays.SparseMatrixCSC{Float64, Int64} with 33 stored entries:
+  64.0  -16.0     ⋅   -16.0     ⋅      ⋅      ⋅      ⋅      ⋅ 
+ -16.0   64.0  -16.0     ⋅   -16.0     ⋅      ⋅      ⋅      ⋅ 
+    ⋅   -16.0   64.0     ⋅      ⋅   -16.0     ⋅      ⋅      ⋅ 
+ -16.0     ⋅      ⋅    64.0  -16.0     ⋅   -16.0     ⋅      ⋅ 
+    ⋅   -16.0     ⋅   -16.0   64.0  -16.0     ⋅   -16.0     ⋅ 
+    ⋅      ⋅   -16.0     ⋅   -16.0   64.0     ⋅      ⋅   -16.0
+    ⋅      ⋅      ⋅   -16.0     ⋅      ⋅    64.0  -16.0     ⋅ 
+    ⋅      ⋅      ⋅      ⋅   -16.0     ⋅   -16.0   64.0  -16.0
+    ⋅      ⋅      ⋅      ⋅      ⋅   -16.0     ⋅   -16.0   64.0</code></pre><p>To prolong a scalar field from a coarse grid (taking every other row and every other column) to a fine one, the natural rule is to send a coarse grid value to itself,  a value in an even row and odd column or vice versa to the average of its directly  adjacent coarse grid values, and a value in an odd row and column to the average of its four diagonally adjacent coarse grid valus. This produces the prolongation matrix below:</p><pre><code class="language-julia hljs">sparse_prolongation_2D(k) = kron(sparse_prolongation(k),sparse_prolongation(k))
+sparse_prolongation_2D(3)[1:14,:]</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">14×9 SparseArrays.SparseMatrixCSC{Float64, Int64} with 18 stored entries:
+ 0.25   ⋅     ⋅     ⋅    ⋅    ⋅    ⋅    ⋅    ⋅ 
+ 0.5    ⋅     ⋅     ⋅    ⋅    ⋅    ⋅    ⋅    ⋅ 
+ 0.25  0.25   ⋅     ⋅    ⋅    ⋅    ⋅    ⋅    ⋅ 
+  ⋅    0.5    ⋅     ⋅    ⋅    ⋅    ⋅    ⋅    ⋅ 
+  ⋅    0.25  0.25   ⋅    ⋅    ⋅    ⋅    ⋅    ⋅ 
+  ⋅     ⋅    0.5    ⋅    ⋅    ⋅    ⋅    ⋅    ⋅ 
+  ⋅     ⋅    0.25   ⋅    ⋅    ⋅    ⋅    ⋅    ⋅ 
+ 0.5    ⋅     ⋅     ⋅    ⋅    ⋅    ⋅    ⋅    ⋅ 
+ 1.0    ⋅     ⋅     ⋅    ⋅    ⋅    ⋅    ⋅    ⋅ 
+ 0.5   0.5    ⋅     ⋅    ⋅    ⋅    ⋅    ⋅    ⋅ 
+  ⋅    1.0    ⋅     ⋅    ⋅    ⋅    ⋅    ⋅    ⋅ 
+  ⋅    0.5   0.5    ⋅    ⋅    ⋅    ⋅    ⋅    ⋅ 
+  ⋅     ⋅    1.0    ⋅    ⋅    ⋅    ⋅    ⋅    ⋅ 
+  ⋅     ⋅    0.5    ⋅    ⋅    ⋅    ⋅    ⋅    ⋅ </code></pre><p>We&#39;ll impose a Galerkin condition that the prolongation and restriction operators be adjoints of each other up to constants. This leads to the interesting consequence that the restriction operator takens a weighted average of all nine nearby values, including those at the diagonally nearest points, even though those points don&#39;t come up in computing second-order divided differences.</p><pre><code class="language-julia hljs">sparse_restriction_2D(k) = transpose(sparse_prolongation_2D(k))/4
+sparse_restriction_2D(3)[1,:]</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">49-element SparseArrays.SparseVector{Float64, Int64} with 9 stored entries:
+  [1 ]  =  0.0625
+  [2 ]  =  0.125
+  [3 ]  =  0.0625
+  [8 ]  =  0.125
+  [9 ]  =  0.25
+  [10]  =  0.125
+  [15]  =  0.0625
+  [16]  =  0.125
+  [17]  =  0.0625</code></pre><p>Now we can do the same multigrid v-cycles as before, but with the 2-D Laplacian and prolongation operators! Here we&#39;ll solve on a grid with about a million points in just a few seconds.</p><pre><code class="language- hljs">function test_vcycle_2D_gvl(k,s,c)
+  ls = reverse([sparse_square_laplacian_2D(k′) for k′ in 1:k])
+  is = reverse([sparse_restriction_2D(k′) for k′ in 2:k])
+  ps = reverse([sparse_prolongation_2D(k′) for k′ in 2:k])
+  b=rand(size(ls[1],1))
+  u = zeros(size(ls[1],1))
+  norm(ls[1]*multigrid_vcycles(u,b,ls,is,ps,s,c)-b)/norm(b)
+end
+
+test_vcycle_2D_gvl(8,20,3)</code></pre><h2 id="Via-combinatorial-spaces"><a class="docs-heading-anchor" href="#Via-combinatorial-spaces">Via combinatorial spaces</a><a id="Via-combinatorial-spaces-1"></a><a class="docs-heading-anchor-permalink" href="#Via-combinatorial-spaces" title="Permalink"></a></h2><p>Below we show how to reconstruct the grid Laplacian using  CombinatorialSpaces.</p><pre><code class="language- hljs">using Random # hide
+Random.seed!(77777) # hide
+using Krylov
+using CombinatorialSpaces
+using GeometryBasics
+using LinearAlgebra: norm
+Point2D = Point2{Float64}
+
+ 
+
+laplacian(ss) = ∇²(0,dualize(ss,Barycenter()))
+
+#Copies of the primal square above in an N x N grid covering unit square in plane
+function square_tiling(N)
+  ss = EmbeddedDeltaSet2D{Bool,Point3D}()
+  h = 1/(N-1)
+  points = Point3D.([[i*h,1-j*h,0] for j in 0:N-1 for i in 0:N-1])
+  add_vertices!(ss, N^2, point=points)
+  for i in 1:N^2
+    #vertices not in the left column or bottom row
+    if (i-1)%N != 0 &amp;&amp; (i-1) ÷ N &lt; N-1
+      glue_sorted_triangle!(ss, i, i+N-1,i+N)
+    end
+    #vertices not in the right column or bottom row
+    if i %N != 0 &amp;&amp; (i-1) ÷ N &lt; N-1
+      glue_sorted_triangle!(ss, i, i+1,i+N)
+    end
+  end
+  orient!(ss)
+  ss
+end
+
+
+inner(N) = vcat([2+k*N:N-1+k*N for k ∈ 1:N-2]...)
+inlap(N) = laplacian(square_tiling(N))[inner(N),inner(N)]
+inlap(5)</code></pre><h1 id="Triangular-grids"><a class="docs-heading-anchor" href="#Triangular-grids">Triangular grids</a><a id="Triangular-grids-1"></a><a class="docs-heading-anchor-permalink" href="#Triangular-grids" title="Permalink"></a></h1><p>#XXX: fill in edges of triangular grids </p><h2 id="Stokes-flow"><a class="docs-heading-anchor" href="#Stokes-flow">Stokes flow</a><a id="Stokes-flow-1"></a><a class="docs-heading-anchor-permalink" href="#Stokes-flow" title="Permalink"></a></h2><p>It was a bit annoying to have to manually subdivide the  square grid; we can automate this with the <code>repeated_subdivisions</code>  function, but the non-uniformity of neighborhoods in a barycentric subdivision of a 2-D simplicial set means we might prefer a different subdivider. We focus on the &quot;binary&quot; subdivision, which splits each triangle into four by connecting the midpoints of its edges.</p><p class="math-container">\[    Ṗ == ⋆₀⁻¹(dual_d₁(⋆₁(v)))
+    v̇ == μ * Δ(v)-d₀(P) + φ\]</p><pre><code class="language- hljs">using Pkg; Pkg.activate(&quot;docs&quot;) #hide ##XX: testing
+using Krylov, LinearOperators, CombinatorialSpaces, LinearAlgebra, StaticArrays, SparseArrays, ACSets
+
+# TODO: Check signs.
+# TODO: Add kernel or matrix version.
+s = triangulated_grid(1,1,1/4,sqrt(3)/2*1/4,Point2D,false)
+sd = dualize(s,Circumcenter())
+f = binary_subdivision_map(s)
+
+nw(s) = ne(s)+nv(s)
+
+X_pvf(s) = fill(SVector(1.0,2.0), nv(s));
+X_dvf(s) = fill(SVector(1.0,2.0), ntriangles(s));
+
+&quot;&quot;&quot;
+Flatten a field of `n`-vectors into a vector.
+&quot;&quot;&quot;
+function flatten_vfield(v,n=2) 
+  w = zeros(eltype(eltype(v)),n*length(v))
+  for i in 1:length(v)
+    w[n*i-n+1:n*i] .= v[i]
+  end
+  w
+end
+function unflatten_vfield(w,n=2)
+  v = [SVector(Tuple(w[n*i-n+1:n*i])) for i in 1:length(w)÷n]
+end
+unflatten_vfield(flatten_vfield(X_pvf(s))) == X_pvf(s)
+
+&quot;&quot;&quot;
+A 2-dimensional vector field being flattened to a vector
+with the `i`th entry of the field in the `2i-1`th and `2i`th
+entries of the vector, prolong it along a geometric map
+as if it were two scalar fields right next to each other.
+&quot;&quot;&quot;
+function prolong_flattened_vfield(f::GeometricMap)
+  M = transpose(as_matrix(f))
+  N = similar(M,2*size(M,1),2*size(M,2))
+  N[1:2:end,1:2:end] = M
+  N[2:2:end,2:2:end] = M
+  N
+end
+F_P(f) = LinearOperator(prolong_flattened_vfield(f))
+
+M = prolong_flattened_vfield(f)
+M[1:2:end,17] == M[2:2:end,18] == transpose(as_matrix(f))[:,9]
+N = as_matrix(f)
+X = X_pvf(s)
+flatten_vfield(transpose(N)*X) ≈ F_P(f)*flatten_vfield(X)
+&quot;&quot;&quot;
+Take in a vector field given with values vertically
+concatenated into a vector and return the flattened
+1-form.
+&quot;&quot;&quot;
+function form_♭(sd) 
+  f = x -&gt; ♭(sd,x,PPFlat())
+  (res,v) -&gt; begin
+    sv = SVector.([(v[2i-1],v[2i]) for i in 1:nv(sd)])
+    res .= f(sv)
+  end
+end
+F_♭(sd) = LinearOperator(Float64,ne(sd),2*nv(sd),false,false,form_♭(sd))
+
+v = vcat(X_pvf(sd)...)
+F_♭(sd) * v == ♭(sd, X_pvf(sd), PPFlat())
+α_from_primal(s) = ♭(s, X_pvf(s), PPFlat())
+α_from_dual(s) = ♭(s, X_dvf(s), DPPFlat())
+maximum(abs.(α_from_primal(sd) .- α_from_dual(sd))) &lt; 1e-14
+
+#Hard-coded dimension of vector field values for now
+&quot;&quot;&quot;
+Get the sharp matrix from primal 1-forms to vector fields,
+where the vector field on vertex `k` is stored in 
+`M[2k-1:2k,:]`.
+&quot;&quot;&quot;
+function ♯_mat_flattened(sd)
+  M = ♯_mat(sd,AltPPSharp())
+  M′ = spzeros(2*size(M,1),size(M,2))
+  for (i,j,v) in zip(findnz(M)...)
+    M′[2*i-1,j] = v[1]
+    M′[2*i,j] = v[2]
+  end
+  M′
+end
+F_♯(sd) = LinearOperator(♯_mat_flattened(sd))
+
+
+♯_mat_flattened(sd)[11,:] == map(first,♯_mat(sd,AltPPSharp())[6,:])
+ω = ones(ne(sd))
+F_♯(sd) * ω ≈ reduce(vcat,♯(sd, ω, AltPPSharp()))
+
+
+&quot;&quot;&quot;
+Sharpen a 1-form to a vector field (given in columns) on the codomain, 
+restrict it along
+the geometric map `f`, then flatten it back to a form on the domain.
+&quot;&quot;&quot;
+function prolong_1form(f::GeometricMap)
+  sdom,scod = dom(f).delta_set, codom(f).delta_set
+  sddom,sdcod = dualize(sdom,Circumcenter()),dualize(scod,Circumcenter())
+  f_♭ = F_♭(sddom)
+  f_♯ = F_♯(sdcod)
+  f_P = F_P(f)
+  f_♭*f_P*f_♯
+end
+
+prolong_1form(f)*ones(56)
+&quot;&quot;&quot;
+Just the direct sum of prolongation for scalars and
+1-forms.
+&quot;&quot;&quot;
+function prolong_0form_and_1form(f::GeometricMap)
+  sdom,scod = dom(f).delta_set, codom(f).delta_set
+  f_0 = transpose(as_matrix(f))
+  f_1 = prolong_1form(f)
+  LinearOperator(Float64,nw(sdom),nw(scod),false,false,
+    (res,v) -&gt; begin
+     res[1:nv(sdom)] .= f_0*v[1:nv(scod)]
+     res[nv(sdom)+1:end] .= f_1*v[nv(scod)+1:end]
+    end)
+end
+
+prolong_0form_and_1form(f)*ones(nw(s))
+
+#4.0 hard-coded for now, only applicable for binary subdivision
+&quot;&quot;&quot;
+Restrict a 1-form from the domain to the codomain of a geometric
+map, roughly by transposing the prolongation.
+&quot;&quot;&quot;
+function restrict_1form(f::GeometricMap)
+  sdom,scod = dom(f).delta_set, codom(f).delta_set
+  sddom,sdcod = dualize(sdom,Circumcenter()),dualize(scod,Circumcenter())
+  f_♭ = F_♭(sdcod)
+  f_♯ = F_♯(sddom)
+  f_P = transpose(F_P(f))/4.0
+  f_♭*f_P*f_♯
+end
+
+restrict_1form(f)*ones(ne(dom(f)))
+
+
+function restrict_0form_and_1form(f::GeometricMap)
+  sdom,scod = dom(f).delta_set, codom(f).delta_set
+  f_0 = as_matrix(f)/4.0
+  f_1 = restrict_1form(f)
+  LinearOperator(Float64,nw(scod),nw(sdom),false,false,
+  (res,v) -&gt; begin
+    res[1:nv(scod)] .= f_0*v[1:nv(sdom)]
+    res[nv(scod)+1:end] .= f_1*v[nv(sdom)+1:end]
+  end)
+end
+
+restrict_0form_and_1form(f)*ones(nw(dom(f)))
+
+function form_stokes_operator(μ,s)
+  @info &quot;Forming operator for sset w $(nv(s)) vertices&quot;
+  sd = dualize(s,Circumcenter())
+  L1 = ∇²(1,sd)
+  d0 = dec_differential(0,sd)
+  s1 = dec_hodge_star(1,sd)
+  s0inv = inv_hodge_star(0,sd)
+  d1 = dec_dual_derivative(1,sd)
+  [0*I  s0inv*d1*s1
+  -d0 μ*L1]
+end
+
+diam(s) = minimum(norm(s[:point][s[:∂v0][e]]-s[:point][s[:∂v1][e]]) for e in edges(s))
+bvs(s) = begin ɛ = diam(s); findall(x -&gt; abs(x[1]) &lt; ε || abs(x[1]-1) &lt; ε || x[2] == 0 || abs(x[2]-1)&lt; ε*sqrt(3)/2, s[:point]) end
+bes(s) = begin ɛ = diam(s); bvs_s = bvs(s) ; 
+  findall(x -&gt; s[:∂v0][x] ∈ bvs_s ||  s[:∂v1][x] ∈ bvs_s , parts(s,:E)) end
+
+function lap1(μ,s)
+    sd = dualize(s,Circumcenter())
+    L1 = ∇²(1,sd) #Not sparse?!
+    LinearOperator(Float64,ne(s),ne(s),false,false,
+      (res,v) -&gt; begin 
+        res .= μ*L1*v
+        res[bes(s)] .= v[bes(s)]
+        end)
+end
+
+s = triangulated_grid(1,1,1/4,sqrt(3)/2*1/4,Point2D,false)
+fs = reverse(repeated_subdivisions(2,s,binary_subdivision_map));
+sses = map(fs) do f dom(f).delta_set end
+push!(sses,s)
+
+ops = map(s-&gt;form_stokes_operator(1,s),sses)
+rs = restrict_0form_and_1form.(fs)
+ps = prolong_0form_and_1form.(fs)
+
+fine_op = ops[1]
+b = fine_op* ones(nw(sses[1]))
+sol = gmres(fine_op,b)
+norm(fine_op*sol[1]-b)/norm(b)
+
+u = zeros(nw(sses[1]))
+v = multigrid_vcycles(u,b,ops,rs,ps,100,5,gmres)
+#Doesn&#39;t work yet
+norm(fine_op*v-b)/norm(b)
+
+ops = map(s-&gt;lap1(1,s),sses)
+rs = restrict_1form.(fs)
+ps = prolong_1form.(fs)
+
+fine_op = ops[1]
+b = fine_op* ones(ne(sses[1]))
+u = zeros(ne(sses[1]))
+v = multigrid_vcycles(u,b,ops,rs,ps,10,3,gmres)
+#Doesn&#39;t work yet
+norm(fine_op*v-b)/norm(b)
+function matrix(f) 
+  n,m = size(f)
+  A = spzeros(n,m)
+  for i in 1:n
+    e = spzeros(n)
+    e[i] = 1
+    A[:,i] = f*e
+  end
+  A
+end</code></pre><h2 id="Back-to-heat"><a class="docs-heading-anchor" href="#Back-to-heat">Back to heat</a><a id="Back-to-heat-1"></a><a class="docs-heading-anchor-permalink" href="#Back-to-heat" title="Permalink"></a></h2><p>Let&#39;s back up for a minute and make sure we can run the heat equation with our lovely triangular meshes.</p><pre><code class="language- hljs">using Krylov, CombinatorialSpaces, LinearAlgebra
+
+s = triangulated_grid(1,1,1/4,sqrt(3)/2*1/4,Point3D,false)
+fs = reverse(repeated_subdivisions(4,s,binary_subdivision_map));
+sses = map(fs) do f dom(f).delta_set end
+push!(sses,s)
+sds = map(sses) do s dualize(s,Circumcenter()) end
+Ls = map(sds) do sd ∇²(0,sd) end
+ps = transpose.(as_matrix.(fs))
+rs = transpose.(ps)./4.0 #4 is the biggest row sum that occurs for binary, this is not clearly the correct scaling
+
+u0 = zeros(nv(sds[1]))
+b = Ls[1]*rand(nv(sds[1])) #put into range of the Laplacian for solvability
+u = multigrid_vcycles(u0,b,Ls,rs,ps,3,10) #3,10 chosen empirically, presumably there&#39;s deep lore and chaos here
+norm(Ls[1]*u-b)/norm(b)</code></pre></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../combinatorial_maps/">« Combinatorial maps</a><a class="docs-footer-nextpage" href="../meshes/">Meshes »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.8.0 on <span class="colophon-date" title="Monday 2 December 2024 18:02">Monday 2 December 2024</span>. Using Julia version 1.11.1.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
