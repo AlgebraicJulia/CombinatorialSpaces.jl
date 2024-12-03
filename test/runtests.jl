@@ -21,8 +21,14 @@ end
   include("MeshGraphics.jl")
 end
 
-@testset "Alternate Backends" begin
-  include("Backends.jl")
+using CUDA
+if CUDA.functional()
+  @testset "CUDA" begin
+    include("OperatorsCUDA.jl")
+  end
+else
+  @info "CUDA tests were not run."
+  @info CUDA.functional(true)
 end
 
 @testset "Restrictions" begin
