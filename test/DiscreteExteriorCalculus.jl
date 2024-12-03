@@ -671,8 +671,8 @@ for (primal_s,s) in flat_meshes
   @test all(isapprox.(Λpd(g′, g̃), 0, atol=1e-11))
 
   # Test and demonstrate the convenience functions:
-  @test all(∧(s, f′, g̃) .≈ -1 * ∧(s, g′, f̃))
-  @test all(∧(s, f̃, g′) .≈ -1 * ∧(s, g̃, f′))
+  @test all(∧(s, SimplexForm{1}(f′), DualForm{1}(g̃)) .≈ -1 * ∧(s, SimplexForm{1}(g′), DualForm{1}(f̃)))
+  @test all(∧(s, DualForm{1}(f̃), SimplexForm{1}(g′)) .≈ -1 * ∧(s, DualForm{1}(g̃), SimplexForm{1}(f′)))
 
   # TODO: Test the Leibniz rule.
 end
@@ -692,14 +692,14 @@ for (primal_s,s) in flat_meshes
   u_def = SVector{3,Float64}(f,g,0)
 
   u = eval_constant_primal_form(s, u_def)
-  u_star = DualForm{1}(hodge_star(1,s) * u)
+  u_star = hodge_star(1,s) * u
 
   v_def = SVector{3,Float64}(-g,f,0)
   v = eval_constant_primal_form(s, v_def)
-  dec_hodge_star(2,s) * ∧(s, u, v)
+  dec_hodge_star(2,s) * ∧(s, SimplexForm{1}(u), SimplexForm{1}(v))
 
   @test all(isapprox.(
-    dec_hodge_star(2,s) * ∧(s, u, u_star),
+    dec_hodge_star(2,s) * ∧(s, SimplexForm{1}(u), DualForm{1}(u_star)),
     ff_gg,
     atol=1e-12))
 end
