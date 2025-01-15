@@ -9,6 +9,7 @@ using GeometryBasics: Point2, Point3
 using LinearAlgebra: diagm
 
 export loadmesh, Icosphere, Rectangle_30x10, Torus_30x10, Point_Map, triangulated_grid, makeSphere
+export new_triangulated_grid
 
 Point2D = Point2{Float64}
 Point3D = Point3{Float64}
@@ -101,7 +102,7 @@ function triangulated_grid(max_x, max_y, dx, dy, point_type, compress=true)
       end
     end
   end
- 
+
   add_vertices!(s, length(coords), point = vec(coords))
 
   nx = length(0:dx:max_x)
@@ -110,7 +111,7 @@ function triangulated_grid(max_x, max_y, dx, dy, point_type, compress=true)
   idcs = reshape(eachindex(coords), size(coords))
   # Only grab vertices that will be the bottom-left corner of a subdivided square.
   idcs = idcs[begin:end-1, begin:end-1]
-  
+
   # Subdivide every other row along the opposite diagonal.
   for i in idcs[:, begin+1:2:end]
     glue_sorted_triangle!(s, i, i+nx, i+nx+1)
@@ -126,6 +127,63 @@ function triangulated_grid(max_x, max_y, dx, dy, point_type, compress=true)
   orient!(s)
   s
 end
+
+function new_triangulated_grid(max_x, max_y, dx, dy, point_type, compress=true)
+  s = EmbeddedDeltaSet2D{Bool, point_type}()
+
+  scale = max_x/(max_x+dx/2)
+  shift = dx/2
+
+  nx = length(0:dx:max_x)
+  ny = length(0:dy:max_y)
+  add_vertices!(s, nx * ny)
+
+  for (y_idx, raw_y) in enumerate(0:dy:max_y)
+    for (x_idx, raw_x) in enumerate(0:dx:max_x)
+      x_coord = raw_x + shift * iseven(y_idx)
+      if compress
+        x_coord *= scale
+      end
+
+      i = x_idx + nx * (y_idx - 1)
+      s[i, :point] = if point_type <: Point3
+        point_type(x_coord, raw_y, 0)
+      else
+        point_type(x_coord, raw_y)
+      end
+
+    end
+  end
+
+  for y in 1:ny-1, x in 1:nx-1
+      i = x + nx * (y - 1)
+      if iseven(y)
+        glue_triangle!(s, i, i+nx, i+nx+1)
+        glue_triangle!(s, i, i+1, i+nx+1)
+      else
+        glue_triangle!(s, i, i+1, i+nx)
+        glue_triangle!(s, i+1, i+nx, i+nx+1)
+    end
+  end
+
+  # Orient and return.
+  s[:edge_orientation] = true
+
+  nxtri = 2 * (nx - 1)
+  nytri = ny - 1
+
+  for y in 1:nytri
+    tri_orient = !iseven(y)
+    for x in 1:2:nxtri
+      i = x + nxtri * (y - 1)
+      s[i, :tri_orientation] = tri_orient
+      s[i + 1, :tri_orientation] = !tri_orient
+    end
+  end
+
+  s
+end
+
 
 # This function was once the sphericalmeshes.jl file from Decapodes.jl.
 """
