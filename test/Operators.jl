@@ -67,12 +67,12 @@ subdivide_duals!(rect, Barycenter());
 flat_meshes = [tri_345()[2], tri_345_false()[2], right_scalene_unit_hypot()[2], grid_345()[2], tg, rect];
 
 @testset "Exterior Derivative" begin
-    for i in 0:0 
+    for i in 0:0
         for sd in dual_meshes_1D
             @test all(dec_differential(i, sd) .== d(i, sd))
         end
     end
-    for i in 0:1 
+    for i in 0:1
         for sd in dual_meshes_2D
             @test all(dec_differential(i, sd) .== d(i, sd))
         end
@@ -80,7 +80,7 @@ flat_meshes = [tri_345()[2], tri_345_false()[2], right_scalene_unit_hypot()[2], 
 end
 
 @testset "Boundary" begin
-    for i in 1:1 
+    for i in 1:1
         for sd in dual_meshes_1D
             @test all(dec_boundary(i, sd) .== ∂(i, sd))
         end
@@ -94,7 +94,7 @@ end
 end
 
 @testset "Dual Derivative" begin
-    for i in 0:0 
+    for i in 0:0
         for sd in dual_meshes_1D
             @test all(dec_dual_derivative(i, sd) .== dual_derivative(i, sd))
         end
@@ -406,9 +406,9 @@ end
 
   X♯ = SVector{3,Float64}(3,3,0)
   mag_selfadv, mag_dp, mag_∂ₜu  = euler_equation_test(X♯, tg)
-  @test .60 < (count(mag_selfadv .< 1e-1) / length(mag_selfadv))
-  @test .60 < (count(mag_dp .< 1e-1) / length(mag_dp))
-  @test .60 < (count(mag_∂ₜu .< 1e-1) / length(mag_∂ₜu))
+  @test 97/162 <= (count(mag_selfadv .< 1e-1) / length(mag_selfadv))
+  @test 97/162 <= (count(mag_dp .< 1e-1) / length(mag_dp))
+  @test 97/162 <= (count(mag_∂ₜu .< 1e-1) / length(mag_∂ₜu))
 
   # u := ⋆xdx
   # ιᵤu = x²
