@@ -116,7 +116,7 @@ function triangulated_grid(max_x, max_y, dx, dy, point_type, compress=true)
   end
 
   # Orient and return.
-  s[:edge_orientation] = true
+  s[:edge_orientation] = false
 
   nxtri = 2 * (nx - 1)
   nytri = ny - 1
