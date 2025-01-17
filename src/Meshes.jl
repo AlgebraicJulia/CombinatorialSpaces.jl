@@ -9,7 +9,6 @@ using GeometryBasics: Point2, Point3
 using LinearAlgebra: diagm
 
 export loadmesh, Icosphere, Rectangle_30x10, Torus_30x10, Point_Map, triangulated_grid, makeSphere
-export new_triangulated_grid
 
 Point2D = Point2{Float64}
 Point3D = Point3{Float64}
