@@ -593,7 +593,7 @@ u = s1 * d0 * u_potential; # -dy or dy, depending on left vs. right-hand rule: �
 α = dd0 * (interior_product(tg, EForm(v), DualForm{1}(u)))# : Ω̃₁
 α_int = α[setdiff(parts(tg,:E), boundary_inds(Val{1}, tg))]
 @test all(x -> isapprox(x,0,atol=1e-14), α_int)
-# Test the Lie derivative (which employs the primal-dual interior product). 
+# Test the Lie derivative (which employs the primal-dual interior product).
 β = lie_derivative_flat(Val{1}, tg, v, u)
 β_int = β[setdiff(parts(tg,:E), boundary_inds(Val{1}, tg))]
 # Boundary conditions were not enforced.
@@ -703,6 +703,43 @@ for (primal_s,s) in flat_meshes
     ff_gg,
     atol=1e-12))
 end
+
+for (s, sd) in flat_meshes
+  ex_1 = sign(2, sd)
+  interp = p2_d2_interpolation(sd)
+  inv_hdg_0 = dec_inv_hodge_star(0, sd)
+
+  res_1 = inv_hdg_0 * interp * ex_1
+
+  @test all(res_1 .≈ ntriangles(sd)/(sum(sd[:area])))
+end
+rect′ = loadmesh(Rectangle_30x10());
+rect = EmbeddedDeltaDualComplex2D{Bool,Float64,Point3D}(rect′);
+subdivide_duals!(rect, Barycenter());
+
+# TODO: Fill out test
+# h = 0.01
+# function my_form(s)
+#   points = point(s)
+#   EForm(map(edges(s)) do e
+#           h * dot(SVector{3}(points[src(s,e)][1]^2, points[src(s,e)][2], 0), point(s, tgt(s,e)) - point(s, src(s,e))) * sign(1,s,e)
+#         end)
+# end
+
+# test_form = map(p->-2*p[1]+1,rect[triangle_center(rect), :dual_point])
+
+# f = my_form(rect)
+# d1 = dec_differential(1,rect)
+
+# df = d1 * f
+
+# test_form = map(p->-h*(2*p[1]+1),rect[:point])
+
+# mat = p2_d2_interpolation(rect)
+# inv_hdg_0 = dec_inv_hodge_star(0, rect)
+# res = inv_hdg_0 * mat * df;
+
+# diff1 = res - test_form
 
 # 3D dual complex
 #################
@@ -845,4 +882,3 @@ subdivide_duals!(s, Barycenter())
 @test all(dual_volume(3,s,parts(s,:DualTet)) .≈ 1/nparts(s,:DualTet))
 
 end
-
