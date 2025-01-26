@@ -1057,7 +1057,7 @@ function boundary_inds(::Type{Val{0}}, s::HasDeltaSet1D)
 end
 
 function boundary_inds(::Type{Val{1}}, s::HasDeltaSet1D)
-  mapreduce(v -> star(sE, v)[2], vcat, boundary_verts)
+  mapreduce(v -> star(sE, v)[2], vcat, boundary_inds(Val{0}, s))
 end
 
 function boundary_inds(::Type{Val{0}}, s::HasDeltaSet2D)
