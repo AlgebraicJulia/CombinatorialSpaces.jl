@@ -41,6 +41,7 @@ export Simplex, V, E, Tri, Tet, SimplexChain, VChain, EChain, TriChain, TetChain
 using LinearAlgebra: det
 using SparseArrays
 using StaticArrays: @SVector, SVector, SMatrix
+using StatsBase: counts
 
 using ACSets.DenseACSets: attrtype_type
 using Catlab, Catlab.CategoricalAlgebra, Catlab.Graphs
@@ -1051,16 +1052,24 @@ end
 """
 Lk = link
 
-function boundary_inds(::Type{Val{0}}, s)
+function boundary_inds(::Type{Val{0}}, s::HasDeltaSet1D)
+  findall(x -> x < 2, counts(vcat(sdE[:∂v0], sdE[:∂v1])))
+end
+
+function boundary_inds(::Type{Val{1}}, s::HasDeltaSet1D)
+  mapreduce(v -> star(sE, v)[2], vcat, boundary_verts)
+end
+
+function boundary_inds(::Type{Val{0}}, s::HasDeltaSet2D)
   ∂1_inds = boundary_inds(Val{1}, s)
   unique(vcat(s[∂1_inds,:∂v0],s[∂1_inds,:∂v1]))
 end
 
-function boundary_inds(::Type{Val{1}}, s)
+function boundary_inds(::Type{Val{1}}, s::HasDeltaSet2D)
   collect(findall(x -> x != 0, boundary(Val{2},s) * fill(1,ntriangles(s))))
 end
 
-function boundary_inds(::Type{Val{2}}, s)
+function boundary_inds(::Type{Val{2}}, s::HasDeltaSet2D)
   ∂1_inds = boundary_inds(Val{1}, s)
   inds = map([:∂e0, :∂e1, :∂e2]) do esym
     vcat(incident(s, ∂1_inds, esym)...)
