@@ -555,4 +555,25 @@ vs = union(∂(0, s, E(es)), ∂(1, s, E(es)))
 @test Set(vs) == Set(Lkf[1])
 @test Set(Lkf[1]) == Set([1,2,3,4,5,7])
 
+# Test boundary indices accessors.
+##################################
+# Line:
+s = path_graph(DeltaSet1D, 8)
+bvs, bes = boundary_inds(Val{0}, s), boundary_inds(Val{1}, s)
+@test issetequal(bvs, [1,8])
+@test issetequal(bes, [1,7])
+
+# Circle:
+s = cycle_graph(DeltaSet1D, 8)
+bvs, bes = boundary_inds(Val{0}, s), boundary_inds(Val{1}, s)
+@test issetequal(bvs, [])
+@test issetequal(bes, [])
+
+# Disconnected Lines:
+s = path_graph(DeltaSet1D, 8)
+s = apex(coproduct(s,s))
+bvs, bes = boundary_inds(Val{0}, s), boundary_inds(Val{1}, s)
+@test issetequal(bvs, [1,8,9,16])
+@test issetequal(bes, [1,7,8,14])
+
 end
