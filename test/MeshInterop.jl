@@ -36,8 +36,8 @@ s_msh = EmbeddedDeltaSet2D(msh)
 s, sd = single_tetrahedron()
 # Construct a single tetrahedron in GeometryBasics.
 function single_tetrahedron_gb()
-  pnts = Point{3}[(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0)]
-  Mesh([Tetrahedron(pnts...)])
+  pnts = connect([0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0], Point{3})
+  Mesh(pnts, connect([1,2,3,4], SimplexFace{4}))
 end
 msh = single_tetrahedron_gb()
 
@@ -67,7 +67,7 @@ function tetgen_readme_mesh()
     [3, 7, 8, 4],
     [4, 8, 5, 1]]
   markers = Cint[-1, -2, 0, 0, 0, 0]
-  mesh = Mesh(points, meta(facets, markers=markers))
+  mesh = GeometryBasics.MetaMesh(points, facets; markers)
   mesh, tetrahedralize(mesh, "Qvpq1.414a0.1");
 end
 msh, tet_msh = tetgen_readme_mesh()
