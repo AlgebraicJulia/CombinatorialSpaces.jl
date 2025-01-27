@@ -103,7 +103,7 @@ function unique_index_map(coords::AbstractVector{T}, force_unique::Bool) where T
   ind_map, uniques
 end
 
-"""    function EmbeddedDeltaSet2D(m::GeometryBasics.Mesh; force_unique=false)
+"""    function EmbeddedDeltaSet2D(m::Union{GeometryBasics.Mesh, GeometryBasics.MetaMesh}; force_unique=false)
 
 Construct an EmbeddedDeltaSet2D from a Mesh object
 
@@ -113,8 +113,8 @@ not preserve any normal, texture, or other attributes from the Mesh object.
 The `force_unique` flag merges all points which are at the same location. This
 is necessary to process `.stl` files which reference points by location.
 """
-function EmbeddedDeltaSet2D(m::GeometryBasics.Mesh; force_unique=false)
-  coords = metafree.(coordinates(m))
+function EmbeddedDeltaSet2D(m::Union{GeometryBasics.Mesh, GeometryBasics.MetaMesh}; force_unique=false)
+  coords = coordinates(m)
   ind_map, uniques = unique_index_map(coords, force_unique)
   tris = GeometryBasics.faces(m)
   s = EmbeddedDeltaSet2D{Bool, eltype(coords)}()
@@ -128,7 +128,7 @@ function EmbeddedDeltaSet2D(m::GeometryBasics.Mesh; force_unique=false)
   s
 end
 
-"""    function EmbeddedDeltaSet3D(m::GeometryBasics.Mesh; force_unique=false)
+"""    function EmbeddedDeltaSet3D(m::Union{GeometryBasics.Mesh, GeometryBasics.MetaMesh}; force_unique=false)
 
 Construct an EmbeddedDeltaSet3D from a Mesh object
 
@@ -138,8 +138,8 @@ not preserve any normal, texture, or other attributes from the Mesh object.
 The `force_unique` flag merges all points which are at the same location,
 since some file formats reference points by location.
 """
-function EmbeddedDeltaSet3D(m::GeometryBasics.Mesh; force_unique=false)
-  coords = metafree.(coordinates(m))
+function EmbeddedDeltaSet3D(m::Union{GeometryBasics.Mesh, GeometryBasics.MetaMesh}; force_unique=false)
+  coords = coordinates(m)
   ind_map, uniques = unique_index_map(coords, force_unique)
   tets = GeometryBasics.faces(m)
   s = EmbeddedDeltaSet3D{Bool, eltype(coords)}()
