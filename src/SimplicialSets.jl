@@ -36,11 +36,13 @@ export Simplex, V, E, Tri, Tet, SimplexChain, VChain, EChain, TriChain, TetChain
   tetrahedra, add_tetrahedron!, glue_tetrahedron!, glue_sorted_tetrahedron!,
   glue_sorted_tet_cube!, is_manifold_like, nonboundaries,
   star, St, closed_star, St̄, link, Lk, simplex_vertices, dimension, 
-  DeltaSet, OrientedDeltaSet, EmbeddedDeltaSet
+  DeltaSet, OrientedDeltaSet, EmbeddedDeltaSet,
+  boundary_inds
 
 using LinearAlgebra: det
 using SparseArrays
 using StaticArrays: @SVector, SVector, SMatrix
+using StatsBase: counts
 
 using ACSets.DenseACSets: attrtype_type
 using Catlab, Catlab.CategoricalAlgebra, Catlab.Graphs
@@ -55,7 +57,7 @@ using ..ArrayUtils
 This dimension could be zero, in which case the delta set consists only of
 vertices (0-simplices).
 """
-@abstract_acset_type HasDeltaSet 
+@abstract_acset_type HasDeltaSet
 const HasDeltaSet0D = HasDeltaSet
 
 vertices(s::HasDeltaSet) = parts(s, :V)
@@ -1051,16 +1053,24 @@ end
 """
 Lk = link
 
-function boundary_inds(::Type{Val{0}}, s)
+function boundary_inds(::Type{Val{0}}, s::HasDeltaSet1D)
+  findall(x -> x < 2, counts(vcat(s[:∂v0], s[:∂v1])))
+end
+
+function boundary_inds(::Type{Val{1}}, s::HasDeltaSet1D)
+  mapreduce(v -> star(s, v)[2], vcat, boundary_inds(Val{0}, s), init=Int64[])
+end
+
+function boundary_inds(::Type{Val{0}}, s::HasDeltaSet2D)
   ∂1_inds = boundary_inds(Val{1}, s)
   unique(vcat(s[∂1_inds,:∂v0],s[∂1_inds,:∂v1]))
 end
 
-function boundary_inds(::Type{Val{1}}, s)
+function boundary_inds(::Type{Val{1}}, s::HasDeltaSet2D)
   collect(findall(x -> x != 0, boundary(Val{2},s) * fill(1,ntriangles(s))))
 end
 
-function boundary_inds(::Type{Val{2}}, s)
+function boundary_inds(::Type{Val{2}}, s::HasDeltaSet2D)
   ∂1_inds = boundary_inds(Val{1}, s)
   inds = map([:∂e0, :∂e1, :∂e2]) do esym
     vcat(incident(s, ∂1_inds, esym)...)
