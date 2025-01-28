@@ -713,33 +713,73 @@ for (s, sd) in flat_meshes
 
   @test all(res_1 .≈ ntriangles(sd)/(sum(sd[:area])))
 end
-rect′ = loadmesh(Rectangle_30x10());
-rect = EmbeddedDeltaDualComplex2D{Bool,Float64,Point3D}(rect′);
-subdivide_duals!(rect, Barycenter());
 
-# TODO: Fill out test
-# h = 0.01
-# function my_form(s)
-#   points = point(s)
-#   EForm(map(edges(s)) do e
-#           h * dot(SVector{3}(points[src(s,e)][1]^2, points[src(s,e)][2], 0), point(s, tgt(s,e)) - point(s, src(s,e))) * sign(1,s,e)
-#         end)
-# end
+lx = 30
+ly = 10
+dx = dy = 0.5
+rect = triangulated_grid(lx, ly, dx, dy, Point3{Float64});
+d_rect = EmbeddedDeltaDualComplex2D{Bool,Float64,Point3{Float64}}(rect);
+subdivide_duals!(d_rect, Circumcenter());
 
-# test_form = map(p->-2*p[1]+1,rect[triangle_center(rect), :dual_point])
+y_interior_points = findall(rect[:point]) do p
+  p[2] != 0.0 && p[2] != ly
+end
 
-# f = my_form(rect)
-# d1 = dec_differential(1,rect)
+x_interior_points = findall(rect[:point]) do p
+  dx < p[1] < lx - dx
+end
 
-# df = d1 * f
+interior_points = intersect(y_interior_points, x_interior_points)
 
-# test_form = map(p->-h*(2*p[1]+1),rect[:point])
+primal_points = d_rect[:point]
+dual_points = d_rect[triangle_center(d_rect), :dual_point]
 
-# mat = p2_d2_interpolation(rect)
-# inv_hdg_0 = dec_inv_hodge_star(0, rect)
-# res = inv_hdg_0 * mat * df;
+mat = p2_d2_interpolation(d_rect)
+inv_hdg_0 = dec_inv_hodge_star(0, d_rect)
+inv_hdg_2 = dec_inv_hodge_star(2, d_rect)
 
-# diff1 = res - test_form
+interp_mat = inv_hdg_0 * mat * inv_hdg_2
+
+sparsity = dual_derivative(1, d_rect) * dual_derivative(0,d_rect)
+
+@test interp_mat.colptr == sparsity.colptr
+@test interp_mat.rowval == sparsity.rowval
+
+rmse(vec) = sqrt(sum(vec.^2)/(length(vec)))
+
+# Move DForm0 to PForm2 to DForm2 to PForm0
+# TODO: Is this a valid dual point to primal point interpolation?
+# TODO: This doesn't work well on the boundaries in the direction
+# the function is growing in but on the interior it is exact for linear
+
+# Function growing in y
+primal_form = map(p->2*p[2],primal_points)
+dual_form = map(p->2*p[2],dual_points)
+
+diff = primal_form .- interp_mat * dual_form
+@test rmse(diff[y_interior_points]) < 1e-14
+
+# Function growing in x
+primal_form = map(p->2*p[1],primal_points)
+dual_form = map(p->2*p[1],dual_points)
+
+diff = primal_form .- interp_mat * dual_form
+@test rmse(diff[x_interior_points]) < 1e-14
+
+# Function growing in x and y
+primal_form = map(p->2*p[1]+3*p[2],primal_points)
+dual_form = map(p->2*p[1]+3*p[2],dual_points)
+
+diff = primal_form .- interp_mat * dual_form
+@test rmse(diff[interior_points]) < 1e-14
+
+# Quadratic function in x
+# TODO: Doubling the resolution seems to decrease the interior rmse by an order of magnitude
+primal_form = map(p->0.1*(p[1]-lx/2.0)^2,primal_points)
+dual_form = map(p->0.1*(p[1]-lx/2.0)^2,dual_points)
+
+diff = primal_form .- interp_mat * dual_form
+@test rmse(diff[interior_points]) < 0.005
 
 # 3D dual complex
 #################
