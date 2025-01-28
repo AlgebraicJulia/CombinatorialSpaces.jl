@@ -734,11 +734,7 @@ interior_points = intersect(y_interior_points, x_interior_points)
 primal_points = d_rect[:point]
 dual_points = d_rect[triangle_center(d_rect), :dual_point]
 
-mat = p2_d2_interpolation(d_rect)
-inv_hdg_0 = dec_inv_hodge_star(0, d_rect)
-inv_hdg_2 = dec_inv_hodge_star(2, d_rect)
-
-interp_mat = inv_hdg_0 * mat * inv_hdg_2
+interp_mat = d1_p1_interpolation(d_rect)
 
 sparsity = dual_derivative(1, d_rect) * dual_derivative(0,d_rect)
 

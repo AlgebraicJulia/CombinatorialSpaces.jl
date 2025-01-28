@@ -1866,12 +1866,11 @@ const flat_sharp = ♭♯
 const flat_sharp_mat = ♭♯_mat
 
 
-"""     p2_d2_interpolation(sd)
+"""     p2_d2_interpolation(sd::HasDeltaSet2D)
 
 Generates a sparse matrix that converts data on primal 2-forms into data on dual 2-forms.
-Results will be exact for constant primal 2-forms.
 """
-function p2_d2_interpolation(sd)
+function p2_d2_interpolation(sd::HasDeltaSet2D)
   mat = spzeros(nv(sd), ntriangles(sd))
   for tri_id in triangles(sd)
     tri_area = sd[tri_id, :area]
@@ -1883,7 +1882,6 @@ function p2_d2_interpolation(sd)
 
       v = sd[sd[dual_tri_id, :D_∂e1], :D_∂v1]
 
-      # println("$v, $tri_id, $dual_tri_area, $tri_area, $tri_orient")
       mat[v, tri_id] += weight
     end
   end
