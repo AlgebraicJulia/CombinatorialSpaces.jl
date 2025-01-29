@@ -33,7 +33,7 @@ export dec_wedge_product, cache_wedge, dec_c_wedge_product, dec_c_wedge_product!
   dec_wedge_product_dd,
   Δᵈ, dec_Δ⁻¹,
   avg₀₁, avg_01, avg₀₁_mat, avg_01_mat,
-  d1_p1_interpolation
+  d0_p0_interpolation
 
 # Wedge Product
 #--------------
@@ -683,12 +683,12 @@ const avg_01 = avg₀₁
 """
 const avg_01_mat = avg₀₁_mat
 
-"""   d1_p1_interpolation(sd::HasDeltaSet2D; hodge=GeometricHodge())
+"""   d0_p0_interpolation(sd::HasDeltaSet2D; hodge=GeometricHodge())
 
 Generates a sparse matrix that converts data on dual 0-forms into data on primal 0-forms.
 This uses the [`p2_d2_interpolation`](@ref) function as an intermediate step.
 """
-function d1_p1_interpolation(sd::HasDeltaSet2D; hodge=GeometricHodge())
+function d0_p0_interpolation(sd::HasDeltaSet2D; hodge=GeometricHodge())
   return dec_inv_hodge_star(0, sd, hodge) * p2_d2_interpolation(sd) * dec_inv_hodge_star(2, sd, hodge)
 end
 

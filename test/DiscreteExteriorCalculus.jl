@@ -704,6 +704,7 @@ for (primal_s,s) in flat_meshes
     atol=1e-12))
 end
 
+# Constant interpolation on flat meshes with boundaries
 for (s, sd) in flat_meshes
   ex_1 = sign(2, sd)
   interp = p2_d2_interpolation(sd)
@@ -714,6 +715,20 @@ for (s, sd) in flat_meshes
   @test all(res_1 .≈ ntriangles(sd)/(sum(sd[:area])))
 end
 
+# Constant interpolation on icosphere, no boundaries
+d_ico1 = EmbeddedDeltaDualComplex2D{Bool,Float64,Point3{Float64}}(loadmesh(Icosphere(1)));
+subdivide_duals!(d_ico1, Circumcenter());
+
+ico_form_2 = sign(2, d_ico1) .* d_ico1[:area]
+
+interp = p2_d2_interpolation(d_ico1)
+inv_hdg_0 = dec_inv_hodge_star(0, d_ico1)
+
+interp_form_0 = inv_hdg_0 * interp * ico_form_2
+
+@test all(interp_form_0 .≈ 1)
+
+# Interpolation of functions on flat mesh
 lx = 30
 ly = 10
 dx = dy = 0.5
@@ -729,24 +744,19 @@ x_interior_points = findall(rect[:point]) do p
   dx < p[1] < lx - dx
 end
 
-interior_points = intersect(y_interior_points, x_interior_points)
+interior_points = setdiff(vertices(rect), boundary_inds(Val{0}, rect))
 
 primal_points = d_rect[:point]
 dual_points = d_rect[triangle_center(d_rect), :dual_point]
 
-interp_mat = d1_p1_interpolation(d_rect)
+interp_mat = d0_p0_interpolation(d_rect)
 
 sparsity = dual_derivative(1, d_rect) * dual_derivative(0,d_rect)
 
-@test interp_mat.colptr == sparsity.colptr
-@test interp_mat.rowval == sparsity.rowval
+I,J,_ = findnz(interp_mat)
+@test sparsity == spzeros(I,J)
 
 rmse(vec) = sqrt(sum(vec.^2)/(length(vec)))
-
-# Move DForm0 to PForm2 to DForm2 to PForm0
-# TODO: Is this a valid dual point to primal point interpolation?
-# TODO: This doesn't work well on the boundaries in the direction
-# the function is growing in but on the interior it is exact for linear
 
 # Function growing in y
 primal_form = map(p->2*p[2],primal_points)
@@ -769,13 +779,12 @@ dual_form = map(p->2*p[1]+3*p[2],dual_points)
 diff = primal_form .- interp_mat * dual_form
 @test rmse(diff[interior_points]) < 1e-14
 
-# Quadratic function in x
-# TODO: Doubling the resolution seems to decrease the interior rmse by an order of magnitude
-primal_form = map(p->0.1*(p[1]-lx/2.0)^2,primal_points)
-dual_form = map(p->0.1*(p[1]-lx/2.0)^2,dual_points)
+# Quadratic function in x, shifted up to avoid looking at relative error near 0
+primal_form = map(p->0.1*(p[1]-lx/2.0)^2 + 5,primal_points)
+dual_form = map(p->0.1*(p[1]-lx/2.0)^2 + 5,dual_points)
 
-diff = primal_form .- interp_mat * dual_form
-@test rmse(diff[interior_points]) < 0.005
+diff = (primal_form .- interp_mat * dual_form) ./ primal_form
+@test rmse(diff[interior_points]) < 0.0006
 
 # 3D dual complex
 #################
