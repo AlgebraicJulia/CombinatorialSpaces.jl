@@ -28,7 +28,8 @@ export DualSimplex, DualV, DualE, DualTri, DualTet, DualChain, DualForm,
   dual_point, dual_volume, subdivide_duals!, DiagonalHodge, GeometricHodge,
   subdivide, PPSharp, AltPPSharp, DesbrunSharp, LLSDDSharp, de_sign,
   DPPFlat, PPFlat,
-  ♭♯, ♭♯_mat, flat_sharp, flat_sharp_mat, dualize
+  ♭♯, ♭♯_mat, flat_sharp, flat_sharp_mat, dualize,
+  p2_d2_interpolation
 
 import Base: ndims
 import Base: *
@@ -52,7 +53,8 @@ using DataMigrations: @migrate
 
 using ..ArrayUtils, ..SimplicialSets
 using ..SimplicialSets: CayleyMengerDet, operator_nz, ∂_nz, d_nz,
-  cayley_menger, negate
+  cayley_menger, negate, numeric_sign
+
 import ..SimplicialSets: ∂, d, volume
 
 abstract type DiscreteFlat end
@@ -1450,14 +1452,14 @@ const EmbeddedDeltaSet = Union{EmbeddedDeltaSet1D,EmbeddedDeltaSet2D,EmbeddedDel
 const EmbeddedDeltaDualComplex = Union{EmbeddedDeltaDualComplex1D,EmbeddedDeltaDualComplex2D}
 
 """
-Adds the Real type for lengths in the EmbeddedDeltaSet case, and removes it in the EmbeddedDeltaDualComplex case. 
+Adds the Real type for lengths in the EmbeddedDeltaSet case, and removes it in the EmbeddedDeltaDualComplex case.
 Will need further customization
 if we add another type whose dual has different parameters than its primal.
 """
 dual_param_list(d::HasDeltaSet) = typeof(d).parameters
-dual_param_list(d::EmbeddedDeltaSet) = 
+dual_param_list(d::EmbeddedDeltaSet) =
   begin t = typeof(d) ; [t.parameters[1],eltype(t.parameters[2]),t.parameters[2]] end
-dual_param_list(d::EmbeddedDeltaDualComplex) = 
+dual_param_list(d::EmbeddedDeltaDualComplex) =
   begin t = typeof(d); [t.parameters[1],t.parameters[3]] end
 
 """
@@ -1478,12 +1480,12 @@ end
 Get the dual type of a plain, oriented, or embedded DeltaSet1D or 2D.
 Will always return a `DataType`, i.e. any parameters will be evaluated.
 """
-function dual_type(d::HasDeltaSet) 
+function dual_type(d::HasDeltaSet)
   n = type_dict[rename_to_dual(typeof(d).name.name)]
   ps = dual_param_list(d)
   length(ps) > 0 ? n{ps...} : n
 end
-function dual_type(d::AbstractDeltaDualComplex) 
+function dual_type(d::AbstractDeltaDualComplex)
   n = type_dict[rename_from_dual(typeof(d).name.name)]
   ps = dual_param_list(d)
   length(ps) > 0 ? n{ps...} : n
@@ -1502,8 +1504,8 @@ s = EmbeddedDeltaSet2D{Bool,SVector{2,Float64}}()
 dualize(s)::EmbeddedDeltaDualComplex2D{Bool,Float64,SVector{2,Float64}}
 """
 dualize(d::HasDeltaSet) = dual_type(d)(d)
-function dualize(d::HasDeltaSet,center::SimplexCenter) 
-  dd = dualize(d) 
+function dualize(d::HasDeltaSet,center::SimplexCenter)
+  dd = dualize(d)
   subdivide_duals!(dd,center)
   dd
 end
@@ -1512,7 +1514,7 @@ end
 Get the acset schema, as a Presentation, of a HasDeltaSet.
 XXX: upstream to Catlab.
 """
-fancy_acset_schema(d::HasDeltaSet) = Presentation(acset_schema(d)) 
+fancy_acset_schema(d::HasDeltaSet) = Presentation(acset_schema(d))
 
 """ Hodge star operator from primal ``n``-forms to dual ``N-n``-forms.
 
@@ -1862,6 +1864,30 @@ const flat_sharp = ♭♯
 """ Alias for the flat-sharp dual-to-primal interpolation matrix [`♭♯_mat`](@ref).
 """
 const flat_sharp_mat = ♭♯_mat
+
+
+"""     p2_d2_interpolation(sd::HasDeltaSet2D)
+
+Generates a sparse matrix that converts data on primal 2-forms into data on dual 2-forms.
+"""
+function p2_d2_interpolation(sd::HasDeltaSet2D)
+  mat = spzeros(nv(sd), ntriangles(sd))
+  for tri_id in triangles(sd)
+    tri_area = sd[tri_id, :area]
+    tri_orient = sd[tri_id, :tri_orientation]
+    for dual_tri_id in tri_id:ntriangles(sd):nparts(sd, :DualTri)
+      dual_tri_area = sd[dual_tri_id, :dual_area]
+
+      weight = numeric_sign(tri_orient) * (dual_tri_area / tri_area)
+
+      v = sd[sd[dual_tri_id, :D_∂e1], :D_∂v1]
+
+      mat[v, tri_id] += weight
+    end
+  end
+
+  mat
+end
 
 """ Wedge product of discrete forms.
 
