@@ -114,6 +114,18 @@ f = VForm([0,1,2,1,0])
                           0.0  1.0 -2.0  1.0;
                           0.0  0.0  1.0 -3.0], atol=1e-3)
 
+# A line with linearly-spaced x-coordinates.
+primal_s = path_graph(EmbeddedDeltaSet1D{Bool,Point3D}, 1_000)
+primal_s[:point] = map(x -> Point3D(x,0,0), 0:999)
+s = EmbeddedDeltaDualComplex1D{Bool,Float64,Point3D}(primal_s)
+subdivide_duals!(s, Barycenter())
+f = map(x -> x[1]^2, s[:point]) # 0-Form: x^2
+g = d(0,s) * f                  # 1-Form: 2xdx
+g♯_d = ♯(s, g, PDSharp())       # Dual Vector Field: 2x
+g♯_p = ♯(s, g, PPSharp())       # Primal Vector Field: 2x
+@test g♯_d == 2*s[s[:edge_center], :dual_point]
+@test g♯_p == [Point3D(1,0,0), 2*s[:point][begin+1:end-1]..., Point3D(1997,0,0)]
+
 # A line with x-coordinates arranged 0,1,3,6.
 primal_s = path_graph(EmbeddedDeltaSet1D{Bool,Point3D}, 4)
 primal_s[:point] = [Point3D(0,0,0), Point3D(1,0,0), Point3D(3,0,0), Point3D(6,0,0)]
