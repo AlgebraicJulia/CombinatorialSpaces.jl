@@ -114,10 +114,27 @@ f = VForm([0,1,2,1,0])
                           0.0  1.0 -2.0  1.0;
                           0.0  0.0  1.0 -3.0], atol=1e-3)
 
+# A line with x-coordinates arranged 0,1,3,6.
 primal_s = path_graph(EmbeddedDeltaSet1D{Bool,Point3D}, 4)
 primal_s[:point] = [Point3D(0,0,0), Point3D(1,0,0), Point3D(3,0,0), Point3D(6,0,0)]
 s = EmbeddedDeltaDualComplex1D{Bool,Float64,Point3D}(primal_s)
 subdivide_duals!(s, Barycenter())
+f = map(x -> x[1], s[:point]) # 0-Form: x
+g = d(0,s) * f                # 1-Form: 1dx
+g♯_d = ♯(s, g, PDSharp())     # Dual Vector Field: (1)
+g♯_p = ♯(s, g, PPSharp())     # Primal Vector Field: (1)
+@test g♯_d == [Point3D(1,0,0), Point3D(1,0,0), Point3D(1,0,0)]
+@test g♯_p == [Point3D(1,0,0), Point3D(1,0,0), Point3D(1,0,0), Point3D(1,0,0)]
+
+# A line with x-coordinates arranged 0,1,3,6,
+# and a perturbed dual point.
+primal_s = path_graph(EmbeddedDeltaSet1D{Bool,Point3D}, 4)
+primal_s[:point] = [Point3D(0,0,0), Point3D(1,0,0), Point3D(3,0,0), Point3D(6,0,0)]
+s = EmbeddedDeltaDualComplex1D{Bool,Float64,Point3D}(primal_s)
+subdivide_duals!(s, Barycenter())
+s[6, :dual_point] = Point3D(1.25, 0, 0)
+s[2, :dual_length] = 1.75
+s[5, :dual_length] = 0.25
 f = map(x -> x[1], s[:point]) # 0-Form: x
 g = d(0,s) * f                # 1-Form: 1dx
 g♯_d = ♯(s, g, PDSharp())     # Dual Vector Field: (1)
