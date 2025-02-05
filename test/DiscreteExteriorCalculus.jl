@@ -126,6 +126,13 @@ g♯_p = ♯(s, g, PPSharp())     # Primal Vector Field: (1)
 @test g♯_d == [Point3D(1,0,0), Point3D(1,0,0), Point3D(1,0,0)]
 @test g♯_p == [Point3D(1,0,0), Point3D(1,0,0), Point3D(1,0,0), Point3D(1,0,0)]
 
+f = zeros(nv(s))          # 0-Form: 0
+g = d(0,s) * f            # 1-Form: 0dx
+g♯_d = ♯(s, g, PDSharp()) # Dual Vector Field: (0)
+g♯_p = ♯(s, g, PPSharp()) # Primal Vector Field: (0)
+@test g♯_d == [Point3D(0,0,0), Point3D(0,0,0), Point3D(0,0,0)]
+@test g♯_p == [Point3D(0,0,0), Point3D(0,0,0), Point3D(0,0,0), Point3D(0,0,0)]
+
 # A line with x-coordinates arranged 0,1,3,6,
 # and a perturbed dual point.
 primal_s = path_graph(EmbeddedDeltaSet1D{Bool,Point3D}, 4)

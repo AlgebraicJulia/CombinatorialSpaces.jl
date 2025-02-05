@@ -701,7 +701,7 @@ end
 
 function ♯(s::AbstractDeltaDualComplex1D, X::AbstractVector, ::PDSharp)
   e_vecs = (s[s[:∂v0], :point] .- s[s[:∂v1], :point]) .* sign(1,s,edges(s))
-  e_vecs ./ X
+  e_vecs .* map(x -> x == 0 ? 0.0 : 1/x, X)
 end
 
 function ♯(s::AbstractDeltaDualComplex1D, X::AbstractVector, ::PPSharp)
