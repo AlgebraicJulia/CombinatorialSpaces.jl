@@ -5,6 +5,7 @@ using LinearAlgebra: Diagonal, mul!, norm, dot
 using SparseArrays, StaticArrays
 
 using Catlab.CategoricalAlgebra.CSets
+using Catlab.Graphs
 using ACSets
 using ACSets.DenseACSets: attrtype_type
 using CombinatorialSpaces
@@ -112,6 +113,53 @@ f = VForm([0,1,2,1,0])
                           1.0 -2.0  1.0  0.0;
                           0.0  1.0 -2.0  1.0;
                           0.0  0.0  1.0 -3.0], atol=1e-3)
+
+# A line with linearly-spaced x-coordinates.
+primal_s = path_graph(EmbeddedDeltaSet1D{Bool,Point3D}, 1_000)
+primal_s[:point] = map(x -> Point3D(x,0,0), 0:999)
+s = EmbeddedDeltaDualComplex1D{Bool,Float64,Point3D}(primal_s)
+subdivide_duals!(s, Barycenter())
+f = map(x -> x[1]^2, s[:point]) # 0-Form: x^2
+g = d(0,s) * f                  # 1-Form: 2xdx
+g♯_d = ♯(s, g, PDSharp())       # Dual Vector Field: 2x
+g♯_p = ♯(s, g, PPSharp())       # Primal Vector Field: 2x
+@test g♯_d == 2*s[s[:edge_center], :dual_point]
+@test g♯_p == [Point3D(1,0,0), 2*s[:point][begin+1:end-1]..., Point3D(1997,0,0)]
+
+# A line with x-coordinates arranged 0,1,3,6.
+primal_s = path_graph(EmbeddedDeltaSet1D{Bool,Point3D}, 4)
+primal_s[:point] = [Point3D(0,0,0), Point3D(1,0,0), Point3D(3,0,0), Point3D(6,0,0)]
+s = EmbeddedDeltaDualComplex1D{Bool,Float64,Point3D}(primal_s)
+subdivide_duals!(s, Barycenter())
+f = map(x -> x[1], s[:point]) # 0-Form: x
+g = d(0,s) * f                # 1-Form: 1dx
+g♯_d = ♯(s, g, PDSharp())     # Dual Vector Field: (1)
+g♯_p = ♯(s, g, PPSharp())     # Primal Vector Field: (1)
+@test g♯_d == [Point3D(1,0,0), Point3D(1,0,0), Point3D(1,0,0)]
+@test g♯_p == [Point3D(1,0,0), Point3D(1,0,0), Point3D(1,0,0), Point3D(1,0,0)]
+
+f = zeros(nv(s))          # 0-Form: 0
+g = d(0,s) * f            # 1-Form: 0dx
+g♯_d = ♯(s, g, PDSharp()) # Dual Vector Field: (0)
+g♯_p = ♯(s, g, PPSharp()) # Primal Vector Field: (0)
+@test g♯_d == [Point3D(0,0,0), Point3D(0,0,0), Point3D(0,0,0)]
+@test g♯_p == [Point3D(0,0,0), Point3D(0,0,0), Point3D(0,0,0), Point3D(0,0,0)]
+
+# A line with x-coordinates arranged 0,1,3,6,
+# and a perturbed dual point.
+primal_s = path_graph(EmbeddedDeltaSet1D{Bool,Point3D}, 4)
+primal_s[:point] = [Point3D(0,0,0), Point3D(1,0,0), Point3D(3,0,0), Point3D(6,0,0)]
+s = EmbeddedDeltaDualComplex1D{Bool,Float64,Point3D}(primal_s)
+subdivide_duals!(s, Barycenter())
+s[6, :dual_point] = Point3D(1.25, 0, 0)
+s[2, :dual_length] = 1.75
+s[5, :dual_length] = 0.25
+f = map(x -> x[1], s[:point]) # 0-Form: x
+g = d(0,s) * f                # 1-Form: 1dx
+g♯_d = ♯(s, g, PDSharp())     # Dual Vector Field: (1)
+g♯_p = ♯(s, g, PPSharp())     # Primal Vector Field: (1)
+@test g♯_d == [Point3D(1,0,0), Point3D(1,0,0), Point3D(1,0,0)]
+@test g♯_p == [Point3D(1,0,0), Point3D(1,0,0), Point3D(1,0,0), Point3D(1,0,0)]
 
 # 2D dual complex
 #################

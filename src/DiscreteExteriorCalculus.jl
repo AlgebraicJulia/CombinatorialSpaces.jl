@@ -26,7 +26,7 @@ export DualSimplex, DualV, DualE, DualTri, DualTet, DualChain, DualForm,
   ℒ, lie_derivative, lie_derivative_flat,
   vertex_center, edge_center, triangle_center, tetrahedron_center, dual_tetrahedron_vertices, dual_triangle_vertices, dual_edge_vertices,
   dual_point, dual_volume, subdivide_duals!, DiagonalHodge, GeometricHodge,
-  subdivide, PPSharp, AltPPSharp, DesbrunSharp, LLSDDSharp, de_sign,
+  subdivide, PDSharp, PPSharp, AltPPSharp, DesbrunSharp, LLSDDSharp, de_sign,
   DPPFlat, PPFlat,
   ♭♯, ♭♯_mat, flat_sharp, flat_sharp_mat, dualize,
   p2_d2_interpolation
@@ -34,7 +34,7 @@ export DualSimplex, DualV, DualE, DualTri, DualTet, DualChain, DualForm,
 import Base: ndims
 import Base: *
 import LinearAlgebra: mul!
-using LinearAlgebra: Diagonal, dot, norm, cross, pinv, qr, ColumnNorm
+using LinearAlgebra: Diagonal, dot, norm, cross, pinv, qr, ColumnNorm, normalize
 using SparseArrays
 using StaticArrays: @SVector, SVector, SMatrix, MVector, MMatrix
 using Statistics: mean
@@ -62,6 +62,7 @@ struct DPPFlat <: DiscreteFlat end
 struct PPFlat <: DiscreteFlat end
 
 abstract type DiscreteSharp end
+struct PDSharp <: DiscreteSharp end
 struct PPSharp <: DiscreteSharp end
 struct AltPPSharp <: DiscreteSharp end
 struct DesbrunSharp <: DiscreteSharp end
@@ -696,6 +697,25 @@ function ♭_mat(s::AbstractDeltaDualComplex2D, ::PPFlat)
     ♭_mat[e, vs[2]] = 0.5 * mat_type(e_vec)
   end
   ♭_mat
+end
+
+function ♯(s::AbstractDeltaDualComplex1D, X::AbstractVector, ::PDSharp)
+  e_vecs = (s[s[:∂v0], :point] .- s[s[:∂v1], :point]) .* sign(1,s,edges(s))
+  # Normalize once to undo the line integral.
+  # Normalize again to compute direction of the vector.
+  e_vecs .* X ./ map(x -> iszero(x) ? 1 : x, (norm.(e_vecs).^2))
+end
+
+function ♯(s::AbstractDeltaDualComplex1D, X::AbstractVector, ::PPSharp)
+  dvf = ♯(s, X, PDSharp())
+  map(vertices(s)) do v
+    # The 1 or 2 dual edges around a primal vertex:
+    des = incident(s, s[v, :vertex_center], :D_∂v1) # elementary_duals
+    # The primal edges to which those dual edges belong:
+    es = reduce(vcat, incident(s, s[des, :D_∂v0], :edge_center))
+    weights = reverse!(normalize(s[des, :dual_length], 1))
+    sum(dvf[es] .* weights)
+  end
 end
 
 function ♯(s::AbstractDeltaDualComplex2D, α::AbstractVector, DS::DiscreteSharp)
@@ -1824,7 +1844,7 @@ This the primal-primal sharp from Hirani 2003, Definition 5.8.1 and Remark 2.7.2
 
 See also: [`♭`](@ref) and [`♯_mat`](@ref), which returns a matrix that encodes this operator.
 """
-♯(s::HasDeltaSet, α::EForm) = PrimalVectorField(♯(s, α.data, PPSharp()))
+♯(s::HasDeltaSet2D, α::EForm) = PrimalVectorField(♯(s, α.data, PPSharp()))
 
 """ Sharp operator for converting dual 1-forms to dual vector fields.
 
@@ -1833,29 +1853,29 @@ tangent vector field.
 
 See also: [`♯_mat`](@ref), which returns a matrix that encodes this operator.
 """
-♯(s::HasDeltaSet, α::DualForm{1}) = DualVectorField(♯(s, α.data, LLSDDSharp()))
+♯(s::HasDeltaSet2D, α::DualForm{1}) = DualVectorField(♯(s, α.data, LLSDDSharp()))
 
 """ Alias for the sharp operator [`♯`](@ref).
 """
 const sharp = ♯
 
-"""    ♭♯_mat(s::HasDeltaSet)
+"""    ♭♯_mat(s::HasDeltaSet2D)
 
 Make a dual 1-form primal by chaining ♭ᵈᵖ♯ᵈᵈ.
 
 This returns a matrix which can be multiplied by a dual 1-form.
 See also [`♭♯`](@ref).
 """
-♭♯_mat(s::HasDeltaSet) = only.(♭_mat(s, DPPFlat()) * ♯_mat(s, LLSDDSharp()))
+♭♯_mat(s::HasDeltaSet2D) = only.(♭_mat(s, DPPFlat()) * ♯_mat(s, LLSDDSharp()))
 
-"""    ♭♯(s::HasDeltaSet, α::SimplexForm{1})
+"""    ♭♯(s::HasDeltaSet2D, α::SimplexForm{1})
 
 Make a dual 1-form primal by chaining ♭ᵈᵖ♯ᵈᵈ.
 
 This returns the given dual 1-form as a primal 1-form.
 See also [`♭♯_mat`](@ref).
 """
-♭♯(s::HasDeltaSet, α::SimplexForm{1}) = ♭♯_mat(s) * α
+♭♯(s::HasDeltaSet2D, α::SimplexForm{1}) = ♭♯_mat(s) * α
 
 """ Alias for the flat-sharp dual-to-primal interpolation operator [`♭♯`](@ref).
 """
