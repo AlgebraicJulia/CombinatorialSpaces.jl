@@ -2,6 +2,7 @@ module TestMultigrid
 using Krylov, CombinatorialSpaces, LinearAlgebra, Test
 using GeometryBasics: Point3, Point2
 using Random
+using SparseArrays
 const Point3D = Point3{Float64}
 const Point2D = Point2{Float64}
 
