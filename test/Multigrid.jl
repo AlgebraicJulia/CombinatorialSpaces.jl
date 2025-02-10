@@ -5,6 +5,13 @@ using Random
 const Point3D = Point3{Float64}
 const Point2D = Point2{Float64}
 
+s = triangulated_grid(1,1,1,1,Point3D,false)
+bin_s = binary_subdivision_map(s)
+@test bin_s.matrix[1:nv(s), 1:nv(s)] == I
+for e in 1:ne(s)
+  @test findnz(bin_s.matrix[1:nv(s), nv(s)+e]) == ([s[e, :∂v1], s[e, :∂v0]], [0.5, 0.5])
+end
+
 s = triangulated_grid(1,1,1/4,sqrt(3)/2*1/4,Point3D,false)
 series = PrimalGeometricMapSeries(s, binary_subdivision_map, 4);
 
