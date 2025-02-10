@@ -1017,11 +1017,11 @@ This is not the Hodge star [`⋆`](@ref).
 
 See also [`star`](@ref), [`link`](@ref).
 """
-function closed_star(s::HasDeltaSet, v::Int, Sts::Vector{Simplex}, ::Type{Simplex{n}}) where n
+function closed_star(s::HasDeltaSet, v::Int, Sts::AbstractArray, ::Type{Simplex{n}}) where n
   faces_0nminus1 = map(1:n, Sts, Sts[begin+1:end]) do p, cₚ, cₚ₊₁
     Simplex{p-1}(union(cₚ, [∂(p,i,s,cₚ₊₁) for i in 0:p]...))
   end
-  push!(faces_0nminus1, last(Sts))
+  [faces_0nminus1..., last(Sts)]
 end
 
 """ Alias for the closed star operator [`closed_star`](@ref), not the Hodge star.

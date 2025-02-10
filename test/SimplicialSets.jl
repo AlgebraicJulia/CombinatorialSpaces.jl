@@ -547,13 +547,33 @@ glue_sorted_tetrahedron!(s, 6,7, 5,1)
 # bfg=[267], efg=[567]
 @test link(s,1)[3] == [1, 11]
 
-# "The link of the vertex f is the cone: abcdea * g
+# "The link of the vertex f is the cone: abcdea * g."
 Lkf = link(s,6)
 es = union(∂(0, s, Tri(Lkf[3])), ∂(1, s, Tri(Lkf[3])), ∂(2, s, Tri(Lkf[3])))
 vs = union(∂(0, s, E(es)), ∂(1, s, E(es)))
 @test Set(es) == Set(Lkf[2])
 @test Set(vs) == Set(Lkf[1])
 @test Set(Lkf[1]) == Set([1,2,3,4,5,7])
+
+# 1D simplicial set tests, which are not given in Munkres:
+VE(vs, es) = [V(vs), es == :∅ ? E[] : E(es)]
+s = path_graph(DeltaSet1D, 8)
+@test St(s, 1) == VE([1],     [1])
+@test St̄(s, 1) == VE([1,2],   [1])
+@test Lk(s, 1) == VE([2],     :∅)
+# Observe that the neighborhood around 2 is not isomorphic to that around 1.
+@test St(s, 2) == VE([2],     [1,2])
+@test St̄(s, 2) == VE([2,3,1], [1,2])
+@test Lk(s, 2) == VE([3,1],   :∅)
+
+s = cycle_graph(DeltaSet1D, 8)
+@test St(s, 1) == VE([1],     [8,1])
+@test St̄(s, 1) == VE([1,2,8], [8,1])
+@test Lk(s, 1) == VE([2,8],   :∅)
+# Observe that the neighborhood around 2 is isomorphic to that around 1.
+@test St(s, 2) == VE([2],     [1,2])
+@test St̄(s, 2) == VE([2,3,1], [1,2])
+@test Lk(s, 2) == VE([3,1],   :∅)
 
 # Test boundary indices accessors.
 ##################################
