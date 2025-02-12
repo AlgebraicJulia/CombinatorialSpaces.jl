@@ -51,14 +51,32 @@ end
 
 function binary_subdivision_map(s)
   sd = binary_subdivision(s)
-  mat = spzeros(nv(s),nv(sd))
-  for i in 1:nv(s) mat[i,i] = 1. end
+
+  nentries = nv(s) + 2*ne(s)
+
+  I = zeros(Int32, nentries)
+  J = zeros(Int32, nentries)
+  V = ones(nentries)
+
+  # Map old point back to same point
+  for i in 1:nv(s) I[i]=J[i]=i; end
+
+  # Map edge points to midpoint by average
   for i in 1:ne(s)
-    x, y = s[:∂v0][i], s[:∂v1][i]
-    mat[x,i+nv(s)] = 1/2
-    mat[y,i+nv(s)] = 1/2
+    arr_i = nv(s) + 2i - 1
+    shift_i = nv(s) + i
+
+    I[arr_i] = s[i, :∂v0]
+    I[arr_i+1] = s[i, :∂v1]
+
+    J[arr_i] = shift_i
+    J[arr_i+1] = shift_i
+
+    V[arr_i] = 1/2
+    V[arr_i+1] = 1/2
   end
-  PrimalGeometricMap(sd,s,mat)
+
+  PrimalGeometricMap(sd,s,sparse(I,J,V))
 end
 
 function repeated_subdivisions(k,ss,subdivider)
@@ -171,8 +189,8 @@ decrement_cycles(md::MultigridData) = MultigridData(md.operators,md.restrictions
 # - This could use Galerkin conditions to construct As from As[1]
 # - Add maxcycles and tolerances
 """
-Solve `Ax=b` on `s` with initial guess `u` using , for `cycles` V-cycles, performing `steps` steps of the 
-conjugate gradient method on each mesh and going through 
+Solve `Ax=b` on `s` with initial guess `u` using , for `cycles` V-cycles, performing `steps` steps of the
+conjugate gradient method on each mesh and going through
 `cycles` total V-cycles. Everything is just matrices and vectors
 at this point.
 
