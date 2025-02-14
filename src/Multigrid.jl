@@ -28,26 +28,26 @@ Subdivide each triangle into 4 via "binary" a.k.a. "medial" subdivision, returni
 
 Binary subdivision results in triangles that resemble the "tri-force" symbol from Legend of Zelda.
 """
-# function binary_subdivision(s)
-#   is_simplicial_complex(s) || error("Subdivision is supported only for simplicial complexes.")
-#   sd = typeof(s)()
-#   add_vertices!(sd,nv(s))
-#   add_vertices!(sd,ne(s))
-#   sd[:point] = [s[:point];
-#                 (subpart(s,(:∂v0,:point)).+subpart(s,(:∂v1,:point)))/2]
-#   succ3(i) = (i+1)%3 == 0 ? 3 : (i+1)%3
-#   for t in triangles(s)
-#     es = triangle_edges(s,t)
-#     glue_sorted_triangle!(sd,(es.+nv(s))...)
-#     for i in 1:3
-#       glue_sorted_triangle!(sd,
-#         triangle_vertices(s,t)[i],
-#         triangle_edges(s,t)[succ3(i)]+nv(s),
-#         triangle_edges(s,t)[succ3(i+1)]+nv(s))
-#     end
-#   end
-#   sd
-# end
+function binary_subdivision(s)
+  is_simplicial_complex(s) || error("Subdivision is supported only for simplicial complexes.")
+  sd = typeof(s)()
+  add_vertices!(sd,nv(s))
+  add_vertices!(sd,ne(s))
+  sd[:point] = [s[:point];
+                (subpart(s,(:∂v0,:point)).+subpart(s,(:∂v1,:point)))/2]
+  succ3(i) = (i+1)%3 == 0 ? 3 : (i+1)%3
+  for t in triangles(s)
+    es = triangle_edges(s,t)
+    glue_sorted_triangle!(sd,(es.+nv(s))...)
+    for i in 1:3
+      glue_sorted_triangle!(sd,
+        triangle_vertices(s,t)[i],
+        triangle_edges(s,t)[succ3(i)]+nv(s),
+        triangle_edges(s,t)[succ3(i+1)]+nv(s))
+    end
+  end
+  sd
+end
 
 # function display_mesh(s)
 #   fig = Figure()
@@ -62,19 +62,64 @@ function binary_subdivision(s::EmbeddedDeltaSet2D)
   sd[1:nv(s), :point] = s[:point]
   sd[(nv(s)+1:nv(s)+ne(s)), :point] = (s[[:∂v0,:point]] .+ s[[:∂v1,:point]])./2
 
+  add_parts!(sd, :E, 2*ne(s)+3*ntriangles(s))
+  # In order of edge index, add from v0 to mid, then v1 to mid
+  for e in edges(s)
+    shift_idx = 2*e-1
+
+    sd[shift_idx, :∂v0] = e+nv(s)
+    sd[shift_idx, :∂v1] = s[e, :∂v0]
+
+    sd[shift_idx+1, :∂v0] = e+nv(s)
+    sd[shift_idx+1, :∂v1] = s[e, :∂v1]
+  end
+
+  # In order of triangle index, e0-mid to e1-mid then cycle
+  for t in triangles(s)
+    shift_idx = 3*t-2 + 2*ne(s)
+
+    mids = triangle_edges(s,t) .+ nv(s) # Midpoints
+
+    sd[shift_idx, :∂v0] = mids[2]
+    sd[shift_idx, :∂v1] = mids[1]
+
+    sd[shift_idx+1, :∂v0] = mids[3]
+    sd[shift_idx+1, :∂v1] = mids[2]
+
+    sd[shift_idx+2, :∂v0] = mids[3]
+    sd[shift_idx+2, :∂v1] = mids[1]
+  end
+
+  # Since we add interior mid-to-mid edges by triangle index, we know their exact order
+  # Can look at triangle edges to get split edges
   add_parts!(sd, :Tri, 4*ntriangles(s))
   for t in triangles(s)
     shift_idx = 4t-3
-    es = triangle_edges(s,t) .+ nv(s)
-    vs = triangle_vertices(s,t)
+    es = triangle_edges(s,t)
+    # vs = triangle_vertices(s,t)
 
-    t1 = glue_sorted_triangle!(sd, shift_idx+1, vs[1], es[2], es[3])
-    t2 = glue_sorted_triangle!(sd, shift_idx+2, vs[2], es[3], es[1])
-    t3 = glue_sorted_triangle!(sd, shift_idx+3, vs[3], es[1], es[2])
+    split_idx = 2 .* es .- 1
+    mid_idx = 3*t-2 + 2*ne(s)
 
-    sd[shift_idx, :∂e0] = sd[t1, :∂e0]
-    sd[shift_idx, :∂e1] = sd[t2, :∂e0]
-    sd[shift_idx, :∂e2] = sd[t3, :∂e0]
+    # Center triangle
+    sd[shift_idx, :∂e0] = mid_idx + 1
+    sd[shift_idx, :∂e1] = mid_idx + 2
+    sd[shift_idx, :∂e2] = mid_idx
+
+    # TODO: This needs a check for the split_idx
+    # Peripheral triangles
+
+    sd[shift_idx+1, :∂e0] = mid_idx + 1
+    sd[shift_idx+1, :∂e1] = split_idx[3]+1
+    sd[shift_idx+1, :∂e2] = split_idx[2]+1
+
+    sd[shift_idx+2, :∂e0] = mid_idx + 2
+    sd[shift_idx+2, :∂e1] = split_idx[1]+1
+    sd[shift_idx+2, :∂e2] = split_idx[3]
+
+    sd[shift_idx+3, :∂e0] = mid_idx
+    sd[shift_idx+3, :∂e1] = split_idx[2]
+    sd[shift_idx+3, :∂e2] = split_idx[1]
   end
   sd
 end
