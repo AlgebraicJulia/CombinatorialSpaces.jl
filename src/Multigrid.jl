@@ -49,26 +49,32 @@ Binary subdivision results in triangles that resemble the "tri-force" symbol fro
 #   sd
 # end
 
+# function display_mesh(s)
+#   fig = Figure()
+#   ax = CairoMakie.Axis(fig[1,1], aspect=1)
+#   msh = CairoMakie.wireframe!(ax, s)
+#   fig
+# end
+
 function binary_subdivision(s::EmbeddedDeltaSet2D)
   sd = typeof(s)()
   add_vertices!(sd,nv(s)+ne(s))
   sd[1:nv(s), :point] = s[:point]
   sd[(nv(s)+1:nv(s)+ne(s)), :point] = (s[[:∂v0,:point]] .+ s[[:∂v1,:point]])./2
 
-  succ3(i::Int) = (i+1)%3 == 0 ? 3 : (i+1)%3
-
   add_parts!(sd, :Tri, 4*ntriangles(s))
   for t in triangles(s)
     shift_idx = 4t-3
-    es = triangle_edges(s,t)
+    es = triangle_edges(s,t) .+ nv(s)
     vs = triangle_vertices(s,t)
-    for i in 1:3
-      glue_sorted_triangle!(sd,shift_idx+i,
-      vs[i],
-      es[succ3(i)]+nv(s),
-      es[succ3(i+1)]+nv(s))
-    end
-    glue_sorted_triangle!(sd,shift_idx,(es.+nv(s))...)
+
+    t1 = glue_sorted_triangle!(sd, shift_idx+1, vs[1], es[2], es[3])
+    t2 = glue_sorted_triangle!(sd, shift_idx+2, vs[2], es[3], es[1])
+    t3 = glue_sorted_triangle!(sd, shift_idx+3, vs[3], es[1], es[2])
+
+    sd[shift_idx, :∂e0] = sd[t1, :∂e0]
+    sd[shift_idx, :∂e1] = sd[t2, :∂e0]
+    sd[shift_idx, :∂e2] = sd[t3, :∂e0]
   end
   sd
 end
