@@ -35,7 +35,7 @@ export Simplex, V, E, Tri, Tet, SimplexChain, VChain, EChain, TriChain, TetChain
   tetrahedron_triangles, tetrahedron_edges, tetrahedron_vertices, ntetrahedra,
   tetrahedra, add_tetrahedron!, glue_tetrahedron!, glue_sorted_tetrahedron!,
   glue_sorted_tet_cube!, is_manifold_like, nonboundaries,
-  star, St, closed_star, St̄, link, Lk, simplex_vertices, dimension, 
+  star, St, closed_star, St̄, link, Lk, simplex_vertices, dimension,
   DeltaSet, OrientedDeltaSet, EmbeddedDeltaSet,
   boundary_inds
 
@@ -363,6 +363,19 @@ function glue_sorted_triangle!(s::HasDeltaSet2D, v₀::Int, v₁::Int, v₂::Int
   glue_triangle!(s, v₀, v₁, v₂; kw...)
 end
 
+function glue_triangle!(s::HasDeltaSet2D, t::Int, v₀::Int, v₁::Int, v₂::Int; kw...)
+  e1, e2, e3 = get_edge!(s, v₀, v₁), get_edge!(s, v₁, v₂), get_edge!(s, v₀, v₂)
+  s[t, :∂e0] = e2
+  s[t, :∂e1] = e3
+  s[t, :∂e2] = e1
+  t
+end
+
+function glue_sorted_triangle!(s::HasDeltaSet2D, t::Int, v₀::Int, v₁::Int, v₂::Int; kw...)
+  v₀, v₁, v₂ = sort(SVector(v₀, v₁, v₂))
+  glue_triangle!(s, t, v₀, v₁, v₂; kw...)
+end
+
 # 2D oriented simplicial sets
 #----------------------------
 
@@ -659,7 +672,7 @@ end
 
 """ Wrapper for simplex chain of dimension `n`.
 
-Example: EChain([2,-1,1]) represents the chain 2a-b+c in the 
+Example: EChain([2,-1,1]) represents the chain 2a-b+c in the
 simplicial set with edges a,b,c.
 """
 @vector_struct SimplexChain{n}
@@ -921,8 +934,8 @@ sqdistance(x, y) = sum((x-y).^2)
 
 """ Test whether a given simplicial complex is manifold-like.
 
-According to Hirani, "all simplices of dimension ``k`` with ``0 ≤ k ≤ n - 1`` 
-must be the face of some simplex of dimension ``n`` in the complex." This 
+According to Hirani, "all simplices of dimension ``k`` with ``0 ≤ k ≤ n - 1``
+must be the face of some simplex of dimension ``n`` in the complex." This
 function does not test that simplices do not overlap. Nor does it test that e.g.
 two triangles that share 2 vertices share an edge. Nor does it test that e.g.
 there is at most one triangle that connects 3 vertices. Nor does it test that
