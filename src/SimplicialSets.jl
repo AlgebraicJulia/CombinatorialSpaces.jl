@@ -363,19 +363,6 @@ function glue_sorted_triangle!(s::HasDeltaSet2D, v₀::Int, v₁::Int, v₂::Int
   glue_triangle!(s, v₀, v₁, v₂; kw...)
 end
 
-function glue_triangle!(s::HasDeltaSet2D, t::Int, v₀::Int, v₁::Int, v₂::Int; kw...)
-  e1, e2, e3 = get_edge!(s, v₀, v₁), get_edge!(s, v₁, v₂), get_edge!(s, v₀, v₂)
-  s[t, :∂e0] = e2
-  s[t, :∂e1] = e3
-  s[t, :∂e2] = e1
-  t
-end
-
-function glue_sorted_triangle!(s::HasDeltaSet2D, t::Int, v₀::Int, v₁::Int, v₂::Int; kw...)
-  v₀, v₁, v₂ = sort(SVector(v₀, v₁, v₂))
-  glue_triangle!(s, t, v₀, v₁, v₂; kw...)
-end
-
 # 2D oriented simplicial sets
 #----------------------------
 

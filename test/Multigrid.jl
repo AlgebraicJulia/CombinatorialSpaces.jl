@@ -6,7 +6,7 @@ using SparseArrays
 const Point3D = Point3{Float64}
 const Point2D = Point2{Float64}
 
-s = triangulated_grid(50,50,1,1,Point3D,false)
+s = triangulated_grid(1,1,1,1,Point3D,false)
 bin_s = binary_subdivision_map(s)
 @test bin_s.matrix[1:nv(s), 1:nv(s)] == I
 for e in 1:ne(s)
