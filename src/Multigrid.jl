@@ -63,6 +63,7 @@ function binary_subdivision(s::EmbeddedDeltaSet2D)
   sd[(nv(s)+1:nv(s)+ne(s)), :point] = (s[[:∂v0,:point]] .+ s[[:∂v1,:point]])./2
 
   add_parts!(sd, :E, 2*ne(s)+3*ntriangles(s))
+
   # In order of edge index, add from v0 to m, then v1 to m
   for e in edges(s)
     shift_idx = 2*e-1
@@ -96,7 +97,6 @@ function binary_subdivision(s::EmbeddedDeltaSet2D)
   for t in triangles(s)
     shift_idx = 4t-3
     es = triangle_edges(s,t)
-    # vs = triangle_vertices(s,t)
 
     # v2 - m0 - v1, v2 - m1 - v0, v1 - m2 - v0
     split_idx = 2 .* es .- 1
@@ -109,9 +109,7 @@ function binary_subdivision(s::EmbeddedDeltaSet2D)
     sd[shift_idx, :∂e1] = mid_idx + 2
     sd[shift_idx, :∂e2] = mid_idx
 
-    # TODO: This needs a check for the split_idx, where do I add the plus 1?
     # Peripheral triangles
-
     sd[shift_idx+1, :∂e0] = mid_idx + 1
     sd[shift_idx+1, :∂e1] = split_idx[3]+1
     sd[shift_idx+1, :∂e2] = split_idx[2]+1
