@@ -63,7 +63,7 @@ function binary_subdivision(s::EmbeddedDeltaSet2D)
   sd[(nv(s)+1:nv(s)+ne(s)), :point] = (s[[:∂v0,:point]] .+ s[[:∂v1,:point]])./2
 
   add_parts!(sd, :E, 2*ne(s)+3*ntriangles(s))
-  # In order of edge index, add from v0 to mid, then v1 to mid
+  # In order of edge index, add from v0 to m, then v1 to m
   for e in edges(s)
     shift_idx = 2*e-1
 
@@ -74,7 +74,7 @@ function binary_subdivision(s::EmbeddedDeltaSet2D)
     sd[shift_idx+1, :∂v1] = s[e, :∂v1]
   end
 
-  # In order of triangle index, e0-mid to e1-mid then cycle
+  # In order of triangle index, m0 to m1 then cycle
   for t in triangles(s)
     shift_idx = 3*t-2 + 2*ne(s)
 
@@ -98,7 +98,10 @@ function binary_subdivision(s::EmbeddedDeltaSet2D)
     es = triangle_edges(s,t)
     # vs = triangle_vertices(s,t)
 
+    # v2 - m0 - v1, v2 - m1 - v0, v1 - m2 - v0
     split_idx = 2 .* es .- 1
+
+    # m0 - m1, m1 - m2, m0 - m2
     mid_idx = 3*t-2 + 2*ne(s)
 
     # Center triangle
@@ -106,7 +109,7 @@ function binary_subdivision(s::EmbeddedDeltaSet2D)
     sd[shift_idx, :∂e1] = mid_idx + 2
     sd[shift_idx, :∂e2] = mid_idx
 
-    # TODO: This needs a check for the split_idx
+    # TODO: This needs a check for the split_idx, where do I add the plus 1?
     # Peripheral triangles
 
     sd[shift_idx+1, :∂e0] = mid_idx + 1
