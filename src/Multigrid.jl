@@ -91,6 +91,11 @@ function binary_subdivision(s::EmbeddedDeltaSet2D)
     sd[shift_idx+2, :∂v1] = mids[1]
   end
 
+  #       v2
+  #      /  \
+  #    m1 -- m0
+  #   /  \  /  \
+  # v0 -- m2 -- v1
   # Since we add interior mid-to-mid edges by triangle index, we know their exact order
   # Can look at triangle edges to get split edges
   add_parts!(sd, :Tri, 4*ntriangles(s))
