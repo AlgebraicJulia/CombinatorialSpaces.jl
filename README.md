@@ -21,7 +21,7 @@ shipped with Catlab in the module
 
 Current features include:
 
-- delta sets (semi-simplicial sets) in dimensions one and two, optionally
+- delta sets (semi-simplicial sets) in dimensions one, two, and three, optionally
   oriented and/or embedded in Euclidean space
 - construction of the dual complex associated with a delta set, via
   combinatorial and geometric subdivision
