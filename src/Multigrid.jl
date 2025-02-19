@@ -4,7 +4,7 @@ using GeometryBasics:Point3, Point2
 using Krylov, Catlab, SparseArrays, StaticArrays
 using ..SimplicialSets
 import Catlab: dom,codom
-export multigrid_vcycles, multigrid_wcycles, full_multigrid, repeated_subdivisions, binary_subdivision_map, dom, codom, as_matrix, MultigridData, AbstractGeometricMapSeries, PrimalGeometricMapSeries, finest_mesh, meshes, matrices
+export multigrid_vcycles, multigrid_wcycles, full_multigrid, repeated_subdivisions, binary_subdivision, binary_subdivision_map, dom, codom, as_matrix, MultigridData, AbstractGeometricMapSeries, PrimalGeometricMapSeries, finest_mesh, meshes, matrices
 const Point3D = Point3{Float64}
 const Point2D = Point2{Float64}
 
