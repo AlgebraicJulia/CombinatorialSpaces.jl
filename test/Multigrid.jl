@@ -5,6 +5,7 @@ using Random
 using SparseArrays
 const Point3D = Point3{Float64}
 const Point2D = Point2{Float64}
+import CombinatorialSpaces.Meshes: tri_345
 
 s = triangulated_grid(1,1,1,1,Point3D,false)
 bin_s = binary_subdivision_map(s)
@@ -12,6 +13,22 @@ bin_s = binary_subdivision_map(s)
 for e in 1:ne(s)
   @test findnz(bin_s.matrix[1:nv(s), nv(s)+e]) == ([s[e, :∂v1], s[e, :∂v0]], [0.5, 0.5])
 end
+
+function test_binsubdiv!(t, s)
+  @test nv(t) == nv(s) + ne(s)
+  @test ne(t) == 2*ne(s) + 3*ntriangles(s)
+  @test ntriangles(t) == 4*ntriangles(s)
+  @test orient!(t)
+end
+
+s, = tri_345();
+t = binary_subdivision(s);
+u = binary_subdivision(t);
+v = binary_subdivision(u);
+
+test_binsubdiv!(t, s)
+test_binsubdiv!(u, t)
+test_binsubdiv!(v, u)
 
 s = triangulated_grid(1,1,1/4,sqrt(3)/2*1/4,Point3D,false)
 series = PrimalGeometricMapSeries(s, binary_subdivision_map, 4);
