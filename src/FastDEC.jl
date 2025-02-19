@@ -186,7 +186,7 @@ end
 
 # Return a matrix that can be multiplied to a dual 0-form, before being
 # elementwise-multiplied by a dual 1-form, encoding the wedge product.
-function wedge_dd_01_mat(sd::HasDeltaSet)
+function wedge_dd_01_mat(sd::HasDeltaSet2D)
   m = spzeros(ne(sd), ntriangles(sd))
   for e in edges(sd)
     des = elementary_duals(1,sd,e)
@@ -195,6 +195,24 @@ function wedge_dd_01_mat(sd::HasDeltaSet)
     ws = sd[des, :dual_length] ./ sum(sd[des, :dual_length])
     for (w,t) in zip(ws,tris)
       m[e,t] = w
+    end
+  end
+  m
+end
+
+# TODO: Instead of copying-and-pasting,
+# use higher-level helper functions/ arithmetic with degree of complex.
+# Return a matrix that can be multiplied to a dual 0-form, before being
+# elementwise-multiplied by a dual 1-form, encoding the wedge product.
+function wedge_dd_01_mat(sd::HasDeltaSet3D)
+  m = spzeros(ntriangles(sd), ntetrahedra(sd))
+  for tri in triangles(sd)
+    des = elementary_duals(2,sd,tri)
+    dvs = sd[des, :D_∂v0]
+    tets = only.(incident(sd, dvs, :tet_center))
+    ws = sd[des, :dual_length] ./ sum(sd[des, :dual_length])
+    for (w,tet) in zip(ws,tets)
+      m[tri,tet] = w
     end
   end
   m

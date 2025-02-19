@@ -5,7 +5,7 @@ using Catlab, Catlab.CategoricalAlgebra
 using CombinatorialSpaces, CombinatorialSpaces.SimplicialSets
 using FileIO
 using JSON
-using GeometryBasics: Point2, Point3
+using GeometryBasics: MetaMesh, Point, Point2, Point3, QuadFace
 using LinearAlgebra: diagm
 
 export loadmesh, Icosphere, Rectangle_30x10, Torus_30x10, Point_Map, triangulated_grid, makeSphere
@@ -379,6 +379,28 @@ function single_tetrahedron()
   s = EmbeddedDeltaDualComplex3D{Bool, Float64, Point3D}(primal_s)
   subdivide_duals!(s, Barycenter())
   (primal_s, s)
+end
+
+"""    function tetgen_readme_mesh()
+
+Create mesh from the TetGen.jl/README.md. https://github.com/JuliaGeometry/TetGen.jl/blob/ea73adce3ea4dfa6062eb84b1eff05f3fcab60a5/README.md
+
+This function returns a GeometryBasics.MetaMesh, which can then be passed to `tetrahedralize` from TetGen.jl. This in turn can be passed to `EmbeddedDeltaSet3D`.
+"""
+function tetgen_readme_mesh()
+  points = Point{3, Float64}[
+    (0.0, 0.0, 0.0), (2.0, 0.0, 0.0),
+    (2.0, 2.0, 0.0), (0.0, 2.0, 0.0),
+    (0.0, 0.0, 12.0), (2.0, 0.0, 12.0),
+    (2.0, 2.0, 12.0), (0.0, 2.0, 12.0)]
+  facets = QuadFace{Cint}[
+    1:4, 5:8,
+    [1,5,6,2],
+    [2,6,7,3],
+    [3, 7, 8, 4],
+    [4, 8, 5, 1]]
+  markers = Cint[-1, -2, 0, 0, 0, 0]
+  MetaMesh(points, facets; markers)
 end
 
 end

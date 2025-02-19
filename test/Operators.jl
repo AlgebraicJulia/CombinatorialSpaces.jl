@@ -5,10 +5,12 @@ using SparseArrays
 using LinearAlgebra
 using Catlab
 using CombinatorialSpaces
-using CombinatorialSpaces.Meshes: tri_345, tri_345_false, grid_345, right_scalene_unit_hypot
+using CombinatorialSpaces.Meshes: tri_345, tri_345_false, grid_345, right_scalene_unit_hypot, tetgen_readme_mesh
 using CombinatorialSpaces.SimplicialSets: boundary_inds
 using CombinatorialSpaces.DiscreteExteriorCalculus: eval_constant_primal_form
 using Random
+using Distributions
+using TetGen
 using GeometryBasics: Point2, Point3
 using StaticArrays: SVector
 using Statistics: mean, var
@@ -424,5 +426,70 @@ end
     x*x
   end)[interior_tris])
 end
+
+# 3D Operations
+#--------------
+msh = tetgen_readme_mesh();
+tet_msh = tetrahedralize(msh, "Qvpq1.414a0.1");
+s = EmbeddedDeltaSet3D(tet_msh);
+sd = EmbeddedDeltaDualComplex3D{Bool, Float64, Point3D}(s);
+subdivide_duals!(sd, Barycenter());
+
+dd0 = dual_derivative(0,sd)
+wdd = dec_wedge_product_dd(Tuple{0,1}, sd)
+is2 = inv_hodge_star(Val{2}, sd, DiagonalHodge()) # From Dual 1-forms to Primal 2-forms.
+d2 = d(2,sd)
+s3 = ⋆(Val{3}, sd, DiagonalHodge())
+# TODO: Upstream sign currying.
+s3.diag .*= sign(3,sd)
+is3 = inv_hodge_star(Val{3}, sd, DiagonalHodge()) # From Dual 0-forms to Primal 3-forms.
+is3.diag .*= sign(3,sd)
+
+dual_div = s3 * d2 * is2
+
+μ = Point3D(1,1,6)
+nrml = MvNormal(μ, I(3))
+# This is a dual 0-form. It has units of (signed) mass density [M L^⁻³].
+# Taking the inverse hodge star would multiply by the sign of the tetrahedron, and multiply by the volume,
+# which would give a Primal 3-form of the mass stored in each tetrahedron.
+C = map(sign(3,sd), sd[sd[:tet_center], :dual_point]) do sgn,p
+  norm(p - μ) ≤ 1.0 ? sgn * 15.8 * pdf(nrml,p) : 0.0
+end
+
+# This is a dual 1-form, which encodes a constant gradient pointing "up".
+dZ = dd0 * (sign(3,sd) .* map(x -> x[3], sd[sd[:tet_center], :dual_point]))
+
+# Demonstrate advection in 3D using the midpoint method.
+function advection_3D_timestep!(dtC, C, dZ, k, dual_div, wdd)
+  dtC .= dual_div * (k * wdd(C, dZ))
+end
+
+function midpoint_method!(C, dZ, k, dual_div, wdd)
+  dt = 1e-5
+  dtC = zeros(length(C))
+  dC = zeros(length(C))
+  for _ in 1:1e5
+    advection_3D_timestep!(dC, C, dZ, k, dual_div, wdd)
+    advection_3D_timestep!(dtC, C .+ (dt/2 * dC), dZ, k, dual_div, wdd)
+    C .+= dt * dtC
+  end
+  C
+end
+
+k = 1
+C_midpt = midpoint_method!(copy(C), dZ, k, dual_div, wdd)
+
+# In 1 second, the center of mass move should move by approximately k.
+function center_of_mass(D)
+  mass = is3 * D
+  sum(mass .* (sd[sd[:tet_center], :dual_point])) / sum(mass)
+end
+displacement(C,D) = center_of_mass(D) - center_of_mass(C)
+abs_error(C,D,k) = norm(displacement(C,D) - SVector{3,Float64}(0,0,k))
+rel_error(C,D,k) = abs_error(C,D,k) / norm(k)
+
+displacement(C,C_midpt)
+abs_error(C,C_midpt,k)
+rel_error(C,C_midpt,k)
 
 end
