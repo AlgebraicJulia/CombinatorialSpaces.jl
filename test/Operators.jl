@@ -439,6 +439,7 @@ dd0 = dual_derivative(0,sd)
 wdd = dec_wedge_product_dd(Tuple{0,1}, sd)
 is2 = inv_hodge_star(Val{2}, sd, DiagonalHodge()) # From Dual 1-forms to Primal 2-forms.
 d2 = d(2,sd)
+wpd = dec_wedge_product_pd(Tuple{2,1}, sd)
 s3 = ⋆(Val{3}, sd, DiagonalHodge())
 # TODO: Upstream sign currying.
 s3.diag .*= sign(3,sd)
@@ -453,7 +454,7 @@ nrml = MvNormal(μ, I(3))
 # Taking the inverse hodge star would multiply by the sign of the tetrahedron, and multiply by the volume,
 # which would give a Primal 3-form of the mass stored in each tetrahedron.
 C = map(sign(3,sd), sd[sd[:tet_center], :dual_point]) do sgn,p
-  norm(p - μ) ≤ 1.0 ? sgn * 15.8 * pdf(nrml,p) : 0.0
+  norm(p - μ) ≤ 3.0 ? sgn * 15.8 * pdf(nrml,p) : 0.0
 end
 
 # This is a dual 1-form, which encodes a constant gradient pointing "up".
@@ -464,7 +465,7 @@ function advection_3D_timestep!(dtC, C, dZ, k, dual_div, wdd)
   dtC .= dual_div * (k * wdd(C, dZ))
 end
 
-function midpoint_method!(C, dZ, k, dual_div, wdd)
+function midpoint_method_advection!(C, dZ, k, dual_div, wdd)
   dt = 1e-5
   dtC = zeros(length(C))
   dC = zeros(length(C))
@@ -477,7 +478,7 @@ function midpoint_method!(C, dZ, k, dual_div, wdd)
 end
 
 k = 1
-C_midpt = midpoint_method!(copy(C), dZ, k, dual_div, wdd)
+C_adv = midpoint_method_advection!(copy(C), dZ, k, dual_div, wdd)
 
 # In 1 second, the center of mass move should move by approximately k.
 function center_of_mass(D)
@@ -488,8 +489,36 @@ displacement(C,D) = center_of_mass(D) - center_of_mass(C)
 abs_error(C,D,k) = norm(displacement(C,D) - SVector{3,Float64}(0,0,k))
 rel_error(C,D,k) = abs_error(C,D,k) / norm(k)
 
-displacement(C,C_midpt)
-abs_error(C,C_midpt,k)
-rel_error(C,C_midpt,k)
+displacement(C,C_adv)
+abs_error(C,C_adv,k)
+rel_error(C,C_adv,k)
+
+# TODO: Upstream the rest of this Lie derivative.
+# -1^(k(n-k)) star(star(a) wedge X)
+# where a = d(C) = Dual 1-Form, n=3, and k=1.
+# s3(is2(a) wedge_primal2_dual1 X)
+function lie_3D_timestep!(dtC, C, dZ, k, s3, wpd, is2, dd0)
+  dtC .= k * s3 * wpd(is2 * dd0 * C, dZ)
+end
+
+function midpoint_method_lie!(C, dZ, k, s3, wpd, is2, dd0)
+  dt = 1e-5
+  dtC = zeros(length(C))
+  dC = zeros(length(C))
+  for _ in 1:1e5
+    lie_3D_timestep!(dtC, C, dZ, k, s3, wpd, is2, dd0)
+    lie_3D_timestep!(dtC, C .+ (dt/2 * dC), dZ, k, s3, wpd, is2, dd0)
+    C .+= dt * dtC
+  end
+  C
+end
+
+k = 1e-3
+C_lie = midpoint_method_lie!(copy(C), dZ, k, s3, wpd, is2, dd0)
+
+displacement(C,C_lie)
+abs_error(C,C_lie,k)
+rel_error(C,C_lie,k)
 
 end
+

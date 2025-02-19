@@ -17,7 +17,7 @@ using ..Multigrid: AbstractGeometricMapSeries, MultigridData, full_multigrid
 using ACSets
 using Base.Iterators
 using KernelAbstractions
-using LinearAlgebra: cross, dot, Diagonal, factorize, norm
+using LinearAlgebra: cross, dot, Diagonal, factorize, norm, normalize!
 using SparseArrays: sparse, spzeros, SparseMatrixCSC
 using StaticArrays: SVector, MVector
 using Krylov: cg
@@ -30,7 +30,7 @@ export dec_wedge_product, cache_wedge, dec_c_wedge_product, dec_c_wedge_product!
   dec_hodge_star, dec_inv_hodge_star,
   dec_wedge_product_pd, dec_wedge_product_dp, ∧,
   interior_product_dd, ℒ_dd,
-  dec_wedge_product_dd,
+  dec_wedge_product_dd, whitney_mat,
   Δᵈ, dec_Δ⁻¹,
   avg₀₁, avg_01, avg₀₁_mat, avg_01_mat,
   d0_p0_interpolation
@@ -327,6 +327,34 @@ weddge (without explicitly dividing by 2.)
 ∧(s::HasDeltaSet, α::DualForm{1}, β::SimplexForm{1}) =
   dec_wedge_product_dp(Tuple{1,1}, s)(α, β)
 
+# TODO: This could more strongly rely on simplicial identities, instead of relying
+# on the order of subsimplices from make_dual_simplices_3d!.
+
+# Given (volumetric) data assigned to the faces of a tetrahedron,
+# take a weighted combination according to the usual Whitney scheme.
+function whitney_mat(::Type{Tuple{2}}, sd::AbstractDeltaDualComplex3D)
+  m = spzeros(ntetrahedra(sd), ntriangles(sd))
+  for tet in tetrahedra(sd)
+    subs = subsimplices(3, sd, tet)
+    d_tets = map(x -> subs[x], [1:6, 7:12, 13:18, 19:24]) # See make_dual_simplices_3d!.
+    ws = map(x -> sum(sd[x, :dual_vol]), d_tets)
+    normalize!(ws,1)
+    foreach(ws, tetrahedron_triangles(sd, tet)) do w,tri
+      m[tet,tri] = w
+    end
+  end
+  m
+end
+
+function dec_wedge_product_pd(::Type{Tuple{2,1}}, sd::HasDeltaSet3D)
+  wm = whitney_mat(Tuple{2}, sd)
+  (f, g) -> wm * (f .* g)
+end
+
+function dec_wedge_product_dp(::Type{Tuple{1,2}}, sd::HasDeltaSet3D)
+  wm = whitney_mat(Tuple{2}, sd)
+  (f, g) -> wm * (f .* g)
+end
 
 # Boundary and Co-boundary
 #-------------------------
