@@ -68,10 +68,12 @@ function binary_subdivision(s::EmbeddedDeltaSet2D)
   for e in edges(s)
     shift_idx = 2*e-1
 
-    sd[shift_idx, :∂v0] = e+nv(s)
+    mid = e+nv(s)
+
+    sd[shift_idx, :∂v0] = mid
     sd[shift_idx, :∂v1] = s[e, :∂v0]
 
-    sd[shift_idx+1, :∂v0] = e+nv(s)
+    sd[shift_idx+1, :∂v0] = mid
     sd[shift_idx+1, :∂v1] = s[e, :∂v1]
   end
 
