@@ -1078,6 +1078,10 @@ function boundary_inds(::Type{Val{2}}, s::HasDeltaSet2D)
   unique(vcat(inds...))
 end
 
+function boundary_inds(::Type{Val{2}}, s::HasDeltaSet3D)
+  findall(x -> x < 2, counts(vcat(s[:∂t0], s[:∂t1], s[:∂t2], s[:∂t3])))
+end
+
 function interior(::Type{Val{0}}, s::HasDeltaSet2D)
   boundaries = boundary_inds(Val{0}, s)
   setdiff(vertices(s), boundaries)
