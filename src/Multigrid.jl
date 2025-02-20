@@ -28,34 +28,6 @@ Subdivide each triangle into 4 via "binary" a.k.a. "medial" subdivision, returni
 
 Binary subdivision results in triangles that resemble the "tri-force" symbol from Legend of Zelda.
 """
-# function binary_subdivision(s)
-#   is_simplicial_complex(s) || error("Subdivision is supported only for simplicial complexes.")
-#   sd = typeof(s)()
-#   add_vertices!(sd,nv(s))
-#   add_vertices!(sd,ne(s))
-#   sd[:point] = [s[:point];
-#                 (subpart(s,(:∂v0,:point)).+subpart(s,(:∂v1,:point)))/2]
-#   succ3(i) = (i+1)%3 == 0 ? 3 : (i+1)%3
-#   for t in triangles(s)
-#     es = triangle_edges(s,t)
-#     glue_sorted_triangle!(sd,(es.+nv(s))...)
-#     for i in 1:3
-#       glue_sorted_triangle!(sd,
-#         triangle_vertices(s,t)[i],
-#         triangle_edges(s,t)[succ3(i)]+nv(s),
-#         triangle_edges(s,t)[succ3(i+1)]+nv(s))
-#     end
-#   end
-#   sd
-# end
-
-# function display_mesh(s)
-#   fig = Figure()
-#   ax = CairoMakie.Axis(fig[1,1], aspect=1)
-#   msh = CairoMakie.wireframe!(ax, s)
-#   fig
-# end
-
 function binary_subdivision(s::EmbeddedDeltaSet2D)
   sd = typeof(s)()
   add_vertices!(sd,nv(s)+ne(s))
