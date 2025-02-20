@@ -13,7 +13,7 @@ using Distributions
 using TetGen
 using GeometryBasics: Point2, Point3
 using StaticArrays: SVector
-using Statistics: mean, var
+using Statistics: mean, var, std
 
 Point2D = Point2{Float64}
 Point3D = Point3{Float64}
@@ -436,10 +436,13 @@ sd = EmbeddedDeltaDualComplex3D{Bool, Float64, Point3D}(s);
 subdivide_duals!(sd, Barycenter());
 
 dd0 = dual_derivative(0,sd)
+dd1 = dual_derivative(1,sd)
 wdd = dec_wedge_product_dd(Tuple{0,1}, sd)
 is2 = inv_hodge_star(Val{2}, sd, DiagonalHodge()) # From Dual 1-forms to Primal 2-forms.
 d2 = d(2,sd)
 wpd = dec_wedge_product_pd(Tuple{2,1}, sd)
+s2 = ⋆(Val{2}, sd, DiagonalHodge())
+is2 = inv_hodge_star(Val{2}, sd, DiagonalHodge()) # From Dual 1-forms to Primal 2-forms.
 s3 = ⋆(Val{3}, sd, DiagonalHodge())
 # TODO: Upstream sign currying.
 s3.diag .*= sign(3,sd)
@@ -459,6 +462,65 @@ end
 
 # This is a dual 1-form, which encodes a constant gradient pointing "up".
 dZ = dd0 * (sign(3,sd) .* map(x -> x[3], sd[sd[:tet_center], :dual_point]))
+
+# This is a primal 2-form, encoding (signed) unit areas parallel to the z=0 plane.
+dXdY = map(triangles(sd)) do tri
+  e1, e2, _ = triangle_edges(sd,tri)
+  e1_vec, e2_vec = as_vec(sd,e1), as_vec(sd,e2)
+  (cross(e1_vec, e2_vec) * sign(2,sd,tri))[3] / 2
+  # Note that normalizing is the same as dividing by 2*sd[tri, :area],
+  # so the above is equivalent to:
+  #n = normalize(cross(e1_vec, e2_vec) * sign(2,sd,tri))
+  #sd[tri, :area] * n[3] # i.e. n ⋅ SVector{3,Float64}(0,0,1)
+end
+
+@test std(is2*dZ - dXdY) < 8.0
+
+#=
+julia> histogram((is2*dZ - dXdY), nbins=20)
+                  ┌                                        ┐ 
+   [-35.0, -30.0) ┤▏ 2                                       
+   [-30.0, -25.0) ┤▎ 4                                       
+   [-25.0, -20.0) ┤▊ 31                                      
+   [-20.0, -15.0) ┤██▌ 83                                    
+   [-15.0, -10.0) ┤█████▌ 187                                
+   [-10.0,  -5.0) ┤███████████▉ 410                          
+   [ -5.0,   0.0) ┤█████████████████████████████████  1 130  
+   [  0.0,   5.0) ┤██████████████████████████████▌ 1 045     
+   [  5.0,  10.0) ┤████████▉ 308                             
+   [ 10.0,  15.0) ┤█████▋ 196                                
+   [ 15.0,  20.0) ┤██▊ 99                                    
+   [ 20.0,  25.0) ┤▊ 31                                      
+   [ 25.0,  30.0) ┤▍ 10                                      
+   [ 30.0,  35.0) ┤▏ 1                                       
+                  └                                        ┘ 
+                                   Frequency                 
+
+julia> histogram((is2*dZ - dXdY).^2, nbins=20)
+                    ┌                                        ┐ 
+   [   0.0,   50.0) ┤█████████████████████████████████  2 512  
+   [  50.0,  100.0) ┤█████▏ 381                                
+   [ 100.0,  150.0) ┤██▋ 201                                   
+   [ 150.0,  200.0) ┤█▋ 133                                    
+   [ 200.0,  250.0) ┤█▍ 97                                     
+   [ 250.0,  300.0) ┤▊ 59                                      
+   [ 300.0,  350.0) ┤▋ 46                                      
+   [ 350.0,  400.0) ┤▍ 29                                      
+   [ 400.0,  450.0) ┤▍ 21                                      
+   [ 450.0,  500.0) ┤▍ 20                                      
+   [ 500.0,  550.0) ┤▎ 11                                      
+   [ 550.0,  600.0) ┤▎ 9                                       
+   [ 600.0,  650.0) ┤▏ 3                                       
+   [ 650.0,  700.0) ┤▏ 1                                       
+   [ 700.0,  750.0) ┤▏ 6                                       
+   [ 750.0,  800.0) ┤▏ 2                                       
+   [ 800.0,  850.0) ┤▏ 1                                       
+   [ 850.0,  900.0) ┤▏ 2                                       
+   [ 900.0,  950.0) ┤▏ 2                                       
+   [ 950.0, 1000.0) ┤▏ 1                                       
+                    └                                        ┘ 
+                                     Frequency                 
+=#
 
 # Demonstrate advection in 3D using the midpoint method.
 function advection_3D_timestep!(dtC, C, dZ, k, dual_div, wdd)
@@ -496,6 +558,7 @@ displacement(C,C_adv)
 abs_error(C,C_adv,k)
 rel_error(C,C_adv,k)
 
+b_tris = boundary_inds(Val{2}, sd)
 b_tets = boundary_inds(Val{3}, sd)
 
 s2sd = sign(2,sd)

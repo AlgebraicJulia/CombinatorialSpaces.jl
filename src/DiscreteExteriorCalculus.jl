@@ -29,7 +29,7 @@ export DualSimplex, DualV, DualE, DualTri, DualTet, DualChain, DualForm,
   subdivide, PDSharp, PPSharp, AltPPSharp, DesbrunSharp, LLSDDSharp, de_sign,
   DPPFlat, PPFlat,
   ♭♯, ♭♯_mat, flat_sharp, flat_sharp_mat, dualize,
-  p2_d2_interpolation
+  p2_d2_interpolation, as_vec
 
 import Base: ndims
 import Base: *
@@ -619,6 +619,8 @@ hodge_diag(::Type{Val{1}}, s::AbstractDeltaDualComplex2D, e::Int) =
 hodge_diag(::Type{Val{2}}, s::AbstractDeltaDualComplex2D, t::Int) =
   1 / volume(Val{2},s,t) * sign(2,s,t)
 
+as_vec(s,e) = (point(s, tgt(s,e)) - point(s, src(s,e))) * sign(1,s,e)
+
 function ♭(s::AbstractDeltaDualComplex2D, X::AbstractVector, ::DPPFlat)
   # XXX: Creating this lookup table shouldn't be necessary. Of course, we could
   # index `tri_center` but that shouldn't be necessary either. Rather, we should
@@ -630,7 +632,7 @@ function ♭(s::AbstractDeltaDualComplex2D, X::AbstractVector, ::DPPFlat)
   # For each primal edge:
   map(edges(s)) do e
     # Get the vector from src to tgt (oriented correctly).
-    e_vec = (point(s, tgt(s,e)) - point(s, src(s,e))) * sign(1,s,e)
+    e_vec = as_vec(s,e)
     # Grab all the dual edges of this primal edge.
     dual_edges = elementary_duals(1,s,e)
     # And the corresponding lengths.
@@ -654,7 +656,7 @@ function ♭_mat(s::AbstractDeltaDualComplex2D, p2s, ::DPPFlat)
   ♭_mat = spzeros(mat_type, ne(s), ntriangles(s))
   for e in edges(s)
     # The vector associated with this primal edge.
-    e_vec = (point(s, tgt(s,e)) - point(s, src(s,e))) * sign(1,s,e)
+    e_vec = as_vec(s,e)
     # The triangles associated with this primal edge.
     tris = p2s[e,:].nzind
     # The dual vertex at the center of this primal edge.
@@ -682,7 +684,7 @@ function ♭(s::AbstractDeltaDualComplex2D, X::AbstractVector, ::PPFlat)
   map(edges(s)) do e
     vs = edge_vertices(s,e)
     l_vec = mean(X[vs])
-    e_vec = (point(s, tgt(s,e)) - point(s, src(s,e))) * sign(1,s,e)
+    e_vec = as_vec(s,e)
     dot(l_vec, e_vec)
   end
 end
@@ -691,7 +693,7 @@ function ♭_mat(s::AbstractDeltaDualComplex2D, ::PPFlat)
   mat_type = SMatrix{1, length(eltype(s[:point])), eltype(eltype(s[:point])), length(eltype(s[:point]))}
   ♭_mat = spzeros(mat_type, ne(s), nv(s))
   for e in edges(s)
-    e_vec = (point(s, tgt(s,e)) - point(s, src(s,e))) * sign(1,s,e)
+    e_vec = as_vec(s,e)
     vs = edge_vertices(s,e)
     ♭_mat[e, vs[1]] = 0.5 * mat_type(e_vec)
     ♭_mat[e, vs[2]] = 0.5 * mat_type(e_vec)
