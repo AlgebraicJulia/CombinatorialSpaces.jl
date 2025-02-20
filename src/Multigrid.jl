@@ -62,9 +62,8 @@ function binary_subdivision(s::EmbeddedDeltaSet2D)
   sd[1:nv(s), :point] = s[:point]
   sd[(nv(s)+1:nv(s)+ne(s)), :point] = (s[[:∂v0,:point]] .+ s[[:∂v1,:point]])./2
 
+  # v0 -- m -- v1
   add_parts!(sd, :E, 2*ne(s)+3*ntriangles(s))
-
-  # In order of edge index, add from v0 to m, then v1 to m
   for e in edges(s)
     offset = 2*e-1
     mid = e+nv(s)
@@ -78,8 +77,6 @@ function binary_subdivision(s::EmbeddedDeltaSet2D)
   #    m1 -- m0
   #   /  \  /  \
   # v0 -- m2 -- v1
-  # Since we add interior mid-to-mid edges by triangle index, we know their exact order
-  # Can look at triangle edges to get split edges
   add_parts!(sd, :Tri, 4*ntriangles(s))
   for t in triangles(s)
     es = triangle_edges(s,t)
@@ -92,11 +89,11 @@ function binary_subdivision(s::EmbeddedDeltaSet2D)
     m0_v1, m1_v0, m2_v0 = 2es
     v2_m0, v2_m1, v1_m2 = 2es .- 1
 
-    # Edge × Vertex
+    # Edge × Vertex:
     sd[[m0_m1, m1_m2, m0_m2], :∂v0] = m1, m2, m2
     sd[[m0_m1, m1_m2, m0_m2], :∂v1] = m0, m1, m0
 
-    # Triangle × Edge
+    # Triangle × Edge:
     offset = 4t-3
     sd[offset:offset+3, :∂e0] = m1_m2, m1_m2, m0_m2, m0_m1
     sd[offset:offset+3, :∂e1] = m0_m2, m2_v0, v1_m2, v2_m1
