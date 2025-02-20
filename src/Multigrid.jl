@@ -66,22 +66,11 @@ function binary_subdivision(s::EmbeddedDeltaSet2D)
 
   # In order of edge index, add from v0 to m, then v1 to m
   for e in edges(s)
-    shift_idx = 2*e-1
-
+    offset = 2*e-1
     mid = e+nv(s)
 
-    sd[shift_idx:shift_idx+1, :∂v0] = mid,        mid
-    sd[shift_idx:shift_idx+1, :∂v1] = s[e, :∂v0], s[e, :∂v1]
-  end
-
-  # In order of triangle index, m0 to m1 then cycle
-  for t in triangles(s)
-    shift_idx = 3*t-2 + 2*ne(s)
-
-    m1, m2, m3 = triangle_edges(s,t) .+ nv(s) # Midpoints
-
-    sd[shift_idx:shift_idx+2, :∂v0] = m2, m3, m3
-    sd[shift_idx:shift_idx+2, :∂v1] = m1, m2, m1
+    sd[offset:offset+1, :∂v0] = mid,        mid
+    sd[offset:offset+1, :∂v1] = s[e, :∂v0], s[e, :∂v1]
   end
 
   #       v2
@@ -93,16 +82,25 @@ function binary_subdivision(s::EmbeddedDeltaSet2D)
   # Can look at triangle edges to get split edges
   add_parts!(sd, :Tri, 4*ntriangles(s))
   for t in triangles(s)
-    shift_idx = 4t-3
     es = triangle_edges(s,t)
 
-    m0_v1, m1_v0, m2_v0 = 2 .* es
-    v2_m0, v2_m1, v1_m2 = 2 .* es .- 1
-    m0_m1, m1_m2, m0_m2 = (3*t-2 + 2*ne(s)) .+ [0,1,2]
+    # Vertex indices:
+    m0, m1, m2 = es .+ nv(s)
 
-    sd[shift_idx:shift_idx+3, :∂e0] = m1_m2, m1_m2, m0_m2, m0_m1
-    sd[shift_idx:shift_idx+3, :∂e1] = m0_m2, m2_v0, v1_m2, v2_m1
-    sd[shift_idx:shift_idx+3, :∂e2] = m0_m1, m1_v0, m0_v1, v2_m0
+    # Edge indices:
+    m0_m1, m1_m2, m0_m2 = (3t-2 + 2ne(s)) .+ [0,1,2]
+    m0_v1, m1_v0, m2_v0 = 2es
+    v2_m0, v2_m1, v1_m2 = 2es .- 1
+
+    # Edge × Vertex
+    sd[[m0_m1, m1_m2, m0_m2], :∂v0] = m1, m2, m2
+    sd[[m0_m1, m1_m2, m0_m2], :∂v1] = m0, m1, m0
+
+    # Triangle × Edge
+    offset = 4t-3
+    sd[offset:offset+3, :∂e0] = m1_m2, m1_m2, m0_m2, m0_m1
+    sd[offset:offset+3, :∂e1] = m0_m2, m2_v0, v1_m2, v2_m1
+    sd[offset:offset+3, :∂e2] = m0_m1, m1_v0, m0_v1, v2_m0
   end
   sd
 end
