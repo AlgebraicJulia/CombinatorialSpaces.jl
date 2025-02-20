@@ -333,17 +333,15 @@ weddge (without explicitly dividing by 2.)
 # Given (volumetric) data assigned to the faces of a tetrahedron,
 # take a weighted combination according to the usual Whitney scheme.
 function whitney_mat(::Type{Tuple{2}}, sd::AbstractDeltaDualComplex3D)
-  m = spzeros(ntetrahedra(sd), ntriangles(sd))
-  for tet in tetrahedra(sd)
+  I_vec = repeat(tetrahedra(sd), inner=4)
+  J_vec = map(x -> tetrahedron_triangles(sd, x), tetrahedra(sd))
+  V_vec = map(tetrahedra(sd)) do tet
+    # The scheme in make_dual_simplices_3d! explains the reshape.
     subs = subsimplices(3, sd, tet)
-    d_tets = map(x -> subs[x], [1:6, 7:12, 13:18, 19:24]) # See make_dual_simplices_3d!.
-    ws = map(x -> sum(sd[x, :dual_vol]), d_tets)
-    normalize!(ws,1)
-    foreach(ws, tetrahedron_triangles(sd, tet)) do w,tri
-      m[tet,tri] = w
-    end
+    d_vols = sum(eachrow(reshape(sd[subs, :dual_vol], (6,4))))
+    normalize!(d_vols, 1)
   end
-  m
+  sparse(I_vec, reduce(vcat, J_vec), reduce(vcat, V_vec))
 end
 
 function dec_wedge_product_pd(::Type{Tuple{2,1}}, sd::HasDeltaSet3D)

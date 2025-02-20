@@ -454,7 +454,7 @@ nrml = MvNormal(μ, I(3))
 # Taking the inverse hodge star would multiply by the sign of the tetrahedron, and multiply by the volume,
 # which would give a Primal 3-form of the mass stored in each tetrahedron.
 C = map(sign(3,sd), sd[sd[:tet_center], :dual_point]) do sgn,p
-  norm(p - μ) ≤ 3.0 ? sgn * 15.8 * pdf(nrml,p) : 0.0
+  norm(p - μ) ≤ 3.0 ? sgn * 15.8e2 * pdf(nrml,p) : 0.0
 end
 
 # This is a dual 1-form, which encodes a constant gradient pointing "up".
@@ -471,13 +471,16 @@ function midpoint_method_advection!(C, dZ, k, dual_div, wdd)
   dC = zeros(length(C))
   for _ in 1:1e5
     advection_3D_timestep!(dC, C, dZ, k, dual_div, wdd)
+    dC[b_tets] .= 0.0
     advection_3D_timestep!(dtC, C .+ (dt/2 * dC), dZ, k, dual_div, wdd)
     C .+= dt * dtC
+    C[b_tets] .= 0.0
   end
   C
 end
 
 k = 1
+C[b_tets] .= 0.0
 C_adv = midpoint_method_advection!(copy(C), dZ, k, dual_div, wdd)
 
 # In 1 second, the center of mass move should move by approximately k.
@@ -493,6 +496,9 @@ displacement(C,C_adv)
 abs_error(C,C_adv,k)
 rel_error(C,C_adv,k)
 
+b_tets = boundary_inds(Val{3}, sd)
+
+s2sd = sign(2,sd)
 # TODO: Upstream the rest of this Lie derivative.
 # -1^(k(n-k)) star(star(a) wedge X)
 # where a = d(C) = Dual 1-Form, n=3, and k=1.
@@ -506,13 +512,16 @@ function midpoint_method_lie!(C, dZ, k, s3, wpd, is2, dd0)
   dtC = zeros(length(C))
   dC = zeros(length(C))
   for _ in 1:1e5
-    lie_3D_timestep!(dtC, C, dZ, k, s3, wpd, is2, dd0)
+    lie_3D_timestep!(dC, C, dZ, k, s3, wpd, is2, dd0)
+    dC[b_tets] .= 0.0
     lie_3D_timestep!(dtC, C .+ (dt/2 * dC), dZ, k, s3, wpd, is2, dd0)
     C .+= dt * dtC
+    C[b_tets] .= 0.0
   end
   C
 end
 
+C[b_tets] .= 0.0
 k = 1e-3
 C_lie = midpoint_method_lie!(copy(C), dZ, k, s3, wpd, is2, dd0)
 
