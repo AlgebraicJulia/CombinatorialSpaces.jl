@@ -70,27 +70,18 @@ function binary_subdivision(s::EmbeddedDeltaSet2D)
 
     mid = e+nv(s)
 
-    sd[shift_idx, :∂v0] = mid
-    sd[shift_idx, :∂v1] = s[e, :∂v0]
-
-    sd[shift_idx+1, :∂v0] = mid
-    sd[shift_idx+1, :∂v1] = s[e, :∂v1]
+    sd[shift_idx:shift_idx+1, :∂v0] = mid,        mid
+    sd[shift_idx:shift_idx+1, :∂v1] = s[e, :∂v0], s[e, :∂v1]
   end
 
   # In order of triangle index, m0 to m1 then cycle
   for t in triangles(s)
     shift_idx = 3*t-2 + 2*ne(s)
 
-    mids = triangle_edges(s,t) .+ nv(s) # Midpoints
+    m1, m2, m3 = triangle_edges(s,t) .+ nv(s) # Midpoints
 
-    sd[shift_idx, :∂v0] = mids[2]
-    sd[shift_idx, :∂v1] = mids[1]
-
-    sd[shift_idx+1, :∂v0] = mids[3]
-    sd[shift_idx+1, :∂v1] = mids[2]
-
-    sd[shift_idx+2, :∂v0] = mids[3]
-    sd[shift_idx+2, :∂v1] = mids[1]
+    sd[shift_idx:shift_idx+2, :∂v0] = m2, m3, m3
+    sd[shift_idx:shift_idx+2, :∂v1] = m1, m2, m1
   end
 
   #       v2
@@ -105,29 +96,13 @@ function binary_subdivision(s::EmbeddedDeltaSet2D)
     shift_idx = 4t-3
     es = triangle_edges(s,t)
 
-    # v2 - m0 - v1, v2 - m1 - v0, v1 - m2 - v0
-    split_idx = 2 .* es .- 1
+    m0_v1, m1_v0, m2_v0 = 2 .* es
+    v2_m0, v2_m1, v1_m2 = 2 .* es .- 1
+    m0_m1, m1_m2, m0_m2 = (3*t-2 + 2*ne(s)) .+ [0,1,2]
 
-    # m0 - m1, m1 - m2, m0 - m2
-    mid_idx = 3*t-2 + 2*ne(s)
-
-    # Center triangle
-    sd[shift_idx, :∂e0] = mid_idx + 1
-    sd[shift_idx, :∂e1] = mid_idx + 2
-    sd[shift_idx, :∂e2] = mid_idx
-
-    # Peripheral triangles
-    sd[shift_idx+1, :∂e0] = mid_idx + 1
-    sd[shift_idx+1, :∂e1] = split_idx[3]+1
-    sd[shift_idx+1, :∂e2] = split_idx[2]+1
-
-    sd[shift_idx+2, :∂e0] = mid_idx + 2
-    sd[shift_idx+2, :∂e1] = split_idx[3]
-    sd[shift_idx+2, :∂e2] = split_idx[1]+1
-
-    sd[shift_idx+3, :∂e0] = mid_idx
-    sd[shift_idx+3, :∂e1] = split_idx[2]
-    sd[shift_idx+3, :∂e2] = split_idx[1]
+    sd[shift_idx:shift_idx+3, :∂e0] = m1_m2, m1_m2, m0_m2, m0_m1
+    sd[shift_idx:shift_idx+3, :∂e1] = m0_m2, m2_v0, v1_m2, v2_m1
+    sd[shift_idx:shift_idx+3, :∂e2] = m0_m1, m1_v0, m0_v1, v2_m0
   end
   sd
 end
