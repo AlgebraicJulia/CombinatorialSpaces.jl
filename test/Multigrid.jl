@@ -21,7 +21,6 @@ function test_binsubdiv!(t, s)
   @test orient!(t)
 end
 
-s, = tri_345();
 t = binary_subdivision(s);
 u = binary_subdivision(t);
 v = binary_subdivision(u);
@@ -29,6 +28,21 @@ v = binary_subdivision(u);
 test_binsubdiv!(t, s)
 test_binsubdiv!(u, t)
 test_binsubdiv!(v, u)
+
+function test_cubsubdiv!(t, s)
+  @test nv(t) == nv(s) + 2*ne(s) + ntriangles(s)
+  @test ne(t) == 3*ne(s) + 9*ntriangles(s)
+  @test ntriangles(t) == 9*ntriangles(s)
+  @test orient!(t)
+end
+
+t = cubic_subdivision(s);
+u = cubic_subdivision(t);
+v = cubic_subdivision(u);
+
+test_cubsubdiv!(t, s)
+test_cubsubdiv!(u, t)
+test_cubsubdiv!(v, u)
 
 s = triangulated_grid(1,1,1/4,sqrt(3)/2*1/4,Point3D,false)
 series = PrimalGeometricMapSeries(s, binary_subdivision_map, 4);
