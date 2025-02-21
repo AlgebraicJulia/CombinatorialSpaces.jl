@@ -35,7 +35,7 @@ export Simplex, V, E, Tri, Tet, SimplexChain, VChain, EChain, TriChain, TetChain
   tetrahedron_triangles, tetrahedron_edges, tetrahedron_vertices, ntetrahedra,
   tetrahedra, add_tetrahedron!, glue_tetrahedron!, glue_sorted_tetrahedron!,
   glue_sorted_tet_cube!, is_manifold_like, nonboundaries,
-  star, St, closed_star, St̄, link, Lk, simplex_vertices, dimension, 
+  star, St, closed_star, St̄, link, Lk, simplex_vertices, dimension,
   DeltaSet, OrientedDeltaSet, EmbeddedDeltaSet,
   boundary_inds
 
@@ -659,7 +659,7 @@ end
 
 """ Wrapper for simplex chain of dimension `n`.
 
-Example: EChain([2,-1,1]) represents the chain 2a-b+c in the 
+Example: EChain([2,-1,1]) represents the chain 2a-b+c in the
 simplicial set with edges a,b,c.
 """
 @vector_struct SimplexChain{n}
@@ -921,8 +921,8 @@ sqdistance(x, y) = sum((x-y).^2)
 
 """ Test whether a given simplicial complex is manifold-like.
 
-According to Hirani, "all simplices of dimension ``k`` with ``0 ≤ k ≤ n - 1`` 
-must be the face of some simplex of dimension ``n`` in the complex." This 
+According to Hirani, "all simplices of dimension ``k`` with ``0 ≤ k ≤ n - 1``
+must be the face of some simplex of dimension ``n`` in the complex." This
 function does not test that simplices do not overlap. Nor does it test that e.g.
 two triangles that share 2 vertices share an edge. Nor does it test that e.g.
 there is at most one triangle that connects 3 vertices. Nor does it test that

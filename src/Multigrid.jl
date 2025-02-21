@@ -1,10 +1,10 @@
 module Multigrid
 using CombinatorialSpaces
 using GeometryBasics:Point3, Point2
-using Krylov, Catlab, SparseArrays
+using Krylov, Catlab, SparseArrays, StaticArrays
 using ..SimplicialSets
 import Catlab: dom,codom
-export multigrid_vcycles, multigrid_wcycles, full_multigrid, repeated_subdivisions, binary_subdivision_map, dom, codom, as_matrix, MultigridData, AbstractGeometricMapSeries, PrimalGeometricMapSeries, finest_mesh, meshes, matrices
+export multigrid_vcycles, multigrid_wcycles, full_multigrid, repeated_subdivisions, binary_subdivision, binary_subdivision_map, dom, codom, as_matrix, MultigridData, AbstractGeometricMapSeries, PrimalGeometricMapSeries, finest_mesh, meshes, matrices
 const Point3D = Point3{Float64}
 const Point2D = Point2{Float64}
 
@@ -28,23 +28,48 @@ Subdivide each triangle into 4 via "binary" a.k.a. "medial" subdivision, returni
 
 Binary subdivision results in triangles that resemble the "tri-force" symbol from Legend of Zelda.
 """
-function binary_subdivision(s)
-  is_simplicial_complex(s) || error("Subdivision is supported only for simplicial complexes.")
+function binary_subdivision(s::EmbeddedDeltaSet2D)
   sd = typeof(s)()
-  add_vertices!(sd,nv(s))
-  add_vertices!(sd,ne(s))
-  sd[:point] = [s[:point];
-                (subpart(s,(:∂v0,:point)).+subpart(s,(:∂v1,:point)))/2]
-  succ3(i) = (i+1)%3 == 0 ? 3 : (i+1)%3
+  add_vertices!(sd,nv(s)+ne(s))
+  sd[1:nv(s), :point] = s[:point]
+  sd[(nv(s)+1:nv(s)+ne(s)), :point] = (s[[:∂v0,:point]] .+ s[[:∂v1,:point]])./2
+
+  # v0 -- m -- v1
+  add_parts!(sd, :E, 2*ne(s)+3*ntriangles(s))
+  for e in edges(s)
+    offset = 2*e-1
+    mid = e+nv(s)
+
+    sd[offset:offset+1, :∂v0] = mid,        mid
+    sd[offset:offset+1, :∂v1] = s[e, :∂v0], s[e, :∂v1]
+  end
+
+  #       v2
+  #      /  \
+  #    m1 -- m0
+  #   /  \  /  \
+  # v0 -- m2 -- v1
+  add_parts!(sd, :Tri, 4*ntriangles(s))
   for t in triangles(s)
     es = triangle_edges(s,t)
-    glue_sorted_triangle!(sd,(es.+nv(s))...)
-    for i in 1:3
-      glue_sorted_triangle!(sd,
-        triangle_vertices(s,t)[i],
-        triangle_edges(s,t)[succ3(i)]+nv(s),
-        triangle_edges(s,t)[succ3(i+1)]+nv(s))
-    end
+
+    # Vertex indices:
+    m0, m1, m2 = es .+ nv(s)
+
+    # Edge indices:
+    m0_m1, m1_m2, m0_m2 = (3t-2 + 2ne(s)) .+ [0,1,2]
+    m0_v1, m1_v0, m2_v0 = 2es
+    v2_m0, v2_m1, v1_m2 = 2es .- 1
+
+    # Edge × Vertex:
+    sd[[m0_m1, m1_m2, m0_m2], :∂v0] = m1, m2, m2
+    sd[[m0_m1, m1_m2, m0_m2], :∂v1] = m0, m1, m0
+
+    # Triangle × Edge:
+    offset = 4t-3
+    sd[offset:offset+3, :∂e0] = m1_m2, m1_m2, m0_m2, m0_m1
+    sd[offset:offset+3, :∂e1] = m0_m2, m2_v0, v1_m2, v2_m1
+    sd[offset:offset+3, :∂e2] = m0_m1, m1_v0, m0_v1, v2_m0
   end
   sd
 end
@@ -80,6 +105,7 @@ function binary_subdivision_map(s)
 end
 
 function repeated_subdivisions(k,ss,subdivider)
+  is_simplicial_complex(ss) || error("Subdivision is supported only for simplicial complexes.")
   map(1:k) do k′
     f = subdivider(ss)
     ss = dom(f)
@@ -203,20 +229,20 @@ multigrid_vcycles(u,b,md,cycles,alg=cg) = multigrid_μ_cycles(u,b,md,cycles,alg,
 Just the same as `multigrid_vcycles` but with W-cycles.
 """
 multigrid_wcycles(u,b,md,cycles,alg=cg) = multigrid_μ_cycles(u,b,md,cycles,alg,2)
-function multigrid_μ_cycles(u,b,md::MultigridData,cycles,alg=cg,μ=1) 
-  cycles == 0 && return u 
+function multigrid_μ_cycles(u,b,md::MultigridData,cycles,alg=cg,μ=1)
+  cycles == 0 && return u
   u = _multigrid_μ_cycle(u,b,md,alg,μ)
-  multigrid_μ_cycles(u,b,md,cycles-1,alg,μ) 
+  multigrid_μ_cycles(u,b,md,cycles-1,alg,μ)
 end
 
 """
-The full multigrid framework: start at the coarsest grid and 
+The full multigrid framework: start at the coarsest grid and
 work your way up, applying V-cycles or W-cycles at each level
 according as μ is 1 or 2.
 """
 function full_multigrid(b,md::MultigridData,cycles,alg=cg,μ=1)
   z_f = zeros(size(b))
-  if length(md) > 1 
+  if length(md) > 1
     r,p = car(md)[2:3]
     b_c = r * b
     z_c = full_multigrid(b_c,cdr(md),cycles,alg,μ)
@@ -227,18 +253,18 @@ end
 
 function _multigrid_μ_cycle(u,b,md::MultigridData,alg=cg,μ=1)
   A,r,p,s = car(md)
-  u = alg(A,b,u,itmax=s)[1] 
-  if length(md) == 1 
-    return u 
-  end 
-  r_f = b - A*u 
-  r_c = r * r_f 
+  u = alg(A,b,u,itmax=s)[1]
+  if length(md) == 1
+    return u
+  end
+  r_f = b - A*u
+  r_c = r * r_f
   z = _multigrid_μ_cycle(zeros(size(r_c)),r_c,cdr(md),alg,μ)
   if μ > 1
     z = _multigrid_μ_cycle(z,r_c,cdr(md),alg,μ-1)
   end
-  u += p * z 
-  u = alg(A,b,u,itmax=s)[1] 
+  u += p * z
+  u = alg(A,b,u,itmax=s)[1]
 end
 
 end
