@@ -38,10 +38,11 @@ function binary_subdivision(s::EmbeddedDeltaSet2D)
   add_parts!(sd, :E, 2*ne(s)+3*ntriangles(s))
   for e in edges(s)
     offset = 2*e-1
+    offsets = SVector{2}(offset, offset+1)
     mid = e+nv(s)
 
-    sd[offset:offset+1, :∂v0] = mid,        mid
-    sd[offset:offset+1, :∂v1] = s[e, :∂v0], s[e, :∂v1]
+    sd[offsets, :∂v0] = mid,        mid
+    sd[offsets, :∂v1] = s[e, :∂v0], s[e, :∂v1]
   end
 
   #       v2
@@ -57,19 +58,20 @@ function binary_subdivision(s::EmbeddedDeltaSet2D)
     m0, m1, m2 = es .+ nv(s)
 
     # Edge indices:
-    m0_m1, m1_m2, m0_m2 = (3t-2 + 2ne(s)) .+ [0,1,2]
+    m0_m1, m1_m2, m0_m2 = (3t-2 + 2ne(s)) .+ SVector{3}(0,1,2)
     m0_v1, m1_v0, m2_v0 = 2es
     v2_m0, v2_m1, v1_m2 = 2es .- 1
 
     # Edge × Vertex:
-    sd[[m0_m1, m1_m2, m0_m2], :∂v0] = m1, m2, m2
-    sd[[m0_m1, m1_m2, m0_m2], :∂v1] = m0, m1, m0
+    sd[SVector{3}(m0_m1, m1_m2, m0_m2), :∂v0] = m1, m2, m2
+    sd[SVector{3}(m0_m1, m1_m2, m0_m2), :∂v1] = m0, m1, m0
 
     # Triangle × Edge:
     offset = 4t-3
-    sd[offset:offset+3, :∂e0] = m1_m2, m1_m2, m0_m2, m0_m1
-    sd[offset:offset+3, :∂e1] = m0_m2, m2_v0, v1_m2, v2_m1
-    sd[offset:offset+3, :∂e2] = m0_m1, m1_v0, m0_v1, v2_m0
+    offsets = SVector{4}(offset, offset+1, offset+2, offset+3)
+    sd[offsets, :∂e0] = m1_m2, m1_m2, m0_m2, m0_m1
+    sd[offsets, :∂e1] = m0_m2, m2_v0, v1_m2, v2_m1
+    sd[offsets, :∂e2] = m0_m1, m1_v0, m0_v1, v2_m0
   end
   sd
 end
