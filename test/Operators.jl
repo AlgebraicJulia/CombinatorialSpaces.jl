@@ -476,6 +476,10 @@ end
 
 @test std(is2*dZ - dXdY) < 8.0
 
+# Test that dZ is closed.
+@test all(abs.(dd1*dZ) .< 1e-14)
+# Test that dXdY is closed.
+@test all(abs.(d2*dXdY) .< 1e-15)
 #=
 julia> histogram((is2*dZ - dXdY), nbins=20)
                   ┌                                        ┐ 
