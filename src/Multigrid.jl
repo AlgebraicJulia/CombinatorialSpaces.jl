@@ -4,7 +4,7 @@ using GeometryBasics:Point3, Point2
 using Krylov, Catlab, SparseArrays, StaticArrays
 using ..SimplicialSets
 import Catlab: dom,codom
-export multigrid_vcycles, multigrid_wcycles, full_multigrid, repeated_subdivisions, binary_subdivision, binary_subdivision_map, dom, codom, as_matrix, MultigridData, AbstractGeometricMapSeries, PrimalGeometricMapSeries, finest_mesh, meshes, matrices
+export multigrid_vcycles, multigrid_wcycles, full_multigrid, repeated_subdivisions, binary_subdivision, binary_subdivision_map, dom, codom, as_matrix, MultigridData, AbstractGeometricMapSeries, PrimalGeometricMapSeries, finest_mesh, meshes, matrices, cubic_subdivision
 const Point3D = Point3{Float64}
 const Point2D = Point2{Float64}
 
@@ -105,6 +105,73 @@ function binary_subdivision_map(s)
   end
 
   PrimalGeometricMap(sd,s,sparse(I,J,V))
+end
+
+"""
+Subdivide each triangle into 9 via cubic subdivision, returning a primal simplicial complex.
+"""
+function cubic_subdivision(s::EmbeddedDeltaSet2D)
+  sd = typeof(s)()
+  add_vertices!(sd, nv(s)+2ne(s)+ntriangles(s))
+  sd[1:nv(s), :point] =
+    s[:point]
+  sd[(nv(s)+1:nv(s)+2ne(s)), :point] = reduce(vcat, map(edges(s)) do e
+    v0, v1 = s[s[e, :∂v0], :point], s[s[e, :∂v1], :point]
+    [(2v0 + v1)/3, (v0 + 2v1)/3]
+  end)
+  sd[(nv(s)+2ne(s)+1:nv(s)+2ne(s)+ntriangles(s)), :point] =
+    (s[[:∂e1,:∂v1,:point]] .+ s[[:∂e0,:∂v1,:point]] .+ s[[:∂e0,:∂v0,:point]])./3
+
+  # v0 -> m0 -> m1 -> v1
+  add_parts!(sd, :E, 3ne(s)+9ntriangles(s))
+  for e in edges(s)
+    offset = 3*e-2
+    e_idxs = SVector{3}(offset, offset+1, offset+2)
+    m0, m1 = nv(s)+2*e-1, nv(s)+2*e
+    v0, v1 = s[e, :∂v0], s[e, :∂v1]
+
+    sd[e_idxs, :∂v0] = m0, m1, v1
+    sd[e_idxs, :∂v1] = v0, m0, m1
+  end
+
+  #          030
+  #         ^  v
+  #       021 > 120
+  #      ^  ^  ^  v
+  #    012< 111  >210
+  #   ^  ^  ^  ^  ^  v
+  # 003 >102  >201  >300
+  add_parts!(sd, :Tri, 9ntriangles(s))
+  inc_arr = SVector{9}(0,1,2,3,4,5,6,7,8)
+  for t in triangles(s)
+    es = triangle_edges(s,t)
+
+    # Vertex indices:
+    m012, m102, m120 = 2*es .+ nv(s) .- 1
+    m021, m201, m210 = 2*es .+ nv(s)
+    m111 = nv(s)+2ne(s)+t
+
+    # Edge indices:
+    ms = (3ne(s) + 9t-8) .+ inc_arr
+    m201_m210, m201_m111, m102_m111,
+    m102_m012, m111_m012, m111_m021,
+    m111_m210, m111_m120, m021_m120 = ms
+    m021_v030, m201_v300, m210_v300 = 3es
+    m012_m021, m102_m201, m120_m210 = 3es .- 1
+    v003_m012, v003_m102, v030_m120 = 3es .- 2
+
+    # Vertex × Edge:
+    sd[ms, :∂v0] = m210, m111, m111, m012, m012, m021, m210, m120, m120
+    sd[ms, :∂v1] = m201, m201, m102, m102, m111, m111, m111, m111, m021
+
+    # Edge × Triangle:
+    offset = 9t-8
+    tri_idxs = offset .+ inc_arr
+    sd[tri_idxs, :∂e0] = m210_v300, m111_m210, m201_m111, m111_m012, m102_m012, m120_m210, m021_m120, m012_m021, v030_m120
+    sd[tri_idxs, :∂e1] = m201_v300, m201_m210, m102_m111, m102_m012, v003_m012, m111_m210, m111_m120, m111_m021, m021_m120
+    sd[tri_idxs, :∂e2] = m201_m210, m201_m111, m102_m201, m102_m111, v003_m102, m111_m120, m111_m021, m111_m012, m021_v030
+  end
+  sd
 end
 
 function repeated_subdivisions(k,ss,subdivider)
