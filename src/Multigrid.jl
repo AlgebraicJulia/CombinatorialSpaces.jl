@@ -126,11 +126,12 @@ function cubic_subdivision(s::EmbeddedDeltaSet2D)
   add_parts!(sd, :E, 3ne(s)+9ntriangles(s))
   for e in edges(s)
     offset = 3*e-2
+    e_idxs = SVector{3}(offset, offset+1, offset+2)
     m0, m1 = nv(s)+2*e-1, nv(s)+2*e
     v0, v1 = s[e, :∂v0], s[e, :∂v1]
 
-    sd[offset:offset+2, :∂v0] = m0, m1, v1
-    sd[offset:offset+2, :∂v1] = v0, m0, m1
+    sd[e_idxs, :∂v0] = m0, m1, v1
+    sd[e_idxs, :∂v1] = v0, m0, m1
   end
 
   #          030
@@ -141,6 +142,7 @@ function cubic_subdivision(s::EmbeddedDeltaSet2D)
   #   ^  ^  ^  ^  ^  v
   # 003 >102  >201  >300
   add_parts!(sd, :Tri, 9ntriangles(s))
+  inc_arr = SVector{9}(0,1,2,3,4,5,6,7,8)
   for t in triangles(s)
     es = triangle_edges(s,t)
 
@@ -150,7 +152,7 @@ function cubic_subdivision(s::EmbeddedDeltaSet2D)
     m111 = nv(s)+2ne(s)+t
 
     # Edge indices:
-    ms = (3ne(s) + 9t-8) .+ [0,1,2,3,4,5,6,7,8]
+    ms = (3ne(s) + 9t-8) .+ inc_arr
     m201_m210, m201_m111, m102_m111,
     m102_m012, m111_m012, m111_m021,
     m111_m210, m111_m120, m021_m120 = ms
@@ -158,15 +160,16 @@ function cubic_subdivision(s::EmbeddedDeltaSet2D)
     m012_m021, m102_m201, m120_m210 = 3es .- 1
     v003_m012, v003_m102, v030_m120 = 3es .- 2
 
-    # Edge × Vertex:
+    # Vertex × Edge:
     sd[ms, :∂v0] = m210, m111, m111, m012, m012, m021, m210, m120, m120
     sd[ms, :∂v1] = m201, m201, m102, m102, m111, m111, m111, m111, m021
 
-    # Triangle × Edge:
+    # Edge × Triangle:
     offset = 9t-8
-    sd[offset:offset+8, :∂e0] = m210_v300, m111_m210, m201_m111, m111_m012, m102_m012, m120_m210, m021_m120, m012_m021, v030_m120
-    sd[offset:offset+8, :∂e1] = m201_v300, m201_m210, m102_m111, m102_m012, v003_m012, m111_m210, m111_m120, m111_m021, m021_m120
-    sd[offset:offset+8, :∂e2] = m201_m210, m201_m111, m102_m201, m102_m111, v003_m102, m111_m120, m111_m021, m111_m012, m021_v030
+    tri_idxs = offset .+ inc_arr
+    sd[tri_idxs, :∂e0] = m210_v300, m111_m210, m201_m111, m111_m012, m102_m012, m120_m210, m021_m120, m012_m021, v030_m120
+    sd[tri_idxs, :∂e1] = m201_v300, m201_m210, m102_m111, m102_m012, v003_m012, m111_m210, m111_m120, m111_m021, m021_m120
+    sd[tri_idxs, :∂e2] = m201_m210, m201_m111, m102_m201, m102_m111, v003_m102, m111_m120, m111_m021, m111_m012, m021_v030
   end
   sd
 end
