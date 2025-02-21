@@ -51,6 +51,7 @@ function binary_subdivision(s::EmbeddedDeltaSet2D)
   #   /  \  /  \
   # v0 -- m2 -- v1
   add_parts!(sd, :Tri, 4*ntriangles(s))
+  inc_arr = SVector{3}(0,1,2)
   for t in triangles(s)
     es = triangle_edges(s,t)
 
@@ -58,7 +59,7 @@ function binary_subdivision(s::EmbeddedDeltaSet2D)
     m0, m1, m2 = es .+ nv(s)
 
     # Edge indices:
-    m0_m1, m1_m2, m0_m2 = (3t-2 + 2ne(s)) .+ SVector{3}(0,1,2)
+    m0_m1, m1_m2, m0_m2 = (3t-2 + 2ne(s)) .+ inc_arr
     m0_v1, m1_v0, m2_v0 = 2es
     v2_m0, v2_m1, v1_m2 = 2es .- 1
 
