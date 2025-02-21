@@ -4,7 +4,7 @@ using GeometryBasics:Point3, Point2
 using Krylov, Catlab, SparseArrays, StaticArrays
 using ..SimplicialSets
 import Catlab: dom,codom
-export multigrid_vcycles, multigrid_wcycles, full_multigrid, repeated_subdivisions, binary_subdivision, binary_subdivision_map, dom, codom, as_matrix, MultigridData, AbstractGeometricMapSeries, PrimalGeometricMapSeries, finest_mesh, meshes, matrices, cubic_subdivision
+export multigrid_vcycles, multigrid_wcycles, full_multigrid, repeated_subdivisions, binary_subdivision, binary_subdivision_map, dom, codom, as_matrix, MultigridData, AbstractGeometricMapSeries, PrimalGeometricMapSeries, finest_mesh, meshes, matrices, cubic_subdivision, cubic_subdivision_map
 const Point3D = Point3{Float64}
 const Point2D = Point2{Float64}
 
@@ -174,6 +174,47 @@ function cubic_subdivision(s::EmbeddedDeltaSet2D)
   sd
 end
 
+function cubic_subdivision_map(s)
+  sd = cubic_subdivision(s)
+
+  nentries = 1*nv(s) + 2*(2*ne(s)) + 3*ntriangles(s)
+
+  I = zeros(Int32, nentries)
+  J = zeros(Int32, nentries)
+  V = ones(nentries)
+
+  # Original points:
+  for i in vertices(s) I[i]=J[i]=i; end
+
+  # Points along original edges:
+  for i in edges(s)
+    arr_i = nv(s) + 4i - 3
+    arr_idxs = SVector(arr_i, arr_i+1, arr_i+2, arr_i+3)
+    shift_i = nv(s) + 2*i - 1
+
+    I[arr_idxs] = [s[i, :∂v0], s[i, :∂v1], s[i, :∂v1], s[i, :∂v0]]
+
+    J[arr_idxs] = [shift_i, shift_i, shift_i+1, shift_i+1]
+
+    V[arr_idxs] = [2/3, 1/3, 2/3, 1/3]
+  end
+
+  # Points at triangle centers:
+  for i in triangles(s)
+    arr_i = (nv(s) + (2*2*ne(s))) + 3*i - 2
+    arr_idxs = SVector(arr_i, arr_i+1, arr_i+2)
+    shift_i = nv(s) + 2*ne(s) + i
+
+    I[arr_idxs] = [s[s[i, :∂e1], :∂v1], s[s[i, :∂e0], :∂v1], s[s[i, :∂e0], :∂v0]]
+
+    J[arr_idxs] .= shift_i
+
+    V[arr_idxs] = [1/3, 1/3, 1/3]
+  end
+
+  PrimalGeometricMap(sd,s,sparse(I,J,V))
+end
+
 function repeated_subdivisions(k,ss,subdivider)
   is_simplicial_complex(ss) || error("Subdivision is supported only for simplicial complexes.")
   map(1:k) do k′
@@ -214,7 +255,7 @@ The `PrimalGeometricMapSeries` returned contains a list of `levels + 1` dual com
 See also: [`AbstractGeometricMapSeries`](@ref), [`finest_mesh`](@ref).
 """
 function PrimalGeometricMapSeries(s::HasDeltaSet, subdivider::Function, levels::Int, alg = Circumcenter())
-  subdivs = reverse(repeated_subdivisions(levels, s, binary_subdivision_map));
+  subdivs = reverse(repeated_subdivisions(levels, s, subdivider));
   meshes = dom.(subdivs)
   push!(meshes, s)
 
@@ -252,7 +293,8 @@ MultigridData(g,r,p,s::Int) = MultigridData{typeof(g),typeof(r)}(g,r,p,fill(s,le
 function MultigridData(series::PrimalGeometricMapSeries, op::Function, s)
   ops = map(meshes(series)) do sd op(sd) end
   ps = transpose.(matrices(series))
-  rs = transpose.(ps)./4.0 #4 is the biggest row sum that occurs for triforce, this is not clearly the correct scaling
+  # TODO: Compute constant per scheme using row sums.
+  rs = transpose.(ps)./9.0 #4 is the biggest row sum that occurs for triforce, this is not clearly the correct scaling
 
   MultigridData(ops, rs, ps, s)
 end
