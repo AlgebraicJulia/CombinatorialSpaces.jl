@@ -639,8 +639,8 @@ end
 
 Return a function that solves the inverse Laplacian problem.
 """
-function dec_Δ⁻¹(::Type{Val{0}}, s::AbstractGeometricMapSeries; steps = 3, cycles = 5, alg = cg, μ = 2)
-  md = MultigridData(s, sd -> ∇²(0, sd), steps)
+function dec_Δ⁻¹(::Type{Val{0}}, s::AbstractGeometricMapSeries; steps = 3, cycles = 5, alg = cg, μ = 2, denominator = 4.0)
+  md = MultigridData(s, sd -> ∇²(0, sd), steps, denominator)
   b -> full_multigrid(b, md, cycles, alg, μ)
 end
 

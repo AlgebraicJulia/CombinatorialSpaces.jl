@@ -282,32 +282,41 @@ struct MultigridData{Gv,Mv}
   restrictions::Mv
   prolongations::Mv
   steps::Vector{Int}
+  denominator
 end
-MultigridData(g,r,p,s) = MultigridData{typeof(g),typeof(r)}(g,r,p,s)
+MultigridData(g,r,p,s,d) = MultigridData{typeof(g),typeof(r)}(g,r,p,s,d)
 """
 Construct a `MultigridData` with a constant step radius
 on each grid.
 """
-MultigridData(g,r,p,s::Int) = MultigridData{typeof(g),typeof(r)}(g,r,p,fill(s,length(g)))
+MultigridData(g,r,p,s::Int,d) = MultigridData{typeof(g),typeof(r)}(g,r,p,fill(s,length(g)),d)
 
-function MultigridData(series::PrimalGeometricMapSeries, op::Function, s)
+function MultigridData(series::PrimalGeometricMapSeries, op::Function, s, denominator=4.0)
   ops = map(meshes(series)) do sd op(sd) end
   ps = transpose.(matrices(series))
-  # TODO: Compute constant per scheme using row sums.
-  rs = transpose.(ps)./9.0 #4 is the biggest row sum that occurs for triforce, this is not clearly the correct scaling
+  # TODO: Compute constant denominator per scheme using row sums.
+  rs = transpose.(ps) ./ denominator
 
-  MultigridData(ops, rs, ps, s)
+  MultigridData(ops, rs, ps, s, denominator)
 end
 
 """
-Get the leading grid, restriction, prolongation, and step radius.
+Get the leading grid, restriction, prolongation, step radius, and denominator.
 """
-car(md::MultigridData) = length(md) > 1 ? (md.operators[1],md.restrictions[1],md.prolongations[1],md.steps[1]) : length(md) > 0 ? (md.operators[1],nothing,nothing,md.steps[1]) : (nothing,nothing,nothing,nothing)
+car(md::MultigridData) =
+  length(md) > 1 ?
+    (md.operators[1],md.restrictions[1],md.prolongations[1],md.steps[1],md.denominator) :
+    length(md) > 0 ?
+      (md.operators[1],nothing,nothing,md.steps[1],md.denominator) :
+      (nothing,nothing,nothing,nothing,nothing)
 
 """
-Remove the leading grid, restriction, prolongation, and step radius.
+Remove the leading grid, restriction, prolongation, step radius, and denominator.
 """
-cdr(md::MultigridData) = length(md) > 1 ? MultigridData(md.operators[2:end],md.restrictions[2:end],md.prolongations[2:end],md.steps[2:end]) : error("Not enough grids remaining in $md to take the cdr.")
+cdr(md::MultigridData) =
+  length(md) > 1 ?
+    MultigridData(md.operators[2:end],md.restrictions[2:end],md.prolongations[2:end],md.steps[2:end],md.denominator) :
+    error("Not enough grids remaining in $md to take the cdr.")
 
 """
 The length of a `MultigridData` is its number of grids.
@@ -317,7 +326,7 @@ Base.length(md::MultigridData) = length(md.operators)
 """
 Decrement the number of (eg V-)cycles left to be performed.
 """
-decrement_cycles(md::MultigridData) = MultigridData(md.operators,md.restrictions,md.prolongations,md.steps,md.cycles-1)
+decrement_cycles(md::MultigridData) = MultigridData(md.operators,md.restrictions,md.prolongations,md.steps,md.cycles-1,md.denominator)
 
 # TODO:
 # - Smarter calculations for steps and cycles,
