@@ -106,7 +106,7 @@ u = full_multigrid(b,md,5,cg,2)
 @debug "Relative error for FMG_W: $(norm(L*u-b)/norm(b))"
 
 #=
-function plot_residuals(s, levels=1:50)
+function plot_residuals(s, cycles=1:50)
   function residuals(subdivision_map, denominator)
     series = PrimalGeometricMapSeries(s, subdivision_map, 4);
     md = MultigridData(series, sd -> ∇²(0, sd), 3, denominator)
@@ -114,8 +114,8 @@ function plot_residuals(s, levels=1:50)
     L = first(md.operators)
     b = L*rand(nv(sd)) #put into range of the Laplacian for solvability
     u0 = zeros(nv(sd))
-    ress = map(levels) do lev
-      u = multigrid_vcycles(u0,b,md,lev)
+    ress = map(cycles) do cyc
+      u = multigrid_vcycles(u0,b,md,cyc)
       norm(L*u-b)/norm(b)
     end
   end
@@ -125,16 +125,56 @@ function plot_residuals(s, levels=1:50)
 
   f = Figure()
   ax = GLMakie.Axis(f[1,1];
-    title="Multigrid V-cycles",
-    yscale=log10,
-    ylabel="log₁₀(relative error)",
-    xlabel="# max levels")
+    title = "Multigrid V-cycles",
+    yscale = log10,
+    ylabel = "log₁₀(relative error)",
+    xlabel = "# cycles")
   lines!(ax, bin_ress, label="binary")
   lines!(ax, cub_ress, label="cubic")
   f[1,2] = Legend(f,ax,"Scheme")
   f
 end
 plot_residuals(s)
+
+function heatmap_residuals(s, levels=2:4, cycles=1:50)
+  function residuals(subdivision_map, level, denominator, mesh_sizes)
+    series = PrimalGeometricMapSeries(s, subdivision_map, level);
+    md = MultigridData(series, sd -> ∇²(0, sd), level-1, denominator)
+    sd = finest_mesh(series)
+    push!(mesh_sizes, nv(sd))
+    L = first(md.operators)
+    b = L*rand(nv(sd)) #put into range of the Laplacian for solvability
+    u0 = zeros(nv(sd))
+    ress = map(cycles) do cyc
+      u = multigrid_vcycles(u0,b,md,cyc)
+      norm(L*u-b)/norm(b)
+    end
+  end
+
+  bin_sizes = []
+  bin_ress = mapreduce(x -> residuals(binary_subdivision_map, x, 4.0, bin_sizes), hcat, levels)
+  cub_sizes = []
+  cub_ress = mapreduce(x -> residuals(cubic_subdivision_map, x, 9.0, cub_sizes), hcat, levels)
+
+  f = Figure()
+  ax = GLMakie.Axis(f[1,1];
+    title = "log10 of Multigrid V-cycles Residuals, Binary Subdivision",
+    ylabel = "# vertices",
+    yticks = (1:3, string.(bin_sizes)),
+    xlabel = "# cycles")
+  bin_hmp = heatmap!(ax, log10.(bin_ress), colormap = :jet)
+  Colorbar(f[1,2], bin_hmp)
+
+  ax = GLMakie.Axis(f[2,1];
+    title = "log10 of Multigrid V-cycles Residuals, Cubic Subdivision",
+    ylabel = "# vertices",
+    yticks = (1:3, string.(cub_sizes)),
+    xlabel = "# cycles")
+  bin_hmp = heatmap!(ax, log10.(cub_ress), colormap = :jet)
+  Colorbar(f[2,2], bin_hmp)
+  f
+end
+heatmap_residuals(s)
 =#
 
 end
