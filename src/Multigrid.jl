@@ -4,7 +4,7 @@ using GeometryBasics:Point3, Point2
 using Krylov, Catlab, SparseArrays, StaticArrays
 using ..SimplicialSets
 import Catlab: dom,codom
-export multigrid_vcycles, multigrid_wcycles, full_multigrid, repeated_subdivisions, binary_subdivision, binary_subdivision_map, dom, codom, as_matrix, MultigridData, AbstractGeometricMapSeries, PrimalGeometricMapSeries, finest_mesh, meshes, matrices, cubic_subdivision, cubic_subdivision_map
+export multigrid_vcycles, multigrid_wcycles, full_multigrid, repeated_subdivisions, binary_subdivision, binary_subdivision_map, dom, codom, as_matrix, MultigridData, MGData, AbstractGeometricMapSeries, PrimalGeometricMapSeries, finest_mesh, meshes, matrices, cubic_subdivision, cubic_subdivision_map, AbstractSubdivisionScheme, BinarySubdivision, CubicSubdivision
 const Point3D = Point3{Float64}
 const Point2D = Point2{Float64}
 
@@ -18,15 +18,20 @@ dom(f::PrimalGeometricMap) = f.domain
 codom(f::PrimalGeometricMap) = f.codomain
 as_matrix(f::PrimalGeometricMap) = f.matrix
 
-function is_simplicial_complex(s)
-  allunique(map(1:ne(s)) do i edge_vertices(s,i) end) &&
-  allunique(map(1:ntriangles(s)) do i triangle_vertices(s,i) end)
+# XXX: This function does not detect e.g. dangling edges.
+function is_simplicial_complex(s::HasDeltaSet2D)
+  allunique(map(x -> Set(edge_vertices(s,x)), edges(s))) &&
+  allunique(map(x -> Set(triangle_vertices(s,x)), triangles(s)))
 end
 
-"""
-Subdivide each triangle into 4 via "binary" a.k.a. "medial" subdivision, returning a primal simplicial complex.
+abstract type AbstractSubdivisionScheme end
 
-Binary subdivision results in triangles that resemble the "tri-force" symbol from Legend of Zelda.
+struct BinarySubdivision <: AbstractSubdivisionScheme end
+struct CubicSubdivision <: AbstractSubdivisionScheme end
+
+"""
+Subdivide each triangle into 4 via "binary" a.k.a. "medial" subdivision,
+returning a primal simplicial complex.
 """
 function binary_subdivision(s::EmbeddedDeltaSet2D)
   sd = typeof(s)()
@@ -215,14 +220,19 @@ function cubic_subdivision_map(s)
   PrimalGeometricMap(sd,s,sparse(I,J,V))
 end
 
-function repeated_subdivisions(k,ss,subdivider)
-  is_simplicial_complex(ss) || error("Subdivision is supported only for simplicial complexes.")
-  map(1:k) do k′
-    f = subdivider(ss)
-    ss = dom(f)
-    f
-  end
-end
+subdivision(s::EmbeddedDeltaSet2D, ::BinarySubdivision) = binary_subdivision(s)
+subdivision(s::EmbeddedDeltaSet2D, ::CubicSubdivision) = cubic_subdivision(s)
+subdivision(s::EmbeddedDeltaSet2D) = binary_subdivision(s, BinarySubdivision)
+
+binary_subdivision_map(pgm::PrimalGeometricMap) = binary_subdivision_map(dom(pgm))
+cubic_subdivision_map(pgm::PrimalGeometricMap) = cubic_subdivision_map(dom(pgm))
+
+repeated_subdivisions(k, ss, subdivider) =
+  accumulate((x,_) -> subdivider(x), 1:k; init=ss)
+
+repeated_subdivisions(k, ss, ::BinarySubdivision) = repeated_subdivisions(k, ss, binary_subdivision_map)
+repeated_subdivisions(k, ss, ::CubicSubdivision) = repeated_subdivisions(k, ss, cubic_subdivision_map)
+repeated_subdivisions(k, ss) = repeated_subdivisions(k, ss, BinarySubdivision)
 
 # Different means of representing a series of complexes with maps between them should sub-type this abstract type.
 # Those concrete types should then provide a constructor for `MultigridData`.
@@ -255,15 +265,21 @@ The `PrimalGeometricMapSeries` returned contains a list of `levels + 1` dual com
 See also: [`AbstractGeometricMapSeries`](@ref), [`finest_mesh`](@ref).
 """
 function PrimalGeometricMapSeries(s::HasDeltaSet, subdivider::Function, levels::Int, alg = Circumcenter())
-  subdivs = reverse(repeated_subdivisions(levels, s, subdivider));
-  meshes = dom.(subdivs)
-  push!(meshes, s)
+  subdivs = Iterators.reverse(repeated_subdivisions(levels, s, subdivider));
+  meshes = [dom.(subdivs)..., s]
 
   dual_meshes = map(s -> dualize(s, alg), meshes)
 
   matrices = as_matrix.(subdivs)
   PrimalGeometricMapSeries{typeof(first(dual_meshes)), typeof(first(matrices))}(dual_meshes, matrices)
 end
+
+PrimalGeometricMapSeries(s::HasDeltaSet, ::BinarySubdivision, levels::Int, alg = Circumcenter()) =
+  PrimalGeometricMapSeries(s, binary_subdivision_map, levels, alg)
+PrimalGeometricMapSeries(s::HasDeltaSet, ::CubicSubdivision, levels::Int, alg = Circumcenter()) =
+  PrimalGeometricMapSeries(s, cubic_subdivision_map, levels, alg)
+PrimalGeometricMapSeries(s::HasDeltaSet, levels::Int, alg = Circumcenter()) =
+  PrimalGeometricMapSeries(s, binary_subdivision_map, levels, alg)
 
 """    finest_mesh(series::PrimalGeometricMapSeries)
 
@@ -272,7 +288,7 @@ Return the mesh in a `PrimalGeometricMapSeries` with the highest resolution.
 finest_mesh(series::PrimalGeometricMapSeries) = first(series.meshes)
 
 """
-Contains the data require for multigrid methods. If there are
+Contains the data required for multigrid methods. If there are
 `n` grids, there are `n-1` restrictions and prolongations and `n`
 step radii. This structure does not contain the solution `u` or
 the right-hand side `b` because those would have to mutate.
@@ -282,51 +298,49 @@ struct MultigridData{Gv,Mv}
   restrictions::Mv
   prolongations::Mv
   steps::Vector{Int}
-  denominator
 end
-MultigridData(g,r,p,s,d) = MultigridData{typeof(g),typeof(r)}(g,r,p,s,d)
+
+MultigridData(g,r,p,s) = MultigridData{typeof(g),typeof(r)}(g,r,p,s)
+
 """
 Construct a `MultigridData` with a constant step radius
 on each grid.
 """
-MultigridData(g,r,p,s::Int,d) = MultigridData{typeof(g),typeof(r)}(g,r,p,fill(s,length(g)),d)
+MultigridData(g,r,p,s::Int) = MultigridData(g,r,p,fill(s,length(g)))
 
-function MultigridData(series::PrimalGeometricMapSeries, op::Function, s, denominator=4.0)
-  ops = map(meshes(series)) do sd op(sd) end
+function MultigridData(series::PrimalGeometricMapSeries, op::Function, s::AbstractVector, rs_factor::Number)
+  ops = op.(meshes(series))
   ps = transpose.(matrices(series))
-  # TODO: Compute constant denominator per scheme using row sums.
-  rs = transpose.(ps) ./ denominator
+  rs = transpose.(ps) .* rs_factor
 
-  MultigridData(ops, rs, ps, s, denominator)
+  MultigridData(ops, rs, ps, s)
+end
+
+MGData(series::PrimalGeometricMapSeries, op::Function, s::Int, ::BinarySubdivision) =
+  MultigridData(series, op, fill(s,length(series.meshes)), 1.0/4.0)
+MGData(series::PrimalGeometricMapSeries, op::Function, s::Int, ::CubicSubdivision) =
+  MultigridData(series, op, fill(s,length(series.meshes)), 1.0/9.0)
+
+"""
+Get the leading grid, restriction, prolongation, and step radius.
+"""
+function car(md::MultigridData)
+  first_or_null(x) = isempty(x) ? nothing : first(x)
+  first_or_null.([md.operators, md.restrictions, md.prolongations, md.steps])
 end
 
 """
-Get the leading grid, restriction, prolongation, step radius, and denominator.
-"""
-car(md::MultigridData) =
-  length(md) > 1 ?
-    (md.operators[1],md.restrictions[1],md.prolongations[1],md.steps[1],md.denominator) :
-    length(md) > 0 ?
-      (md.operators[1],nothing,nothing,md.steps[1],md.denominator) :
-      (nothing,nothing,nothing,nothing,nothing)
-
-"""
-Remove the leading grid, restriction, prolongation, step radius, and denominator.
+Remove the leading grid, restriction, prolongation, and step radius.
 """
 cdr(md::MultigridData) =
   length(md) > 1 ?
-    MultigridData(md.operators[2:end],md.restrictions[2:end],md.prolongations[2:end],md.steps[2:end],md.denominator) :
+    MultigridData(md.operators[2:end],md.restrictions[2:end],md.prolongations[2:end],md.steps[2:end]) :
     error("Not enough grids remaining in $md to take the cdr.")
 
 """
 The length of a `MultigridData` is its number of grids.
 """
 Base.length(md::MultigridData) = length(md.operators)
-
-"""
-Decrement the number of (eg V-)cycles left to be performed.
-"""
-decrement_cycles(md::MultigridData) = MultigridData(md.operators,md.restrictions,md.prolongations,md.steps,md.cycles-1,md.denominator)
 
 # TODO:
 # - Smarter calculations for steps and cycles,
@@ -344,13 +358,14 @@ at this point.
 `alg` is a Krylov.jl method, probably either the default `cg` or
 `gmres`.
 """
-multigrid_vcycles(u,b,md,cycles,alg=cg) = multigrid_μ_cycles(u,b,md,cycles,alg,1)
+multigrid_vcycles(u, b, md, cycles, alg=cg) = multigrid_μ_cycles(u, b, md, cycles, alg, 1)
 
 """
 Just the same as `multigrid_vcycles` but with W-cycles.
 """
-multigrid_wcycles(u,b,md,cycles,alg=cg) = multigrid_μ_cycles(u,b,md,cycles,alg,2)
-function multigrid_μ_cycles(u,b,md::MultigridData,cycles,alg=cg,μ=1)
+multigrid_wcycles(u, b, md, cycles, alg=cg) = multigrid_μ_cycles(u, b, md, cycles, alg, 2)
+
+function multigrid_μ_cycles(u, b, md::MultigridData, cycles, alg=cg, μ=1)
   cycles == 0 && return u
   u = _multigrid_μ_cycle(u,b,md,alg,μ)
   multigrid_μ_cycles(u,b,md,cycles-1,alg,μ)
@@ -361,31 +376,29 @@ The full multigrid framework: start at the coarsest grid and
 work your way up, applying V-cycles or W-cycles at each level
 according as μ is 1 or 2.
 """
-function full_multigrid(b,md::MultigridData,cycles,alg=cg,μ=1)
+function full_multigrid(b, md::MultigridData, cycles, alg=cg, μ=1)
   z_f = zeros(size(b))
   if length(md) > 1
     r,p = car(md)[2:3]
     b_c = r * b
-    z_c = full_multigrid(b_c,cdr(md),cycles,alg,μ)
+    z_c = full_multigrid(b_c, cdr(md), cycles, alg, μ)
     z_f = p * z_c
   end
   multigrid_μ_cycles(z_f,b,md,cycles,alg,μ)
 end
 
-function _multigrid_μ_cycle(u,b,md::MultigridData,alg=cg,μ=1)
+function _multigrid_μ_cycle(u, b, md::MultigridData, alg=cg, μ=1)
   A,r,p,s = car(md)
   u = alg(A,b,u,itmax=s)[1]
-  if length(md) == 1
-    return u
-  end
+  length(md) == 1 && return u
   r_f = b - A*u
   r_c = r * r_f
-  z = _multigrid_μ_cycle(zeros(size(r_c)),r_c,cdr(md),alg,μ)
+  z = _multigrid_μ_cycle(zeros(size(r_c)), r_c, cdr(md), alg, μ)
   if μ > 1
-    z = _multigrid_μ_cycle(z,r_c,cdr(md),alg,μ-1)
+    z = _multigrid_μ_cycle(z, r_c, cdr(md), alg, μ-1)
   end
   u += p * z
-  u = alg(A,b,u,itmax=s)[1]
+  u = alg(A, b, u, itmax=s)[1]
 end
 
 end

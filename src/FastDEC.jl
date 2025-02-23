@@ -12,7 +12,7 @@ module FastDEC
 
 using ..SimplicialSets, ..DiscreteExteriorCalculus
 using ..DiscreteExteriorCalculus: crossdot
-using ..Multigrid: AbstractGeometricMapSeries, MultigridData, full_multigrid
+using ..Multigrid: AbstractGeometricMapSeries, AbstractSubdivisionScheme, MGData, full_multigrid
 
 using ACSets
 using Base.Iterators
@@ -639,8 +639,8 @@ end
 
 Return a function that solves the inverse Laplacian problem.
 """
-function dec_Δ⁻¹(::Type{Val{0}}, s::AbstractGeometricMapSeries; steps = 3, cycles = 5, alg = cg, μ = 2, denominator = 4.0)
-  md = MultigridData(s, sd -> ∇²(0, sd), steps, denominator)
+function dec_Δ⁻¹(::Type{Val{0}}, s::AbstractGeometricMapSeries; scheme::AbstractSubdivisionScheme = BinarySubdivision(), steps = 3, cycles = 5, alg = cg, μ = 2)
+  md = MGData(s, sd -> ∇²(0, sd), steps, scheme)
   b -> full_multigrid(b, md, cycles, alg, μ)
 end
 
