@@ -9,7 +9,7 @@ include("SimplicialSets.jl")
 include("DiscreteExteriorCalculus.jl")
 include("MeshInterop.jl")
 include("Meshes.jl")
-include("restrictions.jl")
+include("Restrictions.jl")
 include("Multigrid.jl")
 include("FastDEC.jl")
 

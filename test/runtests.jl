@@ -26,7 +26,7 @@ end
 end
 
 @testset "Restrictions" begin
-  include("restrictions.jl")
+  include("Restrictions.jl")
 end
 
 @testset "Multigrid" begin
