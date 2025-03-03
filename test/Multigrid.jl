@@ -7,6 +7,8 @@ const Point3D = Point3{Float64}
 const Point2D = Point2{Float64}
 using CombinatorialSpaces.Meshes: tri_345
 
+using CombinatorialSpaces.Multigrid: UnarySubdivision, unary_subdivision, unary_subdivision_map
+
 Random.seed!(0)
 
 # Subdivision schemes unit tests
@@ -18,6 +20,9 @@ bin_s = binary_subdivision_map(s)
 for e in 1:ne(s)
   @test findnz(bin_s.matrix[1:nv(s), nv(s)+e]) == ([s[e, :∂v1], s[e, :∂v0]], [0.5, 0.5])
 end
+
+unary_nv_ne_ntriangles(s) =
+  (nv(s), ne(s), ntriangles(s))
 
 binary_nv_ne_ntriangles(s) =
   (nv(s) + ne(s), 2*ne(s) + 3*ntriangles(s), 4*ntriangles(s))
@@ -34,6 +39,7 @@ function expected_parts(s, subdivider, nv_ne_ntriangles)
   end
 end
 
+expected_parts(s, unary_subdivision, unary_nv_ne_ntriangles)
 expected_parts(s, binary_subdivision, binary_nv_ne_ntriangles)
 expected_parts(s, cubic_subdivision, cubic_nv_ne_ntriangles)
 
@@ -74,6 +80,7 @@ end
 
 s = triangulated_grid(1,1,1/4,sqrt(3)/2*1/4,Point3D,false)
 
+test_residuals(s, UnarySubdivision())
 test_residuals(s, BinarySubdivision())
 test_residuals(s, CubicSubdivision())
 
