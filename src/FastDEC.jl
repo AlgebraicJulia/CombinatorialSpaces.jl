@@ -12,7 +12,7 @@ module FastDEC
 
 using ..SimplicialSets, ..DiscreteExteriorCalculus
 using ..DiscreteExteriorCalculus: crossdot
-using ..Multigrid: AbstractGeometricMapSeries, AbstractSubdivisionScheme, MGData, full_multigrid
+using ..Multigrid: AbstractGeometricMapSeries, AbstractSubdivisionScheme, BinarySubdivision, MGData, full_multigrid
 
 using ACSets
 using Base.Iterators
