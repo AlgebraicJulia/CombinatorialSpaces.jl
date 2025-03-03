@@ -2,6 +2,7 @@ module Multigrid
 
 using CombinatorialSpaces
 using GeometryBasics: Point3, Point2
+using LinearAlgebra: I
 using Krylov, Catlab, SparseArrays, StaticArrays
 using ..SimplicialSets
 import Catlab: dom, codom
@@ -30,16 +31,20 @@ as_matrix(f::PrimalGeometricMap) = f.matrix
 
 abstract type AbstractSubdivisionScheme end
 
+struct UnarySubdivision <: AbstractSubdivisionScheme end
 struct BinarySubdivision <: AbstractSubdivisionScheme end
 struct CubicSubdivision <: AbstractSubdivisionScheme end
 
+subdivision(s::EmbeddedDeltaSet2D, ::UnarySubdivision) = unary_subdivision(s)
 subdivision(s::EmbeddedDeltaSet2D, ::BinarySubdivision) = binary_subdivision(s)
 subdivision(s::EmbeddedDeltaSet2D, ::CubicSubdivision) = cubic_subdivision(s)
 subdivision(s::EmbeddedDeltaSet2D) = binary_subdivision(s, BinarySubdivision)
 
+unary_subdivision_map(pgm::PrimalGeometricMap) = unary_subdivision_map(dom(pgm))
 binary_subdivision_map(pgm::PrimalGeometricMap) = binary_subdivision_map(dom(pgm))
 cubic_subdivision_map(pgm::PrimalGeometricMap) = cubic_subdivision_map(dom(pgm))
 
+repeated_subdivisions(k, ss, ::UnarySubdivision) = repeated_subdivisions(k, ss, unary_subdivision_map)
 repeated_subdivisions(k, ss, ::BinarySubdivision) = repeated_subdivisions(k, ss, binary_subdivision_map)
 repeated_subdivisions(k, ss, ::CubicSubdivision) = repeated_subdivisions(k, ss, cubic_subdivision_map)
 repeated_subdivisions(k, ss) = repeated_subdivisions(k, ss, BinarySubdivision)
@@ -67,6 +72,8 @@ end
 meshes(series::PrimalGeometricMapSeries) = series.meshes
 matrices(series::PrimalGeometricMapSeries) = series.matrices
 
+PrimalGeometricMapSeries(s::HasDeltaSet, ::UnarySubdivision, levels::Int, alg = Circumcenter()) =
+  PrimalGeometricMapSeries(s, unary_subdivision_map, levels, alg)
 PrimalGeometricMapSeries(s::HasDeltaSet, ::BinarySubdivision, levels::Int, alg = Circumcenter()) =
   PrimalGeometricMapSeries(s, binary_subdivision_map, levels, alg)
 PrimalGeometricMapSeries(s::HasDeltaSet, ::CubicSubdivision, levels::Int, alg = Circumcenter()) =
@@ -96,6 +103,8 @@ end
 
 MultigridData(g,r,p,s) = MultigridData{typeof(g),typeof(r)}(g,r,p,s)
 
+MGData(series::PrimalGeometricMapSeries, op::Function, s::Int, ::UnarySubdivision) =
+  MultigridData(series, op, fill(s,length(series.meshes)), 1.0)
 MGData(series::PrimalGeometricMapSeries, op::Function, s::Int, ::BinarySubdivision) =
   MultigridData(series, op, fill(s,length(series.meshes)), 1.0/4.0)
 MGData(series::PrimalGeometricMapSeries, op::Function, s::Int, ::CubicSubdivision) =
@@ -162,6 +171,18 @@ end
 
 # Subdivision Algorithms
 #-----------------------
+
+# Subdivide each triangle into 1 via "unary" a.k.a. "trivial" subdivision,
+# returning a primal simplicial complex.
+function unary_subdivision(s::EmbeddedDeltaSet2D)
+  sd = copy(s)
+  sd
+end
+
+function unary_subdivision_map(s)
+  sd = unary_subdivision(s)
+  PrimalGeometricMap(sd, s, I(nv(s)))
+end
 
 """
 Subdivide each triangle into 4 via "binary" a.k.a. "medial" subdivision,
