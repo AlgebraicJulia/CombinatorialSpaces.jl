@@ -174,7 +174,7 @@ end
 
 # Subdivide each triangle into 1 via "unary" a.k.a. "trivial" subdivision,
 # returning a primal simplicial complex.
-function unary_subdivision(s::EmbeddedDeltaSet2D)
+function unary_subdivision(s::Union{EmbeddedDeltaSet1D, EmbeddedDeltaSet2D})
   sd = copy(s)
   sd
 end
@@ -188,7 +188,12 @@ end
 Subdivide each triangle into 4 via "binary" a.k.a. "medial" subdivision,
 returning a primal simplicial complex.
 """
-function binary_subdivision(s::EmbeddedDeltaSet2D)
+function binary_subdivision(s::Union{EmbeddedDeltaSet1D, EmbeddedDeltaSet2D})
+  # TODO: Refactor the dispatch here.
+  ntriangles(s::EmbeddedDeltaSet1D) = 0
+  ntriangles(s::EmbeddedDeltaSet2D) = nparts(s,:Tri)
+  triangles(s::EmbeddedDeltaSet1D) = 1:0
+  triangles(s::EmbeddedDeltaSet2D) = parts(s,:Tri)
   sd = typeof(s)()
   add_vertices!(sd,nv(s)+ne(s))
   sd[1:nv(s), :point] = s[:point]
@@ -210,7 +215,9 @@ function binary_subdivision(s::EmbeddedDeltaSet2D)
   #    m1 -- m0
   #   /  \  /  \
   # v0 -- m2 -- v1
-  add_parts!(sd, :Tri, 4*ntriangles(s))
+  if s isa EmbeddedDeltaSet2D
+    add_parts!(sd, :Tri, 4*ntriangles(s))
+  end
   inc_arr = SVector{3}(0,1,2)
   for t in triangles(s)
     es = triangle_edges(s,t)
@@ -265,7 +272,11 @@ end
 """
 Subdivide each triangle into 9 via cubic subdivision, returning a primal simplicial complex.
 """
-function cubic_subdivision(s::EmbeddedDeltaSet2D)
+function cubic_subdivision(s::Union{EmbeddedDeltaSet1D, EmbeddedDeltaSet2D})
+  ntriangles(s::EmbeddedDeltaSet1D) = 0
+  ntriangles(s::EmbeddedDeltaSet2D) = nparts(s,:Tri)
+  triangles(s::EmbeddedDeltaSet1D) = 1:0
+  triangles(s::EmbeddedDeltaSet2D) = parts(s,:Tri)
   sd = typeof(s)()
   add_vertices!(sd, nv(s)+2ne(s)+ntriangles(s))
   sd[1:nv(s), :point] =
@@ -296,7 +307,9 @@ function cubic_subdivision(s::EmbeddedDeltaSet2D)
   #    012< 111  >210
   #   ^  ^  ^  ^  ^  v
   # 003 >102  >201  >300
-  add_parts!(sd, :Tri, 9ntriangles(s))
+  if s isa EmbeddedDeltaSet2D
+    add_parts!(sd, :Tri, 9ntriangles(s))
+  end
   inc_arr = SVector{9}(0,1,2,3,4,5,6,7,8)
   for t in triangles(s)
     es = triangle_edges(s,t)
@@ -330,6 +343,10 @@ function cubic_subdivision(s::EmbeddedDeltaSet2D)
 end
 
 function cubic_subdivision_map(s)
+  ntriangles(s::EmbeddedDeltaSet1D) = 0
+  ntriangles(s::EmbeddedDeltaSet2D) = nparts(s,:Tri)
+  triangles(s::EmbeddedDeltaSet1D) = 1:0
+  triangles(s::EmbeddedDeltaSet2D) = parts(s,:Tri)
   sd = cubic_subdivision(s)
 
   nentries = 1*nv(s) + 2*(2*ne(s)) + 3*ntriangles(s)
