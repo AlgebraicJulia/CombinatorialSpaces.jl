@@ -14,21 +14,23 @@ end
   include("DiscreteExteriorCalculus.jl")
   include("Operators.jl")
 end
-
+ 
 @testset "Meshes" begin
   include("Meshes.jl")
   include("MeshInterop.jl")
   include("MeshGraphics.jl")
 end
 
-using CUDA
-if CUDA.functional()
-  @testset "CUDA" begin
-    include("OperatorsCUDA.jl")
-  end
-else
-  @info "CUDA tests were not run."
-  @info CUDA.functional(true)
+@testset "Alternate Backends" begin
+  include("Backends.jl")
+end
+
+@testset "Restrictions" begin
+  include("Restrictions.jl")
+end
+
+@testset "Multigrid" begin
+  include("Multigrid.jl")
 end
 
 end

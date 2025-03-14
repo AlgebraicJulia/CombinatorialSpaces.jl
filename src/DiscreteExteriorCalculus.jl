@@ -18,6 +18,7 @@ export DualSimplex, DualV, DualE, DualTri, DualTet, DualChain, DualForm,
   AbstractDeltaDualComplex3D, DeltaDualComplex3D, SchDeltaDualComplex3D,
   OrientedDeltaDualComplex3D, SchOrientedDeltaDualComplex3D,
   EmbeddedDeltaDualComplex3D, SchEmbeddedDeltaDualComplex3D,
+  DeltaDualComplex, EmbeddedDeltaDualComplex, OrientedDeltaDualComplex,
   SimplexCenter, Barycenter, Circumcenter, Incenter, geometric_center,
   subsimplices, primal_vertex, elementary_duals, dual_boundary, dual_derivative,
   ⋆, hodge_star, inv_hodge_star, δ, codifferential, ∇², laplace_beltrami, Δ, laplace_de_rham,
@@ -25,15 +26,18 @@ export DualSimplex, DualV, DualE, DualTri, DualTet, DualChain, DualForm,
   ℒ, lie_derivative, lie_derivative_flat,
   vertex_center, edge_center, triangle_center, tetrahedron_center, dual_tetrahedron_vertices, dual_triangle_vertices, dual_edge_vertices,
   dual_point, dual_volume, subdivide_duals!, DiagonalHodge, GeometricHodge,
-  subdivide, PPSharp, AltPPSharp, DesbrunSharp, LLSDDSharp, de_sign,
-  ♭♯, ♭♯_mat, flat_sharp, flat_sharp_mat
+  subdivide, PDSharp, PPSharp, AltPPSharp, DesbrunSharp, LLSDDSharp, de_sign,
+  DPPFlat, PPFlat,
+  ♭♯, ♭♯_mat, flat_sharp, flat_sharp_mat, dualize,
+  p2_d2_interpolation
 
 import Base: ndims
 import Base: *
 import LinearAlgebra: mul!
-using LinearAlgebra: Diagonal, dot, norm, cross, pinv, qr, ColumnNorm
+using LinearAlgebra: Diagonal, dot, norm, cross, pinv, qr, ColumnNorm, normalize
 using SparseArrays
 using StaticArrays: @SVector, SVector, SMatrix, MVector, MMatrix
+using Statistics: mean
 using GeometryBasics: Point2, Point3
 
 const Point2D = SVector{2,Float64}
@@ -42,19 +46,23 @@ const Point3D = SVector{3,Float64}
 using ACSets.DenseACSets: attrtype_type
 using Catlab, Catlab.CategoricalAlgebra.CSets
 using Catlab.CategoricalAlgebra.FinSets: deleteat
+using Catlab.CategoricalAlgebra.FunctorialDataMigrations: DeltaMigration, migrate
 import Catlab.CategoricalAlgebra.CSets: ∧
 import Catlab.Theories: Δ
 using DataMigrations: @migrate
 
 using ..ArrayUtils, ..SimplicialSets
 using ..SimplicialSets: CayleyMengerDet, operator_nz, ∂_nz, d_nz,
-  cayley_menger, negate
+  cayley_menger, negate, numeric_sign
+
 import ..SimplicialSets: ∂, d, volume
 
 abstract type DiscreteFlat end
 struct DPPFlat <: DiscreteFlat end
+struct PPFlat <: DiscreteFlat end
 
 abstract type DiscreteSharp end
+struct PDSharp <: DiscreteSharp end
 struct PPSharp <: DiscreteSharp end
 struct AltPPSharp <: DiscreteSharp end
 struct DesbrunSharp <: DiscreteSharp end
@@ -66,7 +74,6 @@ struct DiagonalHodge  <: DiscreteHodge end
 
 # Euclidean geometry
 ####################
-
 """ A notion of "geometric center" of a simplex.
 
 See also: [`geometric_center`](@ref).
@@ -191,33 +198,10 @@ end
 
 This accessor assumes that the simplicial identities for the dual hold.
 """
-function dual_triangle_vertices(s::HasDeltaSet2D, t...)
+function dual_triangle_vertices(s::HasDeltaSet1D, t...)
   SVector(s[s[t..., :D_∂e1], :D_∂v1],
           s[s[t..., :D_∂e0], :D_∂v1],
           s[s[t..., :D_∂e0], :D_∂v0])
-end
-
-""" Subdivide a 1D delta set.
-"""
-function subdivide(s::HasDeltaSet1D)
-  @migrate typeof(s) s begin
-    V => @cases begin
-      v::V
-      e::E
-    end
-    E => @cases begin
-      e₁::E
-      e₂::E
-    end
-    ∂v1 => begin
-      e₁ => e
-      e₂ => e
-    end
-    ∂v0 => begin
-      e₁ => (v∘∂v1)
-      e₂ => (v∘∂v0)
-    end
-  end
 end
 
 # 1D oriented dual complex
@@ -281,7 +265,7 @@ end
 
 make_dual_simplices_1d!(s::AbstractDeltaDualComplex1D) = make_dual_simplices_1d!(s, E)
 
-""" Make dual vertice and edges for dual complex of dimension ≧ 1.
+""" Make dual vertices and edges for dual complex of dimension ≧ 1.
 
 Although zero-dimensional duality is geometrically trivial (subdividing a vertex
 gives back the same vertex), we treat the dual vertices as disjoint from the
@@ -320,40 +304,6 @@ function make_dual_simplices_1d!(s::HasDeltaSet1D, ::Type{Simplex{n}}) where n
   D_edges
 end
 
-# TODO: Instead of copying-and-pasting the DeltaSet1D version:
-# - Use metaprogramming, or
-# - Don't use the migration DSL, but rather the lower-level functor interface.
-# TODO: When Catlab PR #823 "Data migrations with Julia functions on attributes"
-# is merged, ensure that oriented-ness is preserved. (Flip one of the
-# orientations.)
-""" Subdivide an oriented 1D delta set.
-
-Note that this function does NOT currently guarantee that if the input is
-oriented, then the output will be.
-"""
-function subdivide(s::OrientedDeltaSet1D{T}) where T
-  @migrate typeof(s) s begin
-    V => @cases begin
-      v::V
-      e::E
-    end
-    E => @cases begin
-      e₁::E
-      e₂::E
-    end
-    ∂v1 => begin
-      e₁ => e
-      e₂ => e
-    end
-    ∂v0 => begin
-      e₁ => (v∘∂v1)
-      e₂ => (v∘∂v0)
-    end
-    Orientation => Orientation
-    # TODO: One of these edge orientations must be flipped. (e₂?)
-    edge_orientation => (e₁ => edge_orientation; e₂ => edge_orientation)
-  end
-end
 
 # 1D embedded dual complex
 #-------------------------
@@ -448,17 +398,7 @@ function precompute_volumes_1d!(sd::HasDeltaSet1D, ::Type{point_type}) where poi
   end
 end
 
-# TODO: When Catlab PR #823 "Data migrations with Julia functions on attributes"
-# is merged, encode subdivision like so:
-#function subdivide(s::EmbeddedDeltaSet1D{T,U}, alg::V) where {T,U,V <: SimplexCenter}
-#  @migrate typeof(s) s begin
-#    ...
-#    edge_orientation => (e₁ => edge_orientation; e₂ => !(edge_orientation))
-#    Point => Point
-#    point => (v => point; e => geometric_center([e₁ ⋅ point, e₂ ⋅ point], alg))
-#    ...
-#  end
-#end
+# TODO: Orientation on subdivisions
 
 # 2D dual complex
 #################
@@ -706,11 +646,10 @@ function ♭(s::AbstractDeltaDualComplex2D, X::AbstractVector, ::DPPFlat)
   end
 end
 
-function ♭_mat(s::AbstractDeltaDualComplex2D)
-  ♭_mat(s, ∂(2,s))
-end
+♭_mat(s::AbstractDeltaDualComplex2D, f::DPPFlat) =
+  ♭_mat(s, ∂(2,s), f)
 
-function ♭_mat(s::AbstractDeltaDualComplex2D, p2s)
+function ♭_mat(s::AbstractDeltaDualComplex2D, p2s, ::DPPFlat)
   mat_type = SMatrix{1, length(eltype(s[:point])), eltype(eltype(s[:point])), length(eltype(s[:point]))}
   ♭_mat = spzeros(mat_type, ne(s), ntriangles(s))
   for e in edges(s)
@@ -737,6 +676,46 @@ function ♭_mat(s::AbstractDeltaDualComplex2D, p2s)
     end
   end
   ♭_mat
+end
+
+function ♭(s::AbstractDeltaDualComplex2D, X::AbstractVector, ::PPFlat)
+  map(edges(s)) do e
+    vs = edge_vertices(s,e)
+    l_vec = mean(X[vs])
+    e_vec = (point(s, tgt(s,e)) - point(s, src(s,e))) * sign(1,s,e)
+    dot(l_vec, e_vec)
+  end
+end
+
+function ♭_mat(s::AbstractDeltaDualComplex2D, ::PPFlat)
+  mat_type = SMatrix{1, length(eltype(s[:point])), eltype(eltype(s[:point])), length(eltype(s[:point]))}
+  ♭_mat = spzeros(mat_type, ne(s), nv(s))
+  for e in edges(s)
+    e_vec = (point(s, tgt(s,e)) - point(s, src(s,e))) * sign(1,s,e)
+    vs = edge_vertices(s,e)
+    ♭_mat[e, vs[1]] = 0.5 * mat_type(e_vec)
+    ♭_mat[e, vs[2]] = 0.5 * mat_type(e_vec)
+  end
+  ♭_mat
+end
+
+function ♯(s::AbstractDeltaDualComplex1D, X::AbstractVector, ::PDSharp)
+  e_vecs = (s[s[:∂v0], :point] .- s[s[:∂v1], :point]) .* sign(1,s,edges(s))
+  # Normalize once to undo the line integral.
+  # Normalize again to compute direction of the vector.
+  e_vecs .* X ./ map(x -> iszero(x) ? 1 : x, (norm.(e_vecs).^2))
+end
+
+function ♯(s::AbstractDeltaDualComplex1D, X::AbstractVector, ::PPSharp)
+  dvf = ♯(s, X, PDSharp())
+  map(vertices(s)) do v
+    # The 1 or 2 dual edges around a primal vertex:
+    des = incident(s, s[v, :vertex_center], :D_∂v1) # elementary_duals
+    # The primal edges to which those dual edges belong:
+    es = reduce(vcat, incident(s, s[des, :D_∂v0], :edge_center))
+    weights = reverse!(normalize(s[des, :dual_length], 1))
+    sum(dvf[es] .* weights)
+  end
 end
 
 function ♯(s::AbstractDeltaDualComplex2D, α::AbstractVector, DS::DiscreteSharp)
@@ -1001,7 +980,7 @@ end
 """ Abstract type for dual complex of a 3D delta set.
 """
 @abstract_acset_type AbstractDeltaDualComplex3D <: HasDeltaSet3D
-
+const AbstractDeltaDualComplex = Union{AbstractDeltaDualComplex1D, AbstractDeltaDualComplex2D, AbstractDeltaDualComplex3D}
 """ Dual complex of a three-dimensional delta set.
 """
 @acset_type DeltaDualComplex3D(SchDeltaDualComplex3D,
@@ -1477,6 +1456,86 @@ function dual_derivative(::Type{Val{n}}, s::HasDeltaSet, args...) where n
   end
 end
 
+# TODO: Determine whether an ACSetType is Embedded in a more principled way.
+"""
+Checks whether a DeltaSet is embedded by  searching for 'Embedded' in the name
+of its type. This could also check for 'Point' in the schema, which
+would feel better but be less trustworthy.
+"""
+is_embedded(d::HasDeltaSet) = is_embedded(typeof(t))
+is_embedded(t::Type{T}) where {T<:HasDeltaSet} = !isnothing(findfirst("Embedded",string(t.name.name)))
+const REPLACEMENT_FOR_DUAL_TYPE = "Set" => "DualComplex"
+rename_to_dual(s::Symbol) = Symbol(replace(string(s),REPLACEMENT_FOR_DUAL_TYPE))
+rename_from_dual(s::Symbol) = Symbol(replace(string(s),reverse(REPLACEMENT_FOR_DUAL_TYPE)))
+
+const EmbeddedDeltaSet = Union{EmbeddedDeltaSet1D,EmbeddedDeltaSet2D,EmbeddedDeltaSet3D}
+const EmbeddedDeltaDualComplex = Union{EmbeddedDeltaDualComplex1D,EmbeddedDeltaDualComplex2D}
+
+"""
+Adds the Real type for lengths in the EmbeddedDeltaSet case, and removes it in the EmbeddedDeltaDualComplex case.
+Will need further customization
+if we add another type whose dual has different parameters than its primal.
+"""
+dual_param_list(d::HasDeltaSet) = typeof(d).parameters
+dual_param_list(d::EmbeddedDeltaSet) =
+  begin t = typeof(d) ; [t.parameters[1],eltype(t.parameters[2]),t.parameters[2]] end
+dual_param_list(d::EmbeddedDeltaDualComplex) =
+  begin t = typeof(d); [t.parameters[1],t.parameters[3]] end
+
+"""
+Keys are symbols for all the DeltaSet and DeltaDualComplex types.
+Values are the types themselves, without parameters, so mostly UnionAlls.
+Note there aren't any 0D or 3D types in here thus far.
+"""
+type_dict = Dict{Symbol,Type}()
+const prefixes = ["Embedded","Oriented",""]
+const postfixes = ["1D","2D"]
+const midfixes = ["DeltaDualComplex","DeltaSet"]
+for (pre,mid,post) in Iterators.product(prefixes, midfixes, postfixes)
+  s = Symbol(pre,mid,post)
+  type_dict[s] = eval(s)
+end
+
+"""
+Get the dual type of a plain, oriented, or embedded DeltaSet1D or 2D.
+Will always return a `DataType`, i.e. any parameters will be evaluated.
+"""
+function dual_type(d::HasDeltaSet)
+  n = type_dict[rename_to_dual(typeof(d).name.name)]
+  ps = dual_param_list(d)
+  length(ps) > 0 ? n{ps...} : n
+end
+function dual_type(d::AbstractDeltaDualComplex)
+  n = type_dict[rename_from_dual(typeof(d).name.name)]
+  ps = dual_param_list(d)
+  length(ps) > 0 ? n{ps...} : n
+end
+
+"""
+Calls the constructor for d's dual type on d, including parameters.
+Does not call `subdivide_duals!` on the result.
+Should work out of the box on new DeltaSet types if (1) their dual type
+has the same name as their primal type with "Set" substituted by "DualComplex"
+and (2) their dual type has the same parameter set as their primal type. At the
+time of writing (PR 117) only "Embedded" types fail criterion (2) and get special treatment.
+
+# Examples
+s = EmbeddedDeltaSet2D{Bool,SVector{2,Float64}}()
+dualize(s)::EmbeddedDeltaDualComplex2D{Bool,Float64,SVector{2,Float64}}
+"""
+dualize(d::HasDeltaSet) = dual_type(d)(d)
+function dualize(d::HasDeltaSet,center::SimplexCenter)
+  dd = dualize(d)
+  subdivide_duals!(dd,center)
+  dd
+end
+
+"""
+Get the acset schema, as a Presentation, of a HasDeltaSet.
+XXX: upstream to Catlab.
+"""
+fancy_acset_schema(d::HasDeltaSet) = Presentation(acset_schema(d))
+
 """ Hodge star operator from primal ``n``-forms to dual ``N-n``-forms.
 
 !!! note
@@ -1753,9 +1812,11 @@ const laplace_de_rham = Δ
 
 """ Flat operator converting vector fields to 1-forms.
 
-A generic function for discrete flat operators. Currently only the DPP-flat from
+A generic function for discrete flat operators. Currently the DPP-flat from
 (Hirani 2003, Definition 5.5.2) and (Desbrun et al 2005, Definition 7.3) is
-implemented.
+implemented,
+as well as a primal-to-primal flat, which assumes linear-interpolation of the
+vector field across an edge, determined solely by the values at the endpoints.
 
 See also: the sharp operator [`♯`](@ref).
 """
@@ -1783,7 +1844,7 @@ This the primal-primal sharp from Hirani 2003, Definition 5.8.1 and Remark 2.7.2
 
 See also: [`♭`](@ref) and [`♯_mat`](@ref), which returns a matrix that encodes this operator.
 """
-♯(s::HasDeltaSet, α::EForm) = PrimalVectorField(♯(s, α.data, PPSharp()))
+♯(s::HasDeltaSet2D, α::EForm) = PrimalVectorField(♯(s, α.data, PPSharp()))
 
 """ Sharp operator for converting dual 1-forms to dual vector fields.
 
@@ -1792,29 +1853,29 @@ tangent vector field.
 
 See also: [`♯_mat`](@ref), which returns a matrix that encodes this operator.
 """
-♯(s::HasDeltaSet, α::DualForm{1}) = DualVectorField(♯(s, α.data, LLSDDSharp()))
+♯(s::HasDeltaSet2D, α::DualForm{1}) = DualVectorField(♯(s, α.data, LLSDDSharp()))
 
 """ Alias for the sharp operator [`♯`](@ref).
 """
 const sharp = ♯
 
-"""    ♭♯_mat(s::HasDeltaSet)
+"""    ♭♯_mat(s::HasDeltaSet2D)
 
 Make a dual 1-form primal by chaining ♭ᵈᵖ♯ᵈᵈ.
 
 This returns a matrix which can be multiplied by a dual 1-form.
 See also [`♭♯`](@ref).
 """
-♭♯_mat(s::HasDeltaSet) = only.(♭_mat(s) * ♯_mat(s, LLSDDSharp()))
+♭♯_mat(s::HasDeltaSet2D) = only.(♭_mat(s, DPPFlat()) * ♯_mat(s, LLSDDSharp()))
 
-"""    ♭♯(s::HasDeltaSet, α::SimplexForm{1})
+"""    ♭♯(s::HasDeltaSet2D, α::SimplexForm{1})
 
 Make a dual 1-form primal by chaining ♭ᵈᵖ♯ᵈᵈ.
 
 This returns the given dual 1-form as a primal 1-form.
 See also [`♭♯_mat`](@ref).
 """
-♭♯(s::HasDeltaSet, α::SimplexForm{1}) = ♭♯_mat(s) * α
+♭♯(s::HasDeltaSet2D, α::SimplexForm{1}) = ♭♯_mat(s) * α
 
 """ Alias for the flat-sharp dual-to-primal interpolation operator [`♭♯`](@ref).
 """
@@ -1823,6 +1884,30 @@ const flat_sharp = ♭♯
 """ Alias for the flat-sharp dual-to-primal interpolation matrix [`♭♯_mat`](@ref).
 """
 const flat_sharp_mat = ♭♯_mat
+
+
+"""     p2_d2_interpolation(sd::HasDeltaSet2D)
+
+Generates a sparse matrix that converts data on primal 2-forms into data on dual 2-forms.
+"""
+function p2_d2_interpolation(sd::HasDeltaSet2D)
+  mat = spzeros(nv(sd), ntriangles(sd))
+  for tri_id in triangles(sd)
+    tri_area = sd[tri_id, :area]
+    tri_orient = sd[tri_id, :tri_orientation]
+    for dual_tri_id in tri_id:ntriangles(sd):nparts(sd, :DualTri)
+      dual_tri_area = sd[dual_tri_id, :dual_area]
+
+      weight = numeric_sign(tri_orient) * (dual_tri_area / tri_area)
+
+      v = sd[sd[dual_tri_id, :D_∂e1], :D_∂v1]
+
+      mat[v, tri_id] += weight
+    end
+  end
+
+  mat
+end
 
 """ Wedge product of discrete forms.
 
@@ -1943,7 +2028,7 @@ end
 # XXX: This "left/right-hand-rule" trick only works when z=0.
 # XXX: So, do not use this function to test e.g. curved surfaces.
 function eval_constant_dual_form(s::EmbeddedDeltaDualComplex2D, α::SVector{3,Float64})
-  EForm(
+  DualForm{1}(
     hodge_star(1,s) *
       eval_constant_primal_form(s, SVector{3,Float64}(α[2], -α[1], α[3])))
 end

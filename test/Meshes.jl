@@ -3,6 +3,7 @@ module TestMeshes
 using Catlab, Catlab.CategoricalAlgebra
 using CombinatorialSpaces
 using Test
+using GeometryBasics: Point2, Point3
 
 magnitude = (sqrt ∘ (x -> foldl(+, x*x)))
 unit_radius = 1
@@ -93,6 +94,49 @@ thermo_icosphere5 = loadmesh(Icosphere(5, thermosphere_radius))
 @test all(isapprox.(magnitude.(thermo_icosphere5[:point]), ρ))
 @test ρ == thermosphere_radius
 @test euler_characteristic(thermo_icosphere5) == 2
+
+# Testing the Triangulated Grid
+function test_trigrid_size(s, max_x, max_y, dx, dy)
+  nx = length(0:dx:max_x)
+  ny = length(0:dy:max_y)
+
+  @test nparts(s, :V) == nx * ny
+  @test nparts(s, :Tri) == 2 * (nx - 1) * (ny - 1)
+end
+
+s = triangulated_grid(1, 1, 1, 1, Point2{Float64}, false)
+test_trigrid_size(s, 1, 1, 1, 1)
+@test s[:point] == [[0.0, 0.0], [1.0, 0.0], [0.5, 1.0], [1.5, 1.0]]
+@test s[:tri_orientation] == [true, false]
+@test orient!(s)
+
+s = triangulated_grid(1, 1, 1, 1, Point2{Float64}, true)
+test_trigrid_size(s, 1, 1, 1, 1)
+@test s[:point] == [[0.0, 0.0], [2/3, 0.0], [1/3, 1.0], [1.0, 1.0]]
+@test s[:tri_orientation] == [true, false]
+@test orient!(s)
+
+s = triangulated_grid(2, 2, 1, 1, Point2{Float64}, false)
+test_trigrid_size(s, 2, 2, 1, 1)
+@test s[:point] == [[0.0, 0.0], [1.0, 0.0], [2.0, 0.0],
+                    [0.5, 1.0], [1.5, 1.0], [2.5, 1.0],
+                    [0.0, 2.0], [1.0, 2.0], [2.0, 2.0]]
+@test s[:tri_orientation] == [true, false, true, false, false, true, false, true]
+@test orient!(s)
+
+s = triangulated_grid(1, 1, 0.49, 0.78, Point2{Float64}, false)
+test_trigrid_size(s, 1, 1, 0.49, 0.78)
+@test orient!(s)
+
+s = triangulated_grid(1.6, 3.76, 0.49, 0.78, Point2{Float64}, true)
+test_trigrid_size(s, 1.6, 3.76, 0.49, 0.78)
+@test orient!(s)
+
+lx = 25
+s = triangulated_grid(lx, 2, 1, 0.99, Point2{Float64}, true)
+test_trigrid_size(s, lx, 2, 1, 0.99)
+@test maximum(getindex.(s[:point], 1)) == lx
+
 
 # Tests for the SphericalMeshes
 ρ = 6371+90

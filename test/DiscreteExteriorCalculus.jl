@@ -5,6 +5,7 @@ using LinearAlgebra: Diagonal, mul!, norm, dot
 using SparseArrays, StaticArrays
 
 using Catlab.CategoricalAlgebra.CSets
+using Catlab.Graphs
 using ACSets
 using ACSets.DenseACSets: attrtype_type
 using CombinatorialSpaces
@@ -12,6 +13,7 @@ using CombinatorialSpaces.Meshes: tri_345, tri_345_false, grid_345, right_scalen
 using CombinatorialSpaces.SimplicialSets: boundary_inds
 using CombinatorialSpaces.DiscreteExteriorCalculus: eval_constant_primal_form, eval_constant_dual_form
 using GeometryBasics: Point2, Point3
+using Statistics: mean
 
 const Point2D = SVector{2,Float64}
 const Point3D = SVector{3,Float64}
@@ -35,17 +37,13 @@ dual_es = elementary_duals(0,s,5)
 @test s[dual_es, :D_∂v0] == edge_center(s, 1:4)
 @test elementary_duals(s, V(5)) == DualE(dual_es)
 
-primal_s′ = subdivide(primal_s)
-@test nv(primal_s′) == nv(primal_s) + ne(primal_s)
-@test ne(primal_s′) == 2*ne(primal_s)
-
 # 1D oriented dual complex
 #-------------------------
 
 primal_s = OrientedDeltaSet1D{Bool}()
 add_vertices!(primal_s, 3)
 add_edges!(primal_s, [1,2], [2,3], edge_orientation=[true,false])
-s = OrientedDeltaDualComplex1D{Bool}(primal_s)
+s = dualize(primal_s)
 @test s[only(elementary_duals(0,s,1)), :D_edge_orientation] == true
 @test s[only(elementary_duals(0,s,3)), :D_edge_orientation] == true
 
@@ -53,11 +51,6 @@ s = OrientedDeltaDualComplex1D{Bool}(primal_s)
 @test d(s, DualForm{0}([1,1])) isa DualForm{1}
 @test dual_boundary(1,s) == ∂(1,s)'
 @test dual_derivative(0,s) == -d(0,s)'
-
-primal_s′ = subdivide(primal_s)
-@test nv(primal_s′) == nv(primal_s) + ne(primal_s)
-@test ne(primal_s′) == 2*ne(primal_s)
-@test orient!(primal_s′)
 
 # 1D embedded dual complex
 #-------------------------
@@ -121,6 +114,53 @@ f = VForm([0,1,2,1,0])
                           0.0  1.0 -2.0  1.0;
                           0.0  0.0  1.0 -3.0], atol=1e-3)
 
+# A line with linearly-spaced x-coordinates.
+primal_s = path_graph(EmbeddedDeltaSet1D{Bool,Point3D}, 1_000)
+primal_s[:point] = map(x -> Point3D(x,0,0), 0:999)
+s = EmbeddedDeltaDualComplex1D{Bool,Float64,Point3D}(primal_s)
+subdivide_duals!(s, Barycenter())
+f = map(x -> x[1]^2, s[:point]) # 0-Form: x^2
+g = d(0,s) * f                  # 1-Form: 2xdx
+g♯_d = ♯(s, g, PDSharp())       # Dual Vector Field: 2x
+g♯_p = ♯(s, g, PPSharp())       # Primal Vector Field: 2x
+@test g♯_d == 2*s[s[:edge_center], :dual_point]
+@test g♯_p == [Point3D(1,0,0), 2*s[:point][begin+1:end-1]..., Point3D(1997,0,0)]
+
+# A line with x-coordinates arranged 0,1,3,6.
+primal_s = path_graph(EmbeddedDeltaSet1D{Bool,Point3D}, 4)
+primal_s[:point] = [Point3D(0,0,0), Point3D(1,0,0), Point3D(3,0,0), Point3D(6,0,0)]
+s = EmbeddedDeltaDualComplex1D{Bool,Float64,Point3D}(primal_s)
+subdivide_duals!(s, Barycenter())
+f = map(x -> x[1], s[:point]) # 0-Form: x
+g = d(0,s) * f                # 1-Form: 1dx
+g♯_d = ♯(s, g, PDSharp())     # Dual Vector Field: (1)
+g♯_p = ♯(s, g, PPSharp())     # Primal Vector Field: (1)
+@test g♯_d == [Point3D(1,0,0), Point3D(1,0,0), Point3D(1,0,0)]
+@test g♯_p == [Point3D(1,0,0), Point3D(1,0,0), Point3D(1,0,0), Point3D(1,0,0)]
+
+f = zeros(nv(s))          # 0-Form: 0
+g = d(0,s) * f            # 1-Form: 0dx
+g♯_d = ♯(s, g, PDSharp()) # Dual Vector Field: (0)
+g♯_p = ♯(s, g, PPSharp()) # Primal Vector Field: (0)
+@test g♯_d == [Point3D(0,0,0), Point3D(0,0,0), Point3D(0,0,0)]
+@test g♯_p == [Point3D(0,0,0), Point3D(0,0,0), Point3D(0,0,0), Point3D(0,0,0)]
+
+# A line with x-coordinates arranged 0,1,3,6,
+# and a perturbed dual point.
+primal_s = path_graph(EmbeddedDeltaSet1D{Bool,Point3D}, 4)
+primal_s[:point] = [Point3D(0,0,0), Point3D(1,0,0), Point3D(3,0,0), Point3D(6,0,0)]
+s = EmbeddedDeltaDualComplex1D{Bool,Float64,Point3D}(primal_s)
+subdivide_duals!(s, Barycenter())
+s[6, :dual_point] = Point3D(1.25, 0, 0)
+s[2, :dual_length] = 1.75
+s[5, :dual_length] = 0.25
+f = map(x -> x[1], s[:point]) # 0-Form: x
+g = d(0,s) * f                # 1-Form: 1dx
+g♯_d = ♯(s, g, PDSharp())     # Dual Vector Field: (1)
+g♯_p = ♯(s, g, PPSharp())     # Primal Vector Field: (1)
+@test g♯_d == [Point3D(1,0,0), Point3D(1,0,0), Point3D(1,0,0)]
+@test g♯_p == [Point3D(1,0,0), Point3D(1,0,0), Point3D(1,0,0), Point3D(1,0,0)]
+
 # 2D dual complex
 #################
 
@@ -161,7 +201,7 @@ glue_triangle!(implicit_s, 1, 2, 3)
 glue_triangle!(implicit_s, 1, 3, 4)
 
 for primal_s in [explicit_s, implicit_s]
-  s = OrientedDeltaDualComplex2D{Bool}(primal_s)
+  s = dualize(primal_s)
   @test sum(s[:D_tri_orientation]) == nparts(s, :DualTri) ÷ 2
   @test [sum(s[elementary_duals(0,s,i), :D_tri_orientation])
         for i in 1:4] == [2,1,2,1]
@@ -207,7 +247,7 @@ end
 @test all(♭(s, DualVectorField(X))) do i
   isapprox(i, 0.0; atol=1e-15)
 end
-♭_m = ♭_mat(s)
+♭_m = ♭_mat(s, DPPFlat())
 @test all(reinterpret(Float64, ♭_m * X)) do i
   isapprox(i, 0.0; atol=1e-15)
 end
@@ -396,7 +436,7 @@ glue_triangle!(primal_s, 1, 3, 4, tri_orientation=true)
 primal_s[:edge_orientation] = true
 s = EmbeddedDeltaDualComplex2D{Bool,Float64,Point2D}(primal_s)
 subdivide_duals!(s, Barycenter())
-♭_m = ♭_mat(s)
+♭_m = ♭_mat(s, DPPFlat())
 
 x̂, ŷ, ẑ = @SVector([1,0]), @SVector([0,1]), @SVector([0,0])
 @test ♭(s, DualVectorField([x̂, -x̂])) ≈ EForm([2,0,0,2,0])
@@ -507,7 +547,7 @@ glue_triangle!(primal_s, 1, 3, 4)
 s = EmbeddedDeltaDualComplex2D{Bool,Float64,Point2D}(primal_s)
 subdivide_duals!(s, Barycenter())
 X = [SVector(2,3), SVector(5,7)]
-♭_m = ♭_mat(s)
+♭_m = ♭_mat(s, DPPFlat())
 X♭ = zeros(ne(s))
 mul!(X♭, ♭_m,  DualVectorField(X))
 @test all(map(♭(s, DualVectorField(X)), X♭) do orig, new
@@ -541,7 +581,7 @@ subdivide_duals!(s′, Barycenter())
 X = [SVector(2,3), SVector(5,7)]
 
 @test ♭(s, DualVectorField(X)) == ♭(s′, DualVectorField(X))
-@test ♭_mat(s) * DualVectorField(X) == ♭_mat(s′) * DualVectorField(X)
+@test ♭_mat(s, DPPFlat()) * DualVectorField(X) == ♭_mat(s′, DPPFlat()) * DualVectorField(X)
 
 tg′ = triangulated_grid(100,100,10,10,Point2D);
 tg = EmbeddedDeltaDualComplex2D{Bool,Float64,Point2D}(tg′);
@@ -552,6 +592,36 @@ rect = EmbeddedDeltaDualComplex2D{Bool,Float64,Point3D}(rect′);
 subdivide_duals!(rect, Barycenter());
 
 flat_meshes = [tri_345(), tri_345_false(), right_scalene_unit_hypot(), grid_345(), (tg′, tg), (rect′, rect)];
+
+# Over a static vector-field...
+# ... Test the primal-to-primal flat operation agrees with the dual-to-primal flat operation.
+mse(x,y) = mean(map(z -> z^2, x .- y))
+s = tg;
+X_pvf = fill(SVector(1.0,2.0), nv(s));
+X_dvf = fill(SVector(1.0,2.0), ntriangles(s));
+α_from_primal = ♭(s, X_pvf, PPFlat())
+α_from_dual = ♭(s, X_dvf, DPPFlat())
+@test maximum(abs.(α_from_primal .- α_from_dual)) < 1e-14
+@test mse(α_from_primal, α_from_dual) < 1e-29
+# ...  Test the matrix primal-to-primal flat agrees with the simple loop.
+♭_m = ♭_mat(s, PPFlat())
+@test all(only.(♭_m * X_pvf) .== α_from_primal)
+
+# Over a non-static vector-field,
+# ... Test the primal-to-primal flat operation agrees with the dual-to-primal flat operation.
+s′ = triangulated_grid(100,100,1,1,Point2D);
+s = EmbeddedDeltaDualComplex2D{Bool,Float64,Point2D}(s′);
+subdivide_duals!(s, Barycenter());
+nv(s)
+X_func(p) = SVector(p[1], p[2]^2)
+X_pvf = map(X_func, point(s))
+X_dvf = map(X_func, s[s[:tri_center], :dual_point])
+α_from_primal = ♭(s, X_pvf, PPFlat())
+α_from_dual = ♭(s, X_dvf, DPPFlat())
+@test mse(α_from_primal, α_from_dual) < 3
+# ...  Test the matrix primal-to-primal flat agrees with the simple loop.
+♭_m = ♭_mat(s, PPFlat())
+@test maximum(abs.(only.(♭_m * X_pvf) .- α_from_primal)) < 1e-11
 
 # Test the primal-dual interior product.
 # The gradient of the interior product of a vector-field with itself should be 0.
@@ -571,7 +641,7 @@ u = s1 * d0 * u_potential; # -dy or dy, depending on left vs. right-hand rule: �
 α = dd0 * (interior_product(tg, EForm(v), DualForm{1}(u)))# : Ω̃₁
 α_int = α[setdiff(parts(tg,:E), boundary_inds(Val{1}, tg))]
 @test all(x -> isapprox(x,0,atol=1e-14), α_int)
-# Test the Lie derivative (which employs the primal-dual interior product). 
+# Test the Lie derivative (which employs the primal-dual interior product).
 β = lie_derivative_flat(Val{1}, tg, v, u)
 β_int = β[setdiff(parts(tg,:E), boundary_inds(Val{1}, tg))]
 # Boundary conditions were not enforced.
@@ -615,7 +685,7 @@ for (primal_s,s) in flat_meshes
   # This tests that numerically raising-then-lowering indices is equivalent to
   # evaluating a 1-form directly.
   # Demonstrate how to cache the chained musical isomorphisms.
-  ♭_m = ♭_mat(s)
+  ♭_m = ♭_mat(s, DPPFlat())
   ♭_♯_m = ♭_m * ♯_m
   # Note that we check explicitly both cases of signedness, because orient!
   # picks in/outside without regard to the embedding.
@@ -649,8 +719,8 @@ for (primal_s,s) in flat_meshes
   @test all(isapprox.(Λpd(g′, g̃), 0, atol=1e-11))
 
   # Test and demonstrate the convenience functions:
-  @test all(∧(s, SimplexForm{1}(f′), DualForm{1}(g̃)) .≈ -1 * ∧(s, SimplexForm{1}(g′), DualForm{1}(f̃)))
-  @test all(∧(s, DualForm{1}(f̃), SimplexForm{1}(g′)) .≈ -1 * ∧(s, DualForm{1}(g̃), SimplexForm{1}(f′)))
+  @test all(∧(s, f′, g̃) .≈ -1 * ∧(s, g′, f̃))
+  @test all(∧(s, f̃, g′) .≈ -1 * ∧(s, g̃, f′))
 
   # TODO: Test the Leibniz rule.
 end
@@ -670,17 +740,99 @@ for (primal_s,s) in flat_meshes
   u_def = SVector{3,Float64}(f,g,0)
 
   u = eval_constant_primal_form(s, u_def)
-  u_star = hodge_star(1,s) * u
+  u_star = DualForm{1}(hodge_star(1,s) * u)
 
   v_def = SVector{3,Float64}(-g,f,0)
   v = eval_constant_primal_form(s, v_def)
-  dec_hodge_star(2,s) * ∧(s, SimplexForm{1}(u), SimplexForm{1}(v))
+  dec_hodge_star(2,s) * ∧(s, u, v)
 
   @test all(isapprox.(
-    dec_hodge_star(2,s) * ∧(s, SimplexForm{1}(u), DualForm{1}(u_star)),
+    dec_hodge_star(2,s) * ∧(s, u, u_star),
     ff_gg,
     atol=1e-12))
 end
+
+# Constant interpolation on flat meshes with boundaries
+for (s, sd) in flat_meshes
+  ex_1 = sign(2, sd)
+  interp = p2_d2_interpolation(sd)
+  inv_hdg_0 = dec_inv_hodge_star(0, sd)
+
+  res_1 = inv_hdg_0 * interp * ex_1
+
+  @test all(res_1 .≈ ntriangles(sd)/(sum(sd[:area])))
+end
+
+# Constant interpolation on icosphere, no boundaries
+d_ico1 = EmbeddedDeltaDualComplex2D{Bool,Float64,Point3{Float64}}(loadmesh(Icosphere(1)));
+subdivide_duals!(d_ico1, Circumcenter());
+
+ico_form_2 = sign(2, d_ico1) .* d_ico1[:area]
+
+interp = p2_d2_interpolation(d_ico1)
+inv_hdg_0 = dec_inv_hodge_star(0, d_ico1)
+
+interp_form_0 = inv_hdg_0 * interp * ico_form_2
+
+@test all(interp_form_0 .≈ 1)
+
+# Interpolation of functions on flat mesh
+lx = 30
+ly = 10
+dx = dy = 0.5
+rect = triangulated_grid(lx, ly, dx, dy, Point3{Float64});
+d_rect = EmbeddedDeltaDualComplex2D{Bool,Float64,Point3{Float64}}(rect);
+subdivide_duals!(d_rect, Circumcenter());
+
+y_interior_points = findall(rect[:point]) do p
+  p[2] != 0.0 && p[2] != ly
+end
+
+x_interior_points = findall(rect[:point]) do p
+  dx < p[1] < lx - dx
+end
+
+interior_points = setdiff(vertices(rect), boundary_inds(Val{0}, rect))
+
+primal_points = d_rect[:point]
+dual_points = d_rect[triangle_center(d_rect), :dual_point]
+
+interp_mat = d0_p0_interpolation(d_rect)
+
+sparsity = dual_derivative(1, d_rect) * dual_derivative(0,d_rect)
+
+I,J,_ = findnz(interp_mat)
+@test sparsity == spzeros(I,J)
+
+rmse(vec) = sqrt(sum(vec.^2)/(length(vec)))
+
+# Function growing in y
+primal_form = map(p->2*p[2],primal_points)
+dual_form = map(p->2*p[2],dual_points)
+
+diff = primal_form .- interp_mat * dual_form
+@test rmse(diff[y_interior_points]) < 1e-14
+
+# Function growing in x
+primal_form = map(p->2*p[1],primal_points)
+dual_form = map(p->2*p[1],dual_points)
+
+diff = primal_form .- interp_mat * dual_form
+@test rmse(diff[x_interior_points]) < 1e-14
+
+# Function growing in x and y
+primal_form = map(p->2*p[1]+3*p[2],primal_points)
+dual_form = map(p->2*p[1]+3*p[2],dual_points)
+
+diff = primal_form .- interp_mat * dual_form
+@test rmse(diff[interior_points]) < 1e-14
+
+# Quadratic function in x, shifted up to avoid looking at relative error near 0
+primal_form = map(p->0.1*(p[1]-lx/2.0)^2 + 5,primal_points)
+dual_form = map(p->0.1*(p[1]-lx/2.0)^2 + 5,dual_points)
+
+diff = (primal_form .- interp_mat * dual_form) ./ primal_form
+@test rmse(diff[interior_points]) < 0.0006
 
 # 3D dual complex
 #################
@@ -823,4 +975,3 @@ subdivide_duals!(s, Barycenter())
 @test all(dual_volume(3,s,parts(s,:DualTet)) .≈ 1/nparts(s,:DualTet))
 
 end
-

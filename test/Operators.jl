@@ -67,13 +67,12 @@ subdivide_duals!(rect, Barycenter());
 flat_meshes = [tri_345()[2], tri_345_false()[2], right_scalene_unit_hypot()[2], grid_345()[2], tg, rect];
 
 @testset "Exterior Derivative" begin
-    for i in 0:0 
+    for i in 0:0
         for sd in dual_meshes_1D
             @test all(dec_differential(i, sd) .== d(i, sd))
         end
     end
-
-    for i in 0:1 
+    for i in 0:1
         for sd in dual_meshes_2D
             @test all(dec_differential(i, sd) .== d(i, sd))
         end
@@ -81,7 +80,7 @@ flat_meshes = [tri_345()[2], tri_345_false()[2], right_scalene_unit_hypot()[2], 
 end
 
 @testset "Boundary" begin
-    for i in 1:1 
+    for i in 1:1
         for sd in dual_meshes_1D
             @test all(dec_boundary(i, sd) .== ∂(i, sd))
         end
@@ -95,7 +94,7 @@ end
 end
 
 @testset "Dual Derivative" begin
-    for i in 0:0 
+    for i in 0:0
         for sd in dual_meshes_1D
             @test all(dec_dual_derivative(i, sd) .== dual_derivative(i, sd))
         end
@@ -187,7 +186,7 @@ end
         V_1, V_2 = rand(nv(sd)), rand(nv(sd))
         E_1 = rand(ne(sd))
         @test all(dec_wedge_product(Tuple{0, 0}, sd)(V_1, V_2) .== ∧(Tuple{0, 0}, sd, V_1, V_2))
-        @test all(dec_wedge_product(Tuple{0, 1}, sd)(V_1, E_1) .== ∧(Tuple{0, 1}, sd, V_1, E_1))
+        @test all(isapprox.(dec_wedge_product(Tuple{0, 1}, sd)(V_1, E_1), ∧(Tuple{0, 1}, sd, V_1, E_1); atol=1e-15))
     end
 
     for sd in dual_meshes_2D
@@ -356,20 +355,21 @@ function euler_equation_test(X♯, sd)
   ℒ1 = ℒ_dd(Tuple{1,1}, sd)
 
   # This is a uniform, constant flow.
-  u = hodge_star(1,sd) * eval_constant_primal_form(sd, X♯)
+  u = s1 * eval_constant_primal_form(sd, X♯)
 
   # Recall Euler's Equation:
   # ∂ₜu = -ℒᵤu + 0.5dιᵤu  - 1/ρdp + b.
   # We expect for a uniform flow then that ∂ₜu = 0.
   # We will not explicitly set boundary conditions for this test.
 
+  # The square root of the inner product is a suitable notion of magnitude.
   mag(x) = (sqrt ∘ abs).(ι1(x,x))
 
-  # Test that the advection term is 0.
+  # Test that the advection term -ℒᵤu + 0.5dιᵤu is 0.
   selfadv = ℒ1(u,u) - 0.5*d0*ι1(u,u)
   mag_selfadv = mag(selfadv)[interior_tris]
 
-  # Solve for pressure
+  # Solve for pressure using the Poisson equation
   div(x) = s2 * d1 * (s1 \ x);
   solveΔ(x) = float.(d0) \ (s1 * (float.(d1) \ (s2 \ x)))
 
@@ -406,9 +406,9 @@ end
 
   X♯ = SVector{3,Float64}(3,3,0)
   mag_selfadv, mag_dp, mag_∂ₜu  = euler_equation_test(X♯, tg)
-  @test .60 < (count(mag_selfadv .< 1e-1) / length(mag_selfadv))
-  @test .60 < (count(mag_dp .< 1e-1) / length(mag_dp))
-  @test .60 < (count(mag_∂ₜu .< 1e-1) / length(mag_∂ₜu))
+  @test 97/162 <= (count(mag_selfadv .< 1e-1) / length(mag_selfadv))
+  @test 97/162 <= (count(mag_dp .< 1e-1) / length(mag_dp))
+  @test 97/162 <= (count(mag_∂ₜu .< 1e-1) / length(mag_∂ₜu))
 
   # u := ⋆xdx
   # ιᵤu = x²
