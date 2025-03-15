@@ -2,8 +2,6 @@
 
 In multigrid methods, there are tradeoffs between the levels of coarsening and the number of cycles performed. This docs page provides a simple demonstrations of the relative error of different methods, and the time of execution for these methods. This can help you choose the parameters to be used by your multigrid solves.
 
-## Visualizing embedded delta sets
-
 This code demonstrates a simple pipeline of creating a mesh, executing a multigrid solve, and plotting statistics about those executions.
 
 ```@example MG
