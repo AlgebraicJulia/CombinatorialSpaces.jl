@@ -17,7 +17,8 @@ makedocs(
     "combinatorial_maps.md",
     "grid_laplace.md",
     "meshes.md",
-    "euler.md"
+    "euler.md",
+    "mg_benchmarks.md"
   ]
 )
 
