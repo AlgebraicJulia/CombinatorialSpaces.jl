@@ -314,6 +314,7 @@ subdivide_duals!(flipped_s, Barycenter())
 # If a test beneath this comment fails due to a new implementation, it is
 # possible that the values for the test itself need to be modified.
 @test inv_hodge_star(2, s)[1,1] ≈ 0.5
+@test ⋆⁻¹(2, s)[1,1] ≈ 0.5
 @test inv_hodge_star(2, s, [2.0])[1,1] ≈ 1.0
 @test inv_hodge_star(1, s, hodge=DiagonalHodge()) ≈ Diagonal([-6/√5, -6, -6/√5])
 @test inv_hodge_star(1, s, [0.5, 2.0, 0.5], hodge=DiagonalHodge()) ≈ [-3/√5, -12.0, -3/√5]
