@@ -21,7 +21,7 @@ export DualSimplex, DualV, DualE, DualTri, DualTet, DualChain, DualForm,
   DeltaDualComplex, EmbeddedDeltaDualComplex, OrientedDeltaDualComplex,
   SimplexCenter, Barycenter, Circumcenter, Incenter, geometric_center,
   subsimplices, primal_vertex, elementary_duals, dual_boundary, dual_derivative,
-  ⋆, hodge_star, inv_hodge_star, δ, codifferential, ∇², laplace_beltrami, Δ, laplace_de_rham,
+  ⋆, hodge_star, ⋆⁻¹, inv_hodge_star, δ, codifferential, ∇², laplace_beltrami, Δ, laplace_de_rham,
   ♭, flat, ♭_mat, ♯, ♯_mat, sharp, ∧, wedge_product, interior_product, interior_product_flat,
   ℒ, lie_derivative, lie_derivative_flat,
   vertex_center, edge_center, triangle_center, tetrahedron_center, dual_tetrahedron_vertices, dual_triangle_vertices, dual_edge_vertices,
@@ -1710,6 +1710,10 @@ inv_hodge_star(::Type{Val{n}}, s::AbstractDeltaDualComplex1D,
 inv_hodge_star(::Type{Val{n}}, s::AbstractDeltaDualComplex1D,
                form::AbstractVector, ::GeometricHodge) where n =
   inv_hodge_star(Val{n}, s, form, DiagonalHodge())
+
+""" Alias for the inverse Hodge star operator [`⋆⁻¹`](@ref).
+"""
+const ⋆⁻¹ = inv_hodge_star
 
 """ Codifferential operator from primal ``n`` forms to primal ``n-1``-forms.
 """
