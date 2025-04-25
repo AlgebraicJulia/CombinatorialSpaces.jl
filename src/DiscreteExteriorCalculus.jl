@@ -49,7 +49,6 @@ using Catlab.CategoricalAlgebra.FinSets: deleteat
 using Catlab.CategoricalAlgebra.FunctorialDataMigrations: DeltaMigration, migrate
 import Catlab.CategoricalAlgebra.CSets: ∧
 import Catlab.Theories: Δ
-using DataMigrations: @migrate
 
 using ..ArrayUtils, ..SimplicialSets
 using ..SimplicialSets: CayleyMengerDet, operator_nz, ∂_nz, d_nz,
