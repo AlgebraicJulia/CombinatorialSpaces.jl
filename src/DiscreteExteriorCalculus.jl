@@ -29,7 +29,7 @@ export DualSimplex, DualV, DualE, DualTri, DualTet, DualChain, DualForm,
   subdivide, PDSharp, PPSharp, AltPPSharp, DesbrunSharp, LLSDDSharp, de_sign,
   DPPFlat, PPFlat,
   ♭♯, ♭♯_mat, flat_sharp, flat_sharp_mat, dualize,
-  p2_d2_interpolation
+  p2_d2_interpolation, eval_constant_primal_form, eval_constant_dual_form
 
 import Base: ndims
 import Base: *
@@ -38,8 +38,9 @@ using LinearAlgebra: Diagonal, dot, norm, cross, pinv, qr, ColumnNorm, normalize
 using SparseArrays
 using StaticArrays: @SVector, SVector, SMatrix, MVector, MMatrix
 using Statistics: mean
-using GeometryBasics: Point2, Point3
+using GeometryBasics: Point2, Point3, Point2d, Point3d
 
+# TODO: This is not consistent with other definitions and should be removed
 const Point2D = SVector{2,Float64}
 const Point3D = SVector{3,Float64}
 
@@ -2015,12 +2016,12 @@ function lie_derivative_flat(::Type{Val{2}}, s::HasDeltaSet,
   dual_derivative(1, s, interior_product_flat(2, s, X♭, α; kw...))
 end
 
-function eval_constant_primal_form(s::EmbeddedDeltaDualComplex2D{Bool, Float64, T} where T<:Union{Point3D, Point3{Float64}}, α::SVector{3,Float64})
+function eval_constant_primal_form(s::EmbeddedDeltaDualComplex2D{Bool, Float64, T} where T<:Union{Point3d, Point3D}, α::SVector{3,Float64})
   EForm(map(edges(s)) do e
           dot(α, point(s, tgt(s,e)) - point(s, src(s,e))) * sign(1,s,e)
         end)
 end
-function eval_constant_primal_form(s::EmbeddedDeltaDualComplex2D{Bool, Float64, T} where T<:Union{Point2D, Point2{Float64}}, α::SVector{3,Float64})
+function eval_constant_primal_form(s::EmbeddedDeltaDualComplex2D{Bool, Float64, T} where T<:Union{Point2d, Point2D}, α::SVector{3,Float64})
   α = SVector{2,Float64}(α[1],α[2])
   EForm(map(edges(s)) do e
           dot(α, point(s, tgt(s,e)) - point(s, src(s,e))) * sign(1,s,e)

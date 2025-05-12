@@ -260,7 +260,7 @@ function triangles(s::HasDeltaSet2D, v₀::Int, v₁::Int, v₂::Int)
 
   # Note: This is a more "Catlab" approach to this problem:
   #homs = homomorphisms(
-  #  representable(EmbeddedDeltaSet3D{Bool,Point3D}, SchEmbeddedDeltaSet3D, :Tri),
+  #  representable(EmbeddedDeltaSet3D{Bool,Point3d}, SchEmbeddedDeltaSet3D, :Tri),
   #  s;
   #  initial=(V=[v₀, v₁, v₂],))
   #map(x -> only(x[:Tri].func), homs)

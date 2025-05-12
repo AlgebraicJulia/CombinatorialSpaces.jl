@@ -1,13 +1,10 @@
 module Multigrid
 
 using CombinatorialSpaces
-using GeometryBasics: Point3, Point2
 using LinearAlgebra: I
 using Krylov, Catlab, SparseArrays, StaticArrays
 using ..SimplicialSets
 import Catlab: dom, codom
-const Point3D = Point3{Float64}
-const Point2D = Point2{Float64}
 
 export multigrid_vcycles, multigrid_wcycles, full_multigrid,
   repeated_subdivisions, binary_subdivision, binary_subdivision_map, dom, codom,
