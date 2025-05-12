@@ -12,11 +12,7 @@ using CombinatorialSpaces
 using CombinatorialSpaces.Meshes: tri_345, tri_345_false, grid_345, right_scalene_unit_hypot
 using CombinatorialSpaces.SimplicialSets: boundary_inds
 using CombinatorialSpaces.DiscreteExteriorCalculus: eval_constant_primal_form, eval_constant_dual_form
-using GeometryBasics: Point2, Point3
 using Statistics: mean
-
-const Point2D = SVector{2,Float64}
-const Point3D = SVector{3,Float64}
 
 # 1D dual complex
 #################
@@ -56,19 +52,19 @@ s = dualize(primal_s)
 #-------------------------
 
 # Path graph on 3 vertices with irregular lengths.
-explicit_s = EmbeddedDeltaSet1D{Bool,Point2D}()
-add_vertices!(explicit_s, 3, point=[Point2D(1,0), Point2D(0,0), Point2D(0,2)])
+explicit_s = EmbeddedDeltaSet1D{Bool,Point2d}()
+add_vertices!(explicit_s, 3, point=[Point2d(1,0), Point2d(0,0), Point2d(0,2)])
 add_edges!(explicit_s, [1,2], [2,3], edge_orientation=true)
 
 # Path graph on 3 vertices without orientation set beforehand.
-implicit_s = EmbeddedDeltaSet1D{Bool,Point2D}()
-add_vertices!(implicit_s, 3, point=[Point2D(1,0), Point2D(0,0), Point2D(0,2)])
+implicit_s = EmbeddedDeltaSet1D{Bool,Point2d}()
+add_vertices!(implicit_s, 3, point=[Point2d(1,0), Point2d(0,0), Point2d(0,2)])
 add_edges!(implicit_s, [1,2], [2,3])
 
 for primal_s in [explicit_s, implicit_s]
-  s = EmbeddedDeltaDualComplex1D{Bool,Float64,Point2D}(primal_s)
+  s = EmbeddedDeltaDualComplex1D{Bool,Float64,Point2d}(primal_s)
   subdivide_duals!(s, Barycenter())
-  @test dual_point(s, edge_center(s, [1,2])) ≈ [Point2D(0.5,0), Point2D(0,1)]
+  @test dual_point(s, edge_center(s, [1,2])) ≈ [Point2d(0.5,0), Point2d(0,1)]
   @test volume(s, E(1:2)) ≈ [1.0, 2.0]
   @test volume(s, elementary_duals(s, V(2))) ≈ [0.5, 1.0]
   @test ⋆(0,s) ≈ Diagonal([0.5, 1.5, 1.0])
@@ -87,10 +83,10 @@ end
 #
 # Equals the graph Laplacian of the underlying graph, except at the boundary.
 # Note that the DEC Laplace-Beltrami operator is *not* symmetric.
-primal_s = EmbeddedDeltaSet1D{Bool,Point2D}()
-add_vertices!(primal_s, 5, point=[Point2D(i,0) for i in -2:2])
+primal_s = EmbeddedDeltaSet1D{Bool,Point2d}()
+add_vertices!(primal_s, 5, point=[Point2d(i,0) for i in -2:2])
 add_edges!(primal_s, 1:4, 2:5, edge_orientation=true)
-s = EmbeddedDeltaDualComplex1D{Bool,Float64,Point2D}(primal_s)
+s = EmbeddedDeltaDualComplex1D{Bool,Float64,Point2d}(primal_s)
 subdivide_duals!(s, Barycenter())
 @test ∇²(s, VForm([0,0,1,0,0])) ≈ VForm([0,-1,2,-1,0])
 @test ∇²(0,s) ≈ [ 2 -2  0  0  0;
@@ -115,51 +111,51 @@ f = VForm([0,1,2,1,0])
                           0.0  0.0  1.0 -3.0], atol=1e-3)
 
 # A line with linearly-spaced x-coordinates.
-primal_s = path_graph(EmbeddedDeltaSet1D{Bool,Point3D}, 1_000)
-primal_s[:point] = map(x -> Point3D(x,0,0), 0:999)
-s = EmbeddedDeltaDualComplex1D{Bool,Float64,Point3D}(primal_s)
+primal_s = path_graph(EmbeddedDeltaSet1D{Bool,Point3d}, 1_000)
+primal_s[:point] = map(x -> Point3d(x,0,0), 0:999)
+s = EmbeddedDeltaDualComplex1D{Bool,Float64,Point3d}(primal_s)
 subdivide_duals!(s, Barycenter())
 f = map(x -> x[1]^2, s[:point]) # 0-Form: x^2
 g = d(0,s) * f                  # 1-Form: 2xdx
 g♯_d = ♯(s, g, PDSharp())       # Dual Vector Field: 2x
 g♯_p = ♯(s, g, PPSharp())       # Primal Vector Field: 2x
 @test g♯_d == 2*s[s[:edge_center], :dual_point]
-@test g♯_p == [Point3D(1,0,0), 2*s[:point][begin+1:end-1]..., Point3D(1997,0,0)]
+@test g♯_p == [Point3d(1,0,0), 2*s[:point][begin+1:end-1]..., Point3d(1997,0,0)]
 
 # A line with x-coordinates arranged 0,1,3,6.
-primal_s = path_graph(EmbeddedDeltaSet1D{Bool,Point3D}, 4)
-primal_s[:point] = [Point3D(0,0,0), Point3D(1,0,0), Point3D(3,0,0), Point3D(6,0,0)]
-s = EmbeddedDeltaDualComplex1D{Bool,Float64,Point3D}(primal_s)
+primal_s = path_graph(EmbeddedDeltaSet1D{Bool,Point3d}, 4)
+primal_s[:point] = [Point3d(0,0,0), Point3d(1,0,0), Point3d(3,0,0), Point3d(6,0,0)]
+s = EmbeddedDeltaDualComplex1D{Bool,Float64,Point3d}(primal_s)
 subdivide_duals!(s, Barycenter())
 f = map(x -> x[1], s[:point]) # 0-Form: x
 g = d(0,s) * f                # 1-Form: 1dx
 g♯_d = ♯(s, g, PDSharp())     # Dual Vector Field: (1)
 g♯_p = ♯(s, g, PPSharp())     # Primal Vector Field: (1)
-@test g♯_d == [Point3D(1,0,0), Point3D(1,0,0), Point3D(1,0,0)]
-@test g♯_p == [Point3D(1,0,0), Point3D(1,0,0), Point3D(1,0,0), Point3D(1,0,0)]
+@test g♯_d == [Point3d(1,0,0), Point3d(1,0,0), Point3d(1,0,0)]
+@test g♯_p == [Point3d(1,0,0), Point3d(1,0,0), Point3d(1,0,0), Point3d(1,0,0)]
 
 f = zeros(nv(s))          # 0-Form: 0
 g = d(0,s) * f            # 1-Form: 0dx
 g♯_d = ♯(s, g, PDSharp()) # Dual Vector Field: (0)
 g♯_p = ♯(s, g, PPSharp()) # Primal Vector Field: (0)
-@test g♯_d == [Point3D(0,0,0), Point3D(0,0,0), Point3D(0,0,0)]
-@test g♯_p == [Point3D(0,0,0), Point3D(0,0,0), Point3D(0,0,0), Point3D(0,0,0)]
+@test g♯_d == [Point3d(0,0,0), Point3d(0,0,0), Point3d(0,0,0)]
+@test g♯_p == [Point3d(0,0,0), Point3d(0,0,0), Point3d(0,0,0), Point3d(0,0,0)]
 
 # A line with x-coordinates arranged 0,1,3,6,
 # and a perturbed dual point.
-primal_s = path_graph(EmbeddedDeltaSet1D{Bool,Point3D}, 4)
-primal_s[:point] = [Point3D(0,0,0), Point3D(1,0,0), Point3D(3,0,0), Point3D(6,0,0)]
-s = EmbeddedDeltaDualComplex1D{Bool,Float64,Point3D}(primal_s)
+primal_s = path_graph(EmbeddedDeltaSet1D{Bool,Point3d}, 4)
+primal_s[:point] = [Point3d(0,0,0), Point3d(1,0,0), Point3d(3,0,0), Point3d(6,0,0)]
+s = EmbeddedDeltaDualComplex1D{Bool,Float64,Point3d}(primal_s)
 subdivide_duals!(s, Barycenter())
-s[6, :dual_point] = Point3D(1.25, 0, 0)
+s[6, :dual_point] = Point3d(1.25, 0, 0)
 s[2, :dual_length] = 1.75
 s[5, :dual_length] = 0.25
 f = map(x -> x[1], s[:point]) # 0-Form: x
 g = d(0,s) * f                # 1-Form: 1dx
 g♯_d = ♯(s, g, PDSharp())     # Dual Vector Field: (1)
 g♯_p = ♯(s, g, PPSharp())     # Primal Vector Field: (1)
-@test g♯_d == [Point3D(1,0,0), Point3D(1,0,0), Point3D(1,0,0)]
-@test g♯_p == [Point3D(1,0,0), Point3D(1,0,0), Point3D(1,0,0), Point3D(1,0,0)]
+@test g♯_d == [Point3d(1,0,0), Point3d(1,0,0), Point3d(1,0,0)]
+@test g♯_p == [Point3d(1,0,0), Point3d(1,0,0), Point3d(1,0,0), Point3d(1,0,0)]
 
 # 2D dual complex
 #################
@@ -223,9 +219,9 @@ unit_vector(θ) = cos(θ), sin(θ), 0
 
 function get_regular_polygon(n::Int)
   n < 3 && error("Cannot construct a polygon with fewer than 3 points.")
-  primal_s = EmbeddedDeltaSet2D{Bool,Point3D}()
-  exterior_points = map(Point3D∘unit_vector, range(0, 2pi-(pi/(n/2)), length=n))
-  add_vertices!(primal_s, n+1, point=[exterior_points..., Point3D(0, 0, 0)])
+  primal_s = EmbeddedDeltaSet2D{Bool,Point3d}()
+  exterior_points = map(Point3d∘unit_vector, range(0, 2pi-(pi/(n/2)), length=n))
+  add_vertices!(primal_s, n+1, point=[exterior_points..., Point3d(0, 0, 0)])
   foreach(1:n-1) do x
     glue_sorted_triangle!(primal_s, n+1, x, x+1)
   end
@@ -239,7 +235,7 @@ primal_s = get_regular_polygon(6)
 # Rotate counter-clockwise by pi/6 to match the Hirani figure.
 θ = -pi/6
 primal_s[:point] = [[[cos(θ), -sin(θ), 0];; [sin(θ), cos(θ), 0];; [0,0,1]] * p for p in primal_s[:point]]
-s = EmbeddedDeltaDualComplex2D{Bool,Float64,Point3D}(primal_s)
+s = EmbeddedDeltaDualComplex2D{Bool,Float64,Point3d}(primal_s)
 subdivide_duals!(s, Circumcenter())
 X = map([8,4,0,8,4,0]) do i
   SVector(unit_vector(i*(2pi/12)))
@@ -274,14 +270,14 @@ end)
 # Compared with Gillette, edges #2 and #3 are swapped in the ordering, which
 # changes the discrete exterior derivative and other operators. The numerical
 # values remain the same, as we verify.
-primal_s = EmbeddedDeltaSet2D{Bool,Point2D}()
-add_vertices!(primal_s, 3, point=[Point2D(0,0), Point2D(1,0), Point2D(0,1)])
+primal_s = EmbeddedDeltaSet2D{Bool,Point2d}()
+add_vertices!(primal_s, 3, point=[Point2d(0,0), Point2d(1,0), Point2d(0,1)])
 glue_triangle!(primal_s, 1, 2, 3, tri_orientation=true)
 primal_s[:edge_orientation] = true
-s = EmbeddedDeltaDualComplex2D{Bool,Float64,Point2D}(primal_s)
+s = EmbeddedDeltaDualComplex2D{Bool,Float64,Point2d}(primal_s)
 
 subdivide_duals!(s, Barycenter())
-@test dual_point(s, triangle_center(s, 1)) ≈ Point2D(1/3, 1/3)
+@test dual_point(s, triangle_center(s, 1)) ≈ Point2d(1/3, 1/3)
 @test volume(s, Tri(1)) ≈ 1/2
 @test volume(s, elementary_duals(s, V(1))) ≈ [1/12, 1/12]
 @test [sum(volume(s, elementary_duals(s, V(i)))) for i in 1:3] ≈ [1/6, 1/6, 1/6]
@@ -303,7 +299,7 @@ subdivide_duals!(s, Barycenter())
 # geometric hodge star)
 flipped_ps = deepcopy(primal_s)
 orient_component!(flipped_ps, 1, false)
-flipped_s = EmbeddedDeltaDualComplex2D{Bool,Float64,Point2D}(flipped_ps)
+flipped_s = EmbeddedDeltaDualComplex2D{Bool,Float64,Point2d}(flipped_ps)
 subdivide_duals!(flipped_s, Barycenter())
 @test ⋆(1,s) ≈ ⋆(1,flipped_s)
 
@@ -344,7 +340,7 @@ subdivide_duals!(flipped_s, Barycenter())
 @test isapprox(Δ(2, s; hodge=DiagonalHodge()), reshape([-22.733], (1,1)), atol=1e-3)
 
 subdivide_duals!(s, Circumcenter())
-@test dual_point(s, triangle_center(s, 1)) ≈ Point2D(1/2, 1/2)
+@test dual_point(s, triangle_center(s, 1)) ≈ Point2d(1/2, 1/2)
 @test ⋆(0,s) ≈ Diagonal([1/4, 1/8, 1/8])
 @test ⋆(1,s) ≈ Diagonal([0.5, 0.0, 0.5])
 @test δ(1,s) ≈ [ 2  0  2;
@@ -352,7 +348,7 @@ subdivide_duals!(s, Circumcenter())
                  0  0 -4]
 
 subdivide_duals!(s, Incenter())
-@test dual_point(s, triangle_center(s, 1)) ≈ Point2D(1/(2+√2), 1/(2+√2))
+@test dual_point(s, triangle_center(s, 1)) ≈ Point2d(1/(2+√2), 1/(2+√2))
 @test isapprox(⋆(0,s), Diagonal([0.146, 0.177, 0.177]), atol=1e-3)
 @test isapprox(⋆(1,s), [0.293 0.000 0.207;
                         0.000 0.207 0.000;
@@ -387,7 +383,7 @@ subdivide_duals!(s, Incenter())
 #plot_pvf(primal_s, ♯(s, E))
 #plot_pvf(primal_s, ♯(s, E, AltPPSharp()))
 
-function test_♯(s, covector::SVector; atol=1e-8)
+function test_♯(s, covector; atol=1e-8)
   X = eval_constant_primal_form(s, covector)
   # Test that the Hirani field is approximately parallel to the given field.
   X♯ = ♯(s, X)
@@ -403,17 +399,17 @@ function test_♯(s, covector::SVector; atol=1e-8)
 end
 #using Random
 #Random.seed!(1)
-#Point3D(randn(), randn(), 0)
-vfs = [Point3D(1,0,0), Point3D(1,1,0), Point3D(-3,2,0), Point3D(0,0,0),
-  Point3D(-0.07058313895389791, 0.5314767537831963, 0.0)]
+#Point3d(randn(), randn(), 0)
+vfs = [Point3d(1,0,0), Point3d(1,1,0), Point3d(-3,2,0), Point3d(0,0,0),
+  Point3d(-0.07058313895389791, 0.5314767537831963, 0.0)]
 
 # 3,4,5 triangle.
 primal_s, s = tri_345()
 foreach(vf -> test_♯(s, vf), vfs)
 ♯_m = ♯_mat(s, DesbrunSharp())
-X = eval_constant_primal_form(s, Point3D(1,0,0))
+X = eval_constant_primal_form(s, Point3d(1,0,0))
 X♯ = ♯_m * X
-@test all(X♯ .≈ [Point3D(.8,.4,0), Point3D(0,-1,0), Point3D(-.8,.6,0)])
+@test all(X♯ .≈ [Point3d(.8,.4,0), Point3d(0,-1,0), Point3d(-.8,.6,0)])
 
 # Grid of 3,4,5 triangles.
 primal_s, s = grid_345()
@@ -422,20 +418,20 @@ foreach(vf -> test_♯(s, vf), vfs)
 
 # Triangulated regular dodecagon.
 primal_s = get_regular_polygon(12)
-primal_s[:point] = [Point3D(1/4,1/5,0) + p for p in primal_s[:point]]
-s = EmbeddedDeltaDualComplex2D{Bool,Float64,Point3D}(primal_s)
+primal_s[:point] = [Point3d(1/4,1/5,0) + p for p in primal_s[:point]]
+s = EmbeddedDeltaDualComplex2D{Bool,Float64,Point3d}(primal_s)
 subdivide_duals!(s, Circumcenter())
 foreach(vf -> test_♯(s, vf), vfs)
 # TODO: Compute results for Desbrun's ♯ by hand.
 
 # Triangulated square with consistent orientation.
-primal_s = EmbeddedDeltaSet2D{Bool,Point2D}()
-add_vertices!(primal_s, 4, point=[Point2D(-1,+1), Point2D(+1,+1),
-                                  Point2D(+1,-1), Point2D(-1,-1)])
+primal_s = EmbeddedDeltaSet2D{Bool,Point2d}()
+add_vertices!(primal_s, 4, point=[Point2d(-1,+1), Point2d(+1,+1),
+                                  Point2d(+1,-1), Point2d(-1,-1)])
 glue_triangle!(primal_s, 1, 2, 3, tri_orientation=true)
 glue_triangle!(primal_s, 1, 3, 4, tri_orientation=true)
 primal_s[:edge_orientation] = true
-s = EmbeddedDeltaDualComplex2D{Bool,Float64,Point2D}(primal_s)
+s = EmbeddedDeltaDualComplex2D{Bool,Float64,Point2d}(primal_s)
 subdivide_duals!(s, Barycenter())
 ♭_m = ♭_mat(s, DPPFlat())
 
@@ -480,11 +476,11 @@ X♭, α = EForm([1.5, 2, 2.5, 3, 3.5]), DualForm{2}([3, 7, 10, 11])
 @test length(lie_derivative_flat(2,s, X♭.data, α.data)) == 4
 
 # Equilateral triangle (to compare the diagonal w/ geometric hodge results)
-primal_s = EmbeddedDeltaSet2D{Bool,Point2D}()
-add_vertices!(primal_s, 3, point=[Point2D(0,0), Point2D(1,0), Point2D(0.5,sqrt(0.75))])
+primal_s = EmbeddedDeltaSet2D{Bool,Point2d}()
+add_vertices!(primal_s, 3, point=[Point2d(0,0), Point2d(1,0), Point2d(0.5,sqrt(0.75))])
 glue_triangle!(primal_s, 1, 2, 3, tri_orientation=true)
 primal_s[:edge_orientation] = true
-s = EmbeddedDeltaDualComplex2D{Bool,Float64,Point2D}(primal_s)
+s = EmbeddedDeltaDualComplex2D{Bool,Float64,Point2d}(primal_s)
 subdivide_duals!(s, Barycenter())
 
 @test isapprox(Δ(1, s), [-12 -6    6;
@@ -501,11 +497,11 @@ subdivide_duals!(s, Barycenter())
 
 # 3,4,5 triangle of unit area.
 # Unit area makes computing integrals by hand simple.
-primal_s = EmbeddedDeltaSet2D{Bool,Point2D}()
-add_vertices!(primal_s, 3, point=[Point2D(0,0), Point2D(6/8,0), Point2D(6/8,8/3)])
+primal_s = EmbeddedDeltaSet2D{Bool,Point2d}()
+add_vertices!(primal_s, 3, point=[Point2d(0,0), Point2d(6/8,0), Point2d(6/8,8/3)])
 glue_triangle!(primal_s, 1, 2, 3, tri_orientation=true)
 primal_s[:edge_orientation] = true
-s = EmbeddedDeltaDualComplex2D{Bool,Float64,Point2D}(primal_s)
+s = EmbeddedDeltaDualComplex2D{Bool,Float64,Point2d}(primal_s)
 subdivide_duals!(s, Barycenter())
 #@assert only(s[:area]) == 1.0
 
@@ -541,11 +537,11 @@ end
 @test ∧(s, EForm(3*onedx), EForm(2*onedy)) == ∧(s, EForm(2*onedx), EForm(3*onedy))
 
 # A triangulated quadrilateral where edges are all of distinct length.
-primal_s = EmbeddedDeltaSet2D{Bool,Point2D}()
-add_vertices!(primal_s, 4, point=[Point2D(0,0), Point2D(1,0), Point2D(0,2), Point2D(-2,5)])
+primal_s = EmbeddedDeltaSet2D{Bool,Point2d}()
+add_vertices!(primal_s, 4, point=[Point2d(0,0), Point2d(1,0), Point2d(0,2), Point2d(-2,5)])
 glue_triangle!(primal_s, 1, 2, 3)
 glue_triangle!(primal_s, 1, 3, 4)
-s = EmbeddedDeltaDualComplex2D{Bool,Float64,Point2D}(primal_s)
+s = EmbeddedDeltaDualComplex2D{Bool,Float64,Point2d}(primal_s)
 subdivide_duals!(s, Barycenter())
 X = [SVector(2,3), SVector(5,7)]
 ♭_m = ♭_mat(s, DPPFlat())
@@ -560,18 +556,18 @@ end)
 
 # Test whether the implementation of ♭ assumes that the DualVectorField vector
 # is indexed in the same order as Tri i.e. 1:ntriangles(s).
-primal_s = EmbeddedDeltaSet2D{Bool,Point2D}()
-add_vertices!(primal_s, 4, point=[Point2D(0,0), Point2D(1,0), Point2D(0,2), Point2D(-2,5)])
+primal_s = EmbeddedDeltaSet2D{Bool,Point2d}()
+add_vertices!(primal_s, 4, point=[Point2d(0,0), Point2d(1,0), Point2d(0,2), Point2d(-2,5)])
 glue_triangle!(primal_s, 1, 2, 3)
 glue_triangle!(primal_s, 1, 3, 4)
-s = EmbeddedDeltaDualComplex2D{Bool,Float64,Point2D}(primal_s)
+s = EmbeddedDeltaDualComplex2D{Bool,Float64,Point2d}(primal_s)
 subdivide_duals!(s, Barycenter())
 
-primal_s′ = EmbeddedDeltaSet2D{Bool,Point2D}()
-add_vertices!(primal_s′, 4, point=[Point2D(0,0), Point2D(1,0), Point2D(0,2), Point2D(-2,5)])
+primal_s′ = EmbeddedDeltaSet2D{Bool,Point2d}()
+add_vertices!(primal_s′, 4, point=[Point2d(0,0), Point2d(1,0), Point2d(0,2), Point2d(-2,5)])
 glue_triangle!(primal_s′, 1, 2, 3)
 glue_triangle!(primal_s′, 1, 3, 4)
-s′ = EmbeddedDeltaDualComplex2D{Bool,Float64,Point2D}(primal_s′)
+s′ = EmbeddedDeltaDualComplex2D{Bool,Float64,Point2d}(primal_s′)
 s′[1, :tri_center] = 11
 s′[2, :tri_center] = 10
 s′[[11,13,15,17,19,21], :D_∂v0] = 11
@@ -584,12 +580,12 @@ X = [SVector(2,3), SVector(5,7)]
 @test ♭(s, DualVectorField(X)) == ♭(s′, DualVectorField(X))
 @test ♭_mat(s, DPPFlat()) * DualVectorField(X) == ♭_mat(s′, DPPFlat()) * DualVectorField(X)
 
-tg′ = triangulated_grid(100,100,10,10,Point2D);
-tg = EmbeddedDeltaDualComplex2D{Bool,Float64,Point2D}(tg′);
+tg′ = triangulated_grid(100,100,10,10,Point2d);
+tg = EmbeddedDeltaDualComplex2D{Bool,Float64,Point2d}(tg′);
 subdivide_duals!(tg, Barycenter());
 
 rect′ = loadmesh(Rectangle_30x10());
-rect = EmbeddedDeltaDualComplex2D{Bool,Float64,Point3D}(rect′);
+rect = EmbeddedDeltaDualComplex2D{Bool,Float64,Point3d}(rect′);
 subdivide_duals!(rect, Barycenter());
 
 flat_meshes = [tri_345(), tri_345_false(), right_scalene_unit_hypot(), grid_345(), (tg′, tg), (rect′, rect)];
@@ -610,8 +606,8 @@ X_dvf = fill(SVector(1.0,2.0), ntriangles(s));
 
 # Over a non-static vector-field,
 # ... Test the primal-to-primal flat operation agrees with the dual-to-primal flat operation.
-s′ = triangulated_grid(100,100,1,1,Point2D);
-s = EmbeddedDeltaDualComplex2D{Bool,Float64,Point2D}(s′);
+s′ = triangulated_grid(100,100,1,1,Point2d);
+s = EmbeddedDeltaDualComplex2D{Bool,Float64,Point2d}(s′);
 subdivide_duals!(s, Barycenter());
 nv(s)
 X_func(p) = SVector(p[1], p[2]^2)
@@ -913,11 +909,11 @@ end
 #-------------------------
 
 # Regular tetrahedron with edge length 2√2 in ℝ³.
-primal_s = EmbeddedDeltaSet3D{Bool,Point3D}()
-add_vertices!(primal_s, 4, point=[Point3D(1,1,1), Point3D(1,-1,-1),
-  Point3D(-1,1,-1), Point3D(-1,-1,1)])
+primal_s = EmbeddedDeltaSet3D{Bool,Point3d}()
+add_vertices!(primal_s, 4, point=[Point3d(1,1,1), Point3d(1,-1,-1),
+  Point3d(-1,1,-1), Point3d(-1,-1,1)])
 glue_tetrahedron!(primal_s, 1, 2, 3, 4)
-s = EmbeddedDeltaDualComplex3D{Bool,Float64,Point3D}(primal_s)
+s = EmbeddedDeltaDualComplex3D{Bool,Float64,Point3d}(primal_s)
 subdivide_duals!(s, Circumcenter())
 regular_tetrahedron_volume(len) = len^3/(6√2)
 @test all(dual_volume(3,s,1:24) .≈ regular_tetrahedron_volume(2√2)/24)
@@ -942,10 +938,10 @@ end
 
 # Six tetrahedra of equal volume forming a cube with edge length 1.
 # The connectivity is that of Blessent's 2009 thesis, Figure 3.2.
-primal_s = EmbeddedDeltaSet3D{Bool,Point3D}()
+primal_s = EmbeddedDeltaSet3D{Bool,Point3d}()
 add_vertices!(primal_s, 8, point=[
-  Point3D(0,1,0), Point3D(0,0,0), Point3D(1,1,0), Point3D(1,0,0),
-  Point3D(0,1,1), Point3D(0,0,1), Point3D(1,1,1), Point3D(1,0,1)])
+  Point3d(0,1,0), Point3d(0,0,0), Point3d(1,1,0), Point3d(1,0,0),
+  Point3d(0,1,1), Point3d(0,0,1), Point3d(1,1,1), Point3d(1,0,1)])
 # See Table 3.1 "Mesh connectivity".
 glue_sorted_tetrahedron!(primal_s, 3, 5, 4, 2)
 glue_sorted_tetrahedron!(primal_s, 7, 6, 8, 4)
@@ -965,12 +961,12 @@ orient!(primal_s)
 # dual tetrahedron.  e.g. circumcenter([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0,
 # 1.0, 1.0]) == circumcenter([0.0, 0.0, 0.0], [1.0, 1.0, 0.0], [1.0, 0.0, 0.0],
 # [0.0, 1.0, 1.0])
-#s = EmbeddedDeltaDualComplex3D{Bool,Float64,Point3D}(primal_s)
+#s = EmbeddedDeltaDualComplex3D{Bool,Float64,Point3d}(primal_s)
 #subdivide_duals!(s, Circumcenter())
 #@test_throws sum(dual_volume(3,s,parts(s,:DualTet))) ≈ 1
 
 # Barycentric subdivision avoids the above issue.
-s = EmbeddedDeltaDualComplex3D{Bool,Float64,Point3D}(primal_s)
+s = EmbeddedDeltaDualComplex3D{Bool,Float64,Point3d}(primal_s)
 subdivide_duals!(s, Barycenter())
 @test sum(dual_volume(3,s,parts(s,:DualTet))) ≈ 1
 @test all(dual_volume(3,s,parts(s,:DualTet)) .≈ 1/nparts(s,:DualTet))

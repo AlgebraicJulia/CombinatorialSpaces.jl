@@ -3,11 +3,8 @@ using CombinatorialSpaces
 using CombinatorialSpaces.Meshes: single_tetrahedron
 using GeometryBasics
 using GeometryBasics: Mesh, QuadFace, volume
-using StaticArrays: SVector
 using Test
 using TetGen
-
-const Point3D = SVector{3,Float64}
 
 # 2D
 ####
@@ -20,7 +17,7 @@ s = EmbeddedDeltaSet2D(joinpath(@__DIR__, "assets", "square.obj"))
 @test s isa EmbeddedDeltaSet2D
 @test triangle_vertices(s, 1) == [1,2,3]
 
-sd = EmbeddedDeltaDualComplex2D{Bool, Float64, Point3D}(s)
+sd = EmbeddedDeltaDualComplex2D{Bool, Float64, Point3d}(s)
 subdivide_duals!(sd, Barycenter())
 
 # Test consistency with conversion to/from mesh.
@@ -74,7 +71,7 @@ msh, tet_msh = tetgen_readme_mesh()
 
 # Import.
 s = EmbeddedDeltaSet3D(tet_msh)
-sd = EmbeddedDeltaDualComplex3D{Bool, Float64, Point3D}(s)
+sd = EmbeddedDeltaDualComplex3D{Bool, Float64, Point3d}(s)
 subdivide_duals!(sd, Circumcenter())
 @test sum(sd[:vol]) ≈ 2*2*12
 s[:edge_orientation] = true

@@ -140,15 +140,13 @@ Random.seed!(77777) # hide
 using CombinatorialSpaces
 using StaticArrays
 using LinearAlgebra: norm
-using GeometryBasics: Point3
-const Point3D = Point3{Float64}
 ```
 
 We first construct the *coarsest* stage in the 1-D mesh, with just two vertices
 and one edge running from ``(0,0)`` to ``(1,0)``.
 
 ```@example cs
-ss = EmbeddedDeltaSet1D{Bool,Point3D}()
+ss = EmbeddedDeltaSet1D{Bool,Point3d}()
 add_vertices!(ss, 2, point=[(0,0,0),(1,0,0)])
 add_edge!(ss, 1, 2, edge_orientation=true)
 
@@ -293,9 +291,9 @@ laplacian(ss) = ∇²(0,dualize(ss,Barycenter()))
 
 #Copies of the primal square above in an N x N grid covering unit square in plane
 function square_tiling(N)
-  ss = EmbeddedDeltaSet2D{Bool,Point3D}()
+  ss = EmbeddedDeltaSet2D{Bool,Point3d}()
   h = 1/(N-1)
-  points = Point3D.([[i*h,1-j*h,0] for j in 0:N-1 for i in 0:N-1])
+  points = Point3d.([[i*h,1-j*h,0] for j in 0:N-1 for i in 0:N-1])
   add_vertices!(ss, N^2, point=points)
   for i in 1:N^2
     #vertices not in the left column or bottom row
@@ -325,7 +323,7 @@ Let's solve the Laplacian on a triangular mesh.
 ```@example cs
 using Krylov, CombinatorialSpaces, LinearAlgebra
 
-s = triangulated_grid(1,1,1/4,sqrt(3)/2*1/4,Point3D,false)
+s = triangulated_grid(1,1,1/4,sqrt(3)/2*1/4,Point3d,false)
 fs = reverse(repeated_subdivisions(4,s,binary_subdivision_map));
 sses = map(fs) do f dom(f) end
 push!(sses,s)

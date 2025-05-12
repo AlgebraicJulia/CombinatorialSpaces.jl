@@ -13,9 +13,6 @@ using StaticArrays: SVector
 using Statistics: mean
 using Test
 
-Point2D = Point2{Float64}
-Point3D = Point3{Float64}
-
 Random.seed!(0)
 
 # Test Meshes
@@ -52,7 +49,7 @@ dual_meshes_2D_bary = map(x -> generate_dual(x, Barycenter()), [
   loadmesh(Icosphere(1)),
   loadmesh(Icosphere(2)),
   loadmesh(Rectangle_30x10()),
-  triangulated_grid(10, 10, 8, 8, Point3D),
+  triangulated_grid(10, 10, 8, 8, Point3d),
   makeSphere(5, 175, 5, 0, 360, 5, 6371+90)[1]]);
 
 dual_meshes_2D_circum = map(x -> generate_dual(x, Circumcenter()), [
@@ -138,11 +135,11 @@ function test_binary_operators(float_type, backend, arr_cons, tol)
     function test_wedge_1D(sd, backend)
       V1, V2, E1 = rand.(float_type, [nv(sd), nv(sd), ne(sd)])
       altV1, altV2, altE1 = arr_cons.([V1, V2, E1])
-  
+
       wdg00 = dec_wedge_product(Tuple{0,0}, sd, backend, arr_cons, float_type)
       wdg01 = dec_wedge_product(Tuple{0,1}, sd, backend, arr_cons, float_type)
       wdg10 = dec_wedge_product(Tuple{1,0}, sd, backend, arr_cons, float_type)
-  
+
       @test mse(wdg00(altV1, altV2), ∧(Tuple{0,0}, sd, V1, V2))
       @test mse(wdg01(altV1, altE1), ∧(Tuple{0,1}, sd, V1, E1))
       @test mse(wdg10(altE1, altV1), ∧(Tuple{1,0}, sd, E1, V1))
@@ -153,13 +150,13 @@ function test_binary_operators(float_type, backend, arr_cons, tol)
       altV1, altV2, altE1, altE2, altT1 = arr_cons.([V1, V2, E1, E2, T1])
       V_ones, E_ones = ones(float_type, nv(sd)), ones(float_type, ne(sd))
       altV_ones, altE_ones = arr_cons.([V_ones, E_ones])
-  
+
       wdg00 = dec_wedge_product(Tuple{0,0}, sd, backend, arr_cons, float_type)
       wdg01 = dec_wedge_product(Tuple{0,1}, sd, backend, arr_cons, float_type)
       wdg10 = dec_wedge_product(Tuple{1,0}, sd, backend, arr_cons, float_type)
       wdg11 = dec_wedge_product(Tuple{1,1}, sd, backend, arr_cons, float_type)
       wdg02 = dec_wedge_product(Tuple{0,2}, sd, backend, arr_cons, float_type)
-  
+
       @test mse(wdg01(altV_ones, altE_ones), E_ones)
       @test mse(wdg00(altV1, altV2), ∧(Tuple{0,0}, sd, V1, V2))
       @test mse(wdg01(altV1, altE2), ∧(Tuple{0,1}, sd, V1, E2))

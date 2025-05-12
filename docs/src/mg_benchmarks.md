@@ -7,9 +7,7 @@ This code demonstrates a simple pipeline of creating a mesh, executing a multigr
 ```@example MG
 using CombinatorialSpaces
 using CairoMakie
-using GeometryBasics: Point3d
 using LinearAlgebra: norm
-const Point3d = Point3{Float64}
 
 s = triangulated_grid(1, 1, 1/4, sqrt(3)/2*1/4, Point3d, false)
 

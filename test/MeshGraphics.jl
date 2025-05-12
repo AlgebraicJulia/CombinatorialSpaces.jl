@@ -3,14 +3,11 @@ using Test
 
 using CairoMakie
 using CombinatorialSpaces
-using StaticArrays: SVector
-
-const Point3D = SVector{3,Float64}
 
 CairoMakie.Makie.inline!(true)
 
 s = EmbeddedDeltaSet2D(joinpath(@__DIR__, "assets", "square.obj"))
-sd = EmbeddedDeltaDualComplex2D{Bool, Float64, Point3D}(s)
+sd = EmbeddedDeltaDualComplex2D{Bool, Float64, Point3d}(s)
 subdivide_duals!(sd, Barycenter())
 
 # Test Graphs

@@ -2,7 +2,7 @@ module CombinatorialSpaces
 
 using Reexport
 
-using GeometryBasics: Point2, Point3
+using GeometryBasics: Point2, Point3, Point2d, Point3d
 const Point2D = Point2{Float64}
 const Point3D = Point3{Float64}
 
