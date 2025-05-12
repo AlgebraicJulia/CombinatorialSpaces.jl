@@ -20,7 +20,7 @@ import ..SimplicialSets: EmbeddedDeltaSet2D, EmbeddedDeltaSet3D
 Construct a Mesh object from an EmbeddedDeltaSet2D.
 """
 function GeometryBasics.Mesh(sd::EmbeddedDeltaSet2D)
-  points = Point{3, Float64}[point(sd)...]
+  points = Point3d[point(sd)...]
   tris = TriangleFace{Int}[zip(triangle_vertices(sd)...)...]
   Mesh(points, tris)
 end
@@ -30,7 +30,7 @@ end
 Construct a Mesh object from an EmbeddedDeltaSet3D.
 """
 function GeometryBasics.Mesh(sd::EmbeddedDeltaSet3D)
-  points = Point{3, Float64}[point(sd)...]
+  points = Point3d[point(sd)...]
   tets = TetrahedronFace{Int}[zip(tetrahedron_vertices(sd)...)...]
   Mesh(points, tets)
 end
@@ -49,7 +49,7 @@ function GeometryBasics.Mesh(sd::EmbeddedDeltaDualComplex2D{O,R,P};
     copy_parts!(sd′, sd)
     Mesh(sd′)
   else
-    points = Point{3, Float64}[dual_point(sd)...]
+    points = Point3d[dual_point(sd)...]
     tris = TriangleFace{Int}[zip(dual_triangle_vertices(sd)...)...]
     Mesh(points, tris)
   end
@@ -69,7 +69,7 @@ function GeometryBasics.Mesh(sd::EmbeddedDeltaDualComplex3D{O,R,P};
     copy_parts!(sd′, sd)
     Mesh(sd′)
   else
-    points = Point{3, Float64}[dual_point(sd)...]
+    points = Point3d[dual_point(sd)...]
     tets = TetrahedronFace{Int}[zip(dual_tetrahedron_vertices(sd)...)...]
     Mesh(points, tets)
   end
