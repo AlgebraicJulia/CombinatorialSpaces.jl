@@ -20,7 +20,7 @@ Random.seed!(0)
 
 function generate_dual(s::HasDeltaSet1D)
   orient!(s)
-  sd = EmbeddedDeltaDualComplex1D{Bool,Float64,Point2D}(s)
+  sd = EmbeddedDeltaDualComplex1D{Bool,Float64,Point2d}(s)
   subdivide_duals!(sd, Barycenter())
   sd
 end
@@ -32,15 +32,15 @@ function generate_dual(s::EmbeddedDeltaSet2D{B, P}, c::SimplexCenter) where {B,P
   sd
 end
 
-line = path_graph(EmbeddedDeltaSet1D{Bool,Point2D}, 3)
-line[:point] = [Point2D(1,0), Point2D(0,0), Point2D(0,2)]
+line = path_graph(EmbeddedDeltaSet1D{Bool,Point2d}, 3)
+line[:point] = [Point2d(1,0), Point2d(0,0), Point2d(0,2)]
 
-cycle = cycle_graph(EmbeddedDeltaSet1D{Bool,Point2D}, 3)
-cycle[:point] = [Point2D(1,0), Point2D(0,0), Point2D(0,1)]
+cycle = cycle_graph(EmbeddedDeltaSet1D{Bool,Point2d}, 3)
+cycle[:point] = [Point2d(1,0), Point2d(0,0), Point2d(0,1)]
 
 # The star is not a valid 1-manifold, so set an explicit orientation.
-star = star_graph(EmbeddedDeltaSet1D{Bool,Point2D}, 5);
-star[:point] = [Point2D(0,-1), Point2D(1,0), Point2D(-1,0), Point2D(0,1), Point2D(0,0)]
+star = star_graph(EmbeddedDeltaSet1D{Bool,Point2d}, 5);
+star[:point] = [Point2d(0,-1), Point2d(1,0), Point2d(-1,0), Point2d(0,1), Point2d(0,0)]
 star[:edge_orientation] = true;
 
 dual_meshes_1D = map(generate_dual, [line, cycle, star])
@@ -54,7 +54,7 @@ dual_meshes_2D_bary = map(x -> generate_dual(x, Barycenter()), [
 
 dual_meshes_2D_circum = map(x -> generate_dual(x, Circumcenter()), [
   loadmesh(Rectangle_30x10()),
-  triangulated_grid(10, 10, 8, 8, Point2D)]);
+  triangulated_grid(10, 10, 8, 8, Point2d)]);
 
 # Operator Test Definitions
 #--------------------------
