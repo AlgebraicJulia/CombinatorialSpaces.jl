@@ -5,13 +5,11 @@ using Catlab, Catlab.CategoricalAlgebra
 using CombinatorialSpaces, CombinatorialSpaces.SimplicialSets
 using FileIO
 using JSON
-using GeometryBasics: Point2, Point3
 using LinearAlgebra: diagm
+using GeometryBasics: Point2d, Point3d
 
 export loadmesh, Icosphere, Rectangle_30x10, Torus_30x10, Point_Map, triangulated_grid, makeSphere
 
-Point2D = Point2{Float64}
-Point3D = Point3{Float64}
 
 abstract type AbstractMeshKey end
 
@@ -41,7 +39,7 @@ end
 Load in a rectangular mesh.
 """
 function loadmesh(s::Rectangle_30x10)
-  parse_json_acset(EmbeddedDeltaSet2D{Bool, Point3{Float64}},
+  parse_json_acset(EmbeddedDeltaSet2D{Bool, Point3d},
     read(joinpath(artifact"Rectangle_30x10", "Rectangle_30x10.json"), String))
 end
 
@@ -50,7 +48,7 @@ end
 Load in a toroidal mesh.
 """
 function loadmesh(s::Torus_30x10)
-  parse_json_acset(EmbeddedDeltaDualComplex2D{Bool, Float64, Point3{Float64}},
+  parse_json_acset(EmbeddedDeltaDualComplex2D{Bool, Float64, Point3d},
     read(joinpath(artifact"Torus_30x10", "Torus_30x10.json"), String))
 end
 
@@ -204,7 +202,7 @@ function makeSphere(minLat, maxLat, dLat, minLong, maxLong, dLong, radius)
   if (minLat == maxLat && dLat == 0)
     dLat = 1 # User wants a just one parallel. a:0:a is not valid julia.
   end
-  s = EmbeddedDeltaSet2D{Bool, Point3D}()
+  s = EmbeddedDeltaSet2D{Bool, Point3d}()
   # Neither pole counts as a Meridian.
   connect_north_pole = false
   connect_south_pole = false
@@ -233,7 +231,7 @@ function makeSphere(minLat, maxLat, dLat, minLong, maxLong, dLong, radius)
     vertex_offset = nv(s)+1
     add_vertices!(s, num_meridians,
                   point=map(minLong:dLong:maxLong) do ϕ
-                    Point3D(sph2car(ρ,ϕ,θ)...)
+                    Point3d(sph2car(ρ,ϕ,θ)...)
                   end)
     # Connect this parallel.
     if (connect_long)
@@ -269,7 +267,7 @@ function makeSphere(minLat, maxLat, dLat, minLong, maxLong, dLong, radius)
   north_pole_idx = 0
   if (connect_north_pole)
     ϕ, θ = 0, 0
-    add_vertex!(s, point=Point3D(sph2car(ρ,ϕ,θ)...))
+    add_vertex!(s, point=Point3d(sph2car(ρ,ϕ,θ)...))
     north_pole_idx = nv(s)
     foreach(1:num_meridians-1, 2:num_meridians) do i,j
       glue_sorted_triangle!(s, north_pole_idx, i, j)
@@ -282,7 +280,7 @@ function makeSphere(minLat, maxLat, dLat, minLong, maxLong, dLong, radius)
   if (connect_south_pole)
     south_parallel_start = num_meridians*(num_parallels-1)+1
     ϕ, θ = 0, 180
-    add_vertex!(s, point=Point3D(sph2car(ρ,ϕ,θ)...))
+    add_vertex!(s, point=Point3d(sph2car(ρ,ϕ,θ)...))
     south_pole_idx = nv(s)
     foreach(south_parallel_start:south_parallel_start+num_meridians-2,
             south_parallel_start+1:south_parallel_start+num_meridians-1) do i,j
@@ -302,11 +300,11 @@ Return the primal and dual mesh of a triangle with edge lengths 3,4,5 and with t
 See also: [`tri_345_false`](@ref)
 """
 function tri_345()
-  primal_s = EmbeddedDeltaSet2D{Bool,Point3D}()
-  add_vertices!(primal_s, 3, point=[Point3D(0,0,0), Point3D(3,0,0), Point3D(3,4,0)])
+  primal_s = EmbeddedDeltaSet2D{Bool,Point3d}()
+  add_vertices!(primal_s, 3, point=[Point3d(0,0,0), Point3d(3,0,0), Point3d(3,4,0)])
   glue_triangle!(primal_s, 1, 2, 3, tri_orientation=true)
   primal_s[:edge_orientation] = true
-  s = EmbeddedDeltaDualComplex2D{Bool,Float64,Point3D}(primal_s)
+  s = EmbeddedDeltaDualComplex2D{Bool,Float64,Point3d}(primal_s)
   subdivide_duals!(s, Barycenter())
   (primal_s, s)
 end
@@ -317,11 +315,11 @@ Return the primal and dual mesh of a triangle with edge lengths 3,4,5 and with f
 See also: [`tri_345`](@ref)
 """
 function tri_345_false()
-  primal_s = EmbeddedDeltaSet2D{Bool,Point3D}()
-  add_vertices!(primal_s, 3, point=[Point3D(0,0,0), Point3D(3,0,0), Point3D(3,4,0)])
+  primal_s = EmbeddedDeltaSet2D{Bool,Point3d}()
+  add_vertices!(primal_s, 3, point=[Point3d(0,0,0), Point3d(3,0,0), Point3d(3,4,0)])
   glue_triangle!(primal_s, 1, 2, 3, tri_orientation=false)
   primal_s[:edge_orientation] = true
-  s = EmbeddedDeltaDualComplex2D{Bool,Float64,Point3D}(primal_s)
+  s = EmbeddedDeltaDualComplex2D{Bool,Float64,Point3d}(primal_s)
   subdivide_duals!(s, Barycenter())
   (primal_s, s)
 end
@@ -332,11 +330,11 @@ Return the primal and dual mesh of a grid of 3-4-5 triangles.
 See also: [`tri_345`](@ref)
 """
 function grid_345()
-  primal_s = EmbeddedDeltaSet2D{Bool,Point3D}()
+  primal_s = EmbeddedDeltaSet2D{Bool,Point3d}()
   add_vertices!(primal_s, 9,
-    point=[Point3D(0,+4,0), Point3D(3,+4,0), Point3D(6,+4,0),
-          Point3D(0, 0,0), Point3D(3, 0,0), Point3D(6, 0,0),
-          Point3D(0,-4,0), Point3D(3,-4,0), Point3D(6,-4,0)])
+    point=[Point3d(0,+4,0), Point3d(3,+4,0), Point3d(6,+4,0),
+          Point3d(0, 0,0), Point3d(3, 0,0), Point3d(6, 0,0),
+          Point3d(0,-4,0), Point3d(3,-4,0), Point3d(6,-4,0)])
   glue_sorted_triangle!(primal_s, 1, 2, 4)
   glue_sorted_triangle!(primal_s, 5, 2, 4)
   glue_sorted_triangle!(primal_s, 5, 2, 3)
@@ -346,7 +344,7 @@ function grid_345()
   glue_sorted_triangle!(primal_s, 5, 6, 8)
   glue_sorted_triangle!(primal_s, 9, 6, 8)
   primal_s[:edge_orientation] = true
-  s = EmbeddedDeltaDualComplex2D{Bool,Float64,Point3D}(primal_s)
+  s = EmbeddedDeltaDualComplex2D{Bool,Float64,Point3d}(primal_s)
   subdivide_duals!(s, Barycenter())
   (primal_s, s)
 end
@@ -356,12 +354,12 @@ end
 Return the primal and dual mesh of a right scalene triangle with unit hypotenuse.
 """
 function right_scalene_unit_hypot()
-  primal_s = EmbeddedDeltaSet2D{Bool,Point2D}()
+  primal_s = EmbeddedDeltaSet2D{Bool,Point2d}()
   add_vertices!(primal_s, 3,
-    point=[Point2D(0,0), Point2D(1/√2,0), Point2D(1/√2,1/√2)])
+    point=[Point2d(0,0), Point2d(1/√2,0), Point2d(1/√2,1/√2)])
   glue_sorted_triangle!(primal_s, 1, 2, 3)
   primal_s[:edge_orientation] = true
-  s = EmbeddedDeltaDualComplex2D{Bool,Float64,Point2D}(primal_s)
+  s = EmbeddedDeltaDualComplex2D{Bool,Float64,Point2d}(primal_s)
   subdivide_duals!(s, Barycenter())
   (primal_s, s)
 end
@@ -371,12 +369,12 @@ end
 Return the primal and dual mesh of a single tetrahedron with points at the origin and Euclidean basis vectors.
 """
 function single_tetrahedron()
-  pnts = Point3D[
+  pnts = Point3d[
     (0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0)]
-  primal_s = EmbeddedDeltaSet3D{Bool, Point3D}()
+  primal_s = EmbeddedDeltaSet3D{Bool, Point3d}()
   add_vertices!(primal_s, 4, point=pnts)
   glue_sorted_tetrahedron!(primal_s, 1:4...)
-  s = EmbeddedDeltaDualComplex3D{Bool, Float64, Point3D}(primal_s)
+  s = EmbeddedDeltaDualComplex3D{Bool, Float64, Point3d}(primal_s)
   subdivide_duals!(s, Barycenter())
   (primal_s, s)
 end

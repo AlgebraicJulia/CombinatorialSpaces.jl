@@ -3,7 +3,6 @@ module TestMeshes
 using Catlab, Catlab.CategoricalAlgebra
 using CombinatorialSpaces
 using Test
-using GeometryBasics: Point2, Point3
 
 magnitude = (sqrt ∘ (x -> foldl(+, x*x)))
 unit_radius = 1

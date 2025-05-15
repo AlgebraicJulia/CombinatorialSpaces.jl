@@ -6,9 +6,6 @@ using CombinatorialSpaces
 using LinearAlgebra
 using BenchmarkTools
 using Random
-using GeometryBasics: Point2, Point3
-Point2D = Point2{Float64}
-Point3D = Point3{Float64}
 
 @info "Beginning DEC Operator Benchmarks"
 begin
@@ -16,7 +13,7 @@ begin
     float_type::DataType = Float64
     primal_earth = loadmesh(Icosphere(mesh_size))
     orient!(primal_earth);
-    earth = EmbeddedDeltaDualComplex2D{Bool,float_type,Point3D}(primal_earth);
+    earth = EmbeddedDeltaDualComplex2D{Bool,float_type,Point3d}(primal_earth);
     subdivide_duals!(earth, Barycenter());
 end
 

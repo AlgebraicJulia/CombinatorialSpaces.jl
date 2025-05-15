@@ -7,11 +7,9 @@ This code demonstrates a simple pipeline of creating a mesh, executing a multigr
 ```@example MG
 using CombinatorialSpaces
 using CairoMakie
-using GeometryBasics: Point3d
 using LinearAlgebra: norm
-const Point3D = Point3{Float64}
 
-s = triangulated_grid(1, 1, 1/4, sqrt(3)/2*1/4, Point3D, false)
+s = triangulated_grid(1, 1, 1/4, sqrt(3)/2*1/4, Point3d, false)
 
 function plot_residuals(s, title; cycles=1:50, timeit=false)
   i = 0

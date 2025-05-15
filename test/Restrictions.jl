@@ -1,9 +1,7 @@
 using CombinatorialSpaces
-using GeometryBasics: Point3
-Point3D = Point3{Float64}
 
 rect′ = loadmesh(Rectangle_30x10());
-rect = EmbeddedDeltaDualComplex2D{Bool,Float64,Point3D}(rect′);
+rect = EmbeddedDeltaDualComplex2D{Bool,Float64,Point3d}(rect′);
 subdivide_duals!(rect, Barycenter());
 
 left_wall_idxs(sd) = begin
@@ -23,4 +21,3 @@ copy_zero_form = copy(zero_form);
 mask!(rect, left_wall_idxs, copy_zero_form, fill(max, idxlen));
 
 @test copy_zero_form[copy_zero_form .== max] == fill(max, idxlen)
-
