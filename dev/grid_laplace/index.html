@@ -68,9 +68,7 @@ sparse_square_laplacian(3)</code></pre><pre class="documenter-example-output"><c
 end
 test_vcycle_1D_gvl(15,7,3)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">0.0001258758338035676</code></pre><h2 id="Reproducing-the-same-solution-with-CombinatorialSpaces"><a class="docs-heading-anchor" href="#Reproducing-the-same-solution-with-CombinatorialSpaces">Reproducing the same solution with CombinatorialSpaces</a><a id="Reproducing-the-same-solution-with-CombinatorialSpaces-1"></a><a class="docs-heading-anchor-permalink" href="#Reproducing-the-same-solution-with-CombinatorialSpaces" title="Permalink"></a></h2><p>Now we can show how to do the same thing with CombinatorialSpaces. We&#39;ll use the same <code>multigrid_vcycles</code> function as before but produce its inputs via types and data structures in CombinatorialSpaces.</p><p>In particular, <code>repeated_subdivisions</code> below produces a sequence of barycentric subdivisions of a delta-set, which is exactly what we need to produce the repeated halvings of the radius of the 1-D mesh in our example.</p><pre><code class="language-julia hljs">using CombinatorialSpaces
 using StaticArrays
-using LinearAlgebra: norm
-using GeometryBasics: Point3
-const Point3D = Point3{Float64}</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">GeometryBasics.Point{3, Float64}</code></pre><p>We first construct the <em>coarsest</em> stage in the 1-D mesh, with just two vertices and one edge running from <span>$(0,0)$</span> to <span>$(1,0)$</span>.</p><pre><code class="language-julia hljs">ss = EmbeddedDeltaSet1D{Bool,Point3D}()
+using LinearAlgebra: norm</code></pre><p>We first construct the <em>coarsest</em> stage in the 1-D mesh, with just two vertices and one edge running from <span>$(0,0)$</span> to <span>$(1,0)$</span>.</p><pre><code class="language-julia hljs">ss = EmbeddedDeltaSet1D{Bool,Point3d}()
 add_vertices!(ss, 2, point=[(0,0,0),(1,0,0)])
 add_edge!(ss, 1, 2, edge_orientation=true)
 
@@ -188,9 +186,9 @@ laplacian(ss) = ∇²(0,dualize(ss,Barycenter()))
 
 #Copies of the primal square above in an N x N grid covering unit square in plane
 function square_tiling(N)
-  ss = EmbeddedDeltaSet2D{Bool,Point3D}()
+  ss = EmbeddedDeltaSet2D{Bool,Point3d}()
   h = 1/(N-1)
-  points = Point3D.([[i*h,1-j*h,0] for j in 0:N-1 for i in 0:N-1])
+  points = Point3d.([[i*h,1-j*h,0] for j in 0:N-1 for i in 0:N-1])
   add_vertices!(ss, N^2, point=points)
   for i in 1:N^2
     #vertices not in the left column or bottom row
@@ -220,7 +218,7 @@ inlap(5)</code></pre><pre class="documenter-example-output"><code class="nohighl
     ⋅      ⋅      ⋅      ⋅   -16.0    0.0  -16.0   64.0  -16.0
     ⋅      ⋅      ⋅      ⋅      ⋅   -16.0     ⋅   -16.0   64.0</code></pre><h1 id="Triangular-grids"><a class="docs-heading-anchor" href="#Triangular-grids">Triangular grids</a><a id="Triangular-grids-1"></a><a class="docs-heading-anchor-permalink" href="#Triangular-grids" title="Permalink"></a></h1><h2 id="Back-to-heat"><a class="docs-heading-anchor" href="#Back-to-heat">Back to heat</a><a id="Back-to-heat-1"></a><a class="docs-heading-anchor-permalink" href="#Back-to-heat" title="Permalink"></a></h2><p>Let&#39;s solve the Laplacian on a triangular mesh.</p><pre><code class="language-julia hljs">using Krylov, CombinatorialSpaces, LinearAlgebra
 
-s = triangulated_grid(1,1,1/4,sqrt(3)/2*1/4,Point3D,false)
+s = triangulated_grid(1,1,1/4,sqrt(3)/2*1/4,Point3d,false)
 fs = reverse(repeated_subdivisions(4,s,binary_subdivision_map));
 sses = map(fs) do f dom(f) end
 push!(sses,s)
@@ -232,4 +230,4 @@ rs = transpose.(ps)./4.0 #4 is the biggest row sum that occurs for binary, this 
 u0 = zeros(nv(sds[1]))
 b = Ls[1]*rand(nv(sds[1])) #put into range of the Laplacian for solvability
 u = multigrid_vcycles(u0, b, MultigridData(Ls, rs, ps, 3), 10)
-norm(Ls[1]*u - b) / norm(b)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">5.114415387274205e-11</code></pre></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../combinatorial_maps/">« Combinatorial maps</a><a class="docs-footer-nextpage" href="../meshes/">Meshes »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.10.2 on <span class="colophon-date" title="Thursday 1 May 2025 16:31">Thursday 1 May 2025</span>. Using Julia version 1.11.5.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
+norm(Ls[1]*u - b) / norm(b)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">5.114415387274205e-11</code></pre></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../combinatorial_maps/">« Combinatorial maps</a><a class="docs-footer-nextpage" href="../meshes/">Meshes »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.11.3 on <span class="colophon-date" title="Thursday 15 May 2025 18:26">Thursday 15 May 2025</span>. Using Julia version 1.11.5.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
