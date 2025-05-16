@@ -75,11 +75,10 @@ triangles of width `dx` and height `dy`.
 If `compress` is true (default), then enforce that all rows of points are less than `max_x`,
 otherwise, keep `dx` as is.
 """
-function triangulated_grid(max_x, max_y, dx, dy, point_type, compress=true)
+function triangulated_grid(max_x, max_y, dx, dy, point_type, compress=true; shift = dx/2)
   s = EmbeddedDeltaSet2D{Bool, point_type}()
 
   scale = max_x/(max_x+dx/2)
-  shift = dx/2
 
   nx = length(0:dx:max_x)
   ny = length(0:dy:max_y)
