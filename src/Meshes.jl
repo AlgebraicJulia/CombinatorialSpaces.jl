@@ -75,10 +75,10 @@ triangles of width `dx` and height `dy`.
 If `compress` is true (default), then enforce that all rows of points are less than `max_x`,
 otherwise, keep `dx` as is.
 """
-function triangulated_grid(max_x, max_y, dx, dy, point_type, compress=true; shift = dx/2)
+function triangulated_grid(max_x::Real, max_y::Real, dx::Real, dy::Real, point_type, compress::Bool=true; shift::Real = dx/2, diagonal::Function = (x,y)->iseven(y))
   s = EmbeddedDeltaSet2D{Bool, point_type}()
 
-  scale = max_x/(max_x+dx/2)
+  scale = max_x/(max_x+shift)
 
   nx = length(0:dx:max_x)
   ny = length(0:dy:max_y)
@@ -103,7 +103,7 @@ function triangulated_grid(max_x, max_y, dx, dy, point_type, compress=true; shif
 
   for y in 1:ny-1, x in 1:nx-1
       i = x + nx * (y - 1)
-      if iseven(y)
+      if diagonal(x,y)
         glue_triangle!(s, i, i+nx, i+nx+1)
         glue_triangle!(s, i, i+1, i+nx+1)
       else
@@ -119,8 +119,14 @@ function triangulated_grid(max_x, max_y, dx, dy, point_type, compress=true; shif
   nytri = ny - 1
 
   for y in 1:nytri
-    tri_orient = !iseven(y)
     for x in 1:2:nxtri
+      if x == 1 && y == 1
+        tri_orient = diagonal((x + 1) / 2, y-1)
+      elseif x == 1
+        tri_orient = diagonal((x + 1) / 2, y-1)
+      else
+        tri_orient = diagonal((x - 1) / 2, y) == diagonal((x + 1) / 2, y)
+      end
       i = x + nxtri * (y - 1)
       s[i, :tri_orientation] = tri_orient
       s[i + 1, :tri_orientation] = !tri_orient
