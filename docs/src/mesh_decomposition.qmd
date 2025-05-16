@@ -1,0 +1,99 @@
+# Mesh Decomposition
+
+```{julia}
+using CombinatorialSpaces
+using GeometryBasics: Point3d
+using LinearAlgebra: norm
+using CairoMakie
+using Catlab
+
+s = triangulated_grid(100,100,15,15,Point3d);
+sd = EmbeddedDeltaDualComplex2D{Bool,Float64,Point3d}(s);
+subdivide_duals!(sd, Barycenter());
+
+f = Figure()
+ax = CairoMakie.Axis(f[1,1])
+wireframe!(ax, s)
+
+f
+```
+
+```{julia}
+function draw(mesh::EmbeddedDeltaSet2D; color=:blue)
+  f = Figure()
+  ax = CairoMakie.Axis(f[1,1])
+  wireframe!(ax, s, color=color)
+  return f, ax
+end
+
+function draw(submesh::Subobject; color=:orange)
+  ϕ = hom(submesh)
+  f, ax = draw(codom(ϕ))
+  wireframe!(ax, dom(ϕ), color=color)
+  f
+end
+
+function draw(cover::Vector{T}; color=:orange) where T <: Subobject
+  f = Figure()
+  n = length(cover)
+  for i in 1:n
+    for j in i:n
+      ax = CairoMakie.Axis(f[i,j])
+      ui,uj = cover[i], cover[j]
+      ϕ = hom(meet(ui,uj))
+      wireframe!(ax, codom(ϕ), color=:blue)
+      wireframe!(ax, dom(ϕ), color=color)
+    end
+  end
+  f
+end
+```
+
+```{julia}
+quadrants(x) = Int(x[1] > 50) + 2*Int(x[2] > 50)
+
+function cover_mesh(partition_function, s)
+  vertex_partition = map(partition_function, s[:point])
+  parts = map(unique(vertex_partition)) do p
+    vp = findall(i->i==p, vertex_partition)
+    sp = non(negate(Subobject(s; V=vp)))
+  end
+  return parts
+end
+quads = cover_mesh(quadrants, s)
+q = quads[1]
+draw(q)
+```
+```{julia}
+draw(quads[2])
+```
+
+```{julia}
+q = join(quads[1], quads[3])
+draw(q)
+```
+
+```{julia}
+draw(meet(quads[1], quads[2]))
+```
+
+```{julia}
+draw(quads)
+```
+
+```{julia}
+using Catlab.FreeDiagrams
+function nerve(cover::Vector{T}) where T <: Subobject
+  n = length(cover)
+  map(1:n) do i
+    map(i:n) do j
+      ui,uj = cover[i], cover[j]
+      uij = meet(ui,uj)
+    end
+  end
+end
+D = nerve(quads)
+```
+
+```{julia}
+```
