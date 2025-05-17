@@ -26,7 +26,7 @@ catmesh_dset = EmbeddedDeltaSet2D(catmesh)
 mesh(catmesh_dset, shading=false)
 ```
 
-Alterntively, the embedded delta set can be visualized as a wireframe:
+Alternatively, the embedded delta set can be visualized as a wireframe:
 
 ```@example cat
 wireframe(catmesh_dset)
@@ -43,6 +43,6 @@ wireframe(dual)
 ## API docs
 
 ```@autodocs
-Modules = [ Meshes, MeshInterop ]
+Modules = [ Meshes, MeshInterop, MeshOptimization ]
 Private = false
 ```
