@@ -6,10 +6,10 @@ using CombinatorialSpaces, CombinatorialSpaces.SimplicialSets
 using FileIO
 using JSON
 using LinearAlgebra: diagm
-using GeometryBasics: Point2d, Point3d
+using GeometryBasics: Point2d, Point3d, Point
 
-export loadmesh, Icosphere, Rectangle_30x10, Torus_30x10, Point_Map, triangulated_grid, makeSphere
-
+export loadmesh, Icosphere, Rectangle_30x10, Torus_30x10, Point_Map,
+       triangulated_grid, makeSphere, mirrored_mesh
 
 abstract type AbstractMeshKey end
 
@@ -131,10 +131,39 @@ function triangulated_grid(max_x, max_y, dx, dy, point_type, compress=true)
   s
 end
 
+"""    function mirrored_mesh()
+
+Return a mesh with triangles mirrored around a central axis.
+"""
+function mirrored_mesh(max_x, max_y)
+  s = EmbeddedDeltaSet2D{Bool, Point{3, Float64}}();
+  max_x, max_y = 40.0, 20.0
+  xs = range(0, max_x; length = 3)
+  ys = range(0, max_y; length = 3)
+  
+  add_vertices!(s, 9)
+  i = 1
+  for y in ys
+    for x in xs
+      s[i, :point] = Point3([x, y, 0.0])
+      i += 1
+    end
+  end
+  glue_sorted_triangle!(s, 1, 2, 4)
+  glue_sorted_triangle!(s, 2, 4, 5)
+  glue_sorted_triangle!(s, 2, 5, 6)
+  glue_sorted_triangle!(s, 2, 3, 6)
+  glue_sorted_triangle!(s, 4, 5, 7)
+  glue_sorted_triangle!(s, 5, 7, 8)
+  glue_sorted_triangle!(s, 5, 8, 9)
+  glue_sorted_triangle!(s, 5, 6, 9)
+  orient!(s)
+  s[:edge_orientation] = false
+  s
+end
 
 # This function was once the sphericalmeshes.jl file from Decapodes.jl.
-"""
-    makeSphere(minLat, maxLat, dLat, minLong, maxLong, dLong, radius)
+"""    makeSphere(minLat, maxLat, dLat, minLong, maxLong, dLong, radius)
 
 Construct a spherical mesh (inclusively) bounded by the given latitudes and
 longitudes, discretized at dLat and dLong intervals, at the given radius from

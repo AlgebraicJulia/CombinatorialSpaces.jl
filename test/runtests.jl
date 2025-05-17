@@ -33,4 +33,8 @@ end
   include("Multigrid.jl")
 end
 
+@testset "Mesh Optimization" begin
+  include("MeshOptimization.jl")
+end
+
 end

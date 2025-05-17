@@ -18,6 +18,7 @@ include("Meshes.jl")
 include("Restrictions.jl")
 include("Multigrid.jl")
 include("FastDEC.jl")
+include("MeshOptimization.jl")
 
 @reexport using .SimplicialSets
 @reexport using .DiscreteExteriorCalculus
@@ -25,5 +26,6 @@ include("FastDEC.jl")
 @reexport using .Meshes
 @reexport using .Multigrid
 @reexport using .FastDEC
+@reexport using .MeshOptimization
 
 end
