@@ -10,7 +10,6 @@ let # Test the symmetric mirrored mesh, useful for porous convection.
 s = binary_subdivision(mirrored_mesh(40.0, 20.0));
 orient!(s);
 s[:edge_orientation] = false;
-s_orig = copy(s);
 eqs = optimize_mesh!(s, SimulatedAnnealing(ϵ=1e-3, epochs=5000))
 
 @test eqs[end] < eqs[begin]
@@ -21,7 +20,6 @@ let # Test a refinement of the porous convection mesh.
 s = binary_subdivision(binary_subdivision(mirrored_mesh(40.0, 20.0)));
 orient!(s);
 s[:edge_orientation] = false;
-s_orig = copy(s);
 eqs = optimize_mesh!(s, SimulatedAnnealing(ϵ=1e-3, epochs=200))
 
 @test eqs[end] < eqs[begin]
@@ -30,7 +28,6 @@ end
 
 let # Test the default triangulated_grid by moving points along z.
 s = triangulated_grid(40,20,5,5,Point3d);
-s_orig = copy(s);
 eqs = optimize_mesh!(s, SimulatedAnnealing(ϵ=1e-2, epochs=500, jitter3D=true))
 
 @test eqs[end] < eqs[begin]
@@ -41,8 +38,8 @@ let # Test optimizing the UV sphere, (typically bad for DEC).
 s, npi, spi = makeSphere(0, 90, 20, 0, 360, 20, 1);
 orient!(s);
 s[:edge_orientation] = false;
-s_orig = copy(s);
-eqs = optimize_mesh!(s, SimulatedAnnealing(ϵ=1e-3, epochs=200, anneal=false, jitter3D=true, spherical=true))
+eqs = optimize_mesh!(s,
+  SimulatedAnnealing(ϵ=1e-3, epochs=200, anneal=false, jitter3D=true, spherical=true))
 
 @test eqs[end] < eqs[begin]
 @test all(<(1e-3), abs.(diff(eqs)))
@@ -54,8 +51,8 @@ let # Test optimizing a ribbon of UV-points.
 s, npi, spi = makeSphere(70, 110, 10, 0, 360, 20, 1);
 orient!(s);
 s[:edge_orientation] = false;
-s_orig = copy(s);
-eqs = optimize_mesh!(s, SimulatedAnnealing(ϵ=1e-3, epochs=200, jitter3D=true, spherical=true))
+eqs = optimize_mesh!(s,
+  SimulatedAnnealing(ϵ=1e-3, epochs=200, jitter3D=true, spherical=true))
 
 @test eqs[end] < eqs[begin]
 @test all(<(1e-3), abs.(diff(eqs)))
@@ -64,8 +61,8 @@ end
 let # Test optimizing the icosphere, which is mostly equilateral.
 s = loadmesh(Icosphere(3));
 s[:edge_orientation] = false;
-s_orig = copy(s);
-eqs = optimize_mesh!(s, SimulatedAnnealing(ϵ=1e-3, epochs=25, anneal=false, jitter3D=true, spherical=true))
+eqs = optimize_mesh!(s,
+  SimulatedAnnealing(ϵ=1e-3, epochs=25, anneal=false, jitter3D=true, spherical=true))
 
 @test eqs[end] < eqs[begin]
 @test all(<(1e-3), abs.(diff(eqs)))
