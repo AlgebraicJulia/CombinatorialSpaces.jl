@@ -37,7 +37,7 @@ export Simplex, V, E, Tri, Tet, SimplexChain, VChain, EChain, TriChain, TetChain
   glue_sorted_tet_cube!, is_manifold_like, nonboundaries,
   star, St, closed_star, St̄, link, Lk, simplex_vertices, dimension,
   DeltaSet, OrientedDeltaSet, EmbeddedDeltaSet,
-  boundary_inds
+  boundary_inds, interior
 
 using LinearAlgebra: det
 using SparseArrays
@@ -1075,6 +1075,11 @@ function boundary_inds(::Type{Val{2}}, s::HasDeltaSet2D)
     vcat(incident(s, ∂1_inds, esym)...)
   end
   unique(vcat(inds...))
+end
+
+function interior(::Type{Val{0}}, s::HasDeltaSet2D)
+  boundaries = boundary_inds(Val{0}, s)
+  setdiff(vertices(s), boundaries)
 end
 
 end
