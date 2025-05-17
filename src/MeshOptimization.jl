@@ -87,6 +87,8 @@ See also: [`optimize_mesh!`](@ref).
   cost::Function        = equilaterality
 end
 
+optimize_mesh!(s::HasDeltaSet2D) = optimize_mesh!(s, SimulatedAnnealing())
+
 # TODO: Optim.jl exports optimize!. Does that matter?
 # TODO: Explore the effect of exp(-(temp_eq-orig_eq) / temperature)
 # TODO: The default cost function is computed over the entire mesh twice;
