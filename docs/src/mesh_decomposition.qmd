@@ -89,11 +89,80 @@ function nerve(cover::Vector{T}) where T <: Subobject
     map(i:n) do j
       ui,uj = cover[i], cover[j]
       uij = meet(ui,uj)
+      (uij, i, j)
     end
-  end
+  end |> Iterators.flatten
 end
 D = nerve(quads)
 ```
 
 ```{julia}
+function finsetdiagram(cover; object=:V)
+  n = length(cover)
+  u1 = cover[1]
+  f = hom(u1)
+  X = codom(f)
+  ObT = FinSet
+  HomT = Catlab.CategoricalAlgebra.FinFunction
+  homs = [(hom(cover[i]).components[object], i+1, 1) for i in 1:n]
+  opens = dom.(hom.(cover))
+  obs = [X]
+  append!(obs, opens)
+  obs = FinSet.(nparts.(obs, object))
+  # @show obs
+  # edge_homs = map(homs) do (ui, s, t)
+  #   println("$s --> $t = $ui")
+  # end
+  diag = FreeDiagram(obs, homs)
+end
+
+diag = finsetdiagram(quads)
+```
+
+```{julia}
+using Catlab.Sheaves: FVect
+import Catlab.Sheaves: pullback_matrix
+
+function vectdiagram(diag)
+  obs = diag[:ob]
+  homs = map(enumerate(diag[edges(diag), :hom])) do (e, f)
+    (pullback_matrix(f), diag[e, :src], diag[e,:tgt])
+  end
+  @show homs
+  FreeDiagram(obs, homs)
+end
+vectdiagram(diag)
+```
+
+```{julia}
+function freediagram(cover; nerve_dimension=0)
+  nerve_dimension >= 0 || error("nerve_dimension must be nonnegative")
+  n = length(cover)
+  u1 = cover[1]
+  f = hom(u1)
+  X = codom(f)
+  ObT = typeof(X)
+  HomT = typeof(f)
+  homs = [(hom(cover[i]), i+1, 1) for i in 1:n]
+  opens = dom.(hom.(cover))
+  obs = [X]
+  append!(obs, opens)
+  if nerve_dimension == 1
+    D = nerve(cover)
+    edge_homs = map(D) do (uij, i, j)
+      f = hom(uij)
+      f.codom = obs[i+1]
+      return (f, i+1, j+1)
+    end
+    for e in edge_homs
+      @show e[2], e[3], nv(dom(e[1])), nv(codom(e[1]))
+    end
+    append!(homs, edge_homs)
+  end
+  nerve_dimension < 2 || error("nerve_dimension must <= 1")
+  diag = FreeDiagram{ObT,HomT}(obs, homs)
+end
+
+freediagram(quads)
+freediagram(quads, nerve_dimension=true)
 ```
