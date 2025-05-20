@@ -34,6 +34,15 @@ eqs = optimize_mesh!(s, SimulatedAnnealing(ϵ=1e-2, epochs=500, jitter3D=true))
 @test all(<(1e-5), abs.(diff(eqs)))
 end
 
+let # Test the triangulated_grid explicitly using 2D points.
+s = triangulated_grid(40,20,5,5,Point2d);
+eqs = optimize_mesh!(s, SimulatedAnnealing(ϵ=1e-2, epochs=500, hold_boundaries=false))
+
+@test eqs[end] < eqs[begin]
+# The bulk of the change in equilaterality is performed in the first 250 epochs.
+@test sum(eqs[251:500]) < (sum(eqs[1:250]) / 100)
+end
+
 let # Test optimizing the UV sphere, (typically bad for DEC).
 s, npi, spi = makeSphere(0, 90, 20, 0, 360, 20, 1);
 orient!(s);
@@ -68,63 +77,6 @@ eqs = optimize_mesh!(s,
 @test all(<(1e-3), abs.(diff(eqs)))
 # The rate of improvement tends to decrease:
 @test 0 < mean(diff(diff(eqs)))
-end
-
-let # Test the effect of mesh optimization on simple heat equation dynamics.
-#=
-function dome_comparison(sim)
-  s, npi, spi = makeSphere(0, 90, 20, 0, 360, 20, 1);
-  orient!(s);
-  s[:edge_orientation] = false;
-  s_orig = copy(s);
-  ∂₂ = ∂(2,s)
-  eqs = optimize_mesh!(s, SimulatedAnnealing(ϵ=1e-3, epochs=200, jitter3D=true, spherical=true))
-
-  #s = loadmesh(Icosphere(3))
-  #s[:edge_orientation] = false;
-  #s_orig = copy(s);
-  #∂₂ = ∂(2,s)
-  #eqs = optimize_mesh!(s, SimulatedAnnealing(ϵ=1e-3, epochs=100, anneal=false, jitter3D=true, spherical=true))
-
-  tₑ = 1e5
-  function solve_sim(msh)
-    sd = EmbeddedDeltaDualComplex2D{Bool,Float64,Point3d}(msh)
-    #subdivide_duals!(sd, Circumcenter())
-    subdivide_duals!(sd, Barycenter())
-
-    # TODO: Simulate the heat equation (via the midpoint method).
-    #f = sim(sd, nothing, GeometricHodge())
-
-    u₀ = ComponentArray(C = getindex.(point(msh), 3))
-    cs_ps = (k = 1e-1,)
-
-    prob = ODEProblem(f, u₀, (0, tₑ), cs_ps)
-    soln = solve(prob, Tsit5(); progress=true, progress_steps=1);
-    s0 = dec_hodge_star(0, sd)
-    s0, soln
-  end
-
-  @info "Solving original mesh"
-  s0_orig, soln_orig = solve_sim(s_orig)
-  @info "Solving optimized mesh"
-  s0, soln = solve_sim(s)
-
-  #=
-  viz(s_orig, soln_orig, "Original Error Distribution")
-  viz(s, soln, "Optimized Error Distribution")
-  wf(s)
-  wf(s_orig)
-  eqs_dist(s_orig, s)
-  =#
-end
-
-int_diff = map(range(0,tₑ;length=100)) do x
-  abs(sum(s0 * soln(x).C) - sum(s0 * soln(0).C))
-end
-int_diff_orig = map(range(0,tₑ;length=100)) do x
-  abs(sum(s0_orig * soln_orig(x).C) - sum(s0_orig * soln_orig(0).C))
-end
-=#
 end
 
 #############################
