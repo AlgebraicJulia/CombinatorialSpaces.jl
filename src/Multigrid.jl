@@ -185,12 +185,7 @@ end
 Subdivide each triangle into 4 via "binary" a.k.a. "medial" subdivision,
 returning a primal simplicial complex.
 """
-function binary_subdivision(s::Union{EmbeddedDeltaSet1D, EmbeddedDeltaSet2D})
-  # TODO: Refactor the dispatch here.
-  ntriangles(s::EmbeddedDeltaSet1D) = 0
-  ntriangles(s::EmbeddedDeltaSet2D) = nparts(s,:Tri)
-  triangles(s::EmbeddedDeltaSet1D) = 1:0
-  triangles(s::EmbeddedDeltaSet2D) = parts(s,:Tri)
+function binary_subdivision(s::Union{EmbeddedDeltaSet1D, EmbeddedDeltaSet2D, EmbeddedDeltaSet3D})
   sd = typeof(s)()
   add_vertices!(sd,nv(s)+ne(s))
   sd[1:nv(s), :point] = s[:point]
@@ -207,12 +202,16 @@ function binary_subdivision(s::Union{EmbeddedDeltaSet1D, EmbeddedDeltaSet2D})
     sd[e_idxs, :∂v1] = s[e, :∂v0], s[e, :∂v1]
   end
 
+  if s isa EmbeddedDeltaSet1D
+    return sd
+  end
+
   #       v2
   #      /  \
   #    m1 -- m0
   #   /  \  /  \
   # v0 -- m2 -- v1
-  if s isa EmbeddedDeltaSet2D
+  if s isa EmbeddedDeltaSet2D || s isa EmbeddedDeltaSet3D
     add_parts!(sd, :Tri, 4*ntriangles(s))
   end
   inc_arr = SVector{3}(0,1,2)
