@@ -1082,4 +1082,25 @@ function interior(::Type{Val{0}}, s::HasDeltaSet2D)
   setdiff(vertices(s), boundaries)
 end
 
+# REPL IO
+#########
+
+import Base: show
+const PRETTY_PRINT_CUTOFF = 32
+
+Base.show(io::IO, ::MIME"text/plain", s::HasDeltaSet1D) =
+  nv(s) < PRETTY_PRINT_CUTOFF ?
+    pretty_tables(io, s) :
+    write(io, "1D Delta Set with $(nv(s)) vertices and $(ne(s)) edges.")
+
+Base.show(io::IO, ::MIME"text/plain", s::HasDeltaSet2D) =
+  nv(s) < PRETTY_PRINT_CUTOFF ?
+    pretty_tables(io, s) :
+    write(io, "2D Delta Set with $(nv(s)) vertices, $(ne(s)) edges, and $(ntriangles(s)) triangles.")
+
+Base.show(io::IO, ::MIME"text/plain", s::HasDeltaSet3D) =
+  nv(s) < PRETTY_PRINT_CUTOFF ?
+    pretty_tables(io, s) :
+    write(io, "3D Delta Set with $(nv(s)) vertices, $(ne(s)) edges, $(ntriangles(s)) triangles, and $(ntetrahedra(s)) tetrahedra.")
+
 end

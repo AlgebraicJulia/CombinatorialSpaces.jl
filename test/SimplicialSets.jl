@@ -593,4 +593,25 @@ bvs, bes = boundary_inds(Val{0}, s), boundary_inds(Val{1}, s)
 @test issetequal(bvs, [1,8,9,16])
 @test issetequal(bes, [1,7,8,14])
 
+# Test REPL IO
+##############
+
+function show_to_string(s)
+  buf = IOBuffer()
+  show(buf, MIME(Symbol("text/plain")), s)
+  String(take!(buf))
+end
+
+@test show_to_string(path_graph(DeltaSet1D, 32)) ==
+  "1D Delta Set with 32 vertices and 31 edges."
+
+@test show_to_string(triangulated_grid(64,64,8,8,Point2d)) ==
+  "2D Delta Set with 81 vertices, 208 edges, and 128 triangles."
+
+s = CombinatorialSpaces.Meshes.single_tetrahedron()[1]
+s[:edge_orientation] = false; s[:tri_orientation] = false; orient!(s);
+
+@test show_to_string(apex(coproduct([s for _ in 1:32]))) ==
+  "3D Delta Set with 128 vertices, 192 edges, 128 triangles, and 32 tetrahedra."
+
 end
