@@ -1,3 +1,6 @@
+```@meta
+draft=false
+```
 # Subdivision of Meshes
 
 To use the multigrid solvers or conduct a convergence analysis,
@@ -116,3 +119,36 @@ wireframe!(ax, t, linewidth=6, color=Orange)
 wireframe!(ax, s, linewidth=8, color=Blue)
 f
 ```
+
+## Preparing for Multigrid
+
+When you want to use multigrid, you need both a sequence of meshes
+and the geometric morphisms between them that encode the continuous
+map between their geometric realizations.
+
+The type `PrimalGeometricMapSeries` holds this information when 
+generated from a subdivision scheme.
+
+You can visualize them with the following plotting function:
+
+```@example subdivision
+scheme = CubicSubdivision()
+level = 3
+
+s = EmbeddedDeltaSet2D{Float64, Point3d}()
+add_vertices!(s, 3, point=[Point3d(0,0,0), Point3d(1,0,0), Point3d(0.5,0.866,0)])
+glue_sorted_triangle!(s, 1,2,3)
+series = PrimalGeometricMapSeries(s, scheme, level)
+
+function Makie.wireframe(s::PrimalGeometricMapSeries)
+  levels = length(s.meshes)
+  f = Figure()
+  ax = CairoMakie.Axis(f[1,1]; title="Geometric Subdivisions", aspect=1.25)
+  map(enumerate(s.meshes)) do (i, v)
+    wireframe!(ax, v, linewidth=2i, color=colors[mod((levels - i), length(colors))+1])
+  end
+  f
+end
+wireframe(series)
+```
+The `PrimalGeometricSeries` type actually contains dual complexes. But it is defined by subdividing the primal mesh.
