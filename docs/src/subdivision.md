@@ -23,6 +23,7 @@ Green =  colorant"#ADCF94"
 Beige =  colorant"#F9EECB"
 Teal =  colorant"#B3DBD9"
 Purple =  colorant"#D7C9F1"
+colors = [Blue, Orange, Green, Beige, Teal, Purple]
 ```
 
 ## Binary Subdivision
@@ -43,7 +44,7 @@ wireframe!(ax, s, linewidth=6, color=Blue)
 f
 ```
 
-The first subdivision
+### Level 1
 
 ```@example subdivision
 f = Figure()
@@ -53,7 +54,7 @@ wireframe!(ax, s, linewidth=6, color=Blue)
 f
 ```
 
-The second subdivision.
+### Level 2
 
 ```@example subdivision
 f = Figure()
@@ -64,7 +65,7 @@ wireframe!(ax, s, linewidth=6, color=Blue)
 f
 ```
 
-The third subdivision.
+### Level 3
 
 ```@example subdivision
 f = Figure()
@@ -76,7 +77,7 @@ wireframe!(ax, s, linewidth=6, color=Blue)
 f
 ```
 
-The fourth subdivision.
+### Level 4
 
 ```@example subdivision
 s = EmbeddedDeltaSet2D{Float64, Point3d}()
