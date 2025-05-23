@@ -19,6 +19,7 @@ makedocs(
     "meshes.md",
     "euler.md",
     "subdivision.md",
+    "multigrid.md",
     "mg_benchmarks.md"
   ]
 )
