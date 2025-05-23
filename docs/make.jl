@@ -18,6 +18,7 @@ makedocs(
     "grid_laplace.md",
     "meshes.md",
     "euler.md",
+    "subdivision.md",
     "mg_benchmarks.md"
   ]
 )
