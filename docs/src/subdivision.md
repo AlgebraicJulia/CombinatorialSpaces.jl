@@ -100,42 +100,6 @@ The next subdivision scheme replaces each edge with three edges at the 1/3 and 2
 This mesh looks more like the nuclear radiation symbol.
 
 ```@example subdivision
-s = EmbeddedDeltaSet2D{Float64, Point3d}()
-add_vertices!(s, 3, point=[Point3d(0,0,0), Point3d(1,0,0), Point3d(0.5,0.866,0)])
-glue_sorted_triangle!(s, 1,2,3)
-t = cubic_subdivision(s)
-u = cubic_subdivision(t)
-v = cubic_subdivision(u)
-```
-
-```@example subdivision
-f = Figure()
-ax = CairoMakie.Axis(f[1,1]; title="1 Level of Cubic Subdivision", aspect=1.25)
-wireframe!(ax, t, linewidth=4, color=Orange)
-wireframe!(ax, s, linewidth=6, color=Blue)
-f
-```
-
-```@example subdivision
-f = Figure()
-ax = CairoMakie.Axis(f[1,1]; title="2 Levels of Cubic Subdivision", aspect=1.25)
-wireframe!(ax, u, linewidth=4, color=Green)
-wireframe!(ax, t, linewidth=6, color=Orange)
-wireframe!(ax, s, linewidth=6, color=Blue)
-f
-```
-
-```@example subdivision
-f = Figure()
-ax = CairoMakie.Axis(f[1,1]; title="3 Levels of Cubic Subdivision", aspect=1.25)
-wireframe!(ax, v, linewidth=4, color=Teal)
-wireframe!(ax, u, linewidth=6, color=Green)
-wireframe!(ax, t, linewidth=6, color=Orange)
-wireframe!(ax, s, linewidth=6, color=Blue)
-f
-```
-
-```@example subdivision
 
 s = EmbeddedDeltaSet2D{Float64, Point3d}()
 add_vertices!(s, 3, point=[Point3d(0,0,0), Point3d(1,0,0), Point3d(0.5,0.866,0)])
