@@ -525,10 +525,9 @@ end
 # 1dx ∧ 1dy = 1 dx∧dy
 onedx = eval_constant_primal_form(s, @SVector [1.0,0.0,0.0])
 onedy = eval_constant_primal_form(s, @SVector [0.0,1.0,0.0])
-@test ∧(s, onedx, onedy) == map(s[:tri_orientation], s[:area]) do o,a
-  # Note by the order of -1 and 1 here that
+@test all(∧(s, onedx, onedy) .≈ map(s[:tri_orientation], s[:area]) do o,a
   a * (o ? -1 : 1)
-end
+end)
 
 # 1dx∧dy = -1dy∧dx
 @test ∧(s, onedx, onedy) == -∧(s, onedy, onedx)

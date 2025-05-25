@@ -34,7 +34,7 @@ export DualSimplex, DualV, DualE, DualTri, DualTet, DualChain, DualForm,
 import Base: ndims
 import Base: *
 import LinearAlgebra: mul!
-using LinearAlgebra: Diagonal, dot, norm, cross, pinv, qr, ColumnNorm, normalize
+using LinearAlgebra: Diagonal, dot, norm, cross, pinv, ColumnNorm, normalize, det
 using SparseArrays
 using StaticArrays: @SVector, SVector, SMatrix, MVector, MMatrix
 using Statistics: mean
@@ -872,23 +872,20 @@ function ♯_mat(s::AbstractDeltaDualComplex2D, ::LLSDDSharp)
   ♯_m
 end
 
+# XXX: This reference implementation is kept for pedagogical purposes;
+# it is faster to vectorize coefficient generation.
+# Wedge product of two primal 1-forms, as in Hirani 2003, Example 7.1.2.
 function ∧(::Type{Tuple{1,1}}, s::HasDeltaSet2D, α, β, x::Int)
-  # XXX: This calculation of the volume coefficients is awkward due to the
-  # design decision described in `SchDeltaDualComplex1D`.
-  dual_vs = vertex_center(s, triangle_vertices(s, x))
-  dual_es = sort(SVector{6}(incident(s, triangle_center(s, x), :D_∂v0)),
-                 by=e -> s[e,:D_∂v1] .== dual_vs, rev=true)[1:3]
-  coeffs = map(dual_es) do e
-    sum(dual_volume(2, s, SVector{2}(incident(s, e, :D_∂e1))))
-  end / volume(2, s, x)
+  dual_tris = subsimplices(2, s, x)
 
-  # Wedge product of two primal 1-forms, as in (Hirani 2003, Example 7.1.2).
-  # This formula is not the same as (Hirani 2003, Equation 7.1.2) but it is
-  # equivalent.
-  e0, e1, e2 = ∂(2,0,s,x), ∂(2,1,s,x), ∂(2,2,s,x)
-  dot(coeffs, SVector(α[e2] * β[e1] - α[e1] * β[e2],
-                      α[e2] * β[e0] - α[e0] * β[e2],
-                      α[e1] * β[e0] - α[e0] * β[e1])) / 2
+  w0, w1, w2 = map(triangle_vertices(s,x)) do v
+    sum(s[dual_tris ∩ elementary_duals(0,s,v), :dual_area]) / s[x, :area]
+  end
+
+  e0, e1, e2 = s[x, :∂e0], s[x, :∂e1], s[x, :∂e2]
+  det([w0    -w1    w2 ;
+       β[e0]  β[e1] β[e2] ;
+       α[e0]  α[e1] α[e2] ]) / 2
 end
 
 function subdivide_duals!(sd::EmbeddedDeltaDualComplex2D{_o, _l, point_type} where {_o, _l}, alg) where point_type
