@@ -877,15 +877,22 @@ end
 # Wedge product of two primal 1-forms, as in Hirani 2003, Example 7.1.2.
 function ∧(::Type{Tuple{1,1}}, s::HasDeltaSet2D, α, β, x::Int)
   dual_tris = subsimplices(2, s, x)
+  dual_area(ts) = sum(s[ts, :dual_area])
 
-  w0, w1, w2 = map(triangle_vertices(s,x)) do v
-    sum(s[dual_tris ∩ elementary_duals(0,s,v), :dual_area]) / s[x, :area]
+  ws = map(triangle_vertices(s,x)) do v
+    dual_area(dual_tris ∩ elementary_duals(0,s,v)) / s[x, :area]
   end
 
   e0, e1, e2 = s[x, :∂e0], s[x, :∂e1], s[x, :∂e2]
-  det([w0    -w1    w2 ;
-       β[e0]  β[e1] β[e2] ;
-       α[e0]  α[e1] α[e2] ]) / 2
+  α0, α1, α2 = α[[e0, e1, e2]]
+  β0, β1, β2 = β[[e0, e1, e2]]
+  # Take a weighted linear combination of co-parallelogram areas
+  # at each pair of edges.
+  form = dot(ws, [β1*α2 - α1*β2,
+                  β0*α2 - α0*β2,
+                  β0*α1 - α0*β1])
+  # Convert from parallelogram areas to triangles.
+  form / 2
 end
 
 function subdivide_duals!(sd::EmbeddedDeltaDualComplex2D{_o, _l, point_type} where {_o, _l}, alg) where point_type
