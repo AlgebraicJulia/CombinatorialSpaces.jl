@@ -185,14 +185,19 @@ end
 Subdivide each triangle into 4 via "binary" a.k.a. "medial" subdivision,
 returning a primal simplicial complex.
 """
-function binary_subdivision(s::Union{EmbeddedDeltaSet1D, EmbeddedDeltaSet2D, EmbeddedDeltaSet3D})
+binary_subdivision(s::EmbeddedDeltaSet1D) = binary_subdivision_1D(s)
+binary_subdivision(s::EmbeddedDeltaSet2D) = binary_subdivision_2D(s)
+binary_subdivision(s::EmbeddedDeltaSet3D) = binary_subdivision_3D(s)
+
+function binary_subdivision_1D(s)
   sd = typeof(s)()
+
   add_vertices!(sd,nv(s)+ne(s))
   sd[1:nv(s), :point] = s[:point]
   sd[(nv(s)+1:nv(s)+ne(s)), :point] = (s[[:∂v0,:point]] .+ s[[:∂v1,:point]])./2
 
   # v0 -- m -- v1
-  add_parts!(sd, :E, 2*ne(s)+3*ntriangles(s))
+  add_parts!(sd, :E, 2*ne(s))
   for e in edges(s)
     offset = 2*e-1
     e_idxs = SVector{2}(offset, offset+1)
@@ -201,20 +206,21 @@ function binary_subdivision(s::Union{EmbeddedDeltaSet1D, EmbeddedDeltaSet2D, Emb
     sd[e_idxs, :∂v0] = m,          m
     sd[e_idxs, :∂v1] = s[e, :∂v0], s[e, :∂v1]
   end
+  return sd
+end
 
-  if s isa EmbeddedDeltaSet1D
-    return sd
-  end
+function binary_subdivision_2D(s)
+  sd = binary_subdivision_1D(s)
+
+  add_parts!(sd, :E, 3*ntriangles(s))
+  add_parts!(sd, :Tri, 4*ntriangles(s))
+  inc_arr = SVector{3}(0,1,2)
 
   #       v2
   #      /  \
   #    m1 -- m0
   #   /  \  /  \
   # v0 -- m2 -- v1
-  if s isa EmbeddedDeltaSet2D || s isa EmbeddedDeltaSet3D
-    add_parts!(sd, :Tri, 4*ntriangles(s))
-  end
-  inc_arr = SVector{3}(0,1,2)
   for t in triangles(s)
     es = triangle_edges(s,t)
 
@@ -237,8 +243,37 @@ function binary_subdivision(s::Union{EmbeddedDeltaSet1D, EmbeddedDeltaSet2D, Emb
     sd[tri_idxs, :∂e1] = m0_m2, m2_v0, v1_m2, v2_m1
     sd[tri_idxs, :∂e2] = m0_m1, m1_v0, m0_v1, v2_m0
   end
-  sd
+  return sd
 end
+
+# TODO: Optimize this!
+function binary_subdivision_3D(s)
+  sd = binary_subdivision_2D(s)
+
+  # Unfolded tetrahedron, 1-4 are the original vertices
+  # 4 -- 6 -- 3 -- 6 -- 4
+  #  \  / \ /  \ /  \ /
+  #   9-- 8 -- 5 -- 7
+  #    \ / \  /  \ /
+  #    1 -- 10 -- 2
+  #     \   /\   /
+  #       9 -- 7
+  #       \   /
+  #         4
+
+  # Outermost tetrahedra
+  for tet in tetrahedra(s)
+    tet_edges = tetrahedron_edges(s, tet)
+    for (v, face) in zip(tetrahedron_vertices(s, tet), tetrahedron_triangles(s, tet))
+      tri_edges = triangle_edges(s, face)
+      mids = setdiff(tet_edges, tri_edges) .+ nv(s)
+      println(v, mids...)
+      glue_sorted_tetrahedron!(sd, v, mids...)
+    end
+  end
+  return sd
+end
+
 
 function binary_subdivision_map(s)
   sd = binary_subdivision(s)

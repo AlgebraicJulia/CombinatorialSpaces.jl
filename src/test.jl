@@ -8,7 +8,6 @@ add_vertices!(s, 4, point=[Point3d(1,1,1), Point3d(1,-1,-1),
 glue_tetrahedron!(s, 1, 2, 3, 4)
 
 sd = binary_subdivision(s)
-# add_parts!(sd, :Tet, 8*ntetrahedra(s))
 
 # 4 -- 6 -- 3 -- 6 -- 4
 #  \  / \ /  \ /  \ /
