@@ -1,7 +1,7 @@
 module TestDiscreteExteriorCalculus
 using Test
 
-using LinearAlgebra: Diagonal, mul!, norm, dot
+using LinearAlgebra: Diagonal, mul!, norm, dot, cross
 using SparseArrays, StaticArrays
 
 using Catlab.CategoricalAlgebra.CSets
@@ -9,9 +9,11 @@ using Catlab.Graphs
 using ACSets
 using ACSets.DenseACSets: attrtype_type
 using CombinatorialSpaces
-using CombinatorialSpaces.Meshes: tri_345, tri_345_false, grid_345, right_scalene_unit_hypot
+using CombinatorialSpaces.Meshes: tri_345, tri_345_false, grid_345,
+  right_scalene_unit_hypot, single_tetrahedron
 using CombinatorialSpaces.SimplicialSets: boundary_inds
-using CombinatorialSpaces.DiscreteExteriorCalculus: eval_constant_primal_form, eval_constant_dual_form
+using CombinatorialSpaces.DiscreteExteriorCalculus: eval_constant_primal_form,
+  eval_constant_dual_form
 using Statistics: mean
 
 # 1D dual complex
@@ -969,5 +971,24 @@ s = EmbeddedDeltaDualComplex3D{Bool,Float64,Point3d}(primal_s)
 subdivide_duals!(s, Barycenter())
 @test sum(dual_volume(3,s,parts(s,:DualTet))) ≈ 1
 @test all(dual_volume(3,s,parts(s,:DualTet)) .≈ 1/nparts(s,:DualTet))
+
+# Test the 2-1 wedge product.
+primal_s, s = single_tetrahedron()
+
+as_vec(s,e) = (point(s, tgt(s,e)) - point(s, src(s,e))) * sign(1,s,e)
+# This is a primal 2-form, encoding (signed) unit areas parallel to the z=0 plane.
+dXdY = map(triangles(s)) do tri
+  e1, e2, _ = triangle_edges(s,tri)
+  e1_vec, e2_vec = as_vec(s,e1), as_vec(s,e2)
+  (cross(e1_vec, e2_vec) * sign(2,s,tri))[3] / 2
+  # Note that normalizing is the same as dividing by 2*s[tri, :area],
+  # so the above is equivalent to:
+  #n = normalize(cross(e1_vec, e2_vec) * sign(2,s,tri))
+  #s[tri, :area] * n[3] # i.e. n ⋅ SVector{3,Float64}(0,0,1)
+end
+d0 = d(0,s)
+# This is a primal 1-form, encoding a constant gradient pointing "up."
+dZ = d0 * map(p -> p[3], s[:point])
+@test only(∧(2, 1, s, dXdY, dZ)) ≈ only(s[:vol]) * -1
 
 end

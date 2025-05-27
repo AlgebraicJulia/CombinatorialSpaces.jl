@@ -886,7 +886,7 @@ function ∧(::Type{Tuple{1,1}}, s::HasDeltaSet2D, α, β, x::Int)
   e0, e1, e2 = s[x, :∂e0], s[x, :∂e1], s[x, :∂e2]
   α0, α1, α2 = α[[e0, e1, e2]]
   β0, β1, β2 = β[[e0, e1, e2]]
-  # Take a weighted linear combination of co-parallelogram areas
+  # Take a weighted average of co-parallelogram areas
   # at each pair of edges.
   form = dot(ws, [β1*α2 - α1*β2,
                   β0*α2 - α0*β2,
@@ -1285,6 +1285,50 @@ function precompute_volumes_3d!(sd::HasDeltaSet3D, p::Type{point_type}) where po
   for tet in parts(sd, :DualTet)
     sd[tet, :dual_vol] = dual_volume(3,sd,tet,CayleyMengerDet())
   end
+end
+
+# XXX: This reference implementation is for pedagogical purposes;
+# it is faster to vectorize coefficient generation.
+# Wedge product of a primal 2-form with a primal 1-form.
+function ∧(::Type{Tuple{2,1}}, s::HasDeltaSet2D, α, β, x::Int)
+  d_tets = subsimplices(3, s, x)
+  d_volume(tets) = sum(s[tets, :dual_vol])
+
+  ws = map(tetrahedron_vertices(s,x)) do v
+    d_volume(d_tets ∩ elementary_duals(0,s,v)) / s[x, :vol]
+  end
+
+  t0, t1, t2, t3         = tetrahedron_triangles(s, x)
+  e0, e1, e2, e3, e4, e5 = tetrahedron_edges(s, x)
+  α0, α1, α2, α3         = α[[t0, t1, t2, t3]]
+  β0, β1, β2, β3, β4, β5 = β[[e0, e1, e2, e3, e4, e5]]
+  # Take a weighted average of co-parallelepiped areas at each vertex.
+  #
+  # Recall that a 3-form is akin to a (co)-volume, akin to a 3x3 determinant.
+  # Recall that each of these α's is a co-bivector, akin to a 2x2 determinant.
+  # So, exploit the recursive definition of the 3x3 determinant.
+  #
+  # Working backwards: observe there are 24 terms total if one were to expand
+  # all determinants (including 2-forms), and 24 is the cardinality of S₄.
+  #
+  # Each β*α term is a edge-triangle pair that share a single vertex vᵢ.
+  # These pairs could be generated from:
+  # map(x -> triangle_vertices(s, x), tetrahedron_triangles(s,x))
+  # and
+  # map(x -> edge_vertices(s, x), tetrahedron_edges(s,x))
+  # or by thinking through the simplicial identities, of course.
+  # TODO: Carry through signs.
+  form = dot(ws, [
+     # v₀
+     β3*α3 + β4*α2 + β5*α1,
+     # v₁
+     β1*α3 + β2*α2 + β5*α0,
+     # v₂
+     β0*α3 + β2*α1 + β4*α0,
+     # v₃
+     β0*α2 + β1*α1 + β3*α0])
+  # Convert from parallelepiped volumes to tetrahedra.
+  form / 3
 end
 
 # General operators
