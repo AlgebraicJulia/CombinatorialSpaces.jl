@@ -261,14 +261,36 @@ function binary_subdivision_3D(s)
   #       \   /
   #         4
 
+  # 10 and 6 which are opposite points of the octahedron, are midpoints of 1-2 and 3-4
+  # Knowing the midpoint idx, look back by nv to find the edge idx
+
   # Outermost tetrahedra
   for tet in tetrahedra(s)
+    tet_vs = tetrahedron_vertices(s, tet)
     tet_edges = tetrahedron_edges(s, tet)
-    for (v, face) in zip(tetrahedron_vertices(s, tet), tetrahedron_triangles(s, tet))
+    tet_tris = tetrahedron_triangles(s, tet)
+
+    for (v, face) in zip(tet_vs, tet_tris)
       tri_edges = triangle_edges(s, face)
       mids = setdiff(tet_edges, tri_edges) .+ nv(s)
-      println(v, mids...)
       glue_sorted_tetrahedron!(sd, v, mids...)
+    end
+
+    # Inner tetrahedra
+    base_edge = last(tet_edges)
+    base_mid = base_edge + nv(s) # 10
+    v0 = s[base_edge, :∂v0]
+    v1 = s[base_edge, :∂v1]
+
+    t0 = only(tet_tris[tet_vs .== v0])
+    t1 = only(tet_tris[tet_vs .== v1])
+
+    opp_edge = only(intersect(triangle_edges(s, t0), triangle_edges(s, t1)))
+    opp_mid = opp_edge + nv(s) # 6
+
+    for t in tet_tris
+      mid_face = 4 * t - 3 # Middle face of original triangle from binary subdivision
+      glue_sorted_tetrahedron!(sd, union(base_mid, opp_mid, triangle_vertices(sd, mid_face)...)...)
     end
   end
   return sd

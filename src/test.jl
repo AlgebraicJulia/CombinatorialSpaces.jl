@@ -8,7 +8,6 @@ add_vertices!(s, 4, point=[Point3d(1,1,1), Point3d(1,-1,-1),
 glue_tetrahedron!(s, 1, 2, 3, 4)
 
 sd = binary_subdivision(s)
-
 # 4 -- 6 -- 3 -- 6 -- 4
 #  \  / \ /  \ /  \ /
 #   9-- 8 -- 5 -- 7
@@ -19,19 +18,19 @@ sd = binary_subdivision(s)
 #       \   /
 #         4
 
-# Take outer most tetrahedra, connected to one of the original vertices
-glue_sorted_tetrahedron!(sd, 1, 8, 9, 10)
-glue_sorted_tetrahedron!(sd, 2, 5, 7, 10)
-glue_sorted_tetrahedron!(sd, 3, 5, 6, 8)
-glue_sorted_tetrahedron!(sd, 4, 6, 7, 9)
+# # Take outer most tetrahedra, connected to one of the original vertices
+# glue_sorted_tetrahedron!(sd, 1, 8, 9, 10)
+# glue_sorted_tetrahedron!(sd, 2, 5, 7, 10)
+# glue_sorted_tetrahedron!(sd, 3, 5, 6, 8)
+# glue_sorted_tetrahedron!(sd, 4, 6, 7, 9)
 
-# Take infer most tetrahedra, only connected to midpoints, need to take interior diagonal
-# Interior diagonal in this case is 6 -- 10
+# # Take infer most tetrahedra, only connected to midpoints, need to take interior diagonal
+# # Interior diagonal in this case is 6 -- 10
 
-glue_sorted_tetrahedron!(sd, 6, 10, 8, 9)
-glue_sorted_tetrahedron!(sd, 6, 10, 7, 9)
-glue_sorted_tetrahedron!(sd, 6, 10, 8, 5)
-glue_sorted_tetrahedron!(sd, 6, 10, 7, 5)
+# glue_sorted_tetrahedron!(sd, 6, 10, 8, 9)
+# glue_sorted_tetrahedron!(sd, 6, 10, 7, 9)
+# glue_sorted_tetrahedron!(sd, 6, 10, 8, 5)
+# glue_sorted_tetrahedron!(sd, 6, 10, 7, 5)
 
 fig = Figure();
 lscene = LScene(fig[1, 1], scenekw = (lights = [],))
@@ -52,9 +51,11 @@ glue_sorted_tetrahedron!(s, 1, 5, 3, 2)
 s[:edge_orientation] = true
 s[:tri_orientation] = true
 s[:tet_orientation] = true
-orient!(s)
+s = binary_subdivision(s)
 
-sd = EmbeddedDeltaDualComplex3D{Bool,Float64,Point3d}(s)
+orient!(sd)
+
+sd = EmbeddedDeltaDualComplex3D{Bool,Float64,Point3d}(sd)
 subdivide_duals!(sd, Barycenter())
 
 d₀_mat = d(0,sd)
