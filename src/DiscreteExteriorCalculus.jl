@@ -1291,7 +1291,7 @@ end
 # XXX: This reference implementation is for pedagogical purposes;
 # it is faster to vectorize coefficient generation.
 # Wedge product of a primal 2-form with a primal 1-form.
-function ∧(::Type{Tuple{2,1}}, s::HasDeltaSet2D, α, β, x::Int)
+function ∧(::Type{Tuple{2,1}}, s::HasDeltaSet3D, α, β, x::Int)
   d_tets = subsimplices(3, s, x)
   d_volume(tets) = sum(s[tets, :dual_vol])
 
@@ -1328,6 +1328,9 @@ function ∧(::Type{Tuple{2,1}}, s::HasDeltaSet2D, α, β, x::Int)
   # Convert from parallelepiped volumes to tetrahedra.
   form / 3
 end
+
+∧(::Type{Tuple{1,2}}, s::HasDeltaSet3D, α, β, x::Int) =
+  ∧(Tuple{2,1}, s, β, α, x)
 
 # General operators
 ###################

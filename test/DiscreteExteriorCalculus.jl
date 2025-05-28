@@ -1026,5 +1026,23 @@ d0 = d(0,s)
 dZ = d0 * map(p -> p[3], s[:point])
 @test all(∧(2, 1, s, dXdY, dZ) .≈ s[:vol] .* sign(3,s))
 
+# Construct a 3-volume form using basis 1-forms.
+dX = d0 * map(p -> p[1], s[:point])
+dY = d0 * map(p -> p[2], s[:point])
+dZ = d0 * map(p -> p[3], s[:point])
+# Respect mass:
+@test all(∧(2, 1, s, ∧(1, 1, s, dX, dY), dZ) .≈ s[:vol] .* sign(3,s))
+# Associativity:
+@test all(∧(2, 1, s, ∧(1, 1, s, dX, dY), dZ) .≈
+          ∧(1, 2, s, dX, ∧(1, 1, s, dY, dZ)))
+# Antisymmetry in a 2-form computation:
+@test all(∧(2, 1, s, ∧(1, 1, s, dX, dY), dZ) .≈
+         -∧(2, 1, s, ∧(1, 1, s, dX, dZ), dY))
+# Antisymmetry in a 3-form computation:
+@test all(∧(2, 1, s, ∧(1, 1, s, dX, dY), dZ) .≈
+         -∧(1, 2, s, dY, ∧(1, 1, s, dX, dZ)))
+# (Consequence of) Antisymmetry in a 3-form computation:
+@test all(-1e-15 .< ∧(2, 1, s, ∧(1, 1, s, dX, dY), dY) .< 1e-15)
+
 end
 
