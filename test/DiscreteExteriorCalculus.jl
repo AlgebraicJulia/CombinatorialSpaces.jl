@@ -1,20 +1,20 @@
 module TestDiscreteExteriorCalculus
 using Test
 
-using LinearAlgebra: Diagonal, mul!, norm, dot, cross
-using SparseArrays, StaticArrays
-
-using Catlab.CategoricalAlgebra.CSets
-using Catlab.Graphs
-using ACSets
-using ACSets.DenseACSets: attrtype_type
 using CombinatorialSpaces
 using CombinatorialSpaces.Meshes: tri_345, tri_345_false, grid_345,
   right_scalene_unit_hypot, single_tetrahedron
 using CombinatorialSpaces.SimplicialSets: boundary_inds
 using CombinatorialSpaces.DiscreteExteriorCalculus: eval_constant_primal_form,
   eval_constant_dual_form
+
+using Catlab
+using GeometryBasics: Point, QuadFace, MetaMesh
+using LinearAlgebra: Diagonal, mul!, norm, dot, cross
+using SparseArrays
+using StaticArrays
 using Statistics: mean
+using TetGen
 
 # 1D dual complex
 #################
@@ -991,4 +991,40 @@ d0 = d(0,s)
 dZ = d0 * map(p -> p[3], s[:point])
 @test only(∧(2, 1, s, dXdY, dZ)) ≈ only(s[:vol]) * -1
 
+# Test the 2-1 wedge product on a larger mesh.
+
+# Create mesh from the TetGen.jl/README.md.
+# https://github.com/JuliaGeometry/TetGen.jl/blob/ea73adce3ea4dfa6062eb84b1eff05f3fcab60a5/README.md
+function tetgen_readme_mesh()
+  points = Point{3, Float64}[
+    (0.0, 0.0, 0.0), (2.0, 0.0, 0.0),
+    (2.0, 2.0, 0.0), (0.0, 2.0, 0.0),
+    (0.0, 0.0, 12.0), (2.0, 0.0, 12.0),
+    (2.0, 2.0, 12.0), (0.0, 2.0, 12.0)]
+  facets = QuadFace{Cint}[
+    1:4, 5:8,
+    [1,5,6,2],
+    [2,6,7,3],
+    [3, 7, 8, 4],
+    [4, 8, 5, 1]]
+  markers = Cint[-1, -2, 0, 0, 0, 0]
+  mesh = MetaMesh(points, facets; markers)
+  mesh, tetrahedralize(mesh, "Qvpq1.414a0.1");
 end
+msh, tet_msh = tetgen_readme_mesh()
+
+primal_s = EmbeddedDeltaSet3D(tet_msh)
+s = EmbeddedDeltaDualComplex3D{Bool, Float64, Point3d}(primal_s)
+subdivide_duals!(s, Barycenter())
+
+dXdY = map(triangles(s)) do tri
+  e1, e2, _ = triangle_edges(s,tri)
+  e1_vec, e2_vec = as_vec(s,e1), as_vec(s,e2)
+  (cross(e1_vec, e2_vec) * sign(2,s,tri))[3] / 2
+end
+d0 = d(0,s)
+dZ = d0 * map(p -> p[3], s[:point])
+@test all(∧(2, 1, s, dXdY, dZ) .≈ s[:vol] .* sign(3,s))
+
+end
+

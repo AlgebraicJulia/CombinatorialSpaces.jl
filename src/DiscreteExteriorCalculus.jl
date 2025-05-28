@@ -34,11 +34,12 @@ export DualSimplex, DualV, DualE, DualTri, DualTet, DualChain, DualForm,
 import Base: ndims
 import Base: *
 import LinearAlgebra: mul!
-using LinearAlgebra: Diagonal, dot, norm, cross, pinv, ColumnNorm, normalize, det
+
+using GeometryBasics: Point2, Point3, Point2d, Point3d
+using LinearAlgebra: Diagonal, dot, norm, cross, pinv, normalize
 using SparseArrays
 using StaticArrays: @SVector, SVector, SMatrix, MVector, MMatrix
 using Statistics: mean
-using GeometryBasics: Point2, Point3, Point2d, Point3d
 
 # TODO: This is not consistent with other definitions and should be removed
 const Point2D = SVector{2,Float64}
@@ -876,11 +877,11 @@ end
 # it is faster to vectorize coefficient generation.
 # Wedge product of two primal 1-forms, as in Hirani 2003, Example 7.1.2.
 function ∧(::Type{Tuple{1,1}}, s::HasDeltaSet2D, α, β, x::Int)
-  dual_tris = subsimplices(2, s, x)
-  dual_area(ts) = sum(s[ts, :dual_area])
+  d_tris = subsimplices(2, s, x)
+  d_area(ts) = sum(s[ts, :dual_area])
 
   ws = map(triangle_vertices(s,x)) do v
-    dual_area(dual_tris ∩ elementary_duals(0,s,v)) / s[x, :area]
+    d_area(d_tris ∩ elementary_duals(0,s,v)) / s[x, :area]
   end
 
   e0, e1, e2 = s[x, :∂e0], s[x, :∂e1], s[x, :∂e2]
@@ -1304,29 +1305,26 @@ function ∧(::Type{Tuple{2,1}}, s::HasDeltaSet2D, α, β, x::Int)
   β0, β1, β2, β3, β4, β5 = β[[e0, e1, e2, e3, e4, e5]]
   # Take a weighted average of co-parallelepiped areas at each vertex.
   #
-  # Recall that a 3-form is akin to a (co)-volume, akin to a 3x3 determinant.
-  # Recall that each of these α's is a co-bivector, akin to a 2x2 determinant.
-  # So, exploit the recursive definition of the 3x3 determinant.
-  #
-  # Working backwards: observe there are 24 terms total if one were to expand
-  # all determinants (including 2-forms), and 24 is the cardinality of S₄.
-  #
   # Each β*α term is a edge-triangle pair that share a single vertex vᵢ.
   # These pairs could be generated from:
   # map(x -> triangle_vertices(s, x), tetrahedron_triangles(s,x))
   # and
   # map(x -> edge_vertices(s, x), tetrahedron_edges(s,x))
   # or by thinking through the simplicial identities, of course.
-  # TODO: Carry through signs.
+  # Observe that e.g. β3 and α3 share v0, but differ in all other endpoints.
   form = dot(ws, [
-     # v₀
-     β3*α3 + β4*α2 + β5*α1,
+     # v₀:
+     # [v3,v0][v0,v1,v2] [v2,v0][v0,v1,v3] [v1,v0][v0,v2,v3]
+     β3*α3      +        -β4*α2      +      β5*α1,
      # v₁
-     β1*α3 + β2*α2 + β5*α0,
+     # [v3,v1][v0,v1,v2] [v2,v1][v0,v1,v3] [v1,v0][v1,v2,v3]
+     β1*α3      +        -β2*α2      +      β5*α0,
      # v₂
-     β0*α3 + β2*α1 + β4*α0,
+     # [v3,v2][v0,v1,v2] [v2,v1][v0,v2,v3] [v2,v0][v1,v2,v3]
+     β0*α3      +        -β2*α1      +      β4*α0,
      # v₃
-     β0*α2 + β1*α1 + β3*α0])
+     # [v3,v2][v0,v1,v3] [v3,v1][v0,v2,v3] [v3,v0][v1,v2,v3]
+     β0*α2      +        -β1*α1      +      β3*α0])
   # Convert from parallelepiped volumes to tetrahedra.
   form / 3
 end
