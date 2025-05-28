@@ -877,12 +877,12 @@ end
 # it is faster to vectorize coefficient generation.
 # Wedge product of two primal 1-forms, as in Hirani 2003, Example 7.1.2.
 function ∧(::Type{Tuple{1,1}}, s::HasDeltaSet2D, α, β, x::Int)
-  d_tris = subsimplices(2, s, x)
-  d_area(ts) = sum(s[ts, :dual_area])
-
-  ws = map(triangle_vertices(s,x)) do v
-    d_area(d_tris ∩ elementary_duals(0,s,v)) / s[x, :area]
-  end
+  dual_vs = vertex_center(s, triangle_vertices(s, x))
+  dual_es = sort(SVector{6}(incident(s, triangle_center(s, x), :D_∂v0)),
+                 by=e -> s[e,:D_∂v1] .== dual_vs, rev=true)[1:3]
+  ws = map(dual_es) do e
+    sum(dual_volume(2, s, SVector{2}(incident(s, e, :D_∂e1))))
+  end / volume(2, s, x)
 
   e0, e1, e2 = s[x, :∂e0], s[x, :∂e1], s[x, :∂e2]
   α0, α1, α2 = α[[e0, e1, e2]]
