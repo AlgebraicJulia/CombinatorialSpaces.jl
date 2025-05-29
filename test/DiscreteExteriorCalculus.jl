@@ -13,7 +13,7 @@ using GeometryBasics: Point, QuadFace, MetaMesh
 using LinearAlgebra: Diagonal, mul!, norm, dot, cross
 using SparseArrays
 using StaticArrays
-using Statistics: mean
+using Statistics: mean, median
 using TetGen
 
 # 1D dual complex
@@ -1060,6 +1060,22 @@ dZ = d0 * map(p -> p[3], s[:point])
 # (Consequence of) Antisymmetry:
 # (dX ∧ dY) ∧ dY = 0
 @test all(abs.((dX ∧₁₁ dY) ∧₂₁ dY) .< 1e-15)
+
+# Test the 2-1 wedge product on spatially varying data.
+
+# Z²
+Z_squared = map(p -> p[3]^2, s[s[:tet_center], :dual_point])
+# 2Z dZ
+twoZ_dZ = dual_derivative(0,s) * Z_squared
+# 2Z dX ∧ dY or -2Z dX ∧ dY, depending on sign of the Hodge.
+twoZ_dXdY = inv_hodge_star(2, s, DiagonalHodge()) * twoZ_dZ
+# 2Z dX ∧ dY ∧ dZ
+twoZ_dXdYdZ = twoZ_dXdY ∧₂₁ dZ
+# 2Z
+twoZ = ⋆₃(twoZ_dXdYdZ)
+
+abs_diff = abs.(twoZ .- map(p -> 2*p[3], s[s[:tet_center], :dual_point]));
+@test median(abs_diff) < 4.0
 
 end
 
