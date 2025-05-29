@@ -920,16 +920,17 @@ regular_tetrahedron_volume(len) = len^3/(6√2)
 @test all(dual_volume(3,s,1:24) .≈ regular_tetrahedron_volume(2√2)/24)
 @test dual_point(s,tetrahedron_center(s,1)) == sum(point(s)) / length(point(s))
 
-# Heat equation:
+# Test convergence of the heat equation.
+# This involves the following operators: d₀, ⋆₁, d̃₂, ⋆₀⁻¹
 d₀_mat = d(0,s)
 star₁_mat = hodge_star(1,s,DiagonalHodge())
-dual_d₀_mat = dual_derivative(2,s)
+dual_d₂_mat = dual_derivative(2,s)
 inv_star₃_mat = inv_hodge_star(0,s,DiagonalHodge())
 
-lap_mat = inv_star₃_mat * dual_d₀_mat * star₁_mat * d₀_mat
+lap_mat = inv_star₃_mat * dual_d₂_mat * star₁_mat * d₀_mat
 
-C = collect(1.0:4.0)
-C₀ = collect(1.0:4.0)
+C = collect(range(1, 4; length=nv(s)))
+C₀ = copy(C)
 D = 0.005
 for _ in 0:100_000
   dt_C = D * lap_mat*C
@@ -962,9 +963,9 @@ orient!(primal_s)
 # dual tetrahedron.  e.g. circumcenter([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0,
 # 1.0, 1.0]) == circumcenter([0.0, 0.0, 0.0], [1.0, 1.0, 0.0], [1.0, 0.0, 0.0],
 # [0.0, 1.0, 1.0])
-#s = EmbeddedDeltaDualComplex3D{Bool,Float64,Point3d}(primal_s)
-#subdivide_duals!(s, Circumcenter())
-#@test_throws sum(dual_volume(3,s,parts(s,:DualTet))) ≈ 1
+s = EmbeddedDeltaDualComplex3D{Bool,Float64,Point3d}(primal_s)
+subdivide_duals!(s, Circumcenter())
+@test !(sum(dual_volume(3,s,parts(s,:DualTet))) ≈ 1)
 
 # Barycentric subdivision avoids the above issue.
 s = EmbeddedDeltaDualComplex3D{Bool,Float64,Point3d}(primal_s)
@@ -974,26 +975,32 @@ subdivide_duals!(s, Barycenter())
 
 # Test the 2-1 wedge product.
 primal_s, s = single_tetrahedron()
+# Observe that we set the orientation explicitly to false.
+s[:tet_orientation] = false
 
 as_vec(s,e) = (point(s, tgt(s,e)) - point(s, src(s,e))) * sign(1,s,e)
-# This is a primal 2-form, encoding (signed) unit areas parallel to the z=0 plane.
-dXdY = map(triangles(s)) do tri
-  e1, e2, _ = triangle_edges(s,tri)
-  e1_vec, e2_vec = as_vec(s,e1), as_vec(s,e2)
-  (cross(e1_vec, e2_vec) * sign(2,s,tri))[3] / 2
-  # Note that normalizing is the same as dividing by 2*s[tri, :area],
-  # so the above is equivalent to:
-  #n = normalize(cross(e1_vec, e2_vec) * sign(2,s,tri))
-  #s[tri, :area] * n[3] # i.e. n ⋅ SVector{3,Float64}(0,0,1)
+function surface_integral_dXdY(s)
+  map(triangles(s)) do tri
+    e1, e2, _ = triangle_edges(s,tri)
+    e1_vec, e2_vec = as_vec(s,e1), as_vec(s,e2)
+    (cross(e1_vec, e2_vec) * sign(2,s,tri))[3] / 2
+    # Note that normalizing is the same as dividing by 2*s[tri, :area],
+    # so the above is equivalent to:
+    #n = normalize(cross(e1_vec, e2_vec) * sign(2,s,tri))
+    #s[tri, :area] * n[3] # i.e. n ⋅ SVector{3,Float64}(0,0,1)
+    # , but is more accurate.
+  end
 end
+# This is a primal 2-form, encoding (signed) unit areas parallel to the z=0 plane.
+dXdY = surface_integral_dXdY(s)
 d0 = d(0,s)
 # This is a primal 1-form, encoding a constant gradient pointing "up."
 dZ = d0 * map(p -> p[3], s[:point])
-@test only(∧(2, 1, s, dXdY, dZ)) ≈ only(s[:vol]) * -1
+@test only(∧(2, 1, s, dXdY, dZ)) ≈ only(s[:vol]) * sign(3,s,1)
 
 # Test the 2-1 wedge product on a larger mesh.
 
-# Create mesh from the TetGen.jl/README.md.
+# Create the mesh from the TetGen.jl/README.md.
 # https://github.com/JuliaGeometry/TetGen.jl/blob/ea73adce3ea4dfa6062eb84b1eff05f3fcab60a5/README.md
 function tetgen_readme_mesh()
   points = Point{3, Float64}[
@@ -1017,32 +1024,42 @@ primal_s = EmbeddedDeltaSet3D(tet_msh)
 s = EmbeddedDeltaDualComplex3D{Bool, Float64, Point3d}(primal_s)
 subdivide_duals!(s, Barycenter())
 
-dXdY = map(triangles(s)) do tri
-  e1, e2, _ = triangle_edges(s,tri)
-  e1_vec, e2_vec = as_vec(s,e1), as_vec(s,e2)
-  (cross(e1_vec, e2_vec) * sign(2,s,tri))[3] / 2
-end
+dXdY = surface_integral_dXdY(s)
 d0 = d(0,s)
 dZ = d0 * map(p -> p[3], s[:point])
 @test all(∧(2, 1, s, dXdY, dZ) .≈ s[:vol] .* sign(3,s))
 
 # Construct a 3-volume form using basis 1-forms.
+# This also tests ∧₁₁ in 3D, and ⋆₃.
 dX = d0 * map(p -> p[1], s[:point])
 dY = d0 * map(p -> p[2], s[:point])
 dZ = d0 * map(p -> p[3], s[:point])
+∧₁₁(x,y) = ∧(1, 1, s, x, y)
+∧₂₁(x,y) = ∧(2, 1, s, x, y)
+∧₁₂(x,y) = ∧(1, 2, s, x, y)
+⋆₃(x) = hodge_star(3, s, x, DiagonalHodge())
+
 # Respect mass:
-@test all(∧(2, 1, s, ∧(1, 1, s, dX, dY), dZ) .≈ s[:vol] .* sign(3,s))
+# ⋆((dX ∧ dY) ∧ dZ) = 1
+@test all(⋆₃((dX ∧₁₁ dY) ∧₂₁ dZ) .≈ 1.0)
+
 # Associativity:
-@test all(∧(2, 1, s, ∧(1, 1, s, dX, dY), dZ) .≈
-          ∧(1, 2, s, dX, ∧(1, 1, s, dY, dZ)))
-# Antisymmetry in a 2-form computation:
-@test all(∧(2, 1, s, ∧(1, 1, s, dX, dY), dZ) .≈
-         -∧(2, 1, s, ∧(1, 1, s, dX, dZ), dY))
-# Antisymmetry in a 3-form computation:
-@test all(∧(2, 1, s, ∧(1, 1, s, dX, dY), dZ) .≈
-         -∧(1, 2, s, dY, ∧(1, 1, s, dX, dZ)))
-# (Consequence of) Antisymmetry in a 3-form computation:
-@test all(-1e-15 .< ∧(2, 1, s, ∧(1, 1, s, dX, dY), dY) .< 1e-15)
+# (dX ∧ dY) ∧ dZ = dX ∧ (dY ∧ dZ)
+@test all((dX ∧₁₁ dY) ∧₂₁ dZ .≈ dX ∧₁₂ (dY  ∧₁₁ dZ))
+
+# Antisymmetry:
+# (dX ∧ dY) ∧ dZ = -1 (dX ∧ dZ) ∧ dY
+@test all((dX ∧₁₁ dY) ∧₂₁ dZ .≈
+        -((dX ∧₁₁ dZ) ∧₂₁ dY))
+
+# Associativity and Antisymmetry:
+# (dX ∧ dY) ∧ dZ = -1 dY ∧ (dX ∧ dZ)
+@test all((dX ∧₁₁ dY) ∧₂₁ dZ .≈
+         -(dY ∧₁₂ (dX ∧₁₁ dZ)))
+
+# (Consequence of) Antisymmetry:
+# (dX ∧ dY) ∧ dY = 0
+@test all(abs.((dX ∧₁₁ dY) ∧₂₁ dY) .< 1e-15)
 
 end
 
