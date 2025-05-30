@@ -1,18 +1,20 @@
 module TestDiscreteExteriorCalculus
 using Test
 
-using LinearAlgebra: Diagonal, mul!, norm, dot
-using SparseArrays, StaticArrays
-
-using Catlab.CategoricalAlgebra.CSets
-using Catlab.Graphs
-using ACSets
-using ACSets.DenseACSets: attrtype_type
 using CombinatorialSpaces
-using CombinatorialSpaces.Meshes: tri_345, tri_345_false, grid_345, right_scalene_unit_hypot
+using CombinatorialSpaces.Meshes: tri_345, tri_345_false, grid_345,
+  right_scalene_unit_hypot, single_tetrahedron
 using CombinatorialSpaces.SimplicialSets: boundary_inds
-using CombinatorialSpaces.DiscreteExteriorCalculus: eval_constant_primal_form, eval_constant_dual_form
-using Statistics: mean
+using CombinatorialSpaces.DiscreteExteriorCalculus: eval_constant_primal_form,
+  eval_constant_dual_form
+
+using Catlab
+using GeometryBasics: Point, QuadFace, MetaMesh
+using LinearAlgebra: Diagonal, mul!, norm, dot, cross
+using SparseArrays
+using StaticArrays
+using Statistics: mean, median
+using TetGen
 
 # 1D dual complex
 #################
@@ -525,10 +527,9 @@ end
 # 1dx ∧ 1dy = 1 dx∧dy
 onedx = eval_constant_primal_form(s, @SVector [1.0,0.0,0.0])
 onedy = eval_constant_primal_form(s, @SVector [0.0,1.0,0.0])
-@test ∧(s, onedx, onedy) == map(s[:tri_orientation], s[:area]) do o,a
-  # Note by the order of -1 and 1 here that
+@test all(∧(s, onedx, onedy) .≈ map(s[:tri_orientation], s[:area]) do o,a
   a * (o ? -1 : 1)
-end
+end)
 
 # 1dx∧dy = -1dy∧dx
 @test ∧(s, onedx, onedy) == -∧(s, onedy, onedx)
@@ -919,16 +920,17 @@ regular_tetrahedron_volume(len) = len^3/(6√2)
 @test all(dual_volume(3,s,1:24) .≈ regular_tetrahedron_volume(2√2)/24)
 @test dual_point(s,tetrahedron_center(s,1)) == sum(point(s)) / length(point(s))
 
-# Heat equation:
+# Test convergence of the heat equation.
+# This involves the following operators: d₀, ⋆₁, d̃₂, ⋆₀⁻¹
 d₀_mat = d(0,s)
 star₁_mat = hodge_star(1,s,DiagonalHodge())
-dual_d₀_mat = dual_derivative(2,s)
+dual_d₂_mat = dual_derivative(2,s)
 inv_star₃_mat = inv_hodge_star(0,s,DiagonalHodge())
 
-lap_mat = inv_star₃_mat * dual_d₀_mat * star₁_mat * d₀_mat
+lap_mat = inv_star₃_mat * dual_d₂_mat * star₁_mat * d₀_mat
 
-C = collect(1.0:4.0)
-C₀ = collect(1.0:4.0)
+C = collect(range(1, 4; length=nv(s)))
+C₀ = copy(C)
 D = 0.005
 for _ in 0:100_000
   dt_C = D * lap_mat*C
@@ -961,9 +963,9 @@ orient!(primal_s)
 # dual tetrahedron.  e.g. circumcenter([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0,
 # 1.0, 1.0]) == circumcenter([0.0, 0.0, 0.0], [1.0, 1.0, 0.0], [1.0, 0.0, 0.0],
 # [0.0, 1.0, 1.0])
-#s = EmbeddedDeltaDualComplex3D{Bool,Float64,Point3d}(primal_s)
-#subdivide_duals!(s, Circumcenter())
-#@test_throws sum(dual_volume(3,s,parts(s,:DualTet))) ≈ 1
+s = EmbeddedDeltaDualComplex3D{Bool,Float64,Point3d}(primal_s)
+subdivide_duals!(s, Circumcenter())
+@test !(sum(dual_volume(3,s,parts(s,:DualTet))) ≈ 1)
 
 # Barycentric subdivision avoids the above issue.
 s = EmbeddedDeltaDualComplex3D{Bool,Float64,Point3d}(primal_s)
@@ -971,4 +973,109 @@ subdivide_duals!(s, Barycenter())
 @test sum(dual_volume(3,s,parts(s,:DualTet))) ≈ 1
 @test all(dual_volume(3,s,parts(s,:DualTet)) .≈ 1/nparts(s,:DualTet))
 
+# Test the 2-1 wedge product.
+primal_s, s = single_tetrahedron()
+# Observe that we set the orientation explicitly to false.
+s[:tet_orientation] = false
+
+as_vec(s,e) = (point(s, tgt(s,e)) - point(s, src(s,e))) * sign(1,s,e)
+function surface_integral_dXdY(s)
+  map(triangles(s)) do tri
+    e1, e2, _ = triangle_edges(s,tri)
+    e1_vec, e2_vec = as_vec(s,e1), as_vec(s,e2)
+    (cross(e1_vec, e2_vec) * sign(2,s,tri))[3] / 2
+    # Note that normalizing is the same as dividing by 2*s[tri, :area],
+    # so the above is equivalent to:
+    #n = normalize(cross(e1_vec, e2_vec) * sign(2,s,tri))
+    #s[tri, :area] * n[3] # i.e. n ⋅ SVector{3,Float64}(0,0,1)
+    # , but is more accurate.
+  end
 end
+# This is a primal 2-form, encoding (signed) unit areas parallel to the z=0 plane.
+dXdY = surface_integral_dXdY(s)
+d0 = d(0,s)
+# This is a primal 1-form, encoding a constant gradient pointing "up."
+dZ = d0 * map(p -> p[3], s[:point])
+@test only(∧(2, 1, s, dXdY, dZ)) ≈ only(s[:vol]) * sign(3,s,1)
+
+# Test the 2-1 wedge product on a larger mesh.
+
+# Create the mesh from the TetGen.jl/README.md.
+# https://github.com/JuliaGeometry/TetGen.jl/blob/ea73adce3ea4dfa6062eb84b1eff05f3fcab60a5/README.md
+function tetgen_readme_mesh()
+  points = Point{3, Float64}[
+    (0.0, 0.0, 0.0), (2.0, 0.0, 0.0),
+    (2.0, 2.0, 0.0), (0.0, 2.0, 0.0),
+    (0.0, 0.0, 12.0), (2.0, 0.0, 12.0),
+    (2.0, 2.0, 12.0), (0.0, 2.0, 12.0)]
+  facets = QuadFace{Cint}[
+    1:4, 5:8,
+    [1,5,6,2],
+    [2,6,7,3],
+    [3, 7, 8, 4],
+    [4, 8, 5, 1]]
+  markers = Cint[-1, -2, 0, 0, 0, 0]
+  mesh = MetaMesh(points, facets; markers)
+  mesh, tetrahedralize(mesh, "Qvpq1.414a0.1");
+end
+msh, tet_msh = tetgen_readme_mesh()
+
+primal_s = EmbeddedDeltaSet3D(tet_msh)
+s = EmbeddedDeltaDualComplex3D{Bool, Float64, Point3d}(primal_s)
+subdivide_duals!(s, Barycenter())
+
+dXdY = surface_integral_dXdY(s)
+d0 = d(0,s)
+dZ = d0 * map(p -> p[3], s[:point])
+@test all(∧(2, 1, s, dXdY, dZ) .≈ s[:vol] .* sign(3,s))
+
+# Construct a 3-volume form using basis 1-forms.
+# This also tests ∧₁₁ in 3D, and ⋆₃.
+dX = d0 * map(p -> p[1], s[:point])
+dY = d0 * map(p -> p[2], s[:point])
+dZ = d0 * map(p -> p[3], s[:point])
+∧₁₁(x,y) = ∧(1, 1, s, x, y)
+∧₂₁(x,y) = ∧(2, 1, s, x, y)
+∧₁₂(x,y) = ∧(1, 2, s, x, y)
+⋆₃(x) = hodge_star(3, s, x, DiagonalHodge())
+
+# Respect mass:
+# ⋆((dX ∧ dY) ∧ dZ) = 1
+@test all(⋆₃((dX ∧₁₁ dY) ∧₂₁ dZ) .≈ 1.0)
+
+# Associativity:
+# (dX ∧ dY) ∧ dZ = dX ∧ (dY ∧ dZ)
+@test all((dX ∧₁₁ dY) ∧₂₁ dZ .≈ dX ∧₁₂ (dY  ∧₁₁ dZ))
+
+# Antisymmetry:
+# (dX ∧ dY) ∧ dZ = -1 (dX ∧ dZ) ∧ dY
+@test all((dX ∧₁₁ dY) ∧₂₁ dZ .≈
+        -((dX ∧₁₁ dZ) ∧₂₁ dY))
+
+# Associativity and Antisymmetry:
+# (dX ∧ dY) ∧ dZ = -1 dY ∧ (dX ∧ dZ)
+@test all((dX ∧₁₁ dY) ∧₂₁ dZ .≈
+         -(dY ∧₁₂ (dX ∧₁₁ dZ)))
+
+# (Consequence of) Antisymmetry:
+# (dX ∧ dY) ∧ dY = 0
+@test all(abs.((dX ∧₁₁ dY) ∧₂₁ dY) .< 1e-15)
+
+# Test the 2-1 wedge product on spatially varying data.
+
+# Z²
+Z_squared = map(p -> p[3]^2, s[s[:tet_center], :dual_point])
+# 2Z dZ
+twoZ_dZ = dual_derivative(0,s) * Z_squared
+# 2Z dX ∧ dY or -2Z dX ∧ dY, depending on sign of the Hodge.
+twoZ_dXdY = inv_hodge_star(2, s, DiagonalHodge()) * twoZ_dZ
+# 2Z dX ∧ dY ∧ dZ
+twoZ_dXdYdZ = twoZ_dXdY ∧₂₁ dZ
+# 2Z
+twoZ = ⋆₃(twoZ_dXdYdZ)
+
+abs_diff = abs.(twoZ .- map(p -> 2*p[3], s[s[:tet_center], :dual_point]));
+@test median(abs_diff) < 4.0
+
+end
+

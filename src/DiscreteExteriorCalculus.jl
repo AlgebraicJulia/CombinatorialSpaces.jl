@@ -34,11 +34,12 @@ export DualSimplex, DualV, DualE, DualTri, DualTet, DualChain, DualForm,
 import Base: ndims
 import Base: *
 import LinearAlgebra: mul!
-using LinearAlgebra: Diagonal, dot, norm, cross, pinv, qr, ColumnNorm, normalize
+
+using GeometryBasics: Point2, Point3, Point2d, Point3d
+using LinearAlgebra: Diagonal, dot, norm, cross, pinv, normalize
 using SparseArrays
 using StaticArrays: @SVector, SVector, SMatrix, MVector, MMatrix
 using Statistics: mean
-using GeometryBasics: Point2, Point3, Point2d, Point3d
 
 # TODO: This is not consistent with other definitions and should be removed
 const Point2D = SVector{2,Float64}
@@ -872,23 +873,28 @@ function ♯_mat(s::AbstractDeltaDualComplex2D, ::LLSDDSharp)
   ♯_m
 end
 
+# XXX: This reference implementation is kept for pedagogical purposes;
+# it is faster to vectorize coefficient generation.
+# Wedge product of two primal 1-forms, as in Hirani 2003, Example 7.1.2.
 function ∧(::Type{Tuple{1,1}}, s::HasDeltaSet2D, α, β, x::Int)
-  # XXX: This calculation of the volume coefficients is awkward due to the
-  # design decision described in `SchDeltaDualComplex1D`.
   dual_vs = vertex_center(s, triangle_vertices(s, x))
   dual_es = sort(SVector{6}(incident(s, triangle_center(s, x), :D_∂v0)),
                  by=e -> s[e,:D_∂v1] .== dual_vs, rev=true)[1:3]
-  coeffs = map(dual_es) do e
+  ws = map(dual_es) do e
     sum(dual_volume(2, s, SVector{2}(incident(s, e, :D_∂e1))))
   end / volume(2, s, x)
 
-  # Wedge product of two primal 1-forms, as in (Hirani 2003, Example 7.1.2).
-  # This formula is not the same as (Hirani 2003, Equation 7.1.2) but it is
-  # equivalent.
-  e0, e1, e2 = ∂(2,0,s,x), ∂(2,1,s,x), ∂(2,2,s,x)
-  dot(coeffs, SVector(α[e2] * β[e1] - α[e1] * β[e2],
-                      α[e2] * β[e0] - α[e0] * β[e2],
-                      α[e1] * β[e0] - α[e0] * β[e1])) / 2
+  e0, e1, e2 = s[x, :∂e0], s[x, :∂e1], s[x, :∂e2]
+  α0, α1, α2 = α[[e0, e1, e2]]
+  β0, β1, β2 = β[[e0, e1, e2]]
+  # Take a weighted average of co-parallelogram areas
+  # at each pair of edges.
+  form = dot(ws, SVector(
+    β1*α2 - α1*β2,
+    β0*α2 - α0*β2,
+    β0*α1 - α0*β1))
+  # Convert from parallelogram areas to triangles.
+  form / 2
 end
 
 function subdivide_duals!(sd::EmbeddedDeltaDualComplex2D{_o, _l, point_type} where {_o, _l}, alg) where point_type
@@ -1251,7 +1257,7 @@ hodge_diag(::Type{Val{1}}, s::AbstractDeltaDualComplex3D, e::Int) =
 hodge_diag(::Type{Val{2}}, s::AbstractDeltaDualComplex3D, t::Int) =
   sum(dual_volume(Val{1}, s, elementary_duals(Val{2},s,t))) / volume(Val{2},s,t)
 hodge_diag(::Type{Val{3}}, s::AbstractDeltaDualComplex3D, tet::Int) =
-  1 / volume(Val{3},s,tet)
+  1 / volume(Val{3},s,tet) * sign(3,s,tet)
 
 # TODO: Instead of rewriting ♭_mat by replacing tris with tets, use multiple dispatch.
 #function ♭_mat(s::AbstractDeltaDualComplex3D)
@@ -1282,6 +1288,54 @@ function precompute_volumes_3d!(sd::HasDeltaSet3D, p::Type{point_type}) where po
     sd[tet, :dual_vol] = dual_volume(3,sd,tet,CayleyMengerDet())
   end
 end
+
+# XXX: This reference implementation is for pedagogical purposes;
+# it is faster to vectorize coefficient generation.
+# Wedge product of a primal 2-form with a primal 1-form.
+function ∧(::Type{Tuple{2,1}}, s::HasDeltaSet3D, α, β, x::Int)
+  d_tets = subsimplices(3, s, x)
+  d_volume(tets) = sum(s[tets, :dual_vol])
+
+  # Since these weights must sum to 1, you can avoid the division by s[x, :vol],
+  # and simply normalize ws w.r.t. L₁., or postpone the division until after the
+  # linear combination.
+  # This intersection computation would not work for a 2-1 wedge product in a 4D complex.
+  ws = map(tetrahedron_vertices(s,x)) do v
+    d_volume(d_tets ∩ elementary_duals(0,s,v)) / s[x, :vol]
+  end
+
+  t0, t1, t2, t3         = tetrahedron_triangles(s, x)
+  e0, e1, e2, e3, e4, e5 = tetrahedron_edges(s, x)
+  α0, α1, α2, α3         = α[[t0, t1, t2, t3]]
+  β0, β1, β2, β3, β4, β5 = β[[e0, e1, e2, e3, e4, e5]]
+  # Take a weighted average of co-parallelepiped areas at each vertex.
+  #
+  # Each β*α term is an edge-triangle pair that shares a single vertex vᵢ.
+  # These pairs could be generated from:
+  # map(x -> triangle_vertices(s, x), tetrahedron_triangles(s,x))
+  # and
+  # map(x -> edge_vertices(s, x), tetrahedron_edges(s,x))
+  # or by thinking through the simplicial identities, of course.
+  # Observe that e.g. β3 and α3 share v0, but differ in all other endpoints.
+  form = dot(ws, [
+     # v₀:
+     # [v3,v0][v0,v1,v2] [v2,v0][v0,v1,v3] [v1,v0][v0,v2,v3]
+            β3*α3       +    -β4*α2       +     β5*α1,
+     # v₁
+     # [v3,v1][v0,v1,v2] [v2,v1][v0,v1,v3] [v1,v0][v1,v2,v3]
+            β1*α3       +    -β2*α2       +     β5*α0,
+     # v₂
+     # [v3,v2][v0,v1,v2] [v2,v1][v0,v2,v3] [v2,v0][v1,v2,v3]
+            β0*α3       +    -β2*α1       +     β4*α0,
+     # v₃
+     # [v3,v2][v0,v1,v3] [v3,v1][v0,v2,v3] [v3,v0][v1,v2,v3]
+            β0*α2       +    -β1*α1       +     β3*α0])
+  # Convert from parallelepiped volumes to tetrahedra.
+  form / 3
+end
+
+∧(::Type{Tuple{1,2}}, s::HasDeltaSet3D, α, β, x::Int) =
+  ∧(Tuple{2,1}, s, β, α, x)
 
 # General operators
 ###################
