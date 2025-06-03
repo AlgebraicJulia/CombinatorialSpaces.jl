@@ -625,10 +625,11 @@ function Δᵈ(::Type{Val{0}}, s::SimplicialSets.HasDeltaSet2D)
 end
 
 function Δᵈ(::Type{Val{0}}, s::SimplicialSets.HasDeltaSet3D)
-  dd0 = dec_dual_derivative(0, s);
-  ihs1 = dec_inv_hodge_star(2, s, GeometricHodge());
-  d1 = dec_differential(2,s);
-  hs2 = dec_hodge_star(3, s, GeometricHodge());
+  # TODO: These elementary operations should be defined in this module.
+  dd0 = dual_derivative(0, s);
+  ihs1 = inv_hodge_star(2, s, DiagonalHodge());
+  d1 = d(2,s);
+  hs2 = hodge_star(3, s, DiagonalHodge());
   m = hs2 * d1
   x -> hs2 * d1 * ihs1 * dd0 * x
 end
