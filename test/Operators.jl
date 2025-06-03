@@ -8,9 +8,11 @@ using CombinatorialSpaces
 using CombinatorialSpaces.Meshes: tri_345, tri_345_false, grid_345, right_scalene_unit_hypot
 using CombinatorialSpaces.SimplicialSets: boundary_inds
 using CombinatorialSpaces.DiscreteExteriorCalculus: eval_constant_primal_form
+using GeometryBasics: Point, QuadFace, MetaMesh
 using Random
 using StaticArrays: SVector
-using Statistics: mean, var
+using Statistics: mean, var, std
+using TetGen
 
 Random.seed!(0)
 
@@ -61,6 +63,29 @@ rect = EmbeddedDeltaDualComplex2D{Bool,Float64,Point3d}(rect′);
 subdivide_duals!(rect, Barycenter());
 
 flat_meshes = [tri_345()[2], tri_345_false()[2], right_scalene_unit_hypot()[2], grid_345()[2], tg, rect];
+
+# Create mesh from the TetGen.jl/README.md.
+# https://github.com/JuliaGeometry/TetGen.jl/blob/ea73adce3ea4dfa6062eb84b1eff05f3fcab60a5/README.md
+function tetgen_readme_mesh()
+  points = Point{3, Float64}[
+    (0.0, 0.0, 0.0), (2.0, 0.0, 0.0),
+    (2.0, 2.0, 0.0), (0.0, 2.0, 0.0),
+    (0.0, 0.0, 12.0), (2.0, 0.0, 12.0),
+    (2.0, 2.0, 12.0), (0.0, 2.0, 12.0)]
+  facets = QuadFace{Cint}[
+    1:4, 5:8,
+    [1,5,6,2],
+    [2,6,7,3],
+    [3, 7, 8, 4],
+    [4, 8, 5, 1]]
+  markers = Cint[-1, -2, 0, 0, 0, 0]
+  mesh = MetaMesh(points, facets; markers)
+  mesh, tetrahedralize(mesh, "Qvpq1.414a0.1");
+end
+_, tet_msh = tetgen_readme_mesh()
+tet_msh = EmbeddedDeltaSet3D(tet_msh)
+tet_msh_sd = EmbeddedDeltaDualComplex3D{Bool, Float64, Point3d}(tet_msh)
+subdivide_duals!(tet_msh_sd, Circumcenter())
 
 @testset "Exterior Derivative" begin
     for i in 0:0
@@ -201,6 +226,37 @@ end
 
         @test all(dec_wedge_product(Tuple{1, 1}, sd)(E_1, E_2) .≈ ∧(Tuple{1, 1}, sd, E_1, E_2))
     end
+end
+
+@testset "Dual Laplacian" begin
+  # Test basic calculus properties on the interior of the mesh:
+  # The second derivative of a linear function is 0.
+
+  # 1D
+  primal_line = EmbeddedDeltaSet1D{Bool,Point2d}()
+  add_vertices!(primal_line, 400, point=map(p -> Point2D(p,0), range(0,10;length=400)))
+  add_edges!(primal_line, 1:399, 2:400)
+  sd = generate_dual_mesh(primal_line)
+  twoX = map(p -> 2*p[1], sd[sd[:edge_center], :dual_point])
+  nil = Δᵈ(Val{0}, sd)(twoX)
+  @test all(abs.(nil[begin+1:end-1]) .< 1e-11)
+
+  # 2D
+  for sd in [tg, rect]
+    twoX = map(p -> 2*p[1], sd[sd[:tri_center], :dual_point])
+    nil = Δᵈ(Val{0}, sd)(twoX)
+    interior_tris = setdiff(triangles(sd), boundary_inds(Val{2}, sd))
+    @test abs(mean(nil[interior_tris])) < 1e-13
+    @test std(nil[interior_tris]) < 0.31
+  end
+
+  # 3D
+  sd = tet_msh_sd
+  twoX = map(p -> 2*p[1], sd[sd[:tet_center], :dual_point])
+  nil = Δᵈ(Val{0}, sd)(twoX)
+  interior_tets = setdiff(tetrahedra(sd), boundary_inds(Val{3}, sd))
+  @test abs(mean(nil[interior_tets])) < 0.03
+  @test std(nil[interior_tets]) < 6.7
 end
 
 @testset "Averaging Operator" begin

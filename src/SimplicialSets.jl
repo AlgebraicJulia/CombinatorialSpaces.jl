@@ -1082,6 +1082,21 @@ function interior(::Type{Val{0}}, s::HasDeltaSet2D)
   setdiff(vertices(s), boundaries)
 end
 
+function boundary_inds(::Type{Val{3}}, s::HasDeltaSet3D)
+  # A tetrahedron is on the boundary if any of its triangles a face of that tetrahedron alone.
+  filter(tetrahedra(s)) do tet
+    tris = tetrahedron_triangles(s, tet)
+    any(map(tris) do t
+      tets = union(reduce(vcat,
+                   [incident(s, t, :∂t0)...,
+                    incident(s, t, :∂t1)...,
+                    incident(s, t, :∂t2)...,
+                    incident(s, t, :∂t3)...]))
+      length(tets) == 1
+    end)
+  end
+end
+
 # REPL IO
 #########
 
