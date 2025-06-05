@@ -5,8 +5,9 @@
 [![Code Coverage](https://codecov.io/gh/AlgebraicJulia/CombinatorialSpaces.jl/branch/main/graph/badge.svg)](https://codecov.io/gh/AlgebraicJulia/CombinatorialSpaces.jl)
 [![CI/CD](https://github.com/AlgebraicJulia/CombinatorialSpaces.jl/actions/workflows/julia_ci.yml/badge.svg)](https://github.com/AlgebraicJulia/CombinatorialSpaces.jl/actions/workflows/julia_ci.yml)
 
-This package provides combinatorial models of geometric spaces, such as
-simplicial sets and combinatorial maps. These "combinatorial spaces" are useful
+This package provides combinatorial models of geometric spaces, and implements the operators of the Discrete Exterior Calculus (DEC) on these spaces.
+
+These "combinatorial spaces" - simplicial sets and combinatorial maps - are useful
 in computational physics, computer graphics, and other applications where
 geometry plays a large role. They are also potentially useful in non-geometric
 applications, since structures like simplicial sets generalize graphs from
@@ -25,13 +26,17 @@ Current features include:
   oriented and/or embedded in Euclidean space
 - construction of the dual complex associated with a delta set, via
   combinatorial and geometric subdivision
-- core operators of the [discrete exterior
-  calculus](https://en.wikipedia.org/wiki/Discrete_exterior_calculus), including
-  the boundary, exterior deriviative, Hodge star, codifferential, and
+- operators of the [Discrete Exterior
+  Calculus](https://en.wikipedia.org/wiki/Discrete_exterior_calculus), including
+  the boundary, exterior deriviative, Hodge star, codifferential, wedge product, Lie derivative, and
   Laplace-Beltrami operators
 - experimental support for [rotation
   systems](https://www.algebraicjulia.org/blog/post/2020/09/cset-graphs-2/) and
   combinatorial maps
+- binary and cubic subdivision of meshes
+- mesh optimization
+
+The [Decapodes.jl](https://github.com/AlgebraicJulia/Decapodes.jl) library generates DEC simulation code using these meshes and DEC operators. Alternatively, you can manually allocate differential operators using this library's API, as demonstrated in the documentation.
 
 ## Installation
 
@@ -39,5 +44,5 @@ To install this package, open the Julia shell, press `]` to enter Pkg mode, and
 run the command
 
 ```julia
-(@v1.5) pkg> add CombinatorialSpaces
+(@v1.11) pkg> add CombinatorialSpaces
 ```
