@@ -13,22 +13,15 @@ geometry plays a large role. They are also potentially useful in non-geometric
 applications, since structures like simplicial sets generalize graphs from
 binary relations to higher-arity relations.
 
-Combinatorial spaces, like graphs, are typically _C_-sets (copresheaves) on some
-category _C_. They are implemented here using the general data structures for
-_C_-sets offered by [Catlab.jl](https://github.com/AlgebraicJulia/Catlab.jl).
-Thus, this package complements and extends the family of graph data structures
-shipped with Catlab in the module
-[`Catlab.Graphs`](https://algebraicjulia.github.io/Catlab.jl/stable/apis/graphs/).
-
 Current features include:
 
-- delta sets (semi-simplicial sets) in dimensions one, two, and three, optionally
+- [delta sets](https://en.wikipedia.org/wiki/Delta_set) (semi-simplicial sets) in dimensions 1, 2, and 3, optionally
   oriented and/or embedded in Euclidean space
-- construction of the dual complex associated with a delta set, via
+- construction of the [dual complex](https://en.wikipedia.org/wiki/Poincar%C3%A9_duality#Dual_cell_structures) associated with a delta set, via
   combinatorial and geometric subdivision
 - operators of the [Discrete Exterior
   Calculus](https://en.wikipedia.org/wiki/Discrete_exterior_calculus), including
-  the boundary, exterior deriviative, Hodge star, codifferential, wedge product, Lie derivative, and
+  the boundary, exterior derivative, Hodge star, codifferential, wedge product, Lie derivative, and
   Laplace-Beltrami operators
 - experimental support for [rotation
   systems](https://www.algebraicjulia.org/blog/post/2020/09/cset-graphs-2/) and
@@ -37,6 +30,14 @@ Current features include:
 - mesh optimization
 
 The [Decapodes.jl](https://github.com/AlgebraicJulia/Decapodes.jl) library generates DEC simulation code using these meshes and DEC operators. Alternatively, you can manually allocate differential operators using this library's API, as demonstrated in the documentation.
+
+Combinatorial spaces, like graphs, are typically _C_-sets (copresheaves) on some
+category _C_. They are implemented here using the general data structures for
+_C_-sets offered by [Catlab.jl](https://github.com/AlgebraicJulia/Catlab.jl).
+Thus, this package complements and extends the family of graph data structures
+shipped with Catlab in the module
+[`Catlab.Graphs`](https://algebraicjulia.github.io/Catlab.jl/stable/apis/graphs/).
+
 
 ## Installation
 
