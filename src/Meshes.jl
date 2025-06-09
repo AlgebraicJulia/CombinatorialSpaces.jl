@@ -6,10 +6,11 @@ using CombinatorialSpaces, CombinatorialSpaces.SimplicialSets
 using FileIO
 using JSON
 using LinearAlgebra: diagm
-using GeometryBasics: Point2d, Point3d, Point
+using GeometryBasics: Point2d, Point3d, Point, QuadFace, Mesh
+using TetGen
 
 export loadmesh, Icosphere, Rectangle_30x10, Torus_30x10, Point_Map,
-       triangulated_grid, makeSphere, mirrored_mesh
+       triangulated_grid, makeSphere, mirrored_mesh, parallelepiped
 
 abstract type AbstractMeshKey end
 
@@ -406,6 +407,28 @@ function single_tetrahedron()
   s = EmbeddedDeltaDualComplex3D{Bool, Float64, Point3d}(primal_s)
   subdivide_duals!(s, Barycenter())
   (primal_s, s)
+end
+
+"""	function parallelepiped(;lx::Real = 1.0, ly::Real = 1.0, lz::Real = 1.0, dx::Real = 0.0, dy::Real = 0.0, point_type = Point3d, tetcmd::String = "vpq1.414a0.1")
+
+Uses TetGen to generate turn a specificed parallelepiped to a tetrahedralized mesh. `lx`, `ly`, and `lz` kwargs control the side lengths in the respective dimensions and `dx` and `dy` kwargs will translate the top face relative to the bottom face.
+
+Default TetGen command is "pQq1.414a0.1" and user desired cmds can be passed through the `tetcmd` kwarg. 
+"""
+function parallelepiped(;lx::Real = 1.0, ly::Real = 1.0, lz::Real = 1.0, dx::Real = 0.0, dy::Real = 0.0, point_type = Point3d, tetcmd::String = "pQq1.414a0.1")
+	points = point_type[(0.0, 0.0, 0.0), (dx, dy, lz), (0.0, ly, 0.0), (dx, ly+dy, lz), (lx, 0.0, 0.0), (lx+dx, dy, lz), (lx, ly, 0.0), (lx+dx, ly+dy, lz)]
+
+  faces = QuadFace{Cint}[[1,2,4,3], [5,6,8,7], [1,2,6,5], [3,4,8,7], [1,3,7,5], [2,4,8,6]]
+
+  tet_mesh = tetrahedralize(Mesh(points, faces), tetcmd)
+
+  s = EmbeddedDeltaSet3D(tet_mesh)
+
+  orient!(s)
+  s[:edge_orientation] = false
+  s[:tri_orientation] = false
+
+  return s
 end
 
 end
