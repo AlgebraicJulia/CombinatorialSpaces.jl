@@ -39,13 +39,13 @@ export dec_wedge_product, cache_wedge, dec_c_wedge_product, dec_c_wedge_product!
 #--------------
 
 # Cache coefficients to be used by wedge product kernels.
-function wedge_kernel_coeffs(::Type{Tuple{0,1}}, sd::Union{EmbeddedDeltaDualComplex1D, EmbeddedDeltaDualComplex2D})
+function wedge_kernel_coeffs(::Type{Tuple{0,1}}, sd::Union{EmbeddedDeltaDualComplex1D, EmbeddedDeltaDualComplex2D, EmbeddedDeltaDualComplex3D})
   (hcat(convert(Vector{Int32}, sd[:∂v0])::Vector{Int32}, convert(Vector{Int32}, sd[:∂v1])::Vector{Int32}),
    ne(sd))
 end
 
 # TODO: Tagging `shift` as `::Int` can sometimes increase efficiency.
-function wedge_kernel_coeffs(::Type{Tuple{0,2}}, sd::EmbeddedDeltaDualComplex2D{Bool, float_type, _p}) where {float_type, _p}
+function wedge_kernel_coeffs(::Type{Tuple{0,2}}, sd::Union{EmbeddedDeltaDualComplex2D{Bool, float_type, _p}, EmbeddedDeltaDualComplex3D{Bool, float_type, _p}}) where {float_type, _p}
   verts = Array{Int32}(undef, 6, ntriangles(sd))
   coeffs = Array{float_type}(undef, 6, ntriangles(sd))
   shift = ntriangles(sd)
@@ -59,7 +59,7 @@ function wedge_kernel_coeffs(::Type{Tuple{0,2}}, sd::EmbeddedDeltaDualComplex2D{
   (verts, coeffs, ntriangles(sd))
 end
 
-function wedge_kernel_coeffs(::Type{Tuple{1,1}}, sd::EmbeddedDeltaDualComplex2D{Bool, float_type, _p}) where {float_type, _p}
+function wedge_kernel_coeffs(::Type{Tuple{1,1}}, sd::Union{EmbeddedDeltaDualComplex2D{Bool, float_type, _p}, EmbeddedDeltaDualComplex3D{Bool, float_type, _p}}) where {float_type, _p}
   coeffs = Array{float_type}(undef, 3, ntriangles(sd))
   shift = ntriangles(sd)
   e = Array{Int32}(undef, 3, ntriangles(sd))
@@ -83,6 +83,10 @@ end
 function cache_wedge(::Type{Tuple{m,n}}, sd::EmbeddedDeltaDualComplex2D{Bool, float_type, _p}, backend, arr_cons=identity, cast_float=nothing) where {float_type,_p,m,n}
   cache_wedge(m, n, sd, float_type, arr_cons, cast_float)
 end
+function cache_wedge(::Type{Tuple{m,n}}, sd::EmbeddedDeltaDualComplex3D{Bool, float_type, _p}, backend, arr_cons=identity, cast_float=nothing) where {float_type,_p,m,n}
+  cache_wedge(m, n, sd, float_type, arr_cons, cast_float)
+end
+
 # Grab wedge kernel coeffs and cast.
 function cache_wedge(m::Int, n::Int, sd::HasDeltaSet1D, float_type::DataType, arr_cons, cast_float::Union{Nothing, DataType})
   ft = isnothing(cast_float) ? float_type : cast_float
