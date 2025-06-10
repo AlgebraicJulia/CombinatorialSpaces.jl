@@ -7,6 +7,7 @@ using Test
 magnitude = (sqrt ∘ (x -> foldl(+, x*x)))
 unit_radius = 1
 euler_characteristic(p) = nv(p) - ne(p) + nparts(p, :Tri)
+euler_characteristic(p::HasDeltaSet3D) = nv(p) - ne(p) + nparts(p, :Tri) - nparts(p, :Tet)
 
 # Unit Icospheres are of the proper dimensions, are spheres, and have the right
 # Euler characteristic.
@@ -154,5 +155,20 @@ magnitude = (sqrt ∘ (x -> foldl(+, x*x)))
 @test nv(◀▶) == 6
 @test ne(◀▶) == 12
 @test length(triangles(◀▶)) == 8
+
+# Testing the Parallelepiped
+
+s = parallelepiped()
+@test orient!(s)
+# Max 1-norm is 3 for unit cube
+@test maximum(map(p -> sum(p), s[:point])) == 3
+@test euler_characteristic(s) == 1
+@test sum(map(tet -> volume(3, s, tet), 1:ntetrahedra(s))) ≈ 1
+
+s = parallelepiped(lx = 10, ly = 5, lz = 3, dx = 3, dy = 5)
+@test orient!(s)
+@test maximum(map(p -> sum(p), s[:point])) == (10+5+3) + (3+5)
+@test euler_characteristic(s) == 1
+@test sum(map(tet -> volume(3, s, tet), 1:ntetrahedra(s))) ≈ 10*5*3
 
 end
