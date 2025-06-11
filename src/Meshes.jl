@@ -1,16 +1,17 @@
 module Meshes
 
 using Artifacts
-using Catlab, Catlab.CategoricalAlgebra
-using CombinatorialSpaces, CombinatorialSpaces.SimplicialSets
+using Catlab
+using CombinatorialSpaces
 using FileIO
+using GeometryBasics: Mesh, MetaMesh, Point, Point2d, Point3d, QuadFace
 using JSON
 using LinearAlgebra: diagm
-using GeometryBasics: Point2d, Point3d, Point, QuadFace, Mesh
 using TetGen
 
 export loadmesh, Icosphere, Rectangle_30x10, Torus_30x10, Point_Map,
-       triangulated_grid, makeSphere, mirrored_mesh, parallelepiped
+       triangulated_grid, makeSphere, mirrored_mesh, parallelepiped,
+       tetgen_readme_mesh
 
 abstract type AbstractMeshKey end
 
@@ -416,9 +417,13 @@ Uses TetGen to generate turn a specificed parallelepiped to a tetrahedralized me
 Default TetGen command is "pQq1.414a0.1" and user desired cmds can be passed through the `tetcmd` kwarg. 
 """
 function parallelepiped(;lx::Real = 1.0, ly::Real = 1.0, lz::Real = 1.0, dx::Real = 0.0, dy::Real = 0.0, point_type = Point3d, tetcmd::String = "pQq1.414a0.1")
-	points = point_type[(0.0, 0.0, 0.0), (dx, dy, lz), (0.0, ly, 0.0), (dx, ly+dy, lz), (lx, 0.0, 0.0), (lx+dx, dy, lz), (lx, ly, 0.0), (lx+dx, ly+dy, lz)]
+	points = point_type[
+    (0.0, 0.0, 0.0), (dx, dy, lz), (0.0, ly, 0.0), (dx, ly+dy, lz),
+    (lx, 0.0, 0.0), (lx+dx, dy, lz), (lx, ly, 0.0), (lx+dx, ly+dy, lz)]
 
-  faces = QuadFace{Cint}[[1,2,4,3], [5,6,8,7], [1,2,6,5], [3,4,8,7], [1,3,7,5], [2,4,8,6]]
+  faces = QuadFace{Cint}[
+    [1,2,4,3], [5,6,8,7], [1,2,6,5],
+    [3,4,8,7], [1,3,7,5], [2,4,8,6]]
 
   tet_mesh = tetrahedralize(Mesh(points, faces), tetcmd)
 
@@ -431,4 +436,33 @@ function parallelepiped(;lx::Real = 1.0, ly::Real = 1.0, lz::Real = 1.0, dx::Rea
   return s
 end
 
+"""    function tetgen_readme_mesh()
+
+Create the mesh from the TetGen.jl/README.md as a delta set.
+
+https://github.com/JuliaGeometry/TetGen.jl/blob/ea73adce3ea4dfa6062eb84b1eff05f3fcab60a5/README.md
+"""
+function tetgen_readme_mesh()
+  points = Point{3, Float64}[
+    (0.0, 0.0, 0.0), (2.0, 0.0, 0.0),
+    (2.0, 2.0, 0.0), (0.0, 2.0, 0.0),
+    (0.0, 0.0, 12.0), (2.0, 0.0, 12.0),
+    (2.0, 2.0, 12.0), (0.0, 2.0, 12.0)]
+  facets = QuadFace{Cint}[
+    1:4, 5:8,
+    [1,5,6,2],
+    [2,6,7,3],
+    [3, 7, 8, 4],
+    [4, 8, 5, 1]]
+  markers = Cint[-1, -2, 0, 0, 0, 0]
+  msh = MetaMesh(points, facets; markers)
+  tet_msh = tetrahedralize(msh, "Qvpq1.414a0.1")
+  s = EmbeddedDeltaSet3D(tet_msh)
+  orient!(s)
+  s[:edge_orientation] = false
+  s[:tri_orientation] = false
+  s
 end
+
+end
+
