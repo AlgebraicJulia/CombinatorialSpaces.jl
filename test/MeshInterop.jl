@@ -5,6 +5,7 @@ using GeometryBasics
 using GeometryBasics: Mesh, QuadFace, volume
 using Test
 using TetGen
+using DelaunayTriangulation: triangulate, get_area, each_solid_triangle
 
 # 2D
 ####
@@ -81,5 +82,28 @@ s[:tri_orientation] = true
 # Test mesh roundtripping:
 s_to_mesh = Mesh(s)
 @test all(issetequal.(faces(s_to_mesh), faces(tet_msh)))
+
+# DelaunayTriangulation compatibility
+#---------------------
+# Generate unit square
+
+lx = ly = 1
+dx = dy = 0.1
+points = Point2d[]
+for x in 0:dx:lx
+  for y in 0:dy:ly
+    push!(points, Point2d(x,y))
+  end
+end
+tri = triangulate(points)
+test_area = get_area(tri)
+s = EmbeddedDeltaSet2D(tri)
+@test all(s[:point] .== points)
+@test length(each_solid_triangle(tri)) == ntriangles(s)
+
+sd = EmbeddedDeltaDualComplex2D{Bool, Float64, Point2d}(s)
+subdivide_duals!(sd, Circumcenter())
+@test sum(sd[:area]) ≈ test_area
+@test is_manifold_like(s)
 
 end
