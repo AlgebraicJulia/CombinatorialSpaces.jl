@@ -7,48 +7,58 @@ using LinearAlgebra: norm
 using CairoMakie
 using Catlab
 
-s = triangulated_grid(100,100,15,15,Point3d);
-sd = EmbeddedDeltaDualComplex2D{Bool,Float64,Point3d}(s);
-subdivide_duals!(sd, Barycenter());
-
-f = Figure()
-ax = CairoMakie.Axis(f[1,1])
-wireframe!(ax, s)
-
-f
 ```
 
 ```{julia}
-function draw(mesh::EmbeddedDeltaSet2D; color=:blue)
+function draw(mesh; color=:blue)
   f = Figure()
   ax = CairoMakie.Axis(f[1,1])
-  wireframe!(ax, s, color=color)
-  return f, ax
+  draw!(ax, mesh, color=color)
+  return f
 end
 
-function draw(submesh::Subobject; color=:orange)
+function draw!(ax, mesh::EmbeddedDeltaDualComplex1D; color=:blue)
+  ax = scatter!(ax, mesh[:point], color=color)
+end
+
+function draw!(ax, mesh::Union{EmbeddedDeltaSet2D,EmbeddedDeltaDualComplex2D}; color=:blue)
+  wireframe!(ax, mesh, color=color)
+  return ax
+end
+
+function draw!(ax, submesh::Subobject; color=:orange)
   ϕ = hom(submesh)
-  f, ax = draw(codom(ϕ))
-  wireframe!(ax, dom(ϕ), color=color)
-  f
+  @show nparts(dom(ϕ), :V)
+  @show nparts(codom(ϕ), :V)
+  draw!(ax, codom(ϕ),color=color)
+  draw!(ax, dom(ϕ), color=:orange)
 end
 
-function draw(cover::Vector{T}; color=:orange) where T <: Subobject
+
+function draw(cover::Vector{T}; color=:blue) where T <: Subobject
   f = Figure()
   n = length(cover)
   for i in 1:n
     for j in i:n
       ax = CairoMakie.Axis(f[i,j])
       ui,uj = cover[i], cover[j]
-      ϕ = hom(meet(ui,uj))
-      wireframe!(ax, codom(ϕ), color=:blue)
-      wireframe!(ax, dom(ϕ), color=color)
+      # ϕ = hom(meet(ui,uj))
+      # draw!(ax, codom(ϕ), color=:blue)
+      # draw!(ax, dom(ϕ), color=color)
+      draw!(ax, meet(ui,uj), color=color)
     end
   end
   f
 end
 ```
+```{julia}
+s = triangulated_grid(100,100,15,15,Point3d);
+sd = EmbeddedDeltaDualComplex2D{Bool,Float64,Point3d}(s);
+subdivide_duals!(sd, Barycenter());
 
+f = draw(sd)
+f
+```
 ```{julia}
 quadrants(x) = Int(x[1] > 50) + 2*Int(x[2] > 50)
 
@@ -65,7 +75,7 @@ q = quads[1]
 draw(q)
 ```
 ```{julia}
-draw(quads[2])
+draw(quads[3])
 ```
 
 ```{julia}
@@ -97,6 +107,36 @@ D = nerve(quads)
 ```
 
 ```{julia}
+function circle(n, c)
+  mesh = EmbeddedDeltaSet1D{Bool, Point2D}()
+  map(range(0, 2pi - (pi/(2^(n-1))); step=pi/(2^(n-1)))) do t
+    add_vertex!(mesh, point=Point2D(cos(t),sin(t))*(c/2pi))
+  end
+  add_edges!(mesh, 1:(nv(mesh)-1), 2:nv(mesh))
+  add_edge!(mesh, nv(mesh), 1)
+  dualmesh = EmbeddedDeltaDualComplex1D{Bool, Float64, Point2D}(mesh)
+  subdivide_duals!(dualmesh, Circumcenter())
+  mesh,dualmesh
+end
+mesh,dualmesh = circle(9, 100)
+```
+
+
+
+```{julia}
+draw(dualmesh)
+```
+
+```{julia}
+function pizza_slices(x)
+  (x[1] > 0) + 2*(x[2] > 0)
+end
+circ_quads = cover_mesh(pizza_slices,dualmesh)
+draw(circ_quads[1])
+draw(circ_quads)
+```
+
+```{julia}
 function finsetdiagram(cover; object=:V)
   n = length(cover)
   u1 = cover[1]
@@ -123,12 +163,18 @@ diag = finsetdiagram(quads)
 using Catlab.Sheaves: FVect
 import Catlab.Sheaves: pullback_matrix
 
+Catlab.dom(m::Matrix) = FinSet(size(m, 2))
+Catlab.codom(m::Matrix) = FinSet(size(m, 1))
+
 function vectdiagram(diag)
   obs = diag[:ob]
   homs = map(enumerate(diag[edges(diag), :hom])) do (e, f)
     (pullback_matrix(f), diag[e, :src], diag[e,:tgt])
   end
   @show homs
+  map(homs) do f
+    @show dom(f[1]), codom(f[1])
+  end
   FreeDiagram(obs, homs)
 end
 vectdiagram(diag)
@@ -164,5 +210,5 @@ function freediagram(cover; nerve_dimension=0)
 end
 
 freediagram(quads)
-freediagram(quads, nerve_dimension=true)
+freediagram(quads, nerve_dimension=1)
 ```
