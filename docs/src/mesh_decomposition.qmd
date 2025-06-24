@@ -122,7 +122,6 @@ mesh,dualmesh = circle(9, 100)
 ```
 
 
-
 ```{julia}
 draw(dualmesh)
 ```
@@ -171,44 +170,81 @@ function vectdiagram(diag)
   homs = map(enumerate(diag[edges(diag), :hom])) do (e, f)
     (pullback_matrix(f), diag[e, :src], diag[e,:tgt])
   end
-  @show homs
-  map(homs) do f
-    @show dom(f[1]), codom(f[1])
-  end
-  FreeDiagram(obs, homs)
+  # FreeDiagram(obs, homs)
+  return obs, homs
 end
 vectdiagram(diag)
 ```
 
 ```{julia}
-function freediagram(cover; nerve_dimension=0)
-  nerve_dimension >= 0 || error("nerve_dimension must be nonnegative")
-  n = length(cover)
-  u1 = cover[1]
-  f = hom(u1)
-  X = codom(f)
-  ObT = typeof(X)
-  HomT = typeof(f)
-  homs = [(hom(cover[i]), i+1, 1) for i in 1:n]
-  opens = dom.(hom.(cover))
-  obs = [X]
-  append!(obs, opens)
-  if nerve_dimension == 1
-    D = nerve(cover)
-    edge_homs = map(D) do (uij, i, j)
-      f = hom(uij)
-      f.codom = obs[i+1]
-      return (f, i+1, j+1)
-    end
-    for e in edge_homs
-      @show e[2], e[3], nv(dom(e[1])), nv(codom(e[1]))
-    end
-    append!(homs, edge_homs)
-  end
-  nerve_dimension < 2 || error("nerve_dimension must <= 1")
-  diag = FreeDiagram{ObT,HomT}(obs, homs)
+import Catlab.Sheaves: AbstractCover
+
+struct NerveCover{T, X} <: AbstractCover
+  vertices::Dict{T, Int}
+  basis::Vector{X}
 end
 
-freediagram(quads)
-freediagram(quads, nerve_dimension=1)
+function NerveCover(subobjects::Vector{X}) where X <: Subobject
+  lookup = enumerate(subobjects)
+  vertices = Dict{Int, Int}(i=>i for (i, _) in lookup)
+  return NerveCover{Int, Subobject}(vertices, subobjects)
+end
+
+function NerveCover(subobjects::Dict{T,Subobject}) where T
+  lookup = enumerate(keys(subobjects))
+  vertices = Dict{T, Int}(k=>i for (i, k) in lookup)
+  opens = collect(values(subobjects))
+  return NerveCover{T, Subobject}(vertices, opens)
+end
+
+Base.length(K::NerveCover) = length(K.basis)
+
+Base.show(io::IO, K::NerveCover) = begin
+  print(io, "$(typeof(K)) with $(length(K)) generating opens:\n\tNV, NE, NT")
+  for (i, ui) in enumerate(K.basis)
+    print(io, "\n  ")
+    V = nv(dom(hom(ui)))
+    E = ne(dom(hom(ui)))
+    T = ntriangles(dom(hom(ui)))
+    print(io, "K[$i]: $V, $E, $T")
+  end
+end
+
+import Catlab.CategoricalAlgebra.CSets: SubACSetComponentwise
+
+function Base.show(io::IO, U::SubACSetComponentwise{X}) where X <: HasDeltaSet
+  print(io, "Subdelta-set")
+  V = nv(dom(hom(U)))
+  E = ne(dom(hom(U)))
+  T = ntriangles(dom(hom(U)))
+  print(io, "with size $V, $E, $T")
+  V = nv(codom(hom(U)))
+  E = ne(codom(hom(U)))
+  T = ntriangles(codom(hom(U)))
+  print(io, " of object with size $V, $E, $T")
+end
+
+function Base.getindex(K::NerveCover, I::Vararg{Int})
+  map(I) do i
+    K.basis[i]
+  end |> x->foldl(meet, x)
+end
+
+using Combinatorics: powerset
+function resolve(K::NerveCover, dim=2)
+  map(powerset(K.vertices, 1, dim)) do S
+    S => K[S...]
+  end |> Dict
+end
+```
+```{julia}
+K = NerveCover(quads)
+K[1,2]
+```
+```{julia}
+resolve(K)
+```
+
+```{julia}
+resolve(K, 3)
 ```
