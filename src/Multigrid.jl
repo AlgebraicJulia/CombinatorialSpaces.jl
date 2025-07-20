@@ -1,7 +1,7 @@
 module Multigrid
 
 using CombinatorialSpaces
-using LinearAlgebra: I
+using LinearAlgebra: I, Diagonal
 using Krylov, Catlab, SparseArrays, StaticArrays
 using ..SimplicialSets
 import Catlab: dom, codom
@@ -100,12 +100,12 @@ end
 
 MultigridData(g,r,p,s) = MultigridData{typeof(g),typeof(r)}(g,r,p,s)
 
-MGData(series::PrimalGeometricMapSeries, op::Function, s::Int, ::UnarySubdivision) =
-  MultigridData(series, op, fill(s,length(series.meshes)), 1.0)
-MGData(series::PrimalGeometricMapSeries, op::Function, s::Int, ::BinarySubdivision) =
-  MultigridData(series, op, fill(s,length(series.meshes)), 1.0/4.0)
-MGData(series::PrimalGeometricMapSeries, op::Function, s::Int, ::CubicSubdivision) =
-  MultigridData(series, op, fill(s,length(series.meshes)), 1.0/9.0)
+# This function definition is kept for backwards compatibility.
+MGData(series::PrimalGeometricMapSeries, op::Function, s::Int, ::T) where T <: AbstractSubdivisionScheme =
+  MultigridData(series, op, fill(s,length(series.meshes)))
+
+MGData(series::PrimalGeometricMapSeries, op::Function, s::Int) =
+  MultigridData(series, op, fill(s,length(series.meshes)))
 
 """    MultigridData(g,r,p,s::Int)
 
@@ -153,10 +153,40 @@ function PrimalGeometricMapSeries(s::HasDeltaSet, subdivider::Function, levels::
   PrimalGeometricMapSeries{typeof(first(dual_meshes)), typeof(first(matrices))}(dual_meshes, matrices)
 end
 
-function MultigridData(series::PrimalGeometricMapSeries, op::Function, s::AbstractVector, rs_factor::Number)
+function normalize_restrictions(ps::Vector{T}) where T <: Diagonal
+  rs = map(ps) do p
+    pt = transpose(p)
+    pt ./ sum(pt, dims=2)
+  end
+end
+
+# XXX: Row-normalizing a sparse matrix is non-trivial.
+#https://discourse.julialang.org/t/scaling-a-sparse-matrix-row-wise-and-column-wise-too-slow/115956/8
+function row_normalize!(M)
+  row_sums = sum(M, dims=2)
+  rows = rowvals(M)
+  vals = nonzeros(M)
+  n = size(M, 2)
+  for j in 1:n
+    for i in nzrange(M, j)
+      row = rows[i]
+      vals[i] /= row_sums[row]
+    end
+  end
+  M
+end
+
+function normalize_restrictions(ps::Vector{T}) where T <: AbstractMatrix
+  rs = map(ps) do p
+    pt = copy(transpose(p))
+    row_normalize!(pt)
+  end
+end
+
+function MultigridData(series::PrimalGeometricMapSeries, op::Function, s::AbstractVector)
   ops = op.(meshes(series))
   ps = transpose.(matrices(series))
-  rs = transpose.(ps) .* rs_factor
+  rs = normalize_restrictions(ps)
   MultigridData(ops, rs, ps, s)
 end
 
