@@ -1,7 +1,7 @@
 module Multigrid
 
 using CombinatorialSpaces
-using LinearAlgebra: I
+using LinearAlgebra: I, Diagonal
 using Krylov, Catlab, SparseArrays, StaticArrays
 using ..SimplicialSets
 import Catlab: dom, codom
@@ -153,10 +153,25 @@ function PrimalGeometricMapSeries(s::HasDeltaSet, subdivider::Function, levels::
   PrimalGeometricMapSeries{typeof(first(dual_meshes)), typeof(first(matrices))}(dual_meshes, matrices)
 end
 
+function normalize_restrictions(ps::Vector{T}) where T <: Diagonal
+  rs = map(ps) do p
+    pt = transpose(p)
+    pt ./ sum(pt, dims=2)
+  end
+end
+
+function normalize_restrictions(ps::Vector{T}) where T <: AbstractMatrix
+  rs = map(ps) do p
+    pt = transpose(p)
+    # TODO: Eliminate the after-the-fact dropzeros in favor of CSC code.
+    dropzeros(pt ./ sum(pt, dims=2))
+  end
+end
+
 function MultigridData(series::PrimalGeometricMapSeries, op::Function, s::AbstractVector, rs_factor::Number)
   ops = op.(meshes(series))
   ps = transpose.(matrices(series))
-  rs = transpose.(ps) .* rs_factor
+  rs = normalize_restrictions(ps)
   MultigridData(ops, rs, ps, s)
 end
 
