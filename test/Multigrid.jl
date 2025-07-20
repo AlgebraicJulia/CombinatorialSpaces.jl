@@ -46,7 +46,7 @@ expected_parts(s, cubic_subdivision, cubic_nv_ne_ntriangles)
 function test_residuals(s::HasDeltaSet2D, scheme::AbstractSubdivisionScheme)
   series = PrimalGeometricMapSeries(s, scheme, 4);
 
-  md = MGData(series, sd -> ∇²(0, sd), 3, scheme)
+  md = MGData(series, sd -> ∇²(0, sd), 3)
   sd = finest_mesh(series)
   L = first(md.operators)
 
@@ -59,20 +59,20 @@ function test_residuals(s::HasDeltaSet2D, scheme::AbstractSubdivisionScheme)
   @test norm(L*u-b)/norm(b) < 10^-6
 
   u = multigrid_vcycles(u0,b,md,5)
-  @test norm(L*u-b)/norm(b) < 10^-5
-  @debug "Relative error for V: $(norm(L*u-b)/norm(b))"
+  @test norm(L*u-b)/norm(b) < 10^-7
+  @debug "Relative residual for V: $(norm(L*u-b)/norm(b))"
 
   u = multigrid_wcycles(u0,b,md,5)
-  @test norm(L*u-b)/norm(b) < 10^-6
-  @debug "Relative error for W: $(norm(L*u-b)/norm(b))"
+  @test norm(L*u-b)/norm(b) < 10^-7
+  @debug "Relative residual for W: $(norm(L*u-b)/norm(b))"
 
   u = full_multigrid(b,md,5)
-  @test norm(L*u-b)/norm(b) < 10^-4
-  @debug "Relative error for FMG_V: $(norm(L*u-b)/norm(b))"
+  @test norm(L*u-b)/norm(b) < 10^-6
+  @debug "Relative residual for FMG_V: $(norm(L*u-b)/norm(b))"
 
   u = full_multigrid(b,md,5,cg,2)
-  @test norm(L*u-b)/norm(b) < 10^-6
-  @debug "Relative error for FMG_W: $(norm(L*u-b)/norm(b))"
+  @test norm(L*u-b)/norm(b) < 10^-7
+  @debug "Relative residual for FMG_W: $(norm(L*u-b)/norm(b))"
 end
 
 s = triangulated_grid(1,1,1/4,sqrt(3)/2*1/4,Point3d,false)
