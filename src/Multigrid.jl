@@ -424,10 +424,17 @@ repeated_subdivisions(k, ss, subdivider) =
 # - This could use Galerkin conditions to construct As from As[1]
 # - Add maxcycles and tolerances
 """
-Solve `Ax=b` on `s` with initial guess `u` using , for `cycles` V-cycles, performing `steps` steps of the
+Solve `Ax=b` on `s` with initial guess `u` using , for `cycles` V-cycles, performing `md.steps` steps of the
 conjugate gradient method on each mesh and going through
 `cycles` total V-cycles. Everything is just matrices and vectors
 at this point.
+
+Warning:
+Quoting from the Krylov.jl documentation:
+> itmax: the maximum number of iterations. If itmax=0, the default number of iterations is set to 2n;
+
+, where n is the length of the solution vector.
+We diverge from this behavior and perform no iterations when the corresponding element of `md.steps` is `0`.
 
 `alg` is a Krylov.jl method, probably either the default `cg` or
 `gmres`.
@@ -462,8 +469,9 @@ function full_multigrid(b, md::MultigridData, cycles, alg=cg, μ=1)
 end
 
 function _multigrid_μ_cycle(u, b, md::MultigridData, alg=cg, μ=1)
-  A,r,p,s = car(md)
-  u = alg(A,b,u,itmax=s)[1]
+  A,r,p,steps = car(md)
+  # Manually perform 0 steps, unlike the 2n step default of Krylov.jl.
+  u = steps == 0 ? u : alg(A,b,u,itmax=steps)[1]
   length(md) == 1 && return u
   r_f = b - A*u
   r_c = r * r_f
@@ -472,7 +480,8 @@ function _multigrid_μ_cycle(u, b, md::MultigridData, alg=cg, μ=1)
     z = _multigrid_μ_cycle(z, r_c, cdr(md), alg, μ-1)
   end
   u += p * z
-  u = alg(A, b, u, itmax=s)[1]
+  # Manually perform 0 steps, unlike the 2n step default of Krylov.jl.
+  u = steps == 0 ? u : alg(A, b, u, itmax=steps)[1]
 end
 
 end
