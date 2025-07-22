@@ -81,4 +81,25 @@ test_residuals(s, UnarySubdivision())
 test_residuals(s, BinarySubdivision())
 test_residuals(s, CubicSubdivision())
 
+# Divergence from Default Krylov.jl Behavior. (No iterations). Issue #178
+#------------------------------------------------------------------------
+
+s = triangulated_grid(1,1,1/4,sqrt(3)/2*1/4,Point3d,false)
+bin_series = PrimalGeometricMapSeries(s, BinarySubdivision(), 4);
+md_zero_iterations = MGData(bin_series, sd -> ∇²(0, sd), 0)
+md_one_iteration = MGData(bin_series, sd -> ∇²(0, sd), 1)
+sd = finest_mesh(bin_series)
+L = first(md_zero_iterations.operators)
+Random.seed!(0)
+b = L*rand(nv(sd)) #put into range of the Laplacian for solvability
+u0 = zeros(nv(sd))
+u_zero_iterations = multigrid_vcycles(u0,b,md_zero_iterations,5)
+u_one_iteration = multigrid_vcycles(u0,b,md_one_iteration,5)
+relative_residual_zero_iterations = norm(L*u_zero_iterations-b)/norm(b)
+relative_residual_one_iteration = norm(L*u_one_iteration-b)/norm(b)
+
+# Test that no iterations of `cg` are performed by checking that the residual
+# is higher than when one iteration is performed.
+@test relative_residual_one_iteration < relative_residual_zero_iterations
+
 end
