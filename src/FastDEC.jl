@@ -63,7 +63,7 @@ function wedge_kernel_coeffs(::Type{Tuple{1,1}}, sd::EmbeddedDeltaDualComplex2D{
   coeffs = Array{float_type}(undef, 3, ntriangles(sd))
   shift = ntriangles(sd)
   @inbounds for i in 1:ntriangles(sd)
-    area = 2 * sd[i, :area]
+    area = sign(2, sd, i) * 2 * sd[i, :area]
     coeffs[1, i] = (sd[i+0*shift, :dual_area] + sd[i+1*shift, :dual_area]) / area
     coeffs[2, i] = (sd[i+2*shift, :dual_area] + sd[i+3*shift, :dual_area]) / area
     coeffs[3, i] = (sd[i+4*shift, :dual_area] + sd[i+5*shift, :dual_area]) / area
@@ -441,8 +441,8 @@ function dec_p_hodge_diag(::Type{Val{1}}, sd::EmbeddedDeltaDualComplex2D{Bool, f
 end
 
 function dec_p_hodge_diag(::Type{Val{2}}, sd::EmbeddedDeltaDualComplex2D{Bool, float_type, _p} where _p) where float_type
-  signed_tri_areas::Vector{float_type} = sd[:area] .* sign(2,sd)
-  1 ./ signed_tri_areas
+  tri_areas::Vector{float_type} = sd[:area]
+  1 ./ tri_areas
 end
 
 """    dec_hodge_star(n::Int, sd::HasDeltaSet; hodge=GeometricHodge())
