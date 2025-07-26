@@ -618,7 +618,7 @@ hodge_diag(::Type{Val{0}}, s::AbstractDeltaDualComplex2D, v::Int) =
 hodge_diag(::Type{Val{1}}, s::AbstractDeltaDualComplex2D, e::Int) =
   sum(dual_volume(Val{1}, s, elementary_duals(Val{1},s,e))) / volume(Val{1},s,e)
 hodge_diag(::Type{Val{2}}, s::AbstractDeltaDualComplex2D, t::Int) =
-  1 / volume(Val{2},s,t) * sign(2,s,t)
+  1 / volume(Val{2},s,t)
 
 function ♭(s::AbstractDeltaDualComplex2D, X::AbstractVector, ::DPPFlat)
   # XXX: Creating this lookup table shouldn't be necessary. Of course, we could
@@ -1257,7 +1257,7 @@ hodge_diag(::Type{Val{1}}, s::AbstractDeltaDualComplex3D, e::Int) =
 hodge_diag(::Type{Val{2}}, s::AbstractDeltaDualComplex3D, t::Int) =
   sum(dual_volume(Val{1}, s, elementary_duals(Val{2},s,t))) / volume(Val{2},s,t)
 hodge_diag(::Type{Val{3}}, s::AbstractDeltaDualComplex3D, tet::Int) =
-  1 / volume(Val{3},s,tet) * sign(3,s,tet)
+  1 / volume(Val{3},s,tet)
 
 # TODO: Instead of rewriting ♭_mat by replacing tris with tets, use multiple dispatch.
 #function ♭_mat(s::AbstractDeltaDualComplex3D)
@@ -1372,7 +1372,7 @@ this correspondence, a basis for primal ``n``-chains defines the basis for dual
 !!! note
 
     In (Hirani 2003, Definition 3.4.1), the duality operator assigns a certain
-    sign to each elementary dual simplex. For us, all of these signs should be
+    sign to each elementary dual simplex. For us, all of these signs shall be
     regarded as positive because we have already incorporated them into the
     orientation of the dual simplices.
 """
@@ -1617,6 +1617,7 @@ fancy_acset_schema(d::HasDeltaSet) = Presentation(acset_schema(d))
 # arbitrary meshes embedded in 3D space, and so will need to be revisited.
 # Potentially this orientation can be provided by the simplicial triangle
 # orientation?
+# TODO: Revisit this assumption based on changes to `orient!`.
 crossdot(v1, v2) = begin
   v1v2 = cross(v1, v2)
   norm(v1v2) * (last(v1v2) == 0 ? 1.0 : sign(last(v1v2)))
@@ -1956,6 +1957,7 @@ function p2_d2_interpolation(sd::HasDeltaSet2D)
     for dual_tri_id in tri_id:ntriangles(sd):nparts(sd, :DualTri)
       dual_tri_area = sd[dual_tri_id, :dual_area]
 
+      # TODO: Check whether to remove the sign here.
       weight = numeric_sign(tri_orient) * (dual_tri_area / tri_area)
 
       v = sd[sd[dual_tri_id, :D_∂e1], :D_∂v1]
