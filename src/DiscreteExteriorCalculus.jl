@@ -889,7 +889,7 @@ function ∧(::Type{Tuple{1,1}}, s::HasDeltaSet2D, α, β, x::Int)
   β0, β1, β2 = β[[e0, e1, e2]]
   # Take a weighted average of co-parallelogram areas
   # at each pair of edges.
-  form = dot(ws, SVector(
+  form = sign(2, s, x) * dot(ws, SVector(
     β1*α2 - α1*β2,
     β0*α2 - α0*β2,
     β0*α1 - α0*β1))
@@ -1317,7 +1317,7 @@ function ∧(::Type{Tuple{2,1}}, s::HasDeltaSet3D, α, β, x::Int)
   # map(x -> edge_vertices(s, x), tetrahedron_edges(s,x))
   # or by thinking through the simplicial identities, of course.
   # Observe that e.g. β3 and α3 share v0, but differ in all other endpoints.
-  form = dot(ws, [
+  form = sign(3, s, x) * dot(ws, [
      # v₀:
      # [v3,v0][v0,v1,v2] [v2,v0][v0,v1,v3] [v1,v0][v0,v2,v3]
             β3*α3       +    -β4*α2       +     β5*α1,
@@ -1953,12 +1953,11 @@ function p2_d2_interpolation(sd::HasDeltaSet2D)
   mat = spzeros(nv(sd), ntriangles(sd))
   for tri_id in triangles(sd)
     tri_area = sd[tri_id, :area]
-    tri_orient = sd[tri_id, :tri_orientation]
     for dual_tri_id in tri_id:ntriangles(sd):nparts(sd, :DualTri)
       dual_tri_area = sd[dual_tri_id, :dual_area]
 
       # TODO: Check whether to remove the sign here.
-      weight = numeric_sign(tri_orient) * (dual_tri_area / tri_area)
+      weight = (dual_tri_area / tri_area)
 
       v = sd[sd[dual_tri_id, :D_∂e1], :D_∂v1]
 

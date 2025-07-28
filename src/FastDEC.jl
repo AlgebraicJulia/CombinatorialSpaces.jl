@@ -610,8 +610,8 @@ function Δᵈ(::Type{Val{0}}, s::SimplicialSets.HasDeltaSet)
   ihs1 = dec_inv_hodge_star(0, s, GeometricHodge());
   d1 = dec_differential(0,s);
   hs2 = dec_hodge_star(1, s, GeometricHodge());
-  m = hs2 * d1
-  x -> hs2 * d1 * ihs1 * dd0 * x
+  m = hs2 * d1 * ihs1 * dd0
+  x -> m * x
 end
 
 function Δᵈ(::Type{Val{0}}, s::SimplicialSets.HasDeltaSet2D)
@@ -621,7 +621,7 @@ function Δᵈ(::Type{Val{0}}, s::SimplicialSets.HasDeltaSet2D)
   hs2 = dec_hodge_star(2, s, GeometricHodge());
   m = hs2 * d1
   # Observe that this inverse Hodge star is a solver:
-  x -> hs2 * d1 * ihs1(dd0 * x)
+  x -> m * ihs1(dd0 * x)
 end
 
 function Δᵈ(::Type{Val{0}}, s::SimplicialSets.HasDeltaSet3D)
@@ -630,8 +630,8 @@ function Δᵈ(::Type{Val{0}}, s::SimplicialSets.HasDeltaSet3D)
   ihs1 = inv_hodge_star(2, s, DiagonalHodge());
   d1 = d(2,s);
   hs2 = hodge_star(3, s, DiagonalHodge());
-  m = hs2 * d1
-  x -> hs2 * d1 * ihs1 * dd0 * x
+  m = hs2 * d1 * ihs1 * dd0
+  x -> m * x
 end
 
 """    function Δᵈ_mat(::Type{Val{2}}, s::SimplicialSets.HasDeltaSet)

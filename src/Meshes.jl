@@ -374,6 +374,8 @@ function grid_345()
   glue_sorted_triangle!(primal_s, 5, 6, 8)
   glue_sorted_triangle!(primal_s, 9, 6, 8)
   primal_s[:edge_orientation] = true
+  orient!(primal_s)
+  primal_s[:tri_orientation] = .!(primal_s[:tri_orientation]) # Flips orientation to ccw
   s = EmbeddedDeltaDualComplex2D{Bool,Float64,Point3d}(primal_s)
   subdivide_duals!(s, Barycenter())
   (primal_s, s)

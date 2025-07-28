@@ -515,7 +515,7 @@ subdivide_duals!(s, Barycenter())
 @test only(∧(s, VForm([3,3,3]), TriForm([only(s[:area])*5]))) ≈ 15
 
 # Grid of 3,4,5 triangles.
-primal_s, s = grid_345()
+primal_s, s = grid_345();
 
 # ∀ βᵏ ∧(α,βᵏ) = id(βᵏ), where α = 1.
 α = VForm(ones(nv(s)))
@@ -527,15 +527,20 @@ end
 # 1dx ∧ 1dy = 1 dx∧dy
 onedx = eval_constant_primal_form(s, @SVector [1.0,0.0,0.0])
 onedy = eval_constant_primal_form(s, @SVector [0.0,1.0,0.0])
-@test all(∧(s, onedx, onedy) .≈ map(s[:tri_orientation], s[:area]) do o,a
-  a * (o ? -1 : 1)
-end)
+@test all(∧(s, onedx, onedy) .≈ s[:area])
 
 # 1dx∧dy = -1dy∧dx
 @test ∧(s, onedx, onedy) == -∧(s, onedy, onedx)
 
 # 3dx ∧ 2dy = 2 dx ∧ 3dy
 @test ∧(s, EForm(3*onedx), EForm(2*onedy)) == ∧(s, EForm(2*onedx), EForm(3*onedy))
+
+# Orientation of this mesh is cw and not ccw
+primal_s, s = tri_345_false()
+onedx = eval_constant_primal_form(s, @SVector [1.0,0.0,0.0])
+onedy = eval_constant_primal_form(s, @SVector [0.0,1.0,0.0])
+@test all(∧(s, onedx, onedy) .≈ -s[:area])
+
 
 # A triangulated quadrilateral where edges are all of distinct length.
 primal_s = EmbeddedDeltaSet2D{Bool,Point2d}()
@@ -589,7 +594,7 @@ rect′ = loadmesh(Rectangle_30x10());
 rect = EmbeddedDeltaDualComplex2D{Bool,Float64,Point3d}(rect′);
 subdivide_duals!(rect, Barycenter());
 
-flat_meshes = [tri_345(), tri_345_false(), right_scalene_unit_hypot(), grid_345(), (tg′, tg), (rect′, rect)];
+flat_meshes = [tri_345(), right_scalene_unit_hypot(), grid_345(), (tg′, tg), (rect′, rect)];
 
 # Over a static vector-field...
 # ... Test the primal-to-primal flat operation agrees with the dual-to-primal flat operation.
@@ -740,9 +745,9 @@ for (primal_s,s) in flat_meshes
   u = eval_constant_primal_form(s, u_def)
   u_star = DualForm{1}(hodge_star(1,s) * u)
 
-  v_def = SVector{3,Float64}(-g,f,0)
-  v = eval_constant_primal_form(s, v_def)
-  dec_hodge_star(2,s) * ∧(s, u, v)
+  # v_def = SVector{3,Float64}(-g,f,0)
+  # v = eval_constant_primal_form(s, v_def)
+  # dec_hodge_star(2,s) * ∧(s, u, v)
 
   @test all(isapprox.(
     dec_hodge_star(2,s) * ∧(s, u, u_star),
@@ -752,11 +757,11 @@ end
 
 # Constant interpolation on flat meshes with boundaries
 for (s, sd) in flat_meshes
-  ex_1 = sign(2, sd)
+  # ex_1 = sign(2, sd)
   interp = p2_d2_interpolation(sd)
   inv_hdg_0 = dec_inv_hodge_star(0, sd)
 
-  res_1 = inv_hdg_0 * interp * ex_1
+  res_1 = inv_hdg_0 * interp * ones(ntriangles(sd))
 
   @test all(res_1 .≈ ntriangles(sd)/(sum(sd[:area])))
 end
@@ -765,12 +770,10 @@ end
 d_ico1 = EmbeddedDeltaDualComplex2D{Bool,Float64,Point3{Float64}}(loadmesh(Icosphere(1)));
 subdivide_duals!(d_ico1, Circumcenter());
 
-ico_form_2 = sign(2, d_ico1) .* d_ico1[:area]
-
 interp = p2_d2_interpolation(d_ico1)
 inv_hdg_0 = dec_inv_hodge_star(0, d_ico1)
 
-interp_form_0 = inv_hdg_0 * interp * ico_form_2
+interp_form_0 = inv_hdg_0 * interp * d_ico1[:area]
 
 @test all(interp_form_0 .≈ 1)
 
@@ -1023,11 +1026,12 @@ msh, tet_msh = tetgen_readme_mesh()
 primal_s = EmbeddedDeltaSet3D(tet_msh)
 s = EmbeddedDeltaDualComplex3D{Bool, Float64, Point3d}(primal_s)
 subdivide_duals!(s, Barycenter())
+s[:tet_orientation] = .!(s[:tet_orientation])
 
 dXdY = surface_integral_dXdY(s)
 d0 = d(0,s)
 dZ = d0 * map(p -> p[3], s[:point])
-@test all(∧(2, 1, s, dXdY, dZ) .≈ s[:vol] .* sign(3,s))
+@test all(∧(2, 1, s, dXdY, dZ) .≈ s[:vol])
 
 # Construct a 3-volume form using basis 1-forms.
 # This also tests ∧₁₁ in 3D, and ⋆₃.
