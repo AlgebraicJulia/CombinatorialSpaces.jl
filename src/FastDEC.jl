@@ -62,14 +62,17 @@ end
 function wedge_kernel_coeffs(::Type{Tuple{1,1}}, sd::EmbeddedDeltaDualComplex2D{Bool, float_type, _p}) where {float_type, _p}
   coeffs = Array{float_type}(undef, 3, ntriangles(sd))
   shift = ntriangles(sd)
-  @inbounds for i in 1:ntriangles(sd)
-    area = sign(2, sd, i) * 2 * sd[i, :area]
-    coeffs[1, i] = (sd[i+0*shift, :dual_area] + sd[i+1*shift, :dual_area]) / area
-    coeffs[2, i] = (sd[i+2*shift, :dual_area] + sd[i+3*shift, :dual_area]) / area
-    coeffs[3, i] = (sd[i+4*shift, :dual_area] + sd[i+5*shift, :dual_area]) / area
-  end
   e = Array{Int32}(undef, 3, ntriangles(sd))
   e[1, :], e[2, :], e[3, :] = ∂(2, 0, sd), ∂(2, 1, sd), ∂(2, 2, sd)
+
+  @inbounds for i in 1:ntriangles(sd)
+    area = sign(2, sd, i) * 2 * sd[i, :area]
+    e0, e1, e2 = e[1, i], e[2, i], e[3, i]
+    coeffs[1, i] = sign(1, sd, Int64(e1)) * sign(1, sd, Int64(e2)) * (sd[i+0*shift, :dual_area] + sd[i+1*shift, :dual_area]) / area
+    coeffs[2, i] = sign(1, sd, Int64(e0)) * sign(1, sd, Int64(e2)) * (sd[i+2*shift, :dual_area] + sd[i+3*shift, :dual_area]) / area
+    coeffs[3, i] = sign(1, sd, Int64(e0)) * sign(1, sd, Int64(e1)) * (sd[i+4*shift, :dual_area] + sd[i+5*shift, :dual_area]) / area
+  end
+  
   (e, coeffs, ntriangles(sd))
 end
 
@@ -522,6 +525,7 @@ function dec_hodge_star(::Type{Val{1}}, sd::EmbeddedDeltaDualComplex2D{Bool, flo
   view_I = @view I[1:idx]
   view_J = @view J[1:idx]
   view_V = @view V[1:idx]
+
   sparse(view_I, view_J, view_V)
 end
 

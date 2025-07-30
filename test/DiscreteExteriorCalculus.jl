@@ -535,12 +535,18 @@ onedy = eval_constant_primal_form(s, @SVector [0.0,1.0,0.0])
 # 3dx ∧ 2dy = 2 dx ∧ 3dy
 @test ∧(s, EForm(3*onedx), EForm(2*onedy)) == ∧(s, EForm(2*onedx), EForm(3*onedy))
 
+# Test flipped edge orientation preserves value
+for i in 1:ne(s)
+  s[i, :edge_orientation] = !s[i, :edge_orientation]
+  onedx[i] = -onedx[i]; onedy[i] = -onedy[i];
+  @test all(∧(s, onedx, onedy) .≈ s[:area])
+end
+
 # Orientation of this mesh is cw and not ccw
 primal_s, s = tri_345_false()
 onedx = eval_constant_primal_form(s, @SVector [1.0,0.0,0.0])
 onedy = eval_constant_primal_form(s, @SVector [0.0,1.0,0.0])
 @test all(∧(s, onedx, onedy) .≈ -s[:area])
-
 
 # A triangulated quadrilateral where edges are all of distinct length.
 primal_s = EmbeddedDeltaSet2D{Bool,Point2d}()
@@ -978,15 +984,13 @@ subdivide_duals!(s, Barycenter())
 
 # Test the 2-1 wedge product.
 primal_s, s = single_tetrahedron()
-# Observe that we set the orientation explicitly to false.
-s[:tet_orientation] = false
 
 as_vec(s,e) = (point(s, tgt(s,e)) - point(s, src(s,e))) * sign(1,s,e)
 function surface_integral_dXdY(s)
   map(triangles(s)) do tri
-    e1, e2, _ = triangle_edges(s,tri)
-    e1_vec, e2_vec = as_vec(s,e1), as_vec(s,e2)
-    (cross(e1_vec, e2_vec) * sign(2,s,tri))[3] / 2
+    _, e2, e3 = triangle_edges(s,tri)
+    e3_vec, e2_vec = as_vec(s,e3), as_vec(s,e2)
+    (cross(e3_vec, e2_vec) * sign(2,s,tri))[3] / 2
     # Note that normalizing is the same as dividing by 2*s[tri, :area],
     # so the above is equivalent to:
     #n = normalize(cross(e1_vec, e2_vec) * sign(2,s,tri))
@@ -999,7 +1003,7 @@ dXdY = surface_integral_dXdY(s)
 d0 = d(0,s)
 # This is a primal 1-form, encoding a constant gradient pointing "up."
 dZ = d0 * map(p -> p[3], s[:point])
-@test only(∧(2, 1, s, dXdY, dZ)) ≈ only(s[:vol]) * sign(3,s,1)
+@test only(∧(2, 1, s, dXdY, dZ)) ≈ only(s[:vol])
 
 # Test the 2-1 wedge product on a larger mesh.
 
@@ -1026,6 +1030,7 @@ msh, tet_msh = tetgen_readme_mesh()
 primal_s = EmbeddedDeltaSet3D(tet_msh)
 s = EmbeddedDeltaDualComplex3D{Bool, Float64, Point3d}(primal_s)
 subdivide_duals!(s, Barycenter())
+# Adjusts from lefthand rule to righthand rule orientation
 s[:tet_orientation] = .!(s[:tet_orientation])
 
 dXdY = surface_integral_dXdY(s)

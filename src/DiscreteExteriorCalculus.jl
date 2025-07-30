@@ -890,9 +890,9 @@ function ∧(::Type{Tuple{1,1}}, s::HasDeltaSet2D, α, β, x::Int)
   # Take a weighted average of co-parallelogram areas
   # at each pair of edges.
   form = sign(2, s, x) * dot(ws, SVector(
-    β1*α2 - α1*β2,
-    β0*α2 - α0*β2,
-    β0*α1 - α0*β1))
+    sign(1, s, e1) * sign(1, s, e2) * (β1*α2 - α1*β2),
+    sign(1, s, e0) * sign(1, s, e2) * (β0*α2 - α0*β2),
+    sign(1, s, e0) * sign(1, s, e1) * (β0*α1 - α0*β1)))
   # Convert from parallelogram areas to triangles.
   form / 2
 end
@@ -1320,16 +1320,16 @@ function ∧(::Type{Tuple{2,1}}, s::HasDeltaSet3D, α, β, x::Int)
   form = sign(3, s, x) * dot(ws, [
      # v₀:
      # [v3,v0][v0,v1,v2] [v2,v0][v0,v1,v3] [v1,v0][v0,v2,v3]
-            β3*α3       +    -β4*α2       +     β5*α1,
+    sign(1, s, e3) * sign(2, s, t3) * β3*α3 + sign(1, s, e4) * sign(2, s, t2) * -β4*α2 + sign(1, s, e5) * sign(2, s, t1) * β5*α1,
      # v₁
      # [v3,v1][v0,v1,v2] [v2,v1][v0,v1,v3] [v1,v0][v1,v2,v3]
-            β1*α3       +    -β2*α2       +     β5*α0,
+    sign(1, s, e1) * sign(2, s, t3) * β1*α3 + sign(1, s, e2) * sign(2, s, t2) * -β2*α2 + sign(1, s, e5) * sign(2, s, t0) * β5*α0,
      # v₂
      # [v3,v2][v0,v1,v2] [v2,v1][v0,v2,v3] [v2,v0][v1,v2,v3]
-            β0*α3       +    -β2*α1       +     β4*α0,
+    sign(1, s, e0) * sign(2, s, t3) * β0*α3 + sign(1, s, e2) * sign(2, s, t1) * -β2*α1 + sign(1, s, e4) * sign(2, s, t0) * β4*α0,
      # v₃
      # [v3,v2][v0,v1,v3] [v3,v1][v0,v2,v3] [v3,v0][v1,v2,v3]
-            β0*α2       +    -β1*α1       +     β3*α0])
+    sign(1, s, e0) * sign(2, s, t2) * β0*α2 + sign(1, s, e1) * sign(2, s, t1) * -β1*α1 + sign(1, s, e3) * sign(2, s, t0) * β3*α0])
   # Convert from parallelepiped volumes to tetrahedra.
   form / 3
 end
