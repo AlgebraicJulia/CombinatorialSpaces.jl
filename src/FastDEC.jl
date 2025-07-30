@@ -62,14 +62,17 @@ end
 function wedge_kernel_coeffs(::Type{Tuple{1,1}}, sd::EmbeddedDeltaDualComplex2D{Bool, float_type, _p}) where {float_type, _p}
   coeffs = Array{float_type}(undef, 3, ntriangles(sd))
   shift = ntriangles(sd)
-  @inbounds for i in 1:ntriangles(sd)
-    area = 2 * sd[i, :area]
-    coeffs[1, i] = (sd[i+0*shift, :dual_area] + sd[i+1*shift, :dual_area]) / area
-    coeffs[2, i] = (sd[i+2*shift, :dual_area] + sd[i+3*shift, :dual_area]) / area
-    coeffs[3, i] = (sd[i+4*shift, :dual_area] + sd[i+5*shift, :dual_area]) / area
-  end
   e = Array{Int32}(undef, 3, ntriangles(sd))
   e[1, :], e[2, :], e[3, :] = ∂(2, 0, sd), ∂(2, 1, sd), ∂(2, 2, sd)
+
+  @inbounds for i in 1:ntriangles(sd)
+    area = sign(2, sd, i) * 2 * sd[i, :area]
+    e0, e1, e2 = e[1, i], e[2, i], e[3, i]
+    coeffs[1, i] = sign(1, sd, Int64(e1)) * sign(1, sd, Int64(e2)) * (sd[i+0*shift, :dual_area] + sd[i+1*shift, :dual_area]) / area
+    coeffs[2, i] = sign(1, sd, Int64(e0)) * sign(1, sd, Int64(e2)) * (sd[i+2*shift, :dual_area] + sd[i+3*shift, :dual_area]) / area
+    coeffs[3, i] = sign(1, sd, Int64(e0)) * sign(1, sd, Int64(e1)) * (sd[i+4*shift, :dual_area] + sd[i+5*shift, :dual_area]) / area
+  end
+  
   (e, coeffs, ntriangles(sd))
 end
 
@@ -441,8 +444,8 @@ function dec_p_hodge_diag(::Type{Val{1}}, sd::EmbeddedDeltaDualComplex2D{Bool, f
 end
 
 function dec_p_hodge_diag(::Type{Val{2}}, sd::EmbeddedDeltaDualComplex2D{Bool, float_type, _p} where _p) where float_type
-  signed_tri_areas::Vector{float_type} = sd[:area] .* sign(2,sd)
-  1 ./ signed_tri_areas
+  tri_areas::Vector{float_type} = sd[:area]
+  1 ./ tri_areas
 end
 
 """    dec_hodge_star(n::Int, sd::HasDeltaSet; hodge=GeometricHodge())
@@ -522,6 +525,7 @@ function dec_hodge_star(::Type{Val{1}}, sd::EmbeddedDeltaDualComplex2D{Bool, flo
   view_I = @view I[1:idx]
   view_J = @view J[1:idx]
   view_V = @view V[1:idx]
+
   sparse(view_I, view_J, view_V)
 end
 
@@ -610,8 +614,8 @@ function Δᵈ(::Type{Val{0}}, s::SimplicialSets.HasDeltaSet)
   ihs1 = dec_inv_hodge_star(0, s, GeometricHodge());
   d1 = dec_differential(0,s);
   hs2 = dec_hodge_star(1, s, GeometricHodge());
-  m = hs2 * d1
-  x -> hs2 * d1 * ihs1 * dd0 * x
+  m = hs2 * d1 * ihs1 * dd0
+  x -> m * x
 end
 
 function Δᵈ(::Type{Val{0}}, s::SimplicialSets.HasDeltaSet2D)
@@ -621,7 +625,7 @@ function Δᵈ(::Type{Val{0}}, s::SimplicialSets.HasDeltaSet2D)
   hs2 = dec_hodge_star(2, s, GeometricHodge());
   m = hs2 * d1
   # Observe that this inverse Hodge star is a solver:
-  x -> hs2 * d1 * ihs1(dd0 * x)
+  x -> m * ihs1(dd0 * x)
 end
 
 function Δᵈ(::Type{Val{0}}, s::SimplicialSets.HasDeltaSet3D)
@@ -630,8 +634,8 @@ function Δᵈ(::Type{Val{0}}, s::SimplicialSets.HasDeltaSet3D)
   ihs1 = inv_hodge_star(2, s, DiagonalHodge());
   d1 = d(2,s);
   hs2 = hodge_star(3, s, DiagonalHodge());
-  m = hs2 * d1
-  x -> hs2 * d1 * ihs1 * dd0 * x
+  m = hs2 * d1 * ihs1 * dd0
+  x -> m * x
 end
 
 """    function Δᵈ_mat(::Type{Val{2}}, s::SimplicialSets.HasDeltaSet)
