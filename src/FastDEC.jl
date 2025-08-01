@@ -41,7 +41,7 @@ export dec_wedge_product, cache_wedge, dec_c_wedge_product, dec_c_wedge_product!
 # Cache coefficients to be used by wedge product kernels.
 function wedge_kernel_coeffs(::Type{Tuple{0,1}}, sd::Union{EmbeddedDeltaDualComplex1D, EmbeddedDeltaDualComplex2D, EmbeddedDeltaDualComplex3D})
   (hcat(convert(Vector{Int32}, sd[:∂v0])::Vector{Int32}, convert(Vector{Int32}, sd[:∂v1])::Vector{Int32}),
-   ne(sd))
+    ne(sd))
 end
 
 # TODO: Tagging `shift` as `::Int` can sometimes increase efficiency.
@@ -72,7 +72,7 @@ function wedge_kernel_coeffs(::Type{Tuple{1,1}}, sd::Union{EmbeddedDeltaDualComp
     coeffs[2, i] = sign(1, sd, Int64(e0)) * sign(1, sd, Int64(e2)) * (sd[i+2*shift, :dual_area] + sd[i+3*shift, :dual_area]) / area
     coeffs[3, i] = sign(1, sd, Int64(e0)) * sign(1, sd, Int64(e1)) * (sd[i+4*shift, :dual_area] + sd[i+5*shift, :dual_area]) / area
   end
-  
+
   (e, coeffs, ntriangles(sd))
 end
 
@@ -119,7 +119,7 @@ end
   c1, c2, c3 = c[Int32(1), i], c[Int32(2), i], c[Int32(3), i]
   ae0, ae1, ae2 = α[e0], α[e1], α[e2]
   be0, be1, be2 = β[e0], β[e1], β[e2]
- @inbounds res[i] = (c1 * (ae2 * be1 - ae1 * be2) + c2 * (ae2 * be0 - ae0 * be2) + c3 * (ae1 * be0 - ae0 * be1))
+  @inbounds res[i] = (c1 * (ae2 * be1 - ae1 * be2) + c2 * (ae2 * be0 - ae0 * be2) + c3 * (ae1 * be0 - ae0 * be1))
 end
 
 function auto_select_backend(kernel_function, res, α, β, p, c)
@@ -344,6 +344,16 @@ dec_p_dual_derivative(::Type{Val{0}}, sd::HasDeltaSet2D) =
 dec_p_dual_derivative(::Type{Val{1}}, sd::HasDeltaSet2D) =
   dec_p_boundary(Val{1}, sd, negate=true)
 
+# TODO: Do we have to negate any of these operators?
+dec_p_dual_derivative(::Type{Val{0}}, sd::HasDeltaSet3D) =
+  dec_p_boundary(Val{3}, sd, negate=true)
+
+dec_p_dual_derivative(::Type{Val{1}}, sd::HasDeltaSet3D) =
+  dec_p_boundary(Val{2}, sd)
+
+dec_p_dual_derivative(::Type{Val{2}}, sd::HasDeltaSet3D) =
+  dec_p_boundary(Val{1}, sd, negate=true)
+
 """    dec_differential(n::Int, sd::HasDeltaSet)
 
 Return the exterior derivative (as a matrix) between `n`-simplices and `(n+1)`-simplices
@@ -397,13 +407,46 @@ function dec_p_derivbound(::Type{Val{1}}, sd::HasDeltaSet; transpose::Bool=false
     V[j+2] = e2_sign * t_sign
   end
   if (transpose)
-      I, J = J, I
+    I, J = J, I
   end
   if (negate)
-      V .= -1 .* V
+    V .= -1 .* V
   end
   (I, J, V)
 end
+
+function dec_p_derivbound(::Type{Val{2}}, sd::HasDeltaSet; transpose::Bool=false, negate::Bool=false)
+  vec_size = 4 * ntetrahedra(sd)
+  I = Vector{Int32}(undef, vec_size)
+  J = Vector{Int32}(undef, vec_size)
+  V = Vector{Int8}(undef, vec_size)
+  for i in tetrahedra(sd)
+    j = 4 * i - 3
+
+    I[j], I[j+1], I[j+2], I[j+3] = i, i, i, i
+
+    J[j], J[j+1], J[j+2], J[j+3] = sd[i, :∂t0], sd[i, :∂t1], sd[i, :∂t2], sd[i, :∂t3]
+
+    t0_sign = numeric_sign(sd[sd[i, :∂t0], :tri_orientation]::Bool)
+    t1_sign = numeric_sign(sd[sd[i, :∂t1], :tri_orientation]::Bool)
+    t2_sign = numeric_sign(sd[sd[i, :∂t2], :tri_orientation]::Bool)
+    t3_sign = numeric_sign(sd[sd[i, :∂t3], :tri_orientation]::Bool)
+    tet_sign = numeric_sign(sd[i, :tet_orientation]::Bool)
+
+    V[j] = t0_sign * tet_sign
+    V[j+1] = -1 * t1_sign * tet_sign
+    V[j+2] = t2_sign * tet_sign
+    V[j+3] = -1 * t3_sign * tet_sign
+  end
+  if (transpose)
+    I, J = J, I
+  end
+  if (negate)
+    V .= -1 .* V
+  end
+  (I, J, V)
+end
+
 
 # Diagonal Hodge Star
 #--------------------

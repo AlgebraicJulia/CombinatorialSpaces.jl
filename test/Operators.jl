@@ -29,6 +29,13 @@ function generate_dual_mesh(s::HasDeltaSet2D)
     sd
 end
 
+function generate_dual_mesh(s::HasDeltaSet3D)
+    orient!(s)
+    sd = EmbeddedDeltaDualComplex3D{Bool,Float64,Point3d}(s)
+    subdivide_duals!(sd, Barycenter())
+    sd
+end
+
 primal_line = EmbeddedDeltaSet1D{Bool,Point2d}()
 add_vertices!(primal_line, 3, point=[Point2d(1,0), Point2d(0,0), Point2d(0,2)])
 add_edges!(primal_line, [1,2], [2,3])
@@ -53,6 +60,8 @@ dual_meshes_2D = [(generate_dual_mesh ∘ loadmesh ∘ Icosphere).(1:2)...,
                (generate_dual_mesh).([triangulated_grid(10,10,8,8,Point3d), makeSphere(5, 175, 5, 0, 360, 5, 6371+90)[1]])...,
                (loadmesh)(Torus_30x10())];
 
+dual_meshes_3D = [last(single_tetrahedron()), generate_dual_mesh(parallelepiped())]
+
 tg′ = triangulated_grid(100,100,10,10,Point2d);
 tg = EmbeddedDeltaDualComplex2D{Bool,Float64,Point2d}(tg′);
 subdivide_duals!(tg, Barycenter());
@@ -73,8 +82,15 @@ subdivide_duals!(tet_msh_sd, Circumcenter())
             @test all(dec_differential(i, sd) .== d(i, sd))
         end
     end
+
     for i in 0:1
         for sd in dual_meshes_2D
+            @test all(dec_differential(i, sd) .== d(i, sd))
+        end
+    end
+
+    for i in 0:2
+        for sd in dual_meshes_3D
             @test all(dec_differential(i, sd) .== d(i, sd))
         end
     end
@@ -92,6 +108,12 @@ end
             @test all(dec_boundary(i, sd) .== ∂(i, sd))
         end
     end
+
+    for i in 1:3
+        for sd in dual_meshes_3D
+            @test all(dec_boundary(i, sd) .== ∂(i, sd))
+        end
+    end
 end
 
 @testset "Dual Derivative" begin
@@ -103,6 +125,12 @@ end
 
     for i in 0:1
         for sd in dual_meshes_2D
+            @test all(dec_dual_derivative(i, sd) .== dual_derivative(i, sd))
+        end
+    end
+
+    for i in 0:2
+        for sd in dual_meshes_3D
             @test all(dec_dual_derivative(i, sd) .== dual_derivative(i, sd))
         end
     end
