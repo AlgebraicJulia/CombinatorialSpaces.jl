@@ -249,6 +249,39 @@ end
         @test all(dec_wedge_product(Tuple{1, 1}, sd)(E_1, E_2) .≈ ∧(Tuple{1, 1}, sd, E_1, E_2))
     end
 
+    for sd in dual_meshes_3D
+        V_1, V_2 = rand(nv(sd)), rand(nv(sd))
+        E_1, E_2 = rand(ne(sd)), rand(ne(sd))
+        T_2 = rand(ntriangles(sd))
+        Tet_2 = rand(ntetrahedra(sd))
+        V_ones = ones(nv(sd))
+        E_ones = ones(ne(sd))
+        T_ones = ones(ntriangles(sd))
+        Tet_ones = ones(ntetrahedra(sd))
+
+        wdg00 = dec_wedge_product(Tuple{0, 0}, sd)
+        wdg01 = dec_wedge_product(Tuple{0, 1}, sd)
+        wdg02 = dec_wedge_product(Tuple{0, 2}, sd)
+        wdg03 = dec_wedge_product(Tuple{0, 3}, sd)
+
+        wdg11 = dec_wedge_product(Tuple{1, 1}, sd)
+        wdg12 = dec_wedge_product(Tuple{1, 2}, sd)
+
+        @test all(wdg00(V_ones, V_ones) .== V_ones)
+        @test all(wdg01(V_ones, E_ones) .== E_ones)
+        @test all(wdg02(V_ones, T_ones) .≈ T_ones)
+        @test all(wdg03(V_ones, Tet_ones) .≈ Tet_ones)
+        @test all(wdg11(E_ones, E_ones) .== zeros(ntriangles(sd)))
+        @test all(wdg12(E_ones, T_ones) .≈ ∧(Tuple{1,2}, sd, E_ones, T_ones))
+
+        @test all(wdg00(V_1, V_2) .≈ ∧(Tuple{0, 0}, sd, V_1, V_2))
+        @test all(wdg01(V_1, E_2) .≈ ∧(Tuple{0, 1}, sd, V_1, E_2))
+        @test all(wdg02(V_1, T_2) .≈ ∧(Tuple{0, 2}, sd, V_1, T_2))
+        @test all(wdg03(V_1, Tet_2) .≈ ∧(Tuple{0, 3}, sd, V_1, Tet_2))
+        @test all(wdg11(E_1, E_2) .≈ ∧(Tuple{1, 1}, sd, E_1, E_2))
+        @test all(wdg12(E_1, T_2) .≈ ∧(Tuple{1, 2}, sd, E_1, T_2))
+    end
+
     # Test flipped edge orientation preserves value
     sd = first(dual_meshes_2D)
     E_1, E_2 = rand(ne(sd)), rand(ne(sd))
@@ -258,6 +291,7 @@ end
         E_1[i] = -E_1[i]; E_2[i] = -E_2[i];
         @test all(wdg_11(E_1, E_2) .≈ ∧(Tuple{1, 1}, sd, E_1, E_2))
     end
+
 end
 
 @testset "Dual Laplacian" begin

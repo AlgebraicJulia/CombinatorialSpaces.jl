@@ -59,6 +59,20 @@ function wedge_kernel_coeffs(::Type{Tuple{0,2}}, sd::Union{EmbeddedDeltaDualComp
   (verts, coeffs, ntriangles(sd))
 end
 
+function wedge_kernel_coeffs(::Type{Tuple{0,3}}, sd::EmbeddedDeltaDualComplex3D{Bool, float_type, _p}) where {float_type, _p}
+  verts = Array{Int32}(undef, 24, ntetrahedra(sd))
+  coeffs = Array{float_type}(undef, 24, ntetrahedra(sd))
+  stride = 24
+  @inbounds for tet in tetrahedra(sd)
+    for dtet in 1:24
+      dtet_real = stride * (tet-1) + dtet
+      verts[dtet, tet] = sd[sd[sd[dtet_real, :D_∂t2], :D_∂e2], :D_∂v1]
+      coeffs[dtet, tet] = sd[dtet_real, :dual_vol] / sd[tet, :vol]
+    end
+  end
+  (verts, coeffs, ntetrahedra(sd))
+end
+
 function wedge_kernel_coeffs(::Type{Tuple{1,1}}, sd::Union{EmbeddedDeltaDualComplex2D{Bool, float_type, _p}, EmbeddedDeltaDualComplex3D{Bool, float_type, _p}}) where {float_type, _p}
   coeffs = Array{float_type}(undef, 3, ntriangles(sd))
   shift = ntriangles(sd)
@@ -74,6 +88,46 @@ function wedge_kernel_coeffs(::Type{Tuple{1,1}}, sd::Union{EmbeddedDeltaDualComp
   end
 
   (e, coeffs, ntriangles(sd))
+end
+
+# TODO: Improve generatation of coefficients
+function wedge_kernel_coeffs(::Type{Tuple{2,1}}, sd::EmbeddedDeltaDualComplex3D{Bool, float_type, _p}) where {float_type, _p}
+  coeffs = Array{float_type}(undef, 12, ntetrahedra(sd))
+  ets = Array{Int32}(undef, 10, ntetrahedra(sd))
+  
+  for tet in tetrahedra(sd)
+    d_tets = subsimplices(3, sd, tet)
+    d_volume(tets) = sum(sd[tets, :dual_vol])
+
+    ws = map(tetrahedron_vertices(sd,tet)) do v
+      d_volume(d_tets ∩ elementary_duals(0,sd,v)) / sd[tet, :vol]
+    end ./ 3
+    ets[1:6, tet] .= tetrahedron_edges(sd, tet)
+    ets[7:10, tet] .= tetrahedron_triangles(sd, tet)
+
+    e0, e1, e2, e3, e4, e5 = ets[1:6, tet]
+    t0, t1, t2, t3 = ets[7:10, tet]
+
+    tet_sign = sign(3, sd, tet)
+
+    coeffs[1, tet] = tet_sign * sign(1, sd, Int64(e3)) * sign(2, sd, Int64(t3)) * ws[1]
+    coeffs[2, tet] = tet_sign * sign(1, sd, Int64(e4)) * sign(2, sd, Int64(t2)) * ws[1]
+    coeffs[3, tet] = tet_sign * sign(1, sd, Int64(e5)) * sign(2, sd, Int64(t1)) * ws[1]
+
+    coeffs[4, tet] = tet_sign * sign(1, sd, Int64(e1)) * sign(2, sd, Int64(t3)) * ws[2]
+    coeffs[5, tet] = tet_sign * sign(1, sd, Int64(e2)) * sign(2, sd, Int64(t2)) * ws[2]
+    coeffs[6, tet] = tet_sign * sign(1, sd, Int64(e5)) * sign(2, sd, Int64(t0)) * ws[2]
+
+    coeffs[7, tet] = tet_sign * sign(1, sd, Int64(e0)) * sign(2, sd, Int64(t3)) * ws[3]
+    coeffs[8, tet] = tet_sign * sign(1, sd, Int64(e2)) * sign(2, sd, Int64(t1)) * ws[3]
+    coeffs[9, tet] = tet_sign * sign(1, sd, Int64(e4)) * sign(2, sd, Int64(t0)) * ws[3]
+
+    coeffs[10, tet] = tet_sign * sign(1, sd, Int64(e0)) * sign(2, sd, Int64(t2)) * ws[4]
+    coeffs[11, tet] = tet_sign * sign(1, sd, Int64(e1)) * sign(2, sd, Int64(t1)) * ws[4]
+    coeffs[12, tet] = tet_sign * sign(1, sd, Int64(e3)) * sign(2, sd, Int64(t0)) * ws[4]
+  end
+
+  (ets, coeffs, ntetrahedra(sd))
 end
 
 # Grab the float type of the volumes of the complex.
@@ -113,6 +167,15 @@ end
   @inbounds res[i] = α[i] * (c1*f[p1] + c2*f[p2] + c3*f[p3] + c4*f[p4] + c5*f[p5] + c6*f[p6])
 end
 
+@kernel function wedge_kernel_03!(res, @Const(f), @Const(α), @Const(p), @Const(c))
+  i = @index(Global)
+  res[i] = eltype(f)(0.0)
+  α_val = α[i]
+  @inbounds for j in Int32(1):Int32(24)
+    res[i] += α_val * c[j,i] * f[p[j,i]]
+  end
+end
+
 @kernel function wedge_kernel_11!(res, @Const(α), @Const(β), @Const(e), @Const(c))
   i = @index(Global)
   e0, e1, e2 = e[Int32(1), i], e[Int32(2), i], e[Int32(3), i]
@@ -120,6 +183,21 @@ end
   ae0, ae1, ae2 = α[e0], α[e1], α[e2]
   be0, be1, be2 = β[e0], β[e1], β[e2]
   @inbounds res[i] = (c1 * (ae2 * be1 - ae1 * be2) + c2 * (ae2 * be0 - ae0 * be2) + c3 * (ae1 * be0 - ae0 * be1))
+end
+
+@kernel function wedge_kernel_21!(res, @Const(α), @Const(β), @Const(ets), @Const(c))
+  i = @index(Global)
+  e0, e1, e2, e3, e4, e5 = ets[Int32(1), i], ets[Int32(2), i], ets[Int32(3), i], ets[Int32(4), i], ets[Int32(5), i], ets[Int32(6), i]
+  t0, t1, t2, t3 = ets[Int32(7), i], ets[Int32(8), i], ets[Int32(9), i], ets[Int32(10), i]
+
+  c1, c2, c3, c4, c5, c6 = c[Int32(1), i], c[Int32(2), i], c[Int32(3), i], c[Int32(4), i], c[Int32(5), i], c[Int32(6), i]
+  c7, c8, c9, c10, c11, c12 = c[Int32(7), i], c[Int32(8), i], c[Int32(9), i], c[Int32(10), i], c[Int32(11), i], c[Int32(12), i]
+
+  at0, at1, at2, at3 = α[t0], α[t1], α[t2], α[t3]
+  be0, be1, be2, be3, be4, be5 = β[e0], β[e1], β[e2], β[e3], β[e4], β[e5]
+
+  @inbounds res[i] = c1*be3*at3 - c2*be4*at2 + c3*be5*at1 + c4*be1*at3 - c5*be2*at2 + c6*be5*at0 +
+                     c7*be0*at3 - c8*be2*at1 + c9*be4*at0 + c10*be0*at2 - c11*be1*at1 + c12*be3*at0
 end
 
 function auto_select_backend(kernel_function, res, α, β, p, c)
@@ -136,8 +214,12 @@ function dec_c_wedge_product!(::Type{Tuple{j,k}}, res, α, β, p, c) where {j,k}
     wedge_kernel_01!
   elseif (j,k) == (0,2)
     wedge_kernel_02!
+  elseif (j,k) == (0,3)
+    wedge_kernel_03!
   elseif (j,k) == (1,1)
     wedge_kernel_11!
+  elseif (j,k) == (2,1)
+    wedge_kernel_21!
   else
     error("Unsupported combination of degrees $j and $k. Ensure that their sum is not greater than the degree of the complex, and the degree of the first is ≤ the degree of the second.")
   end
@@ -191,14 +273,14 @@ function dec_wedge_product(::Type{Tuple{1,1}}, sd::HasDeltaSet2D, backend=Val{:C
   (α, β) -> dec_c_wedge_product(Tuple{1,1}, α, β, wedge_cache)
 end
 
-function dec_wedge_product(::Type{Tuple{2,1}}, sd::HasDeltaSet3D, backend=Val{:CPU}, arr_cons=identity, cast_float=nothing)
-  wedge_cache = cache_wedge(Tuple{1,2}, sd, backend, arr_cons, cast_float)
-  (α, β) -> dec_c_wedge_product(Tuple{1,2}, β, α, wedge_cache)
+function dec_wedge_product(::Type{Tuple{1,2}}, sd::HasDeltaSet3D, backend=Val{:CPU}, arr_cons=identity, cast_float=nothing)
+  wedge_cache = cache_wedge(Tuple{2,1}, sd, backend, arr_cons, cast_float)
+  (α, β) -> dec_c_wedge_product(Tuple{2,1}, β, α, wedge_cache)
 end
 
 function dec_wedge_product(::Type{Tuple{2,1}}, sd::HasDeltaSet3D, backend=Val{:CPU}, arr_cons=identity, cast_float=nothing)
-  wedge_cache = cache_wedge(Tuple{1,2}, sd, backend, arr_cons, cast_float)
-  (α, β) -> dec_c_wedge_product(Tuple{1,2}, α, β, wedge_cache)
+  wedge_cache = cache_wedge(Tuple{2,1}, sd, backend, arr_cons, cast_float)
+  (α, β) -> dec_c_wedge_product(Tuple{2,1}, α, β, wedge_cache)
 end
 
 # Return a matrix that can be multiplied to a dual 0-form, before being
