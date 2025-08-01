@@ -1317,6 +1317,7 @@ function ∧(::Type{Tuple{2,1}}, s::HasDeltaSet3D, α, β, x::Int)
   # map(x -> edge_vertices(s, x), tetrahedron_edges(s,x))
   # or by thinking through the simplicial identities, of course.
   # Observe that e.g. β3 and α3 share v0, but differ in all other endpoints.
+  # TODO: Replace signs with shorter variable names
   form = sign(3, s, x) * dot(ws, [
      # v₀:
      # [v3,v0][v0,v1,v2] [v2,v0][v0,v1,v3] [v1,v0][v0,v2,v3]
@@ -1956,7 +1957,6 @@ function p2_d2_interpolation(sd::HasDeltaSet2D)
     for dual_tri_id in tri_id:ntriangles(sd):nparts(sd, :DualTri)
       dual_tri_area = sd[dual_tri_id, :dual_area]
 
-      # TODO: Check whether to remove the sign here.
       weight = (dual_tri_area / tri_area)
 
       v = sd[sd[dual_tri_id, :D_∂e1], :D_∂v1]
