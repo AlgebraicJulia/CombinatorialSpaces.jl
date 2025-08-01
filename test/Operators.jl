@@ -14,6 +14,8 @@ using StaticArrays: SVector
 using Statistics: mean, var, std
 using TetGen
 
+import CombinatorialSpaces.Meshes: single_tetrahedron
+
 Random.seed!(0)
 
 function generate_dual_mesh(s::HasDeltaSet1D)
@@ -169,6 +171,12 @@ end
             @test all(isapprox.(dec_hodge_star(Val{i}, sd, DiagonalHodge()), hodge_star(i, sd, DiagonalHodge()); rtol = 1e-12))
         end
     end
+
+    for i in 0:3
+        for sd in dual_meshes_3D
+            @test all(isapprox.(dec_hodge_star(Val{i}, sd, DiagonalHodge()), hodge_star(i, sd, DiagonalHodge()); rtol = 1e-12))
+        end
+    end
 end
 
 #TODO: For inv hodge star 1, the values seems to be extremely close yet not quite equal
@@ -181,6 +189,12 @@ end
 
     for i in 0:2
         for sd in dual_meshes_2D
+            @test all(isapprox.(dec_inv_hodge_star(Val{i}, sd, DiagonalHodge()), inv_hodge_star(i, sd, DiagonalHodge()); rtol = 1e-12))
+        end
+    end
+
+    for i in 0:3
+        for sd in dual_meshes_3D
             @test all(isapprox.(dec_inv_hodge_star(Val{i}, sd, DiagonalHodge()), inv_hodge_star(i, sd, DiagonalHodge()); rtol = 1e-12))
         end
     end

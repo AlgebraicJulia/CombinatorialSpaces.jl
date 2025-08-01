@@ -191,6 +191,16 @@ function dec_wedge_product(::Type{Tuple{1,1}}, sd::HasDeltaSet2D, backend=Val{:C
   (α, β) -> dec_c_wedge_product(Tuple{1,1}, α, β, wedge_cache)
 end
 
+function dec_wedge_product(::Type{Tuple{2,1}}, sd::HasDeltaSet3D, backend=Val{:CPU}, arr_cons=identity, cast_float=nothing)
+  wedge_cache = cache_wedge(Tuple{1,2}, sd, backend, arr_cons, cast_float)
+  (α, β) -> dec_c_wedge_product(Tuple{1,2}, β, α, wedge_cache)
+end
+
+function dec_wedge_product(::Type{Tuple{2,1}}, sd::HasDeltaSet3D, backend=Val{:CPU}, arr_cons=identity, cast_float=nothing)
+  wedge_cache = cache_wedge(Tuple{1,2}, sd, backend, arr_cons, cast_float)
+  (α, β) -> dec_c_wedge_product(Tuple{1,2}, α, β, wedge_cache)
+end
+
 # Return a matrix that can be multiplied to a dual 0-form, before being
 # elementwise-multiplied by a dual 1-form, encoding the wedge product.
 function wedge_dd_01_mat(sd::HasDeltaSet)
@@ -495,6 +505,36 @@ function dec_p_hodge_diag(::Type{Val{2}}, sd::EmbeddedDeltaDualComplex2D{Bool, f
   1 ./ tri_areas
 end
 
+# TODO: Improve the generation of these 3D hodge stars
+function dec_p_hodge_diag(::Type{Val{0}}, sd::EmbeddedDeltaDualComplex3D{Bool, float_type, _p} where _p) where float_type
+  h_0 = zeros(float_type, nv(sd))
+  for v in vertices(sd)
+    h_0[v] = sum(sd[elementary_duals(Val{0},sd,v), :dual_vol])
+  end
+  h_0
+end
+
+function dec_p_hodge_diag(::Type{Val{1}}, sd::EmbeddedDeltaDualComplex3D{Bool, float_type, _p} where _p) where float_type
+  h_1 = zeros(float_type, ne(sd))
+  for e in edges(sd)
+    h_1[e] = sum(dual_volume(Val{2}, sd, elementary_duals(Val{1},sd,e))) / volume(Val{1},sd,e)
+  end
+  h_1
+end
+
+function dec_p_hodge_diag(::Type{Val{2}}, sd::EmbeddedDeltaDualComplex3D{Bool, float_type, _p} where _p) where float_type
+  h_2 = zeros(float_type, ntriangles(sd))
+  for t in triangles(sd)
+    h_2[t] = sum(dual_volume(Val{1}, sd, elementary_duals(Val{2},sd,t))) / volume(Val{2},sd,t)
+  end
+  h_2
+end
+
+function dec_p_hodge_diag(::Type{Val{3}}, sd::EmbeddedDeltaDualComplex3D{Bool, float_type, _p} where _p) where float_type
+  tet_volumes::Vector{float_type} = sd[:vol]
+  1 ./ tet_volumes
+end
+
 """    dec_hodge_star(n::Int, sd::HasDeltaSet; hodge=GeometricHodge())
 
 Return the hodge matrix between `n`-simplices and dual 'n'-simplices.
@@ -607,6 +647,9 @@ function dec_inv_hodge_star(::Type{Val{1}}, sd::EmbeddedDeltaDualComplex2D, ::Ge
   hdg_lu = factorize(-1 * dec_hodge_star(1, sd, GeometricHodge()))
   x -> hdg_lu \ x
 end
+
+dec_inv_hodge_star(::Type{Val{j}}, sd::EmbeddedDeltaDualComplex3D, ::GeometricHodge) where {j} =
+  @error "The Geometric Hodge star in 3D has not yet been implemented. Please use the Diagonal Hodge star instead."
 
 # Interior Product and Lie Derivative
 #------------------------------------
