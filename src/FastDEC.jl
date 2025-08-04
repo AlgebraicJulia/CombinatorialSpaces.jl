@@ -175,7 +175,7 @@ end
   for j in Int32(1):Int32(24)
     tmp += α_val * c[j,i] * f[p[j,i]]
   end
-  
+
   res[i] = tmp
 end
 
@@ -223,8 +223,8 @@ function dec_c_wedge_product!(::Type{Tuple{j,k}}, res, α, β, p, c) where {j,k}
     wedge_kernel_11!
   elseif (j,k) == (2,1)
     wedge_kernel_21!
-  else #TODO: This error message is incorrect with 2,1
-    error("Unsupported combination of degrees $j and $k. Ensure that their sum is not greater than the degree of the complex, and the degree of the first is ≤ the degree of the second.")
+  else
+    error("Unsupported combination of degrees $j and $k. Ensure that their sum is not greater than the degree of the complex.")
   end
   auto_select_backend(kernel_function, res, α, β, p, c)
 end
@@ -439,7 +439,6 @@ dec_p_dual_derivative(::Type{Val{0}}, sd::HasDeltaSet2D) =
 dec_p_dual_derivative(::Type{Val{1}}, sd::HasDeltaSet2D) =
   dec_p_boundary(Val{1}, sd, negate=true)
 
-# TODO: Do we have to negate any of these operators?
 dec_p_dual_derivative(::Type{Val{0}}, sd::HasDeltaSet3D) =
   dec_p_boundary(Val{3}, sd, negate=true)
 
@@ -804,12 +803,11 @@ function Δᵈ(::Type{Val{0}}, s::SimplicialSets.HasDeltaSet2D)
 end
 
 function Δᵈ(::Type{Val{0}}, s::SimplicialSets.HasDeltaSet3D)
-  # TODO: These elementary operations should be defined in this module.
-  dd0 = dual_derivative(0, s);
-  ihs1 = inv_hodge_star(2, s, DiagonalHodge());
-  d1 = d(2,s);
-  hs2 = hodge_star(3, s, DiagonalHodge());
-  m = hs2 * d1 * ihs1 * dd0
+  dd0 = dec_dual_derivative(0, s);
+  ihs2 = dec_inv_hodge_star(2, s, DiagonalHodge());
+  d2 = dec_differential(2,s);
+  hs3 = dec_hodge_star(3, s, DiagonalHodge());
+  m = hs3 * d2 * ihs2 * dd0
   x -> m * x
 end
 

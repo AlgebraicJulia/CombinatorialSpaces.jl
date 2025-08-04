@@ -327,6 +327,7 @@ end
   end
 
   # 3D
+  # TODO: Investigate this operator as well, although it uses DiagonalHodge
   sd = tet_msh_sd
   twoX = map(p -> 2*p[1], sd[sd[:tet_center], :dual_point])
   nil = Δᵈ(Val{0}, sd)(twoX)
