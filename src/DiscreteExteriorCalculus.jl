@@ -2071,23 +2071,19 @@ function lie_derivative_flat(::Type{Val{2}}, s::HasDeltaSet,
   dual_derivative(1, s, interior_product_flat(2, s, X♭, α; kw...))
 end
 
-function eval_constant_primal_form(s::EmbeddedDeltaDualComplex2D{Bool, Float64, T} where T<:Union{Point3d, Point3D}, α::Union{Point3d, SVector{3,Float64}})
+function eval_constant_primal_form(s::HasDeltaSet1D, α)
+  @assert length(α) == length(point(s, 1))
   EForm(map(edges(s)) do e
           dot(α, point(s, tgt(s,e)) - point(s, src(s,e))) * sign(1,s,e)
         end)
 end
+
 function eval_constant_primal_form(s::EmbeddedDeltaDualComplex2D{Bool, Float64, T} where T<:Union{Point2d, Point2D}, α::Union{Point3d, SVector{3,Float64}})
   α = SVector{2,Float64}(α[1],α[2])
   EForm(map(edges(s)) do e
           dot(α, point(s, tgt(s,e)) - point(s, src(s,e))) * sign(1,s,e)
         end)
 end
-function eval_constant_primal_form(s::EmbeddedDeltaDualComplex3D{Bool, Float64, T} where T, α::Union{Point3d, SVector{3,Float64}})
-  EForm(map(edges(s)) do e
-          dot(α, point(s, tgt(s,e)) - point(s, src(s,e))) * sign(1,s,e)
-        end)
-end
-
 
 # Evaluate a constant dual form
 # XXX: This "left/right-hand-rule" trick only works when z=0.
