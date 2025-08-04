@@ -1956,7 +1956,6 @@ function p2_d2_interpolation(sd::HasDeltaSet2D)
     for dual_tri_id in tri_id:ntriangles(sd):nparts(sd, :DualTri)
       dual_tri_area = sd[dual_tri_id, :dual_area]
 
-      # TODO: Check whether to remove the sign here.
       weight = (dual_tri_area / tri_area)
 
       v = sd[sd[dual_tri_id, :D_∂e1], :D_∂v1]

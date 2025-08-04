@@ -600,7 +600,7 @@ rect′ = loadmesh(Rectangle_30x10());
 rect = EmbeddedDeltaDualComplex2D{Bool,Float64,Point3d}(rect′);
 subdivide_duals!(rect, Barycenter());
 
-flat_meshes = [tri_345(), right_scalene_unit_hypot(), grid_345(), (tg′, tg), (rect′, rect)];
+flat_ccw_meshes = [tri_345(), right_scalene_unit_hypot(), grid_345(), (tg′, tg), (rect′, rect)];
 
 # Over a static vector-field...
 # ... Test the primal-to-primal flat operation agrees with the dual-to-primal flat operation.
@@ -659,7 +659,7 @@ u = s1 * d0 * u_potential; # -dy or dy, depending on left vs. right-hand rule: �
 # Test that the technique for evaluating 1-forms is consistent across primal
 # and dual forms.
 # ♭ᵈ_discrete(f_continuous) = ⋆₁_discrete∘♭ᵖ_discrete(⋆_continuous f_continuous)
-for (primal_s,s) in flat_meshes
+for (primal_s,s) in flat_ccw_meshes
   α = SVector(1/√2,1/√2,0)
   left_hand_α = SVector(1/√2,-1/√2,0)
   f′ = eval_constant_primal_form(s, left_hand_α)
@@ -678,7 +678,7 @@ function all_are_approx(f::Vector{SVector{2,Float64}}, g::SVector{3,Float64}; at
   end)
 end
 
-for (primal_s,s) in flat_meshes
+for (primal_s,s) in flat_ccw_meshes
   # Test that the least-squares ♯ from dual vector fields to dual 1-forms
   # preserves constant fields.
   ♯_m = ♯_mat(s, LLSDDSharp())
@@ -741,7 +741,7 @@ end
 #      = ffdxdy - ggdydx
 #      = (ff+gg)dxdy
 # ⋆(u∧⋆u) = ff+gg
-for (primal_s,s) in flat_meshes
+for (primal_s,s) in flat_ccw_meshes
   f = 2
   g = 7
   ff_gg = (f*f + g*g)
@@ -751,10 +751,6 @@ for (primal_s,s) in flat_meshes
   u = eval_constant_primal_form(s, u_def)
   u_star = DualForm{1}(hodge_star(1,s) * u)
 
-  # v_def = SVector{3,Float64}(-g,f,0)
-  # v = eval_constant_primal_form(s, v_def)
-  # dec_hodge_star(2,s) * ∧(s, u, v)
-
   @test all(isapprox.(
     dec_hodge_star(2,s) * ∧(s, u, u_star),
     ff_gg,
@@ -762,8 +758,7 @@ for (primal_s,s) in flat_meshes
 end
 
 # Constant interpolation on flat meshes with boundaries
-for (s, sd) in flat_meshes
-  # ex_1 = sign(2, sd)
+for (s, sd) in flat_ccw_meshes
   interp = p2_d2_interpolation(sd)
   inv_hdg_0 = dec_inv_hodge_star(0, sd)
 
