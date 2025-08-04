@@ -169,11 +169,14 @@ end
 
 @kernel function wedge_kernel_03!(res, @Const(f), @Const(α), @Const(p), @Const(c))
   i = @index(Global)
-  res[i] = eltype(f)(0.0)
+
+  tmp = eltype(f)(0.0)
   α_val = α[i]
-  @inbounds for j in Int32(1):Int32(24)
-    res[i] += α_val * c[j,i] * f[p[j,i]]
+  for j in Int32(1):Int32(24)
+    tmp += α_val * c[j,i] * f[p[j,i]]
   end
+  
+  res[i] = tmp
 end
 
 @kernel function wedge_kernel_11!(res, @Const(α), @Const(β), @Const(e), @Const(c))
@@ -220,7 +223,7 @@ function dec_c_wedge_product!(::Type{Tuple{j,k}}, res, α, β, p, c) where {j,k}
     wedge_kernel_11!
   elseif (j,k) == (2,1)
     wedge_kernel_21!
-  else
+  else #TODO: This error message is incorrect with 2,1
     error("Unsupported combination of degrees $j and $k. Ensure that their sum is not greater than the degree of the complex, and the degree of the first is ≤ the degree of the second.")
   end
   auto_select_backend(kernel_function, res, α, β, p, c)

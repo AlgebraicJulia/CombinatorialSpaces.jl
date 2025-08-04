@@ -5,15 +5,13 @@ using SparseArrays
 using LinearAlgebra
 using Catlab
 using CombinatorialSpaces
-using CombinatorialSpaces.Meshes: tri_345, tri_345_false, grid_345, right_scalene_unit_hypot
+using CombinatorialSpaces.Meshes: tri_345, tri_345_false, grid_345, right_scalene_unit_hypot, single_tetrahedron
 using CombinatorialSpaces.SimplicialSets: boundary_inds
 using CombinatorialSpaces.DiscreteExteriorCalculus: eval_constant_primal_form
 using GeometryBasics: Point, QuadFace, MetaMesh
 using Random
 using StaticArrays: SVector
 using Statistics: mean, var, std
-
-import CombinatorialSpaces.Meshes: single_tetrahedron
 
 Random.seed!(0)
 
@@ -292,6 +290,16 @@ end
         @test all(wdg_11(E_1, E_2) .≈ ∧(Tuple{1, 1}, sd, E_1, E_2))
     end
 
+    # Test flipped edge/tri orientation preserves value
+    sd = first(dual_meshes_3D)
+    E_1, T_2 = rand(ne(sd)), rand(ntriangles(sd))
+    for (i,j) in zip(edges(sd), triangles(sd))
+        sd[i, :edge_orientation] = !sd[i, :edge_orientation]
+        sd[i, :tri_orientation] = !sd[i, :tri_orientation]
+        wdg_12 = dec_wedge_product(Tuple{1, 2}, sd)
+        E_1[i] = -E_1[i]; T_2[j] = -T_2[j];
+        @test all(wdg_12(E_1, T_2) .≈ ∧(Tuple{1, 2}, sd, E_1, T_2))
+    end
 end
 
 @testset "Dual Laplacian" begin
