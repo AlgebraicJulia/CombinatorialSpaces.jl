@@ -618,7 +618,7 @@ hodge_diag(::Type{Val{0}}, s::AbstractDeltaDualComplex2D, v::Int) =
 hodge_diag(::Type{Val{1}}, s::AbstractDeltaDualComplex2D, e::Int) =
   sum(dual_volume(Val{1}, s, elementary_duals(Val{1},s,e))) / volume(Val{1},s,e)
 hodge_diag(::Type{Val{2}}, s::AbstractDeltaDualComplex2D, t::Int) =
-  1 / volume(Val{2},s,t) * sign(2,s,t)
+  1 / volume(Val{2},s,t)
 
 function ♭(s::AbstractDeltaDualComplex2D, X::AbstractVector, ::DPPFlat)
   # XXX: Creating this lookup table shouldn't be necessary. Of course, we could
@@ -889,10 +889,10 @@ function ∧(::Type{Tuple{1,1}}, s::HasDeltaSet2D, α, β, x::Int)
   β0, β1, β2 = β[[e0, e1, e2]]
   # Take a weighted average of co-parallelogram areas
   # at each pair of edges.
-  form = dot(ws, SVector(
-    β1*α2 - α1*β2,
-    β0*α2 - α0*β2,
-    β0*α1 - α0*β1))
+  form = sign(2, s, x) * dot(ws, SVector(
+    sign(1, s, e1) * sign(1, s, e2) * (β1*α2 - α1*β2),
+    sign(1, s, e0) * sign(1, s, e2) * (β0*α2 - α0*β2),
+    sign(1, s, e0) * sign(1, s, e1) * (β0*α1 - α0*β1)))
   # Convert from parallelogram areas to triangles.
   form / 2
 end
@@ -1257,7 +1257,7 @@ hodge_diag(::Type{Val{1}}, s::AbstractDeltaDualComplex3D, e::Int) =
 hodge_diag(::Type{Val{2}}, s::AbstractDeltaDualComplex3D, t::Int) =
   sum(dual_volume(Val{1}, s, elementary_duals(Val{2},s,t))) / volume(Val{2},s,t)
 hodge_diag(::Type{Val{3}}, s::AbstractDeltaDualComplex3D, tet::Int) =
-  1 / volume(Val{3},s,tet) * sign(3,s,tet)
+  1 / volume(Val{3},s,tet)
 
 # TODO: Instead of rewriting ♭_mat by replacing tris with tets, use multiple dispatch.
 #function ♭_mat(s::AbstractDeltaDualComplex3D)
@@ -1317,19 +1317,19 @@ function ∧(::Type{Tuple{2,1}}, s::HasDeltaSet3D, α, β, x::Int)
   # map(x -> edge_vertices(s, x), tetrahedron_edges(s,x))
   # or by thinking through the simplicial identities, of course.
   # Observe that e.g. β3 and α3 share v0, but differ in all other endpoints.
-  form = dot(ws, [
+  form = sign(3, s, x) * dot(ws, [
      # v₀:
      # [v3,v0][v0,v1,v2] [v2,v0][v0,v1,v3] [v1,v0][v0,v2,v3]
-            β3*α3       +    -β4*α2       +     β5*α1,
+    sign(1, s, e3) * sign(2, s, t3) * β3*α3 + sign(1, s, e4) * sign(2, s, t2) * -β4*α2 + sign(1, s, e5) * sign(2, s, t1) * β5*α1,
      # v₁
      # [v3,v1][v0,v1,v2] [v2,v1][v0,v1,v3] [v1,v0][v1,v2,v3]
-            β1*α3       +    -β2*α2       +     β5*α0,
+    sign(1, s, e1) * sign(2, s, t3) * β1*α3 + sign(1, s, e2) * sign(2, s, t2) * -β2*α2 + sign(1, s, e5) * sign(2, s, t0) * β5*α0,
      # v₂
      # [v3,v2][v0,v1,v2] [v2,v1][v0,v2,v3] [v2,v0][v1,v2,v3]
-            β0*α3       +    -β2*α1       +     β4*α0,
+    sign(1, s, e0) * sign(2, s, t3) * β0*α3 + sign(1, s, e2) * sign(2, s, t1) * -β2*α1 + sign(1, s, e4) * sign(2, s, t0) * β4*α0,
      # v₃
      # [v3,v2][v0,v1,v3] [v3,v1][v0,v2,v3] [v3,v0][v1,v2,v3]
-            β0*α2       +    -β1*α1       +     β3*α0])
+    sign(1, s, e0) * sign(2, s, t2) * β0*α2 + sign(1, s, e1) * sign(2, s, t1) * -β1*α1 + sign(1, s, e3) * sign(2, s, t0) * β3*α0])
   # Convert from parallelepiped volumes to tetrahedra.
   form / 3
 end
@@ -1372,7 +1372,7 @@ this correspondence, a basis for primal ``n``-chains defines the basis for dual
 !!! note
 
     In (Hirani 2003, Definition 3.4.1), the duality operator assigns a certain
-    sign to each elementary dual simplex. For us, all of these signs should be
+    sign to each elementary dual simplex. For us, all of these signs shall be
     regarded as positive because we have already incorporated them into the
     orientation of the dual simplices.
 """
@@ -1617,6 +1617,7 @@ fancy_acset_schema(d::HasDeltaSet) = Presentation(acset_schema(d))
 # arbitrary meshes embedded in 3D space, and so will need to be revisited.
 # Potentially this orientation can be provided by the simplicial triangle
 # orientation?
+# TODO: Revisit this assumption based on changes to `orient!`.
 crossdot(v1, v2) = begin
   v1v2 = cross(v1, v2)
   norm(v1v2) * (last(v1v2) == 0 ? 1.0 : sign(last(v1v2)))
@@ -1952,11 +1953,10 @@ function p2_d2_interpolation(sd::HasDeltaSet2D)
   mat = spzeros(nv(sd), ntriangles(sd))
   for tri_id in triangles(sd)
     tri_area = sd[tri_id, :area]
-    tri_orient = sd[tri_id, :tri_orientation]
     for dual_tri_id in tri_id:ntriangles(sd):nparts(sd, :DualTri)
       dual_tri_area = sd[dual_tri_id, :dual_area]
 
-      weight = numeric_sign(tri_orient) * (dual_tri_area / tri_area)
+      weight = (dual_tri_area / tri_area)
 
       v = sd[sd[dual_tri_id, :D_∂e1], :D_∂v1]
 

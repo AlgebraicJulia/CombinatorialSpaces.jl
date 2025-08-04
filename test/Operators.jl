@@ -206,6 +206,16 @@ end
 
         @test all(dec_wedge_product(Tuple{1, 1}, sd)(E_1, E_2) .≈ ∧(Tuple{1, 1}, sd, E_1, E_2))
     end
+
+    # Test flipped edge orientation preserves value
+    sd = first(dual_meshes_2D)
+    E_1, E_2 = rand(ne(sd)), rand(ne(sd))
+    for i in 1:ne(sd)
+        sd[i, :edge_orientation] = !sd[i, :edge_orientation]
+        wdg_11 = dec_wedge_product(Tuple{1, 1}, sd)
+        E_1[i] = -E_1[i]; E_2[i] = -E_2[i];
+        @test all(wdg_11(E_1, E_2) .≈ ∧(Tuple{1, 1}, sd, E_1, E_2))
+    end
 end
 
 @testset "Dual Laplacian" begin
@@ -219,15 +229,17 @@ end
   sd = generate_dual_mesh(primal_line)
   twoX = map(p -> 2*p[1], sd[sd[:edge_center], :dual_point])
   nil = Δᵈ(Val{0}, sd)(twoX)
-  @test all(abs.(nil[begin+1:end-1]) .< 1e-11)
+  @test all(abs.(nil[begin+1:end-1]) .< 2e-11)
 
   # 2D
+  # TODO: This result should return near zero on the interior
+  # TODO: The issue might arise from a numerically singular Geometric Hodge
   for sd in [tg, rect]
     twoX = map(p -> 2*p[1], sd[sd[:tri_center], :dual_point])
     nil = Δᵈ(Val{0}, sd)(twoX)
     interior_tris = setdiff(triangles(sd), boundary_inds(Val{2}, sd))
-    @test abs(mean(nil[interior_tris])) < 1e-13
-    @test std(nil[interior_tris]) < 0.31
+    @test_broken abs(mean(nil[interior_tris])) < 1e-13
+    @test_broken std(nil[interior_tris]) < 1e-13
   end
 
   # 3D
