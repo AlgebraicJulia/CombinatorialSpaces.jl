@@ -29,7 +29,7 @@ export DualSimplex, DualV, DualE, DualTri, DualTet, DualChain, DualForm,
   subdivide, PDSharp, PPSharp, AltPPSharp, DesbrunSharp, LLSDDSharp, de_sign,
   DPPFlat, PPFlat,
   ♭♯, ♭♯_mat, flat_sharp, flat_sharp_mat, dualize,
-  p2_d2_interpolation, eval_constant_primal_form, eval_constant_dual_form
+  p2_d2_interpolation, p3_d3_interpolation, eval_constant_primal_form, eval_constant_dual_form
 
 import Base: ndims
 import Base: *
@@ -1967,6 +1967,29 @@ function p2_d2_interpolation(sd::HasDeltaSet2D)
 
   mat
 end
+
+"""     p3_d3_interpolation(sd::HasDeltaSet3D)
+
+Generates a sparse matrix that converts data on primal 3-forms into data on dual 3-forms.
+"""
+function p3_d3_interpolation(sd::HasDeltaSet3D)
+  mat = spzeros(nv(sd), ntetrahedra(sd))
+  for tet_id in tetrahedra(sd)
+    tet_vol = sd[tet_id, :vol]
+    for dual_tet_id in (1:24) .+ 24 * (tet_id - 1)
+      dual_tet_vol = sd[dual_tet_id, :dual_vol]
+
+      weight = (dual_tet_vol / tet_vol)
+
+      v = sd[sd[sd[dual_tet_id, :D_∂t1], :D_∂e2], :D_∂v1]
+
+      mat[v, tet_id] += weight
+    end
+  end
+
+  mat
+end
+
 
 """ Wedge product of discrete forms.
 

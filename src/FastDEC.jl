@@ -732,8 +732,14 @@ function dec_inv_hodge_star(::Type{Val{1}}, sd::EmbeddedDeltaDualComplex2D, ::Ge
   x -> hdg_lu \ x
 end
 
+dec_inv_hodge_star(::Type{Val{0}}, sd::EmbeddedDeltaDualComplex3D, ::GeometricHodge) =
+  dec_inv_hodge_star(Val{0}, sd, DiagonalHodge())
+
+dec_inv_hodge_star(::Type{Val{3}}, sd::EmbeddedDeltaDualComplex3D, ::GeometricHodge) =
+  dec_inv_hodge_star(Val{3}, sd, DiagonalHodge())
+
 dec_inv_hodge_star(::Type{Val{j}}, sd::EmbeddedDeltaDualComplex3D, ::GeometricHodge) where {j} =
-  @error "The Geometric Hodge star in 3D has not yet been implemented. Please use the Diagonal Hodge star instead."
+  @error "The Geometric Hodge star in 3D for 1-forms and 2-forms has not yet been implemented. Please use the Diagonal Hodge star instead."
 
 # Interior Product and Lie Derivative
 #------------------------------------
@@ -886,7 +892,16 @@ Generates a sparse matrix that converts data on dual 0-forms into data on primal
 This uses the [`p2_d2_interpolation`](@ref) function as an intermediate step.
 """
 function d0_p0_interpolation(sd::HasDeltaSet2D; hodge=GeometricHodge())
-  return dec_inv_hodge_star(0, sd, hodge) * p2_d2_interpolation(sd) * dec_inv_hodge_star(2, sd, hodge)
+  return SparseMatrixCSC(dec_inv_hodge_star(0, sd, hodge)) * p2_d2_interpolation(sd) * SparseMatrixCSC(dec_inv_hodge_star(2, sd, hodge))
+end
+
+"""   d0_p0_interpolation(sd::HasDeltaSet3D; hodge=GeometricHodge())
+
+Generates a sparse matrix that converts data on dual 0-forms into data on primal 0-forms.
+This uses the [`p3_d3_interpolation`](@ref) function as an intermediate step.
+"""
+function d0_p0_interpolation(sd::HasDeltaSet3D; hodge=GeometricHodge())
+  return SparseMatrixCSC(dec_inv_hodge_star(0, sd, hodge)) * p3_d3_interpolation(sd) * SparseMatrixCSC(dec_inv_hodge_star(3, sd, hodge))
 end
 
 end
