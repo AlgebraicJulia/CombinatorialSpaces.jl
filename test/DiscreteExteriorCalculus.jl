@@ -10,7 +10,7 @@ using CombinatorialSpaces.DiscreteExteriorCalculus: eval_constant_primal_form,
 
 using Catlab
 using GeometryBasics: Point, QuadFace, MetaMesh
-using LinearAlgebra: Diagonal, mul!, norm, dot, cross
+using LinearAlgebra: Diagonal, mul!, norm, dot, cross, diag
 using SparseArrays
 using StaticArrays
 using Statistics: mean, median
@@ -1059,6 +1059,19 @@ twoZ = ⋆₃(twoZ_dXdYdZ)
 
 abs_diff = abs.(twoZ .- map(p -> 2*p[3], s[s[:tet_center], :dual_point]));
 @test median(abs_diff) < 4.0
+
+# 3D Point Interpolation
+pd_interp = p3_d3_interpolation(s)
+interp = d0_p0_interpolation(s)
+mesh_vols = s[:vol]
+
+@test sum(pd_interp * mesh_vols) ≈ sum(s[:vol])
+@test all(pd_interp * mesh_vols .≈ diag(dec_hodge_star(0, s, DiagonalHodge())))
+@test all(dec_inv_hodge_star(0, s, DiagonalHodge()) * pd_interp * mesh_vols .≈ 1)
+
+# Constant interpolation
+@test all(interp * ones(ntetrahedra(s)) .≈ 1)
+
 
 end
 

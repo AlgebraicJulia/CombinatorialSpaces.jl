@@ -29,7 +29,7 @@ export DualSimplex, DualV, DualE, DualTri, DualTet, DualChain, DualForm,
   subdivide, PDSharp, PPSharp, AltPPSharp, DesbrunSharp, LLSDDSharp, de_sign,
   DPPFlat, PPFlat,
   ♭♯, ♭♯_mat, flat_sharp, flat_sharp_mat, dualize,
-  p2_d2_interpolation, eval_constant_primal_form, eval_constant_dual_form
+  p2_d2_interpolation, p3_d3_interpolation, eval_constant_primal_form, eval_constant_dual_form
 
 import Base: ndims
 import Base: *
@@ -1317,6 +1317,7 @@ function ∧(::Type{Tuple{2,1}}, s::HasDeltaSet3D, α, β, x::Int)
   # map(x -> edge_vertices(s, x), tetrahedron_edges(s,x))
   # or by thinking through the simplicial identities, of course.
   # Observe that e.g. β3 and α3 share v0, but differ in all other endpoints.
+  # TODO: Replace signs with shorter variable names
   form = sign(3, s, x) * dot(ws, [
      # v₀:
      # [v3,v0][v0,v1,v2] [v2,v0][v0,v1,v3] [v1,v0][v0,v2,v3]
@@ -1967,6 +1968,29 @@ function p2_d2_interpolation(sd::HasDeltaSet2D)
   mat
 end
 
+"""     p3_d3_interpolation(sd::HasDeltaSet3D)
+
+Generates a sparse matrix that converts data on primal 3-forms into data on dual 3-forms.
+"""
+function p3_d3_interpolation(sd::HasDeltaSet3D)
+  mat = spzeros(nv(sd), ntetrahedra(sd))
+  for tet_id in tetrahedra(sd)
+    tet_vol = sd[tet_id, :vol]
+    for dual_tet_id in (1:24) .+ 24 * (tet_id - 1)
+      dual_tet_vol = sd[dual_tet_id, :dual_vol]
+
+      weight = (dual_tet_vol / tet_vol)
+
+      v = sd[sd[sd[dual_tet_id, :D_∂t1], :D_∂e2], :D_∂v1]
+
+      mat[v, tet_id] += weight
+    end
+  end
+
+  mat
+end
+
+
 """ Wedge product of discrete forms.
 
 The wedge product of a ``k``-form and an ``l``-form is a ``(k+l)``-form.
@@ -2070,11 +2094,13 @@ function lie_derivative_flat(::Type{Val{2}}, s::HasDeltaSet,
   dual_derivative(1, s, interior_product_flat(2, s, X♭, α; kw...))
 end
 
-function eval_constant_primal_form(s::EmbeddedDeltaDualComplex2D{Bool, Float64, T} where T<:Union{Point3d, Point3D}, α::Union{Point3d, SVector{3,Float64}})
+function eval_constant_primal_form(s::HasDeltaSet1D, α)
+  @assert length(α) == length(point(s, 1))
   EForm(map(edges(s)) do e
           dot(α, point(s, tgt(s,e)) - point(s, src(s,e))) * sign(1,s,e)
         end)
 end
+
 function eval_constant_primal_form(s::EmbeddedDeltaDualComplex2D{Bool, Float64, T} where T<:Union{Point2d, Point2D}, α::Union{Point3d, SVector{3,Float64}})
   α = SVector{2,Float64}(α[1],α[2])
   EForm(map(edges(s)) do e
