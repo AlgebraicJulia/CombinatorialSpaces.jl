@@ -140,6 +140,12 @@ test_trigrid_size(s, lx, 2, 1, 0.99)
 @test triangulated_grid(10, 10, 1, 1, Point3d) == triangulated_grid(10, 10, 10, 10)
 @test triangulated_grid(10, 10, 1, 1, Point3d, false) == triangulated_grid(10, 10, 10, 10; compress = false)
 @test triangulated_grid(10, 10, 1, 1, Point2d) == triangulated_grid(10, 10, 10, 10; point_type = Point2d)
+nx = 15; ny = 20
+@test ntriangles(triangulated_grid(10, 10, nx, ny)) == 2*nx*ny
+@test ntriangles(triangulated_grid(1, 5, nx, ny)) == 2*nx*ny
+
+@test_throws AssertionError triangulated_grid(-10, -10, nx, ny)
+@test_throws AssertionError triangulated_grid(10, 10, -nx, -ny)
 
 # Tests for the SphericalMeshes
 ρ = 6371+90
