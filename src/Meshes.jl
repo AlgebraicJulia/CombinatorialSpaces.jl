@@ -69,26 +69,26 @@ loadmesh_icosphere_helper(obj_file_name) = EmbeddedDeltaSet2D(
 
 
 # This function was once the gridmeshes.jl file from Decapodes.jl.
-"""    function triangulated_grid(max_x, max_y, dx, dy, point_type, compress=true)
+"""    function triangulated_grid(lx, ly, dx, dy, point_type, compress=true)
 
-Triangulate the rectangle [0,max_x] x [0,max_y] by approximately equilateral
+Triangulate the rectangle [0,lx] x [0,ly] by approximately equilateral
 triangles of width `dx` and height `dy`.
 
-If `compress` is true (default), then enforce that all rows of points are less than `max_x`,
+If `compress` is true (default), then enforce that all rows of points are less than `lx`,
 otherwise, keep `dx` as is.
 """
-function triangulated_grid(max_x, max_y, dx, dy, point_type, compress=true)
+function triangulated_grid(lx, ly, dx, dy, point_type, compress=true)
   s = EmbeddedDeltaSet2D{Bool, point_type}()
 
-  scale = max_x/(max_x+dx/2)
+  scale = lx/(lx+dx/2)
   shift = dx/2
 
-  nx = length(0:dx:max_x)
-  ny = length(0:dy:max_y)
+  nx = length(0:dx:lx)
+  ny = length(0:dy:ly)
   add_vertices!(s, nx * ny)
 
-  for (y_idx, raw_y) in enumerate(0:dy:max_y)
-    for (x_idx, raw_x) in enumerate(0:dx:max_x)
+  for (y_idx, raw_y) in enumerate(0:dy:ly)
+    for (x_idx, raw_x) in enumerate(0:dx:lx)
       x_coord = raw_x + shift * iseven(y_idx)
       if compress
         x_coord *= scale
@@ -133,15 +133,26 @@ function triangulated_grid(max_x, max_y, dx, dy, point_type, compress=true)
   s
 end
 
+"""    triangulated_grid(lx::Real, ly::Real, nx::Int, ny::Int; point_type::DataType = Point3d, compress::Bool=true)
+
+Triangulate the rectangle [0,lx] x [0,ly] with `nx` by `ny` approximately equilateral triangles. This results
+in a mesh containing `2*nx*ny` triangles.
+"""
+function triangulated_grid(lx::Real, ly::Real, nx::Int, ny::Int; point_type::DataType = Point3d, compress::Bool=true)
+  @assert lx > 0 && ly > 0
+  @assert nx > 0 && ny > 0
+  triangulated_grid(lx, ly, lx / nx, ly / ny, point_type, compress)
+end
+
 """    function mirrored_mesh()
 
 Return a mesh with triangles mirrored around a central axis.
 """
-function mirrored_mesh(max_x, max_y)
+function mirrored_mesh(lx, ly)
   s = EmbeddedDeltaSet2D{Bool, Point{3, Float64}}();
-  max_x, max_y = 40.0, 20.0
-  xs = range(0, max_x; length = 3)
-  ys = range(0, max_y; length = 3)
+  lx, ly = 40.0, 20.0
+  xs = range(0, lx; length = 3)
+  ys = range(0, ly; length = 3)
   
   add_vertices!(s, 9)
   i = 1
