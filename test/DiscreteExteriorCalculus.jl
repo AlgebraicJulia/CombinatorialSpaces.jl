@@ -158,6 +158,25 @@ g♯_p = ♯(s, g, PPSharp())     # Primal Vector Field: (1)
 @test g♯_d == [Point3d(1,0,0), Point3d(1,0,0), Point3d(1,0,0)]
 @test g♯_p == [Point3d(1,0,0), Point3d(1,0,0), Point3d(1,0,0), Point3d(1,0,0)]
 
+# (Pedagogically) test the (reflective) boundary conditions of the Laplacian in 1D.
+# A line with linearly-spaced x-coordinates:
+primal_s = path_graph(EmbeddedDeltaSet1D{Bool,Point3d}, 1_000)
+primal_s[:point] = map(x -> Point3d(x,0,0), 0:999)
+s = EmbeddedDeltaDualComplex1D{Bool,Float64,Point3d}(primal_s)
+subdivide_duals!(s, Barycenter())
+f = map(x -> x[1], point(s)) # 0-Form: x
+lap0 = Δ(0,s)
+# Observe that this results in a _positive_ curvature.
+# This is equivalent to assuming a ghost point with value +1 at (-1,0,0),
+# using second-order central difference.
+@test lap0[1,:] == sparsevec([1, 2], [-2.0, 2.0], 1000)
+@test (lap0*f)[1] == 2.0
+# Observe that this results in a _negative_ curvature.
+# This is equivalent to assuming a ghost point with value +998 at (1000,0,0),
+# using second-order central difference.
+@test lap0[end,:] == sparsevec([999, 1000], [2.0, -2.0], 1000)
+@test (lap0*f)[end] == -2.0
+
 # 2D dual complex
 #################
 
