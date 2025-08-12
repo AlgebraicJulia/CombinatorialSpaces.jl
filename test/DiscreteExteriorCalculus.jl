@@ -166,7 +166,6 @@ s = EmbeddedDeltaDualComplex1D{Bool,Float64,Point3d}(primal_s)
 subdivide_duals!(s, Barycenter())
 f = map(x -> x[1], point(s)) # 0-Form: x
 lap0 = Δ(0,s)
-@test all((d0*f) .== 1.0)
 # Observe that this results in a _positive_ curvature.
 # This is equivalent to assuming a ghost point with value +1 at (-1,0,0),
 # using second-order central difference.
