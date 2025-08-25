@@ -872,6 +872,18 @@ diff = dual_form .- interp_dual_mat * primal_form
 # Likely worse since each triangle in this mesh has two points at same y
 @test rmse(diff) < 0.07
 
+# Test on a spherical mesh
+s = loadmesh(Icosphere(4))
+sd = EmbeddedDeltaDualComplex2D{Bool,Float64,Point3{Float64}}(s);
+subdivide_duals!(sd, Circumcenter());
+
+dual_form = map(p -> p[1], sd[triangle_center(sd), :dual_point])
+primal_form = map(p -> p[1], sd[:point])
+
+interp_dual_mat = p0_d0_interpolation(sd)
+diff = dual_form .- interp_dual_mat * primal_form
+@test rmse(diff) < 0.005
+
 # 3D dual complex
 #################
 
