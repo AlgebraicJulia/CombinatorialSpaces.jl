@@ -33,7 +33,7 @@ export dec_wedge_product, cache_wedge, dec_c_wedge_product, dec_c_wedge_product!
   dec_wedge_product_dd,
   Δᵈ, dec_Δ⁻¹,
   avg₀₁, avg_01, avg₀₁_mat, avg_01_mat,
-  d0_p0_interpolation
+  d0_p0_interpolation, p0_d0_interpolation
 
 # Wedge Product
 #--------------
@@ -94,7 +94,7 @@ end
 function wedge_kernel_coeffs(::Type{Tuple{2,1}}, sd::EmbeddedDeltaDualComplex3D{Bool, float_type, _p}) where {float_type, _p}
   coeffs = Array{float_type}(undef, 12, ntetrahedra(sd))
   ets = Array{Int32}(undef, 10, ntetrahedra(sd))
-  
+
   for tet in tetrahedra(sd)
     d_tets = subsimplices(3, sd, tet)
     d_volume(tets) = sum(sd[tets, :dual_vol])
@@ -902,6 +902,20 @@ This uses the [`p3_d3_interpolation`](@ref) function as an intermediate step.
 """
 function d0_p0_interpolation(sd::HasDeltaSet3D; hodge=GeometricHodge())
   return SparseMatrixCSC(dec_inv_hodge_star(0, sd, hodge)) * p3_d3_interpolation(sd) * SparseMatrixCSC(dec_inv_hodge_star(3, sd, hodge))
+end
+
+function p0_d0_interpolation(sd::HasDeltaSet2D)
+  m = spzeros(ntriangles(sd), nv(sd))
+  for tri in triangles(sd)
+    tri_area = sd[tri, :area]
+    for i in 0:5
+      dual_tri = tri + i * ntriangles(sd)
+      # We do this because primal vertices have lower indices than duals
+      v, _ = dual_triangle_vertices(sd, dual_tri)
+      m[tri, v] += sd[dual_tri, :dual_area] / tri_area
+    end
+  end
+  m
 end
 
 end
