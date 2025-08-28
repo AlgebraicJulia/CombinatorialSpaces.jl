@@ -135,13 +135,18 @@ end
 
 """    triangulated_grid(lx::Real, ly::Real, nx::Int, ny::Int; point_type::DataType = Point3d, compress::Bool=true)
 
-Triangulate the rectangle [0,lx] x [0,ly] with `nx` by `ny` approximately equilateral triangles. This results
-in a mesh containing `2*nx*ny` triangles.
+Generate a rectangle [0,lx] x [0,ly] with `nx+1` by `ny+1` vertices. This results in a mesh containing `2*nx*ny` triangles.
+Setting the `dx` or `dy` keywords will override the respective `nx` or `ny` keywords.
 """
-function triangulated_grid(lx::Real, ly::Real, nx::Int, ny::Int; point_type::DataType = Point3d, compress::Bool=true)
+function triangulated_grid(lx::Real, ly::Real; nx::Int = 10, ny::Int = 10, dx::Real = 0, dy::Real = 0, point_type::DataType = Point3d, compress::Bool = true)
   @assert lx > 0 && ly > 0
   @assert nx > 0 && ny > 0
-  triangulated_grid(lx, ly, lx / nx, ly / ny, point_type, compress)
+  @assert dx >= 0 && dy >= 0
+
+  arg_dx = dx != 0 ? dx : lx / nx
+  arg_dy = dy != 0 ? dy : ly / ny
+
+  triangulated_grid(lx, ly, arg_dx, arg_dy, point_type, compress)
 end
 
 """    function mirrored_mesh()
@@ -153,7 +158,7 @@ function mirrored_mesh(lx, ly)
   lx, ly = 40.0, 20.0
   xs = range(0, lx; length = 3)
   ys = range(0, ly; length = 3)
-  
+
   add_vertices!(s, 9)
   i = 1
   for y in ys
@@ -427,7 +432,7 @@ end
 
 Uses TetGen to generate turn a specificed parallelepiped to a tetrahedralized mesh. `lx`, `ly`, and `lz` kwargs control the side lengths in the respective dimensions and `dx` and `dy` kwargs will translate the top face relative to the bottom face.
 
-Default TetGen command is "pQq1.414a0.1" and user desired cmds can be passed through the `tetcmd` kwarg. 
+Default TetGen command is "pQq1.414a0.1" and user desired cmds can be passed through the `tetcmd` kwarg.
 """
 function parallelepiped(;lx::Real = 1.0, ly::Real = 1.0, lz::Real = 1.0, dx::Real = 0.0, dy::Real = 0.0, point_type = Point3d, tetcmd::String = "pQq1.414a0.1")
 	points = point_type[
@@ -478,4 +483,3 @@ function tetgen_readme_mesh()
 end
 
 end
-
