@@ -5,8 +5,9 @@ using DelaunayTriangulation
 import CombinatorialSpaces: EmbeddedDeltaSet2D
 
 function EmbeddedDeltaSet2D(triangulation::T) where {T<:DelaunayTriangulation.Triangulation}
-  coords = triangulation.points
-  s = EmbeddedDeltaSet2D{Bool, eltype(coords)}()
+  float_type = eltype(first(first(triangulation.points)))
+  coords = map(p -> Point3{float_type}(p[1], p[2], 0), triangulation.points)
+  s = EmbeddedDeltaSet2D{Bool, Point3{float_type}}()
   add_vertices!(s, length(coords), point=coords)
   for tri in each_solid_triangle(triangulation)
     glue_sorted_triangle!(s, tri...)
