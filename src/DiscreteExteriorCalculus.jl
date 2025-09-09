@@ -47,7 +47,7 @@ const Point3D = SVector{3,Float64}
 
 using ACSets.DenseACSets: attrtype_type
 using Catlab, Catlab.CategoricalAlgebra.CSets
-using Catlab.CategoricalAlgebra.FinSets: deleteat
+using Catlab.BasicSets.FinSets: deleteat
 using Catlab.CategoricalAlgebra.FunctorialDataMigrations: DeltaMigration, migrate
 import Catlab.CategoricalAlgebra.CSets: ∧
 import Catlab.Theories: Δ
