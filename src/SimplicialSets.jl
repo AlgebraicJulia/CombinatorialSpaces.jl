@@ -799,7 +799,7 @@ orient!(s::AbstractDeltaSet3D) = orient!(s, Tet)
 function orient!(s::HasDeltaSet, ::Type{Simplex{n}}) where n
   # Compute connected components as coequalizer of face maps.
   ndom, ncodom = nsimplices(n, s), nsimplices(n-1, s)
-  face_maps = SVector{n+1}([ FinFunction(x -> ∂(n,i,s,x), ndom, ncodom)
+  face_maps = SVector{n+1}([ FinFunction(x -> ∂(n,i,s,x), FinSet(ndom), FinSet(ncodom))
                              for i in 0:n ])
   π = only(coequalizer(face_maps))
 
