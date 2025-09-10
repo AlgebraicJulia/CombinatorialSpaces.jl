@@ -612,7 +612,7 @@ end
 s = CombinatorialSpaces.Meshes.single_tetrahedron()[1]
 s[:edge_orientation] = false; s[:tri_orientation] = false; orient!(s);
 
-const 𝒟 = ACSetCategory(EmbeddedDeltaSet3D())
+const 𝒟 = ACSetCategory(EmbeddedDeltaSet3D{Bool, Point3d}())
 @test show_to_string(apex(coproduct[𝒟]([s for _ in 1:32]))) ==
   "3D Delta Set with 128 vertices, 192 edges, 128 triangles, and 32 tetrahedra."
 
