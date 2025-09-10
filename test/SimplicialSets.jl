@@ -588,7 +588,8 @@ bvs, bes = boundary_inds(Val{0}, s), boundary_inds(Val{1}, s)
 
 # Disconnected Lines:
 s = path_graph(DeltaSet1D, 8)
-s = apex(coproduct(s,s))
+const 𝒞 = ACSetCategory(CSetCat(DeltaSet1D()))
+s = apex(coproduct[𝒞](s,s))
 bvs, bes = boundary_inds(Val{0}, s), boundary_inds(Val{1}, s)
 @test issetequal(bvs, [1,8,9,16])
 @test issetequal(bes, [1,7,8,14])
