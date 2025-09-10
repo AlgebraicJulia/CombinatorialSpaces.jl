@@ -50,6 +50,7 @@ import Catlab.Graphs: src, tgt, nv, ne, vertices, edges, has_vertex, has_edge,
   add_vertex!, add_vertices!, add_edge!, add_edges!
 using ..ArrayUtils
 
+const 𝒞 = SkelFinSet()
 
 """ Abstract type for C-sets that contain a delta set of some dimension.
 
@@ -801,7 +802,7 @@ function orient!(s::HasDeltaSet, ::Type{Simplex{n}}) where n
   ndom, ncodom = nsimplices(n, s), nsimplices(n-1, s)
   face_maps = [ FinFunction(x -> ∂(n,i,s,x), FinSet(ndom), FinSet(ncodom))
                 for i in 0:n ]
-  π = only(coequalizer(face_maps))
+  π = only(coequalizer[𝒞](face_maps))
 
   # Choose an arbitrary representative of each component.
   reps = zeros(Int, length(codom(π)))
