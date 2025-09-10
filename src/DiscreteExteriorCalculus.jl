@@ -38,7 +38,7 @@ import LinearAlgebra: mul!
 using GeometryBasics: Point2, Point3, Point2d, Point3d
 using LinearAlgebra: Diagonal, dot, norm, cross, pinv, normalize
 using SparseArrays
-using StaticArrays: @SVector, SVector, SMatrix, MVector, MMatrix
+using StaticArrays: @SVector, SVector, SMatrix, MVector, MMatrix, StaticVector
 using Statistics: mean
 
 # TODO: This is not consistent with other definitions and should be removed
