@@ -34,6 +34,7 @@ export DualSimplex, DualV, DualE, DualTri, DualTet, DualChain, DualForm,
 import Base: ndims
 import Base: *
 import LinearAlgebra: mul!
+import StaticArrays: deleteat
 
 using GeometryBasics: Point2, Point3, Point2d, Point3d
 using LinearAlgebra: Diagonal, dot, norm, cross, pinv, normalize
@@ -61,7 +62,7 @@ import ..SimplicialSets: ∂, d, volume
 
 # This non-mutating version of deleteat returns a new (static) vector.
 deleteat(vec::Vector, i) = deleteat!(copy(vec), i)
-deleteat(vec::StaticVector, i) = StaticArrays.deleteat(vec, i)
+deleteat(vec::StaticVector, i) = deleteat(vec, i)
 
 abstract type DiscreteFlat end
 struct DPPFlat <: DiscreteFlat end
