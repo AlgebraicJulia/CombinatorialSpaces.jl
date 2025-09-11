@@ -34,11 +34,12 @@ export DualSimplex, DualV, DualE, DualTri, DualTet, DualChain, DualForm,
 import Base: ndims
 import Base: *
 import LinearAlgebra: mul!
+import StaticArrays: deleteat
 
 using GeometryBasics: Point2, Point3, Point2d, Point3d
 using LinearAlgebra: Diagonal, dot, norm, cross, pinv, normalize
 using SparseArrays
-using StaticArrays: @SVector, SVector, SMatrix, MVector, MMatrix
+using StaticArrays: @SVector, SVector, SMatrix, MVector, MMatrix, StaticVector
 using Statistics: mean
 
 # TODO: This is not consistent with other definitions and should be removed
@@ -47,7 +48,8 @@ const Point3D = SVector{3,Float64}
 
 using ACSets.DenseACSets: attrtype_type
 using Catlab, Catlab.CategoricalAlgebra.CSets
-using Catlab.CategoricalAlgebra.FinSets: deleteat
+using Catlab.BasicSets
+using Catlab.BasicSets.FinSets
 using Catlab.CategoricalAlgebra.FunctorialDataMigrations: DeltaMigration, migrate
 import Catlab.CategoricalAlgebra.CSets: ∧
 import Catlab.Theories: Δ
@@ -57,6 +59,9 @@ using ..SimplicialSets: CayleyMengerDet, operator_nz, ∂_nz, d_nz,
   cayley_menger, negate, numeric_sign
 
 import ..SimplicialSets: ∂, d, volume
+
+# This non-mutating version of deleteat returns a new (static) vector.
+deleteat(vec::Vector, i) = deleteat!(copy(vec), i)
 
 abstract type DiscreteFlat end
 struct DPPFlat <: DiscreteFlat end
