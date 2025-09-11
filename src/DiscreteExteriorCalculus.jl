@@ -62,7 +62,6 @@ import ..SimplicialSets: ∂, d, volume
 
 # This non-mutating version of deleteat returns a new (static) vector.
 deleteat(vec::Vector, i) = deleteat!(copy(vec), i)
-deleteat(vec::StaticVector, i) = deleteat(vec, i)
 
 abstract type DiscreteFlat end
 struct DPPFlat <: DiscreteFlat end
