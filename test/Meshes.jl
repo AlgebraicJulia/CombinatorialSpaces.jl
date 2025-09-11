@@ -137,6 +137,19 @@ s = triangulated_grid(lx, 2, 1, 0.99, Point2{Float64}, true)
 test_trigrid_size(s, lx, 2, 1, 0.99)
 @test maximum(getindex.(s[:point], 1)) == lx
 
+@test triangulated_grid(10, 10, 1, 1, Point3d) == triangulated_grid(10, 10; nx=10, ny=10)
+@test triangulated_grid(10, 10, 1, 1, Point3d, false) == triangulated_grid(10, 10; nx=10, ny=10, compress = false)
+@test triangulated_grid(10, 10, 1, 1, Point2d) == triangulated_grid(10, 10; nx=10, ny=10, point_type = Point2d)
+@test triangulated_grid(10, 10, 1, 1, Point3d) == triangulated_grid(10, 10; dx=1, dy=1, point_type = Point3d)
+@test triangulated_grid(10, 10, 1, 1, Point3d) == triangulated_grid(10, 10; nx=10, dy=1, point_type = Point3d)
+
+nx = 15; ny = 20
+@test ntriangles(triangulated_grid(10, 10; nx = nx, ny = ny)) == 2*nx*ny
+@test ntriangles(triangulated_grid(1, 5; nx = nx, ny = ny)) == 2*nx*ny
+
+@test_throws AssertionError triangulated_grid(-10, -10; nx = nx, ny = ny)
+@test_throws AssertionError triangulated_grid(10, 10; nx = -nx, ny = -ny)
+@test_throws AssertionError triangulated_grid(10, 10; dx = -1, dy = -1)
 
 # Tests for the SphericalMeshes
 ρ = 6371+90

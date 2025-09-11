@@ -2,7 +2,7 @@ name = "CombinatorialSpaces"
 uuid = "b1c52339-7909-45ad-8b6a-6e388f7c67f2"
 license = "MIT"
 authors = ["Luke Morris <luke.morris@ufl.edu>", "George Rauta <grauta@ufl.edu>", "Evan Patterson <evan@epatters.org>", "James Fairbanks <fairbanksj@ufl.edu>"]
-version = "0.7.9"
+version = "0.8.0"
 
 [deps]
 ACSets = "227ef7b5-1206-438b-ac65-934d6da304b8"
@@ -28,17 +28,20 @@ TetGen = "c5d3f3f7-f850-59f6-8a2e-ffc6dc1317ea"
 
 [weakdeps]
 CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
+DelaunayTriangulation = "927a84f5-c5f4-47a5-9785-b46e178433df"
 Makie = "ee78f7c6-11fb-53f2-987a-cfe4a2b5a57a"
 
 [extensions]
 CombinatorialSpacesCUDAExt = "CUDA"
+CombinatorialSpacesDelaunayTriangulationExt = "DelaunayTriangulation"
 CombinatorialSpacesMakieExt = "Makie"
 
 [compat]
 ACSets = "0.2"
 Artifacts = "1.9, 1"
 CUDA = "5.2"
-Catlab = "0.16.20, 0.17"
+Catlab = "0.17"
+DelaunayTriangulation = "1.6.4"
 FileIO = "^1"
 GATlab = "0.1.5, 0.2"
 GeometryBasics = "0.5"
@@ -62,10 +65,11 @@ julia = "1.10"
 [extras]
 CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
 CairoMakie = "13f3f980-e62b-5c42-98c6-ff1f3baf88f0"
+DelaunayTriangulation = "927a84f5-c5f4-47a5-9785-b46e178433df"
 Pkg = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
 Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 Statistics = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
-test = ["CairoMakie", "CUDA", "Pkg", "Random", "Test", "Statistics"]
+test = ["CairoMakie", "CUDA", "DelaunayTriangulation", "Pkg", "Random", "Test", "Statistics"]

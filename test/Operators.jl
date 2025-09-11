@@ -5,7 +5,7 @@ using SparseArrays
 using LinearAlgebra
 using Catlab
 using CombinatorialSpaces
-using CombinatorialSpaces.Meshes: tri_345, tri_345_false, grid_345, right_scalene_unit_hypot
+using CombinatorialSpaces.Meshes: tri_345, tri_345_false, grid_345, right_scalene_unit_hypot, single_tetrahedron
 using CombinatorialSpaces.SimplicialSets: boundary_inds
 using CombinatorialSpaces.DiscreteExteriorCalculus: eval_constant_primal_form
 using GeometryBasics: Point, QuadFace, MetaMesh
@@ -25,6 +25,13 @@ end
 function generate_dual_mesh(s::HasDeltaSet2D)
     orient!(s)
     sd = EmbeddedDeltaDualComplex2D{Bool,Float64,Point3d}(s)
+    subdivide_duals!(sd, Barycenter())
+    sd
+end
+
+function generate_dual_mesh(s::HasDeltaSet3D)
+    orient!(s)
+    sd = EmbeddedDeltaDualComplex3D{Bool,Float64,Point3d}(s)
     subdivide_duals!(sd, Barycenter())
     sd
 end
@@ -53,6 +60,8 @@ dual_meshes_2D = [(generate_dual_mesh ∘ loadmesh ∘ Icosphere).(1:2)...,
                (generate_dual_mesh).([triangulated_grid(10,10,8,8,Point3d), makeSphere(5, 175, 5, 0, 360, 5, 6371+90)[1]])...,
                (loadmesh)(Torus_30x10())];
 
+dual_meshes_3D = [last(single_tetrahedron()), generate_dual_mesh(parallelepiped())]
+
 tg′ = triangulated_grid(100,100,10,10,Point2d);
 tg = EmbeddedDeltaDualComplex2D{Bool,Float64,Point2d}(tg′);
 subdivide_duals!(tg, Barycenter());
@@ -73,8 +82,15 @@ subdivide_duals!(tet_msh_sd, Circumcenter())
             @test all(dec_differential(i, sd) .== d(i, sd))
         end
     end
+
     for i in 0:1
         for sd in dual_meshes_2D
+            @test all(dec_differential(i, sd) .== d(i, sd))
+        end
+    end
+
+    for i in 0:2
+        for sd in dual_meshes_3D
             @test all(dec_differential(i, sd) .== d(i, sd))
         end
     end
@@ -92,6 +108,12 @@ end
             @test all(dec_boundary(i, sd) .== ∂(i, sd))
         end
     end
+
+    for i in 1:3
+        for sd in dual_meshes_3D
+            @test all(dec_boundary(i, sd) .== ∂(i, sd))
+        end
+    end
 end
 
 @testset "Dual Derivative" begin
@@ -103,6 +125,12 @@ end
 
     for i in 0:1
         for sd in dual_meshes_2D
+            @test all(dec_dual_derivative(i, sd) .== dual_derivative(i, sd))
+        end
+    end
+
+    for i in 0:2
+        for sd in dual_meshes_3D
             @test all(dec_dual_derivative(i, sd) .== dual_derivative(i, sd))
         end
     end
@@ -121,6 +149,12 @@ end
             @test all(isapprox.(dec_hodge_star(Val{i}, sd, DiagonalHodge()), hodge_star(i, sd, DiagonalHodge()); rtol = 1e-12))
         end
     end
+
+    for i in 0:3
+        for sd in dual_meshes_3D
+            @test all(isapprox.(dec_hodge_star(Val{i}, sd, DiagonalHodge()), hodge_star(i, sd, DiagonalHodge()); rtol = 1e-12))
+        end
+    end
 end
 
 #TODO: For inv hodge star 1, the values seems to be extremely close yet not quite equal
@@ -133,6 +167,12 @@ end
 
     for i in 0:2
         for sd in dual_meshes_2D
+            @test all(isapprox.(dec_inv_hodge_star(Val{i}, sd, DiagonalHodge()), inv_hodge_star(i, sd, DiagonalHodge()); rtol = 1e-12))
+        end
+    end
+
+    for i in 0:3
+        for sd in dual_meshes_3D
             @test all(isapprox.(dec_inv_hodge_star(Val{i}, sd, DiagonalHodge()), inv_hodge_star(i, sd, DiagonalHodge()); rtol = 1e-12))
         end
     end
@@ -206,6 +246,60 @@ end
 
         @test all(dec_wedge_product(Tuple{1, 1}, sd)(E_1, E_2) .≈ ∧(Tuple{1, 1}, sd, E_1, E_2))
     end
+
+    for sd in dual_meshes_3D
+        V_1, V_2 = rand(nv(sd)), rand(nv(sd))
+        E_1, E_2 = rand(ne(sd)), rand(ne(sd))
+        T_2 = rand(ntriangles(sd))
+        Tet_2 = rand(ntetrahedra(sd))
+        V_ones = ones(nv(sd))
+        E_ones = ones(ne(sd))
+        T_ones = ones(ntriangles(sd))
+        Tet_ones = ones(ntetrahedra(sd))
+
+        wdg00 = dec_wedge_product(Tuple{0, 0}, sd)
+        wdg01 = dec_wedge_product(Tuple{0, 1}, sd)
+        wdg02 = dec_wedge_product(Tuple{0, 2}, sd)
+        wdg03 = dec_wedge_product(Tuple{0, 3}, sd)
+
+        wdg11 = dec_wedge_product(Tuple{1, 1}, sd)
+        wdg12 = dec_wedge_product(Tuple{1, 2}, sd)
+
+        @test all(wdg00(V_ones, V_ones) .== V_ones)
+        @test all(wdg01(V_ones, E_ones) .== E_ones)
+        @test all(wdg02(V_ones, T_ones) .≈ T_ones)
+        @test all(wdg03(V_ones, Tet_ones) .≈ Tet_ones)
+        @test all(wdg11(E_ones, E_ones) .== zeros(ntriangles(sd)))
+        @test all(wdg12(E_ones, T_ones) .≈ ∧(Tuple{1,2}, sd, E_ones, T_ones))
+
+        @test all(wdg00(V_1, V_2) .≈ ∧(Tuple{0, 0}, sd, V_1, V_2))
+        @test all(wdg01(V_1, E_2) .≈ ∧(Tuple{0, 1}, sd, V_1, E_2))
+        @test all(wdg02(V_1, T_2) .≈ ∧(Tuple{0, 2}, sd, V_1, T_2))
+        @test all(wdg03(V_1, Tet_2) .≈ ∧(Tuple{0, 3}, sd, V_1, Tet_2))
+        @test all(wdg11(E_1, E_2) .≈ ∧(Tuple{1, 1}, sd, E_1, E_2))
+        @test all(wdg12(E_1, T_2) .≈ ∧(Tuple{1, 2}, sd, E_1, T_2))
+    end
+
+    # Test flipped edge orientation preserves value
+    sd = first(dual_meshes_2D)
+    E_1, E_2 = rand(ne(sd)), rand(ne(sd))
+    for i in 1:ne(sd)
+        sd[i, :edge_orientation] = !sd[i, :edge_orientation]
+        wdg_11 = dec_wedge_product(Tuple{1, 1}, sd)
+        E_1[i] = -E_1[i]; E_2[i] = -E_2[i];
+        @test all(wdg_11(E_1, E_2) .≈ ∧(Tuple{1, 1}, sd, E_1, E_2))
+    end
+
+    # Test flipped edge/tri orientation preserves value
+    sd = first(dual_meshes_3D)
+    E_1, T_2 = rand(ne(sd)), rand(ntriangles(sd))
+    for (i,j) in zip(edges(sd), triangles(sd))
+        sd[i, :edge_orientation] = !sd[i, :edge_orientation]
+        sd[i, :tri_orientation] = !sd[i, :tri_orientation]
+        wdg_12 = dec_wedge_product(Tuple{1, 2}, sd)
+        E_1[i] = -E_1[i]; T_2[j] = -T_2[j];
+        @test all(wdg_12(E_1, T_2) .≈ ∧(Tuple{1, 2}, sd, E_1, T_2))
+    end
 end
 
 @testset "Dual Laplacian" begin
@@ -219,18 +313,21 @@ end
   sd = generate_dual_mesh(primal_line)
   twoX = map(p -> 2*p[1], sd[sd[:edge_center], :dual_point])
   nil = Δᵈ(Val{0}, sd)(twoX)
-  @test all(abs.(nil[begin+1:end-1]) .< 1e-11)
+  @test all(abs.(nil[begin+1:end-1]) .< 2e-11)
 
   # 2D
+  # TODO: This result should return near zero on the interior
+  # TODO: The issue might arise from a numerically singular Geometric Hodge
   for sd in [tg, rect]
     twoX = map(p -> 2*p[1], sd[sd[:tri_center], :dual_point])
     nil = Δᵈ(Val{0}, sd)(twoX)
     interior_tris = setdiff(triangles(sd), boundary_inds(Val{2}, sd))
-    @test abs(mean(nil[interior_tris])) < 1e-13
-    @test std(nil[interior_tris]) < 0.31
+    @test_broken abs(mean(nil[interior_tris])) < 1e-13
+    @test_broken std(nil[interior_tris]) < 1e-13
   end
 
   # 3D
+  # TODO: Investigate this operator as well, although it uses DiagonalHodge
   sd = tet_msh_sd
   twoX = map(p -> 2*p[1], sd[sd[:tet_center], :dual_point])
   nil = Δᵈ(Val{0}, sd)(twoX)

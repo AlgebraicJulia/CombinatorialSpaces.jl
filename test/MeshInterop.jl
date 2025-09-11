@@ -5,6 +5,8 @@ using GeometryBasics
 using GeometryBasics: Mesh, QuadFace, volume
 using Test
 using TetGen
+using DelaunayTriangulation: triangulate, get_area, each_solid_triangle
+using Random
 
 # 2D
 ####
@@ -78,5 +80,45 @@ s[:tri_orientation] = true
 # Test mesh roundtripping:
 s_to_mesh = Mesh(s)
 @test all(issetequal.(faces(s_to_mesh), faces(tet_msh)))
+
+# DelaunayTriangulation compatibility
+#---------------------
+
+# Structured unit square
+lx = ly = 1
+dx = dy = 0.1
+points = Point2d[]
+for x in 0:dx:lx
+  for y in 0:dy:ly
+    push!(points, Point2d(x,y))
+  end
+end
+tri = triangulate(points)
+s = EmbeddedDeltaSet2D(tri)
+@test all(Point2d.(s[:point]) .== points)
+@test length(each_solid_triangle(tri)) == ntriangles(s)
+@test first(s[:point]) isa Point3d
+
+sd = EmbeddedDeltaDualComplex2D{Bool, Float64, Point3d}(s)
+subdivide_duals!(sd, Circumcenter())
+@test sum(sd[:area]) ≈ get_area(tri)
+@test is_manifold_like(s)
+
+# Randomized unit square
+Random.seed!(0)
+corners = [Point2{Float32}(0,0), Point2{Float32}(0,1), Point2{Float32}(1,0), Point2{Float32}(1,1)]
+points = vcat(rand(Point2{Float32}, 100), corners)
+
+tri = triangulate(points)
+s = EmbeddedDeltaSet2D(tri)
+
+@test all(Point2d.(s[:point]) .== points)
+@test length(each_solid_triangle(tri)) == ntriangles(s)
+@test first(s[:point]) isa Point3{Float32}
+
+sd = EmbeddedDeltaDualComplex2D{Bool, Float64, Point3d}(s)
+subdivide_duals!(sd, Circumcenter())
+@test sum(sd[:area]) ≈ get_area(tri)
+@test is_manifold_like(s)
 
 end
