@@ -1,4 +1,4 @@
-module Meshes
+module CombMeshes
 
 using Artifacts
 using Catlab
