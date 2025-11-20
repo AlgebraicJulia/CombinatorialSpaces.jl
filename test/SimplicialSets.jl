@@ -609,7 +609,7 @@ end
 @test show_to_string(triangulated_grid(64,64,8,8,Point2d)) ==
   "2D Delta Set with 81 vertices, 208 edges, and 128 triangles."
 
-s = CombinatorialSpaces.Meshes.single_tetrahedron()[1]
+s = CombinatorialSpaces.CombMeshes.single_tetrahedron()[1]
 s[:edge_orientation] = false; s[:tri_orientation] = false; orient!(s);
 
 const 𝒟 = ACSetCategory(EmbeddedDeltaSet3D{Bool, Point3d}())

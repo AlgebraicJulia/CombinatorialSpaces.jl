@@ -2,7 +2,7 @@ module TestDiscreteExteriorCalculus
 using Test
 
 using CombinatorialSpaces
-using CombinatorialSpaces.Meshes: tri_345, tri_345_false, grid_345,
+using CombinatorialSpaces.CombMeshes: tri_345, tri_345_false, grid_345,
   right_scalene_unit_hypot, single_tetrahedron
 using CombinatorialSpaces.SimplicialSets: boundary_inds
 using CombinatorialSpaces.DiscreteExteriorCalculus: eval_constant_primal_form,

@@ -2,7 +2,7 @@ module TestMultigrid
 using Krylov, CombinatorialSpaces, LinearAlgebra, Test
 using Random
 using SparseArrays
-using CombinatorialSpaces.Meshes: tri_345
+using CombinatorialSpaces.CombMeshes: tri_345
 
 using CombinatorialSpaces.Multigrid: UnarySubdivision, unary_subdivision, unary_subdivision_map
 

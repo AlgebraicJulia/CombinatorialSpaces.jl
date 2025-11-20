@@ -1,11 +1,12 @@
 module TestMeshInterop
 using CombinatorialSpaces
-using CombinatorialSpaces.Meshes: single_tetrahedron
+using CombinatorialSpaces.CombMeshes: single_tetrahedron
 using GeometryBasics
 using GeometryBasics: Mesh, QuadFace, volume
 using Test
 using TetGen
 using DelaunayTriangulation: triangulate, get_area, each_solid_triangle
+using Meshes
 using Random
 
 # 2D
@@ -35,8 +36,8 @@ s_msh = EmbeddedDeltaSet2D(msh)
 s, sd = single_tetrahedron()
 # Construct a single tetrahedron in GeometryBasics.
 function single_tetrahedron_gb()
-  pnts = connect([0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0], Point{3})
-  Mesh(pnts, connect([1,2,3,4], SimplexFace{4}))
+  pnts = GeometryBasics.connect([0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0], GeometryBasics.Point{3})
+  Mesh(pnts, GeometryBasics.connect([1,2,3,4], SimplexFace{4}))
 end
 msh = single_tetrahedron_gb()
 
@@ -46,14 +47,14 @@ msh = single_tetrahedron_gb()
 
 # Test equivalence of dual mesh & dual components:
 sd_to_mesh = Mesh(sd)
-@test length(faces(sd_to_mesh)) == 24
+@test length(GeometryBasics.faces(sd_to_mesh)) == 24
 @test sd_to_mesh.position == sd[:dual_point]
 
 # TetGen compatibility
 #---------------------
 # Create mesh from the TetGen.jl/README.md.
 # https://github.com/JuliaGeometry/TetGen.jl/blob/ea73adce3ea4dfa6062eb84b1eff05f3fcab60a5/README.md
-points = Point{3, Float64}[
+points = GeometryBasics.Point{3, Float64}[
   (0.0, 0.0, 0.0), (2.0, 0.0, 0.0),
   (2.0, 2.0, 0.0), (0.0, 2.0, 0.0),
   (0.0, 0.0, 12.0), (2.0, 0.0, 12.0),
@@ -79,7 +80,7 @@ s[:tri_orientation] = true
 
 # Test mesh roundtripping:
 s_to_mesh = Mesh(s)
-@test all(issetequal.(faces(s_to_mesh), faces(tet_msh)))
+@test all(issetequal.(GeometryBasics.faces(s_to_mesh), GeometryBasics.faces(tet_msh)))
 
 # DelaunayTriangulation compatibility
 #---------------------
@@ -120,5 +121,65 @@ sd = EmbeddedDeltaDualComplex2D{Bool, Float64, Point3d}(s)
 subdivide_duals!(sd, Circumcenter())
 @test sum(sd[:area]) ≈ get_area(tri)
 @test is_manifold_like(s)
+
+# Meshes compatibility
+#---------------------
+
+# Test with PolyArea
+points = [(0,0), (2,0), (2,2), (1,3), (0,2)]
+p = PolyArea(points)
+mesh = discretize(p, DelaunayTriangulation())
+
+s = EmbeddedDeltaSet2D(mesh)
+
+@test nv(s) == nvertices(mesh)
+@test ntriangles(s) == nelements(mesh)
+@test is_manifold_like(s)
+# Test all point coordinates are correct
+@test all(map((x1,x2) -> x1[1] == x2[1] && x1[2] == x2[2], s[:point], points))
+
+# Test all connectivity information is correct
+@test all(i -> all(sort(topology(mesh).connec[i].indices) .== sort(triangle_vertices(s, i))), 1:nelements(mesh))
+
+# Test with 2D surface in 3D space
+points = [(0,0,0),(1,0,0),(1,1,0),(0,1,0),(0,0,1),(1,0,1),(1,1,1),(0,1,1)]
+connec = Meshes.connect.([(1,4,3,2),(5,6,7,8),(1,2,6,5),(3,4,8,7),(1,5,8,4),(2,3,7,6)])
+mesh   = refine(SimpleMesh(points, connec), TriSubdivision())
+
+s = EmbeddedDeltaSet2D(mesh)
+
+@test nv(s) == nvertices(mesh)
+@test ntriangles(s) == nelements(mesh)
+@test is_manifold_like(s)
+@test all(map((x1,x2) -> x1[1] == x2[1] && x1[2] == x2[2] && x1[3] == x2[3], s[:point], points))
+@test all(i -> all(sort(topology(mesh).connec[i].indices) .== sort(triangle_vertices(s, i))), 1:nelements(mesh))
+
+# Mesh contains non-simplicial elements (Quadrangles)
+aPlane = Plane((0.0, 0.0, 0.0), (0.0, 0.0, 1.0))
+aDisk = Disk(aPlane, 1.0)
+mesh = discretize(aDisk)
+
+@test_throws MethodError s = EmbeddedDeltaSet2D(mesh)
+
+# Test with simplexify functionality
+aPlane = Plane((0.0, 0.0, 0.0), (0.0, 0.0, 1.0))
+aDisk = Disk(aPlane, 1.0)
+mesh = simplexify(aDisk)
+
+s = EmbeddedDeltaSet2D(mesh)
+
+@test nv(s) == nvertices(mesh)
+@test ntriangles(s) == nelements(mesh)
+@test is_manifold_like(s)
+@test all(i -> all(sort(topology(mesh).connec[i].indices) .== sort(triangle_vertices(s, i))), 1:nelements(mesh))
+
+# Test support for changing Float types (Float32)
+points = [(0f0,0f0), (2f0,0f0), (2f0,2f0), (1f0,3f0), (0f0,2f0)]
+p = PolyArea(points)
+mesh = discretize(p, DelaunayTriangulation())
+
+s = EmbeddedDeltaSet2D(mesh)
+
+@test eltype(s[:point]).parameters[2] == Float32
 
 end
