@@ -3,11 +3,22 @@ using CombinatorialSpaces
 using Meshes
 
 import CombinatorialSpaces: EmbeddedDeltaSet2D
-import Meshes: vertices
 
 function EmbeddedDeltaSet2D(mesh::SimpleMesh)
-  @warn "EmbeddedDeltaSet2D mesh will use 3D points, setting z-coordinate to 0"
-  cs = map(p -> Point3{Float64}(p.coords.x.val, p.coords.y.val, 0.0), Meshes.vertices(mesh))
+  # This code supports capturing both 2D and 3D input points
+  function numerical_coords(p)
+    c = getproperty.(getfield(p.coords, :coords), :val)
+    dim = length(c)
+    if dim == 3
+      return Point3d(x)
+    elseif dim == 2
+      @warn "EmbeddedDeltaSet2D mesh will use 3D points, setting z-coordinate to 0"
+      return Point3d(x..., 0)
+    else
+      @error "The mesh provided has points of unsupported dimension $dim"
+    end
+  end
+  cs = map(p -> numerical_coords(p), Meshes.vertices(mesh))
 
   s = EmbeddedDeltaSet2D{Bool, Point3{Float64}}()
   add_vertices!(s, length(cs), point=cs)
