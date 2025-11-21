@@ -139,7 +139,7 @@ s = EmbeddedDeltaSet2D(mesh)
 @test all(map((x1,x2) -> x1[1] == x2[1] && x1[2] == x2[2], s[:point], points))
 
 # Test all connectivity information is correct
-@test all(i -> all(sort(topology(mesh).connec[i].indices) .== sort(triangle_vertices(s, i))), 1:nelements(mesh))
+@test all(i -> Set(topology(mesh).connec[i].indices) == Set(triangle_vertices(s, i)), 1:nelements(mesh))
 
 # Test with 2D surface in 3D space
 points = [(0,0,0),(1,0,0),(1,1,0),(0,1,0),(0,0,1),(1,0,1),(1,1,1),(0,1,1)]
@@ -152,7 +152,7 @@ s = EmbeddedDeltaSet2D(mesh)
 @test ntriangles(s) == nelements(mesh)
 @test is_manifold_like(s)
 @test all(map((x1,x2) -> x1[1] == x2[1] && x1[2] == x2[2] && x1[3] == x2[3], s[:point], points))
-@test all(i -> all(sort(topology(mesh).connec[i].indices) .== sort(triangle_vertices(s, i))), 1:nelements(mesh))
+@test all(i -> Set(topology(mesh).connec[i].indices) == Set(triangle_vertices(s, i)), 1:nelements(mesh))
 
 # Mesh contains non-simplicial elements (Quadrangles)
 aPlane = Plane((0.0, 0.0, 0.0), (0.0, 0.0, 1.0))
@@ -171,7 +171,7 @@ s = EmbeddedDeltaSet2D(mesh)
 @test nv(s) == nvertices(mesh)
 @test ntriangles(s) == nelements(mesh)
 @test is_manifold_like(s)
-@test all(i -> all(sort(topology(mesh).connec[i].indices) .== sort(triangle_vertices(s, i))), 1:nelements(mesh))
+@test all(i -> Set(topology(mesh).connec[i].indices) == Set(triangle_vertices(s, i)), 1:nelements(mesh))
 
 # Test support for changing Float types (Float32)
 points = [(0f0,0f0), (2f0,0f0), (2f0,2f0), (1f0,3f0), (0f0,2f0)]
