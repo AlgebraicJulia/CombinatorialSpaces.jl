@@ -30,11 +30,13 @@ TetGen = "c5d3f3f7-f850-59f6-8a2e-ffc6dc1317ea"
 CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
 DelaunayTriangulation = "927a84f5-c5f4-47a5-9785-b46e178433df"
 Makie = "ee78f7c6-11fb-53f2-987a-cfe4a2b5a57a"
+Meshes = "eacbb407-ea5a-433e-ab97-5258b1ca43fa"
 
 [extensions]
 CombinatorialSpacesCUDAExt = "CUDA"
 CombinatorialSpacesDelaunayTriangulationExt = "DelaunayTriangulation"
 CombinatorialSpacesMakieExt = "Makie"
+CombinatorialSpacesMeshesExt = "Meshes"
 
 [compat]
 ACSets = "0.2"
@@ -50,8 +52,9 @@ KernelAbstractions = "0.9"
 Krylov = "0.9.6, 0.10"
 LazyArrays = "0.20, 0.21, 0.22, 1.0, 2"
 LinearAlgebra = "1.9"
-Makie = "0.21, 0.22"
+Makie = "0.21, 0.22, 0.23, 0.24"
 MeshIO = "0.4, 0.5"
+Meshes = "0.55.10"
 Parameters = "0.12.3"
 Random = "1.10, 1.11.0"
 Reexport = "0.2, 1.0"
@@ -66,10 +69,11 @@ julia = "1.10"
 CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
 CairoMakie = "13f3f980-e62b-5c42-98c6-ff1f3baf88f0"
 DelaunayTriangulation = "927a84f5-c5f4-47a5-9785-b46e178433df"
+Meshes = "eacbb407-ea5a-433e-ab97-5258b1ca43fa"
 Pkg = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
 Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 Statistics = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
-test = ["CairoMakie", "CUDA", "DelaunayTriangulation", "Pkg", "Random", "Test", "Statistics"]
+test = ["CairoMakie", "CUDA", "DelaunayTriangulation", "Meshes", "Pkg", "Random", "Test", "Statistics"]

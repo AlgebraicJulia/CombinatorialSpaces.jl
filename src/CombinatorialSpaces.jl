@@ -14,7 +14,7 @@ include("ExteriorCalculus.jl")
 include("SimplicialSets.jl")
 include("DiscreteExteriorCalculus.jl")
 include("MeshInterop.jl")
-include("Meshes.jl")
+include("CombMeshes.jl")
 include("Restrictions.jl")
 include("Multigrid.jl")
 include("FastDEC.jl")
@@ -23,7 +23,7 @@ include("MeshOptimization.jl")
 @reexport using .SimplicialSets
 @reexport using .DiscreteExteriorCalculus
 @reexport using .MeshInterop
-@reexport using .Meshes
+@reexport using .CombMeshes
 @reexport using .Multigrid
 @reexport using .FastDEC
 @reexport using .MeshOptimization
