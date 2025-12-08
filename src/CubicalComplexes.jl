@@ -21,8 +21,6 @@ mutable struct EmbeddedCubicalComplex2D <: HasCubicalComplex
   edge_orientation::AbstractVector{Bool}
   length::AbstractVector{Real}
 
-  edge_lookup::Dict{Tuple{Int, Int}, Int}
-
   ∂e0::AbstractVector{Int}
   ∂e1::AbstractVector{Int}
   ∂e2::AbstractVector{Int}
@@ -30,12 +28,14 @@ mutable struct EmbeddedCubicalComplex2D <: HasCubicalComplex
   quad_orientation::AbstractVector{Bool}
   area::AbstractVector{Real}
 
+  vertex_edge_lookup::Dict{Tuple{Int, Int}, Int}
+
   function EmbeddedCubicalComplex2D()
     return new(0,0,0, # Total count
       Point3d[], # For vertices
       Int64[],Int64[],Bool[],Float64[], # For edges
-      Dict{Tuple{Int64, Int64}, Int64}(), # For edge lookup
-      Int64[],Int64[],Int64[],Int64[],Bool[],Float64[]) # For quads
+      Int64[],Int64[],Int64[],Int64[],Bool[],Float64[], # For quads
+      Dict{Tuple{Int64, Int64}, Int64}()) # For edge lookup
   end
 end
 
@@ -69,24 +69,26 @@ function add_edge!(s::HasCubicalComplex, v0::Int, v1::Int, o::Bool = false)
   @assert length(unique(SVector(v0, v1))) == 2
 
   e_idx = inc_ne!(s)
-  v0, v1 = sort(SVector(v0, v1))
+  v0, v1 = edge_from_pair(v0, v1)
 
   has_edge(s, v0, v1) && return find_edge(s, v0, v1)
 
   push!(s.∂v0, v0); push!(s.∂v1, v1); push!(s.edge_orientation, o)
   push!(s.length, norm(point(s, v1) - point(s, v0)))
-  push!(s.edge_lookup, (v0, v1) => e_idx)
+  push!(s.vertex_edge_lookup, (v0, v1) => e_idx)
   return e_idx
 end
 
+edge_from_pair(v0::Int, v1::Int) = sort(SVector(v0, v1))
+
 # TODO: This should be using a dictionary
 has_edge(s::HasCubicalComplex, v0::Int, v1::Int) = has_edge(s, Tuple(SVector(v0,v1)))
-has_edge(s::HasCubicalComplex, vs::Tuple{Int, Int}) = haskey(s.edge_lookup, sort(vs))
+has_edge(s::HasCubicalComplex, vs::Tuple{Int, Int}) = haskey(s.vertex_edge_lookup, sort(vs))
 
 find_edge(s::HasCubicalComplex, v0::Int, v1::Int) = find_edge(s, Tuple(SVector(v0,v1)))
-find_edge(s::HasCubicalComplex, vs::Tuple{Int, Int}) = get(s.edge_lookup, sort(vs), 0)
+find_edge(s::HasCubicalComplex, vs::Tuple{Int, Int}) = get(s.vertex_edge_lookup, sort(vs), 0)
 
-edge_vertices(s::HasCubicalComplex, e::Int) = SVector(s.∂v0, s.∂v1)
+edge_vertices(s::HasCubicalComplex, e::Int) = SVector(getindex(s.∂v0, e), getindex(s.∂v1, e))
 
 # TODO: Edges might want to have a better defined order, based on vertex ordering
 function glue_quad!(s::HasCubicalComplex, v0::Int, v1::Int, v2::Int, v3::Int, o::Bool = false)
@@ -96,7 +98,8 @@ function glue_quad!(s::HasCubicalComplex, v0::Int, v1::Int, v2::Int, v3::Int, o:
   q_idx = inc_nquads!(s)
   es = Int[] # TODO: Make this better
 
-  for pair in SVector((v0, v1), (v1, v2), (v2, v3), (v3, v0))
+  list = sort(SVector(edge_from_pair(v0, v1), edge_from_pair(v1, v2), edge_from_pair(v2, v3), edge_from_pair(v3, v0)))
+  for pair in list
     e = add_edge!(s, pair...)
     e != ne(s)
     push!(es, e)
@@ -115,7 +118,10 @@ function orient!()
   return nothing
 end
 
-quad_edges(s::HasCubicalComplex, q::Int) = SVector(s.∂e0, s.∂e1, s.∂e2, s.∂e3)
+quad_edges(s::HasCubicalComplex, q::Int) = SVector(getindex(s.∂e0, q), getindex(s.∂e1, q), getindex(s.∂e2, q), getindex(s.∂e3, q))
+
+# TODO: Make fewer allocations
+quad_vertices(s::HasCubicalComplex, q::Int) = sort(unique(vcat(map(e -> edge_vertices(s, e), quad_edges(s, q))...)))
 
 edge_length(s, e::Int) = getindex(s.length, e)
 quad_area(s, q::Int) = getindex(s.area, q)
