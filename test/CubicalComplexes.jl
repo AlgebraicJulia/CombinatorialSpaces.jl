@@ -24,4 +24,12 @@ glue_quad!(s, 3, 4, 1, 2)
 @test s.∂v1 == [2,4,3,4]
 
 @test edge_vertices(s, 1) == [1,2]
-@test quad_vertices(s, 1) == [1,2,3,4]
+@test quad_vertices(s, 1) == [3, 4, 1, 2]
+@test quad_edges(s, 1) == [1,2,3,4]
+
+d0 = exterior_derivative(Val(0), s)
+d1 = exterior_derivative(Val(1), s)
+
+@test all(0 .== d1 * d0)
+
+grid = construct_grid(10, 10, 3, 3)
