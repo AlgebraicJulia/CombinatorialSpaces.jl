@@ -1,11 +1,15 @@
 export CubicalComplex, EmbeddedCubicalComplex2D
 
 using StaticArrays: @SVector, SVector
-using GeometryBasics: Point3d
+using GeometryBasics: Point2d, Point3d, QuadFace
 using LinearAlgebra: norm, cross
 using SparseArrays
 
 import Base.show
+import GeometryBasics.Mesh
+
+using Makie
+import Makie: convert_arguments
 
 abstract type HasCubicalComplex end
 
@@ -19,27 +23,28 @@ mutable struct EmbeddedCubicalComplex2D <: HasCubicalComplex
 
   point::AbstractVector
 
-  ∂v0::AbstractVector{Int}
-  ∂v1::AbstractVector{Int}
+  ∂v0::AbstractVector{Int} # tgt
+  ∂v1::AbstractVector{Int} # src
   length::AbstractVector{Real}
 
   ∂e0::AbstractVector{Int}
   ∂e1::AbstractVector{Int}
   ∂e2::AbstractVector{Int}
   ∂e3::AbstractVector{Int}
-  quad_orientation::AbstractVector{Bool}
   area::AbstractVector{Real}
 
-  # TODO: Change to Tuple to SVector?
   vertex_edge_lookup::Dict{SVector{2, Int}, Int}
   quad_vertex_lookup::Dict{Int, SVector{4, Int}}
+  quad_edge_orient_lookup::Dict{Int, SVector{4, Int}}
+
   function EmbeddedCubicalComplex2D()
     return new(0,0,0, # Total count
       Point3d[], # For vertices
-      Int64[],Int64[],Float64[], # For edges
-      Int64[],Int64[],Int64[],Int64[],Bool[],Float64[], # For quads
-      Dict{SVector{2, Int64}, Int64}(), # For edge lookup
-      Dict{Int, SVector{4, Int64}}()) # For quad vertex ordering lookup
+      Int32[],Int32[],Float64[], # For edges
+      Int32[],Int32[],Int32[],Int32[],Float64[], # For quads
+      Dict{SVector{2, Int32}, Int32}(), # For edge lookup
+      Dict{Int, SVector{4, Int32}}(),
+      Dict{Int, SVector{4, Int32}}()) # For quad vertex ordering lookup
   end
 end
 
@@ -61,7 +66,7 @@ function Base.show(io::IO, s::HasCubicalComplex)
 
   println(io, "\nQuads:")
   for i in quadrilaterals(s)
-    println(io, "$i: $(quad_vertices(s, i))")
+    println(io, "$i: $(quad_edges(s, i))")
   end
 end
 
@@ -109,57 +114,81 @@ end
 
 edge_from_pair(v0::Int, v1::Int) = sort(SVector(v0, v1))
 
-# TODO: This should be using a dictionary
-has_edge(s::HasCubicalComplex, v0::Int, v1::Int) = has_edge(s, SVector(v0,v1))
-has_edge(s::HasCubicalComplex, vs::SVector{2, Int}) = haskey(s.vertex_edge_lookup, sort(vs))
+has_edge(s::HasCubicalComplex, v0::Int, v1::Int) = has_edge(s, edge_from_pair(v0,v1))
+has_edge(s::HasCubicalComplex, vs::SVector{2, Int}) = haskey(s.vertex_edge_lookup, vs)
 
-find_edge(s::HasCubicalComplex, v0::Int, v1::Int) = find_edge(s, SVector(v0,v1))
-find_edge(s::HasCubicalComplex, vs::SVector{2, Int}) = get(s.vertex_edge_lookup, sort(vs), 0)
+find_edge(s::HasCubicalComplex, v0::Int, v1::Int) = find_edge(s, edge_from_pair(v0,v1))
+find_edge(s::HasCubicalComplex, vs::SVector{2, Int}) = get(s.vertex_edge_lookup, vs, 0)
 
+tgt(s::HasCubicalComplex, e::Int) = SVector(getindex(s.∂v0, e))
+src(s::HasCubicalComplex, e::Int) = SVector(getindex(s.∂v1, e))
 edge_vertices(s::HasCubicalComplex, e::Int) = SVector(getindex(s.∂v0, e), getindex(s.∂v1, e))
 
 edge_length(s, e::Int) = getindex(s.length, e)
 
-# TODO: Edges might want to have a better defined order, based on vertex ordering
 # Order of vertices must be given in counterclockwise order
 function glue_quad!(s::HasCubicalComplex, v0::Int, v1::Int, v2::Int, v3::Int, o::Bool = true)
   @assert has_vertex(s, v0) && has_vertex(s, v1) && has_vertex(s, v2) && has_vertex(s, v3)
 
-  v_list = SVector(v0, v1, v2, v3)
-  @assert length(unique(v_list)) == 4
+  list = SVector(v0, v1, v2, v3)
+  @assert length(unique(list)) == 4
+
 
   q_idx = inc_nquads!(s)
-  push!(s.quad_vertex_lookup, q_idx => v_list)
+  push!(s.quad_vertex_lookup, q_idx => list)
 
-  es = Int[] # TODO: Make this better
+  # TODO: Make this more performant
+  list = SVector(v0, v1, v2, v3, v0)
+  es = MVector{4, Int}(0,0,0,0)
+  orients = MVector{4, Int}(0,0,0,0)
+  for i in 1:4
+    pair = edge_from_pair(list[i], list[i+1])
 
-  list = sort(SVector(edge_from_pair(v0, v1), edge_from_pair(v1, v2), edge_from_pair(v2, v3), edge_from_pair(v3, v0)))
-  for pair in list
-    e = add_edge!(s, pair...)
-    e != ne(s)
-    push!(es, e)
+    es[i] = add_edge!(s, pair...)
+    orients[i] = (pair == SVector(list[i], list[i+1])) ? 1 : -1
   end
 
   # TODO: Add quad lookup to prevent redundant quads
   push!(s.∂e0, es[1]); push!(s.∂e1, es[2]); push!(s.∂e2, es[3]); push!(s.∂e3, es[4]);
-  push!(s.quad_orientation, o)
   push!(s.area, norm(cross(point(s, v1) - point(s, v0), point(s, v3) - point(s, v0))))
+
+  push!(s.quad_edge_orient_lookup, q_idx => orients)
 
   return s
 end
 
-# TODO: Take first quad and orient neighbors accordingly
-function orient!()
-  return nothing
+quad_edges(s::HasCubicalComplex, q::Int) = SVector(getindex(s.∂e0, q), getindex(s.∂e1, q), getindex(s.∂e2, q), getindex(s.∂e3, q))
+quad_area(s::HasCubicalComplex, q::Int) = getindex(s.area, q)
+quad_vertices(s::HasCubicalComplex, q::Int) = get(s.quad_vertex_lookup, q, SVector(0,0,0,0))
+quad_edge_orients(s::HasCubicalComplex, q::Int) = get(s.quad_edge_orient_lookup, q, SVector(0,0,0,0))
+
+### PLOTTING ###
+
+function GeometryBasics.Mesh(s::HasCubicalComplex)
+  ps = map(q -> point(s, q), vertices(s))
+  qs = map(q -> QuadFace{Int}(quad_vertices(s, q)), quadrilaterals(s))
+  GeometryBasics.Mesh(ps, qs)
 end
 
-quad_edges(s::HasCubicalComplex, q::Int) = SVector(getindex(s.∂e0, q), getindex(s.∂e1, q), getindex(s.∂e2, q), getindex(s.∂e3, q))
+function convert_arguments(P::Union{Type{<:Makie.Wireframe},
+                                    Type{<:Makie.Mesh},
+                                    Type{<:Makie.Scatter}},
+                           s::HasCubicalComplex)
+  convert_arguments(P, GeometryBasics.Mesh(s))
+end
 
-# TODO: Make fewer allocations
-quad_vertices(s::HasCubicalComplex, q::Int) = get(s.quad_vertex_lookup, q, SVector(0,0,0,0))
+function convert_arguments(P::Type{<:Makie.LineSegments}, s::HasCubicalComplex)
+  edge_positions = zeros(ne(s)*2,3)
+  for e in edges(s)
+    edge_positions[2*e-1,:] = point(s, src(s, e))
+    edge_positions[2*e,:] = point(s, tgt(s, e))
+  end
+  convert_arguments(P, edge_positions)
+end
 
-quad_area(s, q::Int) = getindex(s.area, q)
-quad_orient(s::HasCubicalComplex, e::Int) = getindex(s.quad_orientation, e)
+plottype(::HasCubicalComplex) = GeometryBasics.Mesh
+
+### DEFAULT MESHES ###
 
 function construct_grid(lx::Real, ly::Real, nx::Int, ny::Int)
   s = EmbeddedCubicalComplex2D()
@@ -197,7 +226,6 @@ function exterior_derivative(::Val{0}, s::HasCubicalComplex)
     J[idx] = v0
     J[idx + 1] = v1
 
-    # TODO: Which is src and tgt per Comby?
     V[idx] = 1
     V[idx + 1] = -1
   end
@@ -213,23 +241,13 @@ function exterior_derivative(::Val{1}, s::HasCubicalComplex)
 
   for q in quadrilaterals(s)
     idx = 4 * q - 3
-    e0, e1, e2, e3 = quad_edges(s, q)
-
-    I[idx] = q
-    I[idx + 1] = q
-    I[idx + 2] = q
-    I[idx + 3] = q
-
-    J[idx] = e0
-    J[idx + 1] = e1
-    J[idx + 2] = e2
-    J[idx + 3] = e3
-
-    # TODO: This needs some sense of face orientation (assume edges oriented low to high)
-    V[idx] = 1
-    V[idx + 1] = -1
-    V[idx + 2] = 1
-    V[idx + 3] = 1
+    orients = get(s.quad_edge_orient_lookup, q, SVector(0,0,0,0))
+    for (i, e) in enumerate(quad_edges(s, q))
+      j = idx + i - 1
+      I[j] = q
+      J[j] = e
+      V[j] = getindex(orients, i)
+    end
   end
 
   return sparse(I, J, V)
