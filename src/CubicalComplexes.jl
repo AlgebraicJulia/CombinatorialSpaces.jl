@@ -2,7 +2,7 @@ export CubicalComplex, EmbeddedCubicalComplex2D
 
 using StaticArrays: @SVector, SVector
 using GeometryBasics: Point2d, Point3d, QuadFace
-using LinearAlgebra: norm, cross
+using LinearAlgebra: norm, diagm
 using SparseArrays
 
 import Base.show
@@ -131,6 +131,51 @@ function quad_area(s::HasCubicalComplex, q::Int)
   return edge_length(s, es[1]) * edge_length(s, es[3]) # bottom * left
 end
 
+on_topbound_vertex(s::HasCubicalComplex, v::Int) = (v + nx(s)) > nv(s)
+on_botbound_vertex(s::HasCubicalComplex, v::Int) = (v - nx(s)) < 1
+on_leftbound_vertex(s::HasCubicalComplex, v::Int) = (v - 1) % nx(s) == 0
+on_rightbound_vertex(s::HasCubicalComplex, v::Int) = v % nx(s) == 0
+
+dual_point(s::HasCubicalComplex, v::Int) = 0.25 * sum(map(x -> point(s, x), quad_vertices(s, v)))
+dual_points(s::HasCubicalComplex) = map(q -> dual_point(s, q), quadrilaterals(s))
+
+function top_dualsup_edge_length(s::HasCubicalComplex, v::Int)
+  on_topbound_vertex(s, v) && return 0
+  return 0.5 * norm(point(s, v + nx(s)) - point(s, v))
+end
+
+function bot_dualsup_edge_length(s::HasCubicalComplex, v::Int)
+  on_botbound_vertex(s, v) && return 0
+  return 0.5 * norm(point(s, v) - point(s, v - nx(s)))
+end
+
+function left_dualsup_edge_length(s::HasCubicalComplex, v::Int)
+  on_leftbound_vertex(s, v) && return 0
+  return 0.5 * norm(point(s, v) - point(s, v - 1))
+end
+
+function right_dualsup_edge_length(s::HasCubicalComplex, v::Int)
+  on_rightbound_vertex(s, v) && return 0
+  return 0.5 * norm(point(s, v + 1) - point(s, v))
+end
+
+function dual_edge_length(s::HasCubicalComplex, e::Int)
+  v = src(s, e)
+  if 1 <= e <= nhe(s) # Horizontal edge
+    return top_dualsup_edge_length(s, v) + bot_dualsup_edge_length(s, v)
+  else # Vertical edge
+    return left_dualsup_edge_length(s, v) + right_dualsup_edge_length(s, v)  
+  end
+end
+
+function dual_quad_area(s::HasCubicalComplex, q::Int)
+  # v <=> dual_q index match
+  h = top_dualsup_edge_length(s, q) + bot_dualsup_edge_length(s, q)
+  w = left_dualsup_edge_length(s, q) + right_dualsup_edge_length(s, q)
+
+  return h * w
+end
+
 ### PLOTTING ###
 
 function GeometryBasics.Mesh(s::HasCubicalComplex)
@@ -148,6 +193,22 @@ end
 
 plottype(::HasCubicalComplex) = GeometryBasics.Mesh
 
+function plot_oneform(s::HasCubicalComplex, alpha)
+  dps = dual_points(s)
+  x = map(a -> dps[a][1], quadrilaterals(s))
+  y = map(a -> dps[a][2], quadrilaterals(s))
+
+  X,Y = sharp_pp(s, alpha)
+
+  color = sqrt.(X.^2 + Y.^2)
+
+  fig = Figure();
+  ax = CairoMakie.Axis(fig[1,1])
+  arrows2d!(ax, x, y, X, Y, color = color)
+  wireframe!(ax, s)
+  fig
+end
+
 ### MESH HELPERS ###
 
 function uniform_grid(lx::Real, ly::Real, nx::Int, ny::Int)
@@ -160,7 +221,6 @@ function uniform_grid(lx::Real, ly::Real, nx::Int, ny::Int)
 
   return EmbeddedCubicalComplex2D(nx, ny, ps)
 end
-
 
 ### DEC OPERATORS ###
 
@@ -205,4 +265,66 @@ function exterior_derivative(::Val{1}, s::HasCubicalComplex)
   end
 
   return sparse(I, J, V)
+end
+
+dual_derivative(::Val{0}, s::HasCubicalComplex) = -transpose(exterior_derivative(Val(1), s))
+dual_derivative(::Val{1}, s::HasCubicalComplex) = transpose(exterior_derivative(Val(0), s))
+
+function wedge_product(::Val{(0,1)}, s::HasCubicalComplex, f, alpha)
+  res = similar(alpha)
+
+  for e in edges(s)
+    res[e] = 0.5 * (getindex(f, src(s, e)) + getindex(f, tgt(s, e))) * alpha[e]
+  end
+
+  return res
+end
+
+function wedge_product(::Val{(0,2)}, s::HasCubicalComplex, f, alpha)
+  res = similar(alpha)
+
+  for q in quadrilaterals(s)
+    v1, v2, v3, v4 = quad_vertices(s, q)
+    res[q] = 0.25 * (getindex(f, v1) + getindex(f, v2) + getindex(f, v3) + getindex(f, v4)) * alpha[q]
+  end
+
+  return res
+end
+
+function wedge_product(::Val{(1,1)}, s::HasCubicalComplex, alpha, beta)
+  res = zeros(eltype(alpha), nquads(s))
+
+  # a ∧ b = (a[x]b[y] - a[y]b[x])dx ∧ dy
+  for q in quadrilaterals(s)
+    e1, e2, e3, e4 = quad_edges(s, q)
+    res[q] = 0.25 * ((alpha[e1] + alpha[e2]) * (beta[e3] + beta[e4]) - (alpha[e3] + alpha[e4]) * (beta[e1] + beta[e2]))
+  end
+
+  return res
+end
+
+hodge_star(::Val{0}, s::HasCubicalComplex) = spdiagm(map(dq -> dual_quad_area(s, dq), vertices(s)))
+
+function hodge_star(::Val{1}, s::HasCubicalComplex)
+  e_lens = map(e -> edge_length(s, e), edges(s))
+  de_lens = map(de -> dual_edge_length(s, de), edges(s))
+  return spdiagm(e_lens ./ de_lens)
+end
+
+hodge_star(::Val{2}, s::HasCubicalComplex) = spdiagm(1 ./ map(q -> quad_area(s, q), quadrilaterals(s)))
+
+inv_hodge_star(::Val{k}, s::HasCubicalComplex) where k = spdiagm(1 ./ diag(hodge_star(Val(k), s)))
+
+laplacian(::Val{0}, s::HasCubicalComplex) = inv_hodge_star(Val(0), s) * dual_derivative(Val(1), s) * 
+                                            hodge_star(Val(1), s) * exterior_derivative(Val(0), s)
+
+function sharp_pp(s::HasCubicalComplex, alpha)
+  X, Y = zeros(nquads(s)), zeros(nquads(s))
+  for q in quadrilaterals(s)
+    eb, et, el, er = quad_edges(s, q)
+    X[q] = 0.5 * (alpha[eb] + alpha[et])
+    Y[q] = 0.5 * (alpha[el] + alpha[er])
+  end
+
+  return X, Y
 end
