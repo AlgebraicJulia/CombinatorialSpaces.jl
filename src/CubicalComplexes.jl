@@ -2,7 +2,7 @@ export CubicalComplex, EmbeddedCubicalComplex2D
 
 using StaticArrays: @SVector, SVector
 using GeometryBasics: Point2d, Point3d, QuadFace
-using LinearAlgebra: norm, diagm
+using LinearAlgebra: norm, diagm, diag
 using SparseArrays
 
 import Base.show
@@ -308,15 +308,16 @@ hodge_star(::Val{0}, s::HasCubicalComplex) = spdiagm(map(dq -> dual_quad_area(s,
 function hodge_star(::Val{1}, s::HasCubicalComplex)
   e_lens = map(e -> edge_length(s, e), edges(s))
   de_lens = map(de -> dual_edge_length(s, de), edges(s))
-  return spdiagm(e_lens ./ de_lens)
+  return spdiagm(de_lens ./ e_lens)
 end
 
 hodge_star(::Val{2}, s::HasCubicalComplex) = spdiagm(1 ./ map(q -> quad_area(s, q), quadrilaterals(s)))
 
 inv_hodge_star(::Val{k}, s::HasCubicalComplex) where k = spdiagm(1 ./ diag(hodge_star(Val(k), s)))
 
-laplacian(::Val{0}, s::HasCubicalComplex) = inv_hodge_star(Val(0), s) * dual_derivative(Val(1), s) * 
-                                            hodge_star(Val(1), s) * exterior_derivative(Val(0), s)
+codifferential(::Val{1}, s::HasCubicalComplex) = inv_hodge_star(Val(0), s) * dual_derivative(Val(1), s) * hodge_star(Val(1), s)
+
+laplacian(::Val{0}, s::HasCubicalComplex) = codifferential(Val(1), s) * exterior_derivative(Val(0), s)
 
 function sharp_pp(s::HasCubicalComplex, alpha)
   X, Y = zeros(nquads(s)), zeros(nquads(s))

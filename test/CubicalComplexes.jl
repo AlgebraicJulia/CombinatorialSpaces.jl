@@ -47,6 +47,7 @@ for dq in vertices(s)
   @test 25.0 == dual_quad_area(s, dq)
 end
 
+# Exterior derivative
 d0 = exterior_derivative(Val(0), s)
 d1 = exterior_derivative(Val(1), s)
 
@@ -57,6 +58,7 @@ dual_d1 = dual_derivative(Val(1), s)
 
 @test all(0 .== dual_d1 * dual_d0)
 
+# Wedge product
 v1 = ones(nv(s))
 e1 = ones(ne(s))
 q1 = ones(nquads(s))
@@ -74,6 +76,19 @@ eY = zeros(ne(s))
 eY[nhe(s)+1:ne(s)] .= 1
 all(1.0 .== wedge_product(Val((1,1)), s, eX, eY))
 all(-1.0 .== wedge_product(Val((1,1)), s, eY, eX))
+
+# Hodge star
+hdg_0 = hodge_star(Val(0), s)
+@test all(25 .== diag(hdg_0))
+@test (100 == sum(diag(hdg_0)))
+
+hdg_1 = hodge_star(Val(1), s)
+@test all(0.5 .== diag(hdg_1))
+
+hdg_2 = hodge_star(Val(2), s)
+@test all(1/100 .== diag(hdg_2))
+
+### NON-UNIFORM MESH TESTS
 
 ps = Point3d[]
 for y in [0, 1, 3, 6, 10]
@@ -127,11 +142,18 @@ end
 
 @test quad_edges(s, 16) == [16,20,39,40]
 
+# Exterior derivative
 d0 = exterior_derivative(Val(0), s)
 d1 = exterior_derivative(Val(1), s)
 
 @test all(0 .== d1 * d0)
 
+dual_d0 = dual_derivative(Val(0), s)
+dual_d1 = dual_derivative(Val(1), s)
+
+@test all(0 .== dual_d1 * dual_d0)
+
+# Wedge product
 v1 = ones(nv(s))
 e1 = ones(ne(s))
 q1 = ones(nquads(s))
@@ -150,14 +172,28 @@ eY[nhe(s)+1:ne(s)] .= 1
 all(1.0 .== wedge_product(Val((1,1)), s, eX, eY))
 all(-1.0 .== wedge_product(Val((1,1)), s, eY, eX))
 
-dual_d0 = dual_derivative(Val(0), s)
-dual_d1 = dual_derivative(Val(1), s)
+# Hodge star
+hdg_0 = hodge_star(Val(0), s)
+@test (100 == sum(diag(hdg_0)))
 
-@test all(0 .== dual_d1 * dual_d0)
+hdg_1 = hodge_star(Val(1), s)
+for i in 1:4 # Bottom horizontal edges
+  @test 1/(2*i) == diag(hdg_1)[i]
+end
+
+for i in 2:4 # Bottom interior vertical edges
+  @test 0.5*(2i-1) == diag(hdg_1)[i+nhe(s)]
+end
+
+hdg_2 = hodge_star(Val(2), s)
+@test 1 == diag(hdg_2)[1]
+@test 1/4 == diag(hdg_2)[6]
+@test 1/9 == diag(hdg_2)[11]
+@test 1/16 == diag(hdg_2)[16]
 
 ### HEAT EQUATION ###
 
-s = uniform_grid(10, 10, 3, 3);
+s = uniform_grid(10, 10, 101, 101);
 fig = Figure();
 ax = CairoMakie.Axis(fig[1,1])
 wireframe!(ax, s)
@@ -171,27 +207,71 @@ u_0 = map(points(s)) do p
   end
 end
 
+# u_0 = map(p -> p[1], points(s))
+
 fig = Figure();
 ax = CairoMakie.Axis(fig[1,1])
 mesh!(ax, s, color = u_0)
 Colorbar(fig[1,2])
 fig
 
-d0 = exterior_derivative(Val(0), s)
-
-plot_oneform(s, d0 * u_0)
+Δ0 = laplacian(Val(0), s) 
 
 Δt = 0.001
 u = deepcopy(u_0)
 
-Δ0 = laplacian(Val(0), s) 
+diff_us = []
+push!(diff_us, u_0)
 
-for _ in 0:Δt:0.1
-  u .= u .+ Δt * Δ0 * u
-
-  fig = Figure();
-  ax = CairoMakie.Axis(fig[1,1])
-  mesh!(ax, s, color = u)
-  Colorbar(fig[1,2])
-  display(fig)
+for _ in 0:Δt:0.5
+  u .= u .- Δt * Δ0 * u
+  push!(diff_us, deepcopy(u))
 end
+
+fig = Figure();
+ax = CairoMakie.Axis(fig[1,1])
+mesh!(ax, s, color = last(diff_us))
+Colorbar(fig[1,2])
+fig
+
+for _ in 0:Δt:0.5
+  u .= u .- Δt * Δ0 * u
+  push!(diff_us, deepcopy(u))
+end
+
+### CONSTANT ADVECTION ###
+
+V = zeros(ne(s))
+V[1:nhe(s)] .= 1
+
+u = deepcopy(u_0)
+adv_us = []
+push!(adv_us, u_0)
+
+δ1 = codifferential(Val(1), s)
+
+Δt = 0.001
+for _ in 0:Δt:0.25
+  u .= u .+ Δt * δ1 * (wedge_product(Val((0,1)), s, u, V))
+  push!(adv_us, deepcopy(u))
+end
+
+fig = Figure();
+ax = CairoMakie.Axis(fig[1,1])
+mesh!(ax, s, color = last(adv_us))
+Colorbar(fig[1,2])
+fig
+
+function create_gif(solution, file_name)
+  frames = length(solution)
+  fig = Figure()
+  ax = CairoMakie.Axis(fig[1,1])
+  msh = CairoMakie.mesh!(ax, s, color=first(solution), colormap=:jet, colorrange=extrema(first(solution)))
+  Colorbar(fig[1,2], msh)
+  CairoMakie.record(fig, file_name, 1:10:frames; framerate = 15) do t
+    msh.color = solution[t]
+  end
+end
+
+create_gif(diff_us, "SquareDiffusion.mp4")
+create_gif(adv_us, "SquareAdvection.mp4")
