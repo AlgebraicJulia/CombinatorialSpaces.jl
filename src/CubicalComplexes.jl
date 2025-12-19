@@ -72,9 +72,17 @@ ne(s::HasCubicalComplex) = nhe(s) + nve(s)
 
 nquads(s::HasCubicalComplex) = (nx(s) - 1) * (ny(s) - 1)
 
+ndv(s::HasCubicalComplex) = nquads(s)
+nde(s::HasCubicalComplex) = ne(s)
+ndquads(s::HasCubicalComplex) = nv(s)
+
 vertices(s::HasCubicalComplex) = 1:nv(s)
 edges(s::HasCubicalComplex) = 1:ne(s)
 quadrilaterals(s::HasCubicalComplex) = 1:nquads(s)
+
+dual_vertices(s::HasCubicalComplex) = 1:ndv(s)
+dual_edges(s::HasCubicalComplex) = 1:nde(s)
+dual_quadrilaterals(s::HasCubicalComplex) = 1:ndquads(s)
 
 # Coordinate representations can make certain operations easier
 coord_to_vert(s::HasCubicalComplex, x::Int, y::Int) = x + (y - 1) * nx(s)
@@ -126,10 +134,17 @@ function quad_edges(s::HasCubicalComplex, q::Int)
   SVector(q, q + nx(s) - 1, q + nhe(s) + shift, q + nhe(s) + shift + 1)
 end
 
-function quad_area(s::HasCubicalComplex, q::Int)
+function quad_width(s::HasCubicalComplex, q::Int)
   es = quad_edges(s, q)
-  return edge_length(s, es[1]) * edge_length(s, es[3]) # bottom * left
+  return edge_length(s, es[1]) # bottom
 end
+
+function quad_height(s::HasCubicalComplex, q::Int)
+  es = quad_edges(s, q)
+  return edge_length(s, es[3]) # left
+end
+
+quad_area(s::HasCubicalComplex, q::Int) = quad_width(s, q) * quad_height(s, q)
 
 on_topbound_vertex(s::HasCubicalComplex, v::Int) = (v + nx(s)) > nv(s)
 on_botbound_vertex(s::HasCubicalComplex, v::Int) = (v - nx(s)) < 1
@@ -163,8 +178,10 @@ function dual_edge_length(s::HasCubicalComplex, e::Int)
   v = src(s, e)
   if 1 <= e <= nhe(s) # Horizontal edge
     return top_dualsup_edge_length(s, v) + bot_dualsup_edge_length(s, v)
-  else # Vertical edge
+  elseif e <= ne(s) # Vertical edge
     return left_dualsup_edge_length(s, v) + right_dualsup_edge_length(s, v)  
+  else
+    return 0
   end
 end
 
@@ -198,7 +215,7 @@ function plot_oneform(s::HasCubicalComplex, alpha)
   x = map(a -> dps[a][1], quadrilaterals(s))
   y = map(a -> dps[a][2], quadrilaterals(s))
 
-  X,Y = sharp_pp(s, alpha)
+  X,Y = sharp_pd(s, alpha)
 
   color = sqrt.(X.^2 + Y.^2)
 
@@ -319,13 +336,135 @@ codifferential(::Val{1}, s::HasCubicalComplex) = inv_hodge_star(Val(0), s) * dua
 
 laplacian(::Val{0}, s::HasCubicalComplex) = codifferential(Val(1), s) * exterior_derivative(Val(0), s)
 
-function sharp_pp(s::HasCubicalComplex, alpha)
+
+# Take primal 1-form and output dual vector field
+function sharp_pd(s::HasCubicalComplex, alpha)
   X, Y = zeros(nquads(s)), zeros(nquads(s))
   for q in quadrilaterals(s)
     eb, et, el, er = quad_edges(s, q)
-    X[q] = 0.5 * (alpha[eb] + alpha[et])
-    Y[q] = 0.5 * (alpha[el] + alpha[er])
+    X[q] = 0.5 * (alpha[eb] + alpha[et]) / quad_width(s, q)
+    Y[q] = 0.5 * (alpha[el] + alpha[er]) / quad_height(s, q)
   end
 
   return X, Y
+end
+
+# Take dual 1-form and output dual vector field
+function sharp_dd(s::HasCubicalComplex, alpha)
+  X, Y = zeros(nquads(s)), zeros(nquads(s))
+  for q in quadrilaterals(s)
+    deb, det, del, der = quad_edges(s, q)
+
+    X[q] = 0.5 * (alpha[del] / dual_edge_length(s, del) + alpha[der] / dual_edge_length(s, der))
+    Y[q] = -0.5 * (alpha[deb] / dual_edge_length(s, deb) + alpha[det] / dual_edge_length(s, det))
+  end
+
+  return X, Y
+end
+
+# Take dual vector field and output dual 1-form
+function flat_dd(s::HasCubicalComplex, X, Y)
+  alpha = zeros(eltype(X), nde(s))
+
+  for q in quadrilaterals(s)
+    h = quad_height(q, s)
+    w = quad_width(q, s)
+
+    deb, det, del, der = quad_edges(s, q)
+    alpha[deb] += 0.5 * h * Y[q]
+    alpha[det] += 0.5 * h * Y[q]
+
+    alpha[del] += 0.5 * w * X[q]
+    alpha[der] += 0.5 * w * X[q]
+  end
+
+  return alpha
+end
+
+# Take dual vector field and output primal 1-form
+function flat_dp(s::HasCubicalComplex, X, Y)
+  alpha = zeros(eltype(X), nde(s))
+
+  for q in quadrilaterals(s)
+    h = quad_height(q, s)
+    w = quad_width(q, s)
+
+    deb, det, del, der = quad_edges(s, q)
+    alpha[deb] += 0.5 * h * Y[q]
+    alpha[det] += 0.5 * h * Y[q]
+
+    alpha[del] += 0.5 * w * X[q]
+    alpha[der] += 0.5 * w * X[q]
+  end
+
+  return alpha
+end
+
+### PERIODIC HELPERS ###
+
+# TODO: Can make these mappings implicit to save memory
+abstract type AbstractBoundaryMapping end
+
+struct QuadMapping <: AbstractBoundaryMapping
+  boundary_zone::AbstractVector{Int}
+  copy_to_boundary_zone::AbstractVector{Int}
+end
+
+struct VertexMapping <: AbstractBoundaryMapping
+  boundary_zone::AbstractVector{Int64}
+  copy_to_boundary_zone::AbstractVector{Int64}
+end
+
+struct EdgeMapping <: AbstractBoundaryMapping
+  boundary_zone::AbstractVector{Int64}
+  copy_to_boundary_zone::AbstractVector{Int64}
+end
+
+function VertexMapping(s::HasCubicalComplex, q::QuadMapping)
+  vertex_boundary = vcat(map(x -> Array(quad_vertices(s, x)), q.boundary_zone)...)
+  vertex_copy_to = vcat(map(x -> Array(quad_vertices(s, x)), q.copy_to_boundary_zone)...)
+  return VertexMapping(vertex_boundary, vertex_copy_to)
+end
+
+function EdgeMapping(s::HasCubicalComplex, q::QuadMapping)
+  edge_boundary = vcat(map(x -> Array(quad_edges(s, x)), q.boundary_zone)...)
+  edge_copy_to = vcat(map(x -> Array(quad_edges(s, x)), q.copy_to_boundary_zone)...)
+  return EdgeMapping(edge_boundary, edge_copy_to)
+end
+
+function bottom_boundary_quads(s::HasCubicalComplex, depth::Int)
+  boundary_quads = collect(1:(nx(s) * depth))
+  return QuadMapping(boundary_quads, boundary_quads .+ (ny(s) - 2 * depth) * nx(s))
+end
+
+function top_boundary_quads(s::HasCubicalComplex, depth::Int)
+  boundary_quads = collect((nv(s) - depth * nx(s) + 1):nv(s))
+  return QuadMapping(boundary_quads, collect(1:(nx(s) * depth)) .+ depth * nx(s))
+end
+
+function left_boundary_quads(s::HasCubicalComplex, depth::Int)
+  boundary_quads = Int64[]
+  xs = collect(1:depth)
+  for y in 1:ny(s)-1
+    append!(boundary_quads, xs .+ (y - 1) * (nx(s) - 1))
+  end
+  return QuadMapping(boundary_quads, boundary_quads .+ (nx(s) .- 2 .* depth))
+end
+
+function right_boundary_quads(s::HasCubicalComplex, depth::Int)
+  boundary_quads = Int64[]
+  xs = collect(nx(s)-depth:nx(s)-1)
+  for y in 1:ny(s)
+    append!(boundary_quads, xs .+ (y - 1) * (nx(s) - 1))
+  end
+  return QuadMapping(boundary_quads, boundary_quads .- (nx(s) .- 2 .* depth .- 1))
+end
+
+import Base.vcat
+vcat(b1::QuadMapping, b2::QuadMapping) = QuadMapping(vcat(b1.boundary_zone, b2.boundary_zone),
+  vcat(b1.copy_to_boundary_zone, b2.copy_to_boundary_zone))
+
+function apply_periodic!(x, m::AbstractBoundaryMapping)
+  x[m.boundary_zone] .= x[m.copy_to_boundary_zone]
+  return x
 end

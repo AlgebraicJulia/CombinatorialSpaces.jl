@@ -8,7 +8,7 @@ s = uniform_grid(10, 10, 2, 2)
 fig = Figure();
 ax = CairoMakie.Axis(fig[1,1])
 wireframe!(ax, s)
-fig
+save("imgs/SquareGrid.png", fig)
 
 @test nv(s) == 4
 @test ne(s) == 4
@@ -88,6 +88,49 @@ hdg_1 = hodge_star(Val(1), s)
 hdg_2 = hodge_star(Val(2), s)
 @test all(1/100 .== diag(hdg_2))
 
+# Sharp PD
+alpha = zeros(ne(s))
+alpha[1] = alpha[2] = 10
+
+X, Y = sharp_pd(s, alpha)
+
+@test X[1] == 1.0 && Y[1] == 0.0
+
+alpha = zeros(ne(s))
+alpha[3] = alpha[4] = -20
+
+X, Y = sharp_pd(s, alpha)
+
+@test X[1] == 0.0 && Y[1] == -2.0
+
+alpha = zeros(ne(s))
+alpha[1] = alpha[2] = 10
+alpha[3] = alpha[4] = -20
+
+X, Y = sharp_pd(s, alpha)
+
+@test X[1] == 1.0 && Y[1] == -2.0
+
+# Sharp DD
+alpha = zeros(ne(s))
+alpha[1] = alpha[2] = -10
+
+X, Y = sharp_dd(s, alpha)
+@test X[1] == 0.0 && Y[1] == 2.0
+
+alpha = zeros(ne(s))
+alpha[3] = alpha[4] = 10
+
+X, Y = sharp_dd(s, alpha)
+@test X[1] == 2.0 && Y[1] == 0.0
+
+alpha = zeros(ne(s))
+alpha[1] = alpha[2] = -10
+alpha[3] = alpha[4] = 10
+
+X, Y = sharp_dd(s, alpha)
+@test X[1] == 2.0 && Y[1] == 2.0
+
 ### NON-UNIFORM MESH TESTS
 
 ps = Point3d[]
@@ -97,11 +140,11 @@ for y in [0, 1, 3, 6, 10]
   end
 end
 
-s = EmbeddedCubicalComplex2D(5, 5, ps)
+s = EmbeddedCubicalComplex2D(5, 5, ps);
 fig = Figure();
 ax = CairoMakie.Axis(fig[1,1])
 wireframe!(ax, s)
-fig
+save("imgs/IrregularGrid.png", fig)
 
 @test nv(s) == 25
 @test ne(s) == 40
@@ -193,11 +236,22 @@ hdg_2 = hodge_star(Val(2), s)
 
 ### HEAT EQUATION ###
 
+function create_gif(solution, file_name)
+  frames = length(solution)
+  fig = Figure()
+  ax = CairoMakie.Axis(fig[1,1])
+  msh = CairoMakie.mesh!(ax, s, color=first(solution), colormap=:jet, colorrange=extrema(first(solution)))
+  Colorbar(fig[1,2], msh)
+  CairoMakie.record(fig, file_name, 1:10:frames; framerate = 15) do t
+    msh.color = solution[t]
+  end
+end
+
 s = uniform_grid(10, 10, 101, 101);
 fig = Figure();
 ax = CairoMakie.Axis(fig[1,1])
 wireframe!(ax, s)
-fig
+save("imgs/HeatGrid.png", fig)
 
 u_0 = map(points(s)) do p
   if (3 <= p[1] <= 7) && (3 <= p[2] <= 7)
@@ -213,7 +267,7 @@ fig = Figure();
 ax = CairoMakie.Axis(fig[1,1])
 mesh!(ax, s, color = u_0)
 Colorbar(fig[1,2])
-fig
+save("imgs/InitialSquare.png", fig)
 
 Δ0 = laplacian(Val(0), s) 
 
@@ -232,12 +286,9 @@ fig = Figure();
 ax = CairoMakie.Axis(fig[1,1])
 mesh!(ax, s, color = last(diff_us))
 Colorbar(fig[1,2])
-fig
+save("imgs/DiffusionEnd.png", fig)
 
-for _ in 0:Δt:0.5
-  u .= u .- Δt * Δ0 * u
-  push!(diff_us, deepcopy(u))
-end
+create_gif(diff_us, "imgs/SquareDiffusion.mp4")
 
 ### CONSTANT ADVECTION ###
 
@@ -250,8 +301,22 @@ push!(adv_us, u_0)
 
 δ1 = codifferential(Val(1), s)
 
+depth = 1
+topb = top_boundary_quads(s, depth);
+botb = bottom_boundary_quads(s, depth);
+
+leftb = left_boundary_quads(s, depth);
+rightb = right_boundary_quads(s, depth);
+
+tb_bounds = vcat(topb, botb);
+lr_bounds = vcat(leftb, rightb);
+
+vtb_bounds = VertexMapping(s, tb_bounds);
+vlr_bounds = VertexMapping(s, lr_bounds);
+
 Δt = 0.001
 for _ in 0:Δt:0.25
+  apply_periodic!(u, vlr_bounds)
   u .= u .+ Δt * δ1 * (wedge_product(Val((0,1)), s, u, V))
   push!(adv_us, deepcopy(u))
 end
@@ -260,18 +325,6 @@ fig = Figure();
 ax = CairoMakie.Axis(fig[1,1])
 mesh!(ax, s, color = last(adv_us))
 Colorbar(fig[1,2])
-fig
+save("imgs/AdvectionEnd.png", fig)
 
-function create_gif(solution, file_name)
-  frames = length(solution)
-  fig = Figure()
-  ax = CairoMakie.Axis(fig[1,1])
-  msh = CairoMakie.mesh!(ax, s, color=first(solution), colormap=:jet, colorrange=extrema(first(solution)))
-  Colorbar(fig[1,2], msh)
-  CairoMakie.record(fig, file_name, 1:10:frames; framerate = 15) do t
-    msh.color = solution[t]
-  end
-end
-
-create_gif(diff_us, "SquareDiffusion.mp4")
-create_gif(adv_us, "SquareAdvection.mp4")
+create_gif(adv_us, "imgs/SquareAdvection.mp4")
