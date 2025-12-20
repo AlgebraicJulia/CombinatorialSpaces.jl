@@ -454,7 +454,7 @@ end
 function right_boundary_quads(s::HasCubicalComplex, depth::Int)
   boundary_quads = Int64[]
   xs = collect(nx(s)-depth:nx(s)-1)
-  for y in 1:ny(s)
+  for y in 1:ny(s)-1
     append!(boundary_quads, xs .+ (y - 1) * (nx(s) - 1))
   end
   return QuadMapping(boundary_quads, boundary_quads .- (nx(s) .- 2 .* depth .- 1))
