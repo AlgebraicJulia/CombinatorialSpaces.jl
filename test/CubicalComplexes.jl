@@ -292,16 +292,34 @@ create_gif(diff_us, "imgs/SquareDiffusion.mp4")
 
 ### CONSTANT ADVECTION ###
 
+s = uniform_grid(10, 10, 101, 101);
+fig = Figure();
+ax = CairoMakie.Axis(fig[1,1])
+wireframe!(ax, s)
+save("imgs/AdvGrid.png", fig)
+
+u_0 = map(points(s)) do p
+  if (3 <= p[1] <= 7) && (3 <= p[2] <= 7)
+    return 1.0
+  else
+    return 0.0
+  end
+end
+
+# u_0 = map(p -> p[1], points(s))
+
+fig = Figure();
+ax = CairoMakie.Axis(fig[1,1])
+mesh!(ax, s, color = u_0)
+Colorbar(fig[1,2])
+save("imgs/InitialSquare.png", fig)
+
 V = zeros(ne(s))
 V[1:nhe(s)] .= 1
 
-u = deepcopy(u_0)
-adv_us = []
-push!(adv_us, u_0)
-
 δ1 = codifferential(Val(1), s)
 
-depth = 1
+depth = 2
 topb = top_boundary_quads(s, depth);
 botb = bottom_boundary_quads(s, depth);
 
@@ -314,9 +332,13 @@ lr_bounds = vcat(leftb, rightb);
 vtb_bounds = VertexMapping(s, tb_bounds);
 vlr_bounds = VertexMapping(s, lr_bounds);
 
+u = deepcopy(u_0)
+adv_us = []
+push!(adv_us, u_0)
+
 Δt = 0.001
-for _ in 0:Δt:0.25
-  apply_periodic!(u, vlr_bounds)
+for _ in 0:Δt:0.75
+  u = apply_periodic!(u, vlr_bounds)
   u .= u .+ Δt * δ1 * (wedge_product(Val((0,1)), s, u, V))
   push!(adv_us, deepcopy(u))
 end
