@@ -22,7 +22,7 @@ abstract type HasCubicalComplex end
 mutable struct EmbeddedCubicalComplex2D <: HasCubicalComplex
   nx::Int
   ny::Int
-  points::AbstractVector
+  points::AbstractVector{Point3d} # TODO: Turn this to an abstract point
 end
 
 # Basic structure is as follows:
@@ -71,6 +71,8 @@ nve(s::HasCubicalComplex) = nx(s) * (ny(s) - 1)
 ne(s::HasCubicalComplex) = nhe(s) + nve(s)
 
 nquads(s::HasCubicalComplex) = (nx(s) - 1) * (ny(s) - 1)
+nxquads(s::HasCubicalComplex) = nx(s) - 1
+nyquads(s::HasCubicalComplex) = ny(s) - 1
 
 ndv(s::HasCubicalComplex) = nquads(s)
 nde(s::HasCubicalComplex) = ne(s)
@@ -87,7 +89,10 @@ dual_quadrilaterals(s::HasCubicalComplex) = 1:ndquads(s)
 # Coordinate representations can make certain operations easier
 coord_to_vert(s::HasCubicalComplex, x::Int, y::Int) = x + (y - 1) * nx(s)
 
-point(s::HasCubicalComplex, v::Int) = getindex(points(s), v)
+coord_to_quad(s::HasCubicalComplex, x::Int, y::Int) = x + (y - 1) * nxquads(s)
+
+# TODO: Remove this type assert, needed for performance now
+point(s::HasCubicalComplex, v::Int) = getindex(s.points, v)::Point3d
 point(s::HasCubicalComplex, x::Int, y::Int) = point(s, coord_to_vert(s, x, y))
 
 is_hedge(s::HasCubicalComplex, e::Int) = 1 <= e <= nhe(s)
@@ -155,22 +160,22 @@ dual_point(s::HasCubicalComplex, v::Int) = 0.25 * sum(map(x -> point(s, x), quad
 dual_points(s::HasCubicalComplex) = map(q -> dual_point(s, q), quadrilaterals(s))
 
 function top_dualsup_edge_length(s::HasCubicalComplex, v::Int)
-  on_topbound_vertex(s, v) && return 0
+  on_topbound_vertex(s, v) && return 0.0
   return 0.5 * norm(point(s, v + nx(s)) - point(s, v))
 end
 
 function bot_dualsup_edge_length(s::HasCubicalComplex, v::Int)
-  on_botbound_vertex(s, v) && return 0
+  on_botbound_vertex(s, v) && return 0.0
   return 0.5 * norm(point(s, v) - point(s, v - nx(s)))
 end
 
 function left_dualsup_edge_length(s::HasCubicalComplex, v::Int)
-  on_leftbound_vertex(s, v) && return 0
+  on_leftbound_vertex(s, v) && return 0.0
   return 0.5 * norm(point(s, v) - point(s, v - 1))
 end
 
 function right_dualsup_edge_length(s::HasCubicalComplex, v::Int)
-  on_rightbound_vertex(s, v) && return 0
+  on_rightbound_vertex(s, v) && return 0.0
   return 0.5 * norm(point(s, v + 1) - point(s, v))
 end
 
@@ -181,7 +186,7 @@ function dual_edge_length(s::HasCubicalComplex, e::Int)
   elseif e <= ne(s) # Vertical edge
     return left_dualsup_edge_length(s, v) + right_dualsup_edge_length(s, v)  
   else
-    return 0
+    return 0.0
   end
 end
 
@@ -382,19 +387,20 @@ function flat_dd(s::HasCubicalComplex, X, Y)
 end
 
 # Take dual vector field and output primal 1-form
+# TODO: Might need to weight by dimensions of quad
 function flat_dp(s::HasCubicalComplex, X, Y)
   alpha = zeros(eltype(X), nde(s))
 
   for q in quadrilaterals(s)
-    h = quad_height(q, s)
-    w = quad_width(q, s)
+    h = quad_height(s, q)
+    w = quad_width(s, q)
 
-    deb, det, del, der = quad_edges(s, q)
-    alpha[deb] += 0.5 * h * Y[q]
-    alpha[det] += 0.5 * h * Y[q]
+    eb, et, el, er = quad_edges(s, q)
+    alpha[el] += 0.5 * h * Y[q]
+    alpha[er] += 0.5 * h * Y[q]
 
-    alpha[del] += 0.5 * w * X[q]
-    alpha[der] += 0.5 * w * X[q]
+    alpha[eb] += 0.5 * w * X[q]
+    alpha[et] += 0.5 * w * X[q]
   end
 
   return alpha
@@ -402,69 +408,54 @@ end
 
 ### PERIODIC HELPERS ###
 
-# TODO: Can make these mappings implicit to save memory
-abstract type AbstractBoundaryMapping end
-
-struct QuadMapping <: AbstractBoundaryMapping
-  boundary_zone::AbstractVector{Int}
-  copy_to_boundary_zone::AbstractVector{Int}
-end
-
-struct VertexMapping <: AbstractBoundaryMapping
-  boundary_zone::AbstractVector{Int64}
-  copy_to_boundary_zone::AbstractVector{Int64}
-end
-
-struct EdgeMapping <: AbstractBoundaryMapping
-  boundary_zone::AbstractVector{Int64}
-  copy_to_boundary_zone::AbstractVector{Int64}
-end
-
-function VertexMapping(s::HasCubicalComplex, q::QuadMapping)
-  vertex_boundary = vcat(map(x -> Array(quad_vertices(s, x)), q.boundary_zone)...)
-  vertex_copy_to = vcat(map(x -> Array(quad_vertices(s, x)), q.copy_to_boundary_zone)...)
-  return VertexMapping(vertex_boundary, vertex_copy_to)
-end
-
-function EdgeMapping(s::HasCubicalComplex, q::QuadMapping)
-  edge_boundary = vcat(map(x -> Array(quad_edges(s, x)), q.boundary_zone)...)
-  edge_copy_to = vcat(map(x -> Array(quad_edges(s, x)), q.copy_to_boundary_zone)...)
-  return EdgeMapping(edge_boundary, edge_copy_to)
-end
-
-function bottom_boundary_quads(s::HasCubicalComplex, depth::Int)
-  boundary_quads = collect(1:(nx(s) * depth))
-  return QuadMapping(boundary_quads, boundary_quads .+ (ny(s) - 2 * depth) * nx(s))
-end
-
-function top_boundary_quads(s::HasCubicalComplex, depth::Int)
-  boundary_quads = collect((nv(s) - depth * nx(s) + 1):nv(s))
-  return QuadMapping(boundary_quads, collect(1:(nx(s) * depth)) .+ depth * nx(s))
-end
-
-function left_boundary_quads(s::HasCubicalComplex, depth::Int)
-  boundary_quads = Int64[]
-  xs = collect(1:depth)
-  for y in 1:ny(s)-1
-    append!(boundary_quads, xs .+ (y - 1) * (nx(s) - 1))
+function lr_boundary_verts_map!(v, s::HasCubicalComplex, depth::Int)
+  for y in 1:ny(s)
+    for x in 1:depth # Map right data to left boundary
+      v[coord_to_vert(s, x, y)] = v[coord_to_vert(s, nx(s) - 2 * depth + x, y)]
+    end
+    for x in 1:depth # Map left data to right boundary
+      v[coord_to_vert(s, nx(s) - x + 1, y)] = v[coord_to_vert(s, 2 * depth - x + 1, y)]
+    end
   end
-  return QuadMapping(boundary_quads, boundary_quads .+ (nx(s) .- 2 .* depth))
+
+  return v
 end
 
-function right_boundary_quads(s::HasCubicalComplex, depth::Int)
-  boundary_quads = Int64[]
-  xs = collect(nx(s)-depth:nx(s)-1)
-  for y in 1:ny(s)-1
-    append!(boundary_quads, xs .+ (y - 1) * (nx(s) - 1))
+function tb_boundary_verts_map!(v, s::HasCubicalComplex, depth::Int)
+  for x in 1:nx(s)
+    for y in 1:depth # Map top data to bottom boundary
+      v[coord_to_vert(s, x, y)] = v[coord_to_vert(s, x, ny(s) - 2 * depth + y)]
+    end
+    for y in 1:depth # Map bottom data to top boundary
+      v[coord_to_vert(s, x, ny(s) - y + 1)] = v[coord_to_vert(s, x, 2 * depth - y + 1)]
+    end
   end
-  return QuadMapping(boundary_quads, boundary_quads .- (nx(s) .- 2 .* depth .- 1))
+
+  return v
 end
 
-import Base.vcat
-vcat(b1::QuadMapping, b2::QuadMapping) = QuadMapping(vcat(b1.boundary_zone, b2.boundary_zone),
-  vcat(b1.copy_to_boundary_zone, b2.copy_to_boundary_zone))
+function lr_boundary_quads_map!(v, s::HasCubicalComplex, depth::Int)
+  for y in 1:nyquads(s)
+    for x in 1:depth # Map right data to left boundary
+      v[coord_to_vert(s, x, y)] = v[coord_to_vert(s, nxquads(s) - 2 * depth + x, y)]
+    end
+    for x in 1:depth # Map left data to right boundary
+      v[coord_to_vert(s, nxquads(s) - x + 1, y)] = v[coord_to_vert(s, 2 * depth - x + 1, y)]
+    end
+  end
 
-function apply_periodic!(x, m::AbstractBoundaryMapping)
-  x[m.boundary_zone] .= x[m.copy_to_boundary_zone]
-  return x
+  return v
+end
+
+function tb_boundary_quads_map!(v, s::HasCubicalComplex, depth::Int)
+  for x in 1:nxquads(s)
+    for y in 1:depth # Map top data to bottom boundary
+      v[coord_to_quad(s, x, y)] = v[coord_to_quad(s, x, nyquads(s) - 2 * depth + y)]
+    end
+    for y in 1:depth # Map bottom data to top boundary
+      v[coord_to_quad(s, x, nyquads(s) - y + 1)] = v[coord_to_quad(s, x, 2 * depth - y + 1)]
+    end
+  end
+
+  return v
 end
