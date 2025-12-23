@@ -192,7 +192,6 @@ if CUDA.functional()
   end
 else
   @info "CUDA tests were not run, since CUDA.functional() is false."
-  @info CUDA.functional(true)
 end
 
 if Sys.isapple()

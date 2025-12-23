@@ -6,7 +6,8 @@ using GeometryBasics: Mesh, QuadFace, volume
 using Test
 using TetGen
 using DelaunayTriangulation: triangulate, get_area, each_solid_triangle
-using Meshes
+using Meshes: PolyArea, discretize, DelaunayTriangulation, SimpleMesh, refine, TriSubdivision,
+              Plane, Disk, simplexify, nvertices, nelements, topology
 using Random
 
 # 2D
