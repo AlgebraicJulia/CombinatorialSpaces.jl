@@ -13,12 +13,13 @@ makedocs(
   warnonly = true,
   pages = [
     "simplicial_sets.md",
-    "discrete_exterior_calculus.md",
-    "combinatorial_maps.md",
-    "grid_laplace.md",
-    "meshes.md",
-    "euler.md",
-    "mg_benchmarks.md"
+    "mesh_decomposition.md"
+    # "discrete_exterior_calculus.md",
+    # "combinatorial_maps.md",
+    # "grid_laplace.md",
+    # "meshes.md",
+    # "euler.md",
+    # "mg_benchmarks.md"
   ]
 )
 
