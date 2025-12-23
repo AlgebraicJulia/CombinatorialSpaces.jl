@@ -17,7 +17,7 @@ function EmbeddedDeltaSet2D(mesh::SimpleMesh)
     elseif dim == 2
       return Point3{float_type}(c..., 0)
     else
-      @error "The mesh provided has points of unsupported dimension $dim"
+      error("The mesh provided has points of unsupported dimension $dim")
     end
   end
   cs = map(p -> numerical_coords(p), Meshes.vertices(mesh))
