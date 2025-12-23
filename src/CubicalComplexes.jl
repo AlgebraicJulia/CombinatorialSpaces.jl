@@ -5,6 +5,8 @@ using GeometryBasics: Point2d, Point3d, QuadFace
 using LinearAlgebra: norm, diagm, diag
 using SparseArrays
 
+using KernelAbstractions
+
 import Base.show
 
 using GeometryBasics
@@ -12,8 +14,6 @@ import GeometryBasics.Mesh
 
 using Makie
 import Makie: convert_arguments
-
-# TODO: Use KernelAbstractions
 
 abstract type HasCubicalComplex end
 
@@ -84,6 +84,9 @@ vertices(s::HasCubicalComplex) = 1:nv(s)
 edges(s::HasCubicalComplex) = 1:ne(s)
 quadrilaterals(s::HasCubicalComplex) = 1:nquads(s)
 
+horizontal_edges(s::HasCubicalComplex) = 1:nhe(s)
+vertical_edges(s::HasCubicalComplex) = nhe(s)+1:ne(s)
+
 dual_vertices(s::HasCubicalComplex) = 1:ndv(s)
 dual_edges(s::HasCubicalComplex) = 1:nde(s)
 dual_quadrilaterals(s::HasCubicalComplex) = 1:ndquads(s)
@@ -92,6 +95,51 @@ dual_quadrilaterals(s::HasCubicalComplex) = 1:ndquads(s)
 coord_to_vert(s::HasCubicalComplex, x::Int, y::Int) = x + (y - 1) * nx(s)
 
 coord_to_quad(s::HasCubicalComplex, x::Int, y::Int) = x + (y - 1) * nxquads(s)
+
+function tensorfy_form(s::HasCubicalComplex, f)
+    if length(f) == nv(s)
+      nv(s) == ne(s) && @warn "Form ambiguous, defaulting to 0-form"
+      return tensorfy_form(Val(0), s, f)
+    elseif length(f) == ne(s)
+      return tensorfy_form(Val(1), s, f)
+    else
+      return tensorfy_form(Val(2), s, f)
+    end
+end
+
+tensorfy_form(::Val{0}, s::EmbeddedCubicalComplex2D, f) = reshape(f, (nx(s), ny(s)))
+
+# This one has padding to make it into a 3D tensor
+# function tensorfy_form(::Val{1}, s::EmbeddedCubicalComplex2D, f)
+#   padded_fh = vcat(reshape(f[horizontal_edges(s)], (nx(s)-1, ny(s))), zeros(ny(s))')
+#   padded_fv = hcat(reshape(f[vertical_edges(s)], (nx(s), ny(s)-1)), zeros(ny(s)))
+#   return cat(padded_fh, padded_fv, dims=3)
+# end
+
+function tensorfy_form(::Val{1}, s::EmbeddedCubicalComplex2D, f)
+  fh = reshape(f[horizontal_edges(s)], (nx(s)-1, ny(s)))
+  fv = reshape(f[vertical_edges(s)], (nx(s), ny(s)-1))
+  return (fh, fv)
+end
+
+get_hedge_form(g) = getindex(g, 1)
+get_vedge_form(g) = getindex(g, 2)
+
+tensorfy_form(::Val{2}, s::EmbeddedCubicalComplex2D, f) = reshape(f, (nxquads(s), nyquads(s)))
+
+detensorfy_form(::Val{0}, s::EmbeddedCubicalComplex2D, g) = reshape(g, (nv(s)))
+
+# function detensorfy_form(::Val{1}, s::EmbeddedCubicalComplex2D, g)
+#   return vcat(vec(g[1:nx(s)-1, 1:ny(s), 1]), vec(g[1:nx(s), 1:ny(s)-1, 2]))
+# end
+
+detensorfy_form(::Val{1}, s::EmbeddedCubicalComplex2D, g) = vcat(vec(g[1]), vec(g[2]))
+
+detensorfy_form(::Val{2}, s::EmbeddedCubicalComplex2D, g) = reshape(g, (nquads(s)))
+
+init_tensor_form(::Val{0}, s::EmbeddedCubicalComplex2D) = zeros((nx(s), ny(s)))
+init_tensor_form(::Val{1}, s::EmbeddedCubicalComplex2D) = (zeros((nx(s)-1, ny(s))), zeros(nx(s), ny(s)-1))
+init_tensor_form(::Val{2}, s::EmbeddedCubicalComplex2D) = zeros((nxquads(s), nyquads(s)))
 
 # TODO: Remove this type assert, needed for performance now
 point(s::HasCubicalComplex, v::Int) = getindex(s.points, v)::Point3d
@@ -124,6 +172,21 @@ end
 
 edge_vertices(s::HasCubicalComplex, e::Int) = SVector(src(s, e), tgt(s, e))
 
+# function vertex_edges(s::HasCubicalComplex, v::Int)
+#   top = v + nhe(s)
+#   if top > ne(s)
+#     top = 0
+#   end
+
+#   bottom = v + nhe(s) - nx(s)
+#   if bottom < 1
+#     bottom = 0
+#   end
+
+#   left = 
+
+# end
+
 edge_length(s, e::Int) = norm(point(s, tgt(s, e)) - point(s, src(s, e)))
 
 # Maps a quadrilateral to its base point (bottom left)
@@ -153,31 +216,67 @@ end
 
 quad_area(s::HasCubicalComplex, q::Int) = quad_width(s, q) * quad_height(s, q)
 
-on_topbound_vertex(s::HasCubicalComplex, v::Int) = (v + nx(s)) > nv(s)
-on_botbound_vertex(s::HasCubicalComplex, v::Int) = (v - nx(s)) < 1
-on_leftbound_vertex(s::HasCubicalComplex, v::Int) = (v - 1) % nx(s) == 0
-on_rightbound_vertex(s::HasCubicalComplex, v::Int) = v % nx(s) == 0
+top_vertex(s::HasCubicalComplex, v::Int) = (v + nx(s)) > nv(s)
+bot_vertex(s::HasCubicalComplex, v::Int) = (v - nx(s)) < 1
+left_vertex(s::HasCubicalComplex, v::Int) = (v - 1) % nx(s) == 0
+right_vertex(s::HasCubicalComplex, v::Int) = v % nx(s) == 0
+
+left_edge(s::HasCubicalComplex, e::Int) = left_vertex(s, e - nhe(s))
+right_edge(s::HasCubicalComplex, e::Int) = right_vertex(s, e - nhe(s))
+
+function edge_quads(s::HasCubicalComplex, e::Int)
+  if is_hedge(s, e)
+    return hedge_quads(s, e)
+  elseif is_vedge(s, e)
+    return vedge_quads(s, e)
+  else
+    return SVector(0, 0)
+  end
+end
+
+function hedge_quads(s::HasCubicalComplex, e::Int)
+  bottom = e - nxquads(s)
+  if bottom < 1 
+    bottom = 0
+  end
+
+  top = e
+  if top > nquads(s)
+    top = 0
+  end
+
+  return SVector(top, bottom)
+end
+
+function vedge_quads(s::HasCubicalComplex, e::Int)
+  ve = e - nhe(s)
+
+  left = left_edge(s, e) ? 0 : ve - 1
+  right = right_edge(s, e) ? 0 : ve
+
+  return SVector(left, right)
+end
 
 dual_point(s::HasCubicalComplex, v::Int) = 0.25 * sum(map(x -> point(s, x), quad_vertices(s, v)))
 dual_points(s::HasCubicalComplex) = map(q -> dual_point(s, q), quadrilaterals(s))
 
 function top_dualsup_edge_length(s::HasCubicalComplex, v::Int)
-  on_topbound_vertex(s, v) && return 0.0
+  top_vertex(s, v) && return 0.0
   return 0.5 * norm(point(s, v + nx(s)) - point(s, v))
 end
 
 function bot_dualsup_edge_length(s::HasCubicalComplex, v::Int)
-  on_botbound_vertex(s, v) && return 0.0
+  bot_vertex(s, v) && return 0.0
   return 0.5 * norm(point(s, v) - point(s, v - nx(s)))
 end
 
 function left_dualsup_edge_length(s::HasCubicalComplex, v::Int)
-  on_leftbound_vertex(s, v) && return 0.0
+  left_vertex(s, v) && return 0.0
   return 0.5 * norm(point(s, v) - point(s, v - 1))
 end
 
 function right_dualsup_edge_length(s::HasCubicalComplex, v::Int)
-  on_rightbound_vertex(s, v) && return 0.0
+  right_vertex(s, v) && return 0.0
   return 0.5 * norm(point(s, v + 1) - point(s, v))
 end
 
@@ -417,6 +516,114 @@ function flat_dp(s::HasCubicalComplex, X, Y)
   end
 
   return alpha
+end
+
+### DEC OPERATOR KERNELS ###
+
+function exterior_derivative!(res, ::Val{0}, f)
+  backend = get_backend(f)
+
+  @assert backend == get_hedge_form(res[1])
+  @assert backend == get_vedge_form(res[2])
+
+  for (i, edge_set) in enumerate(res)
+    kernel = kernel_exterior_derivative_zero(backend, 32, size(edge_set))
+    kernel(edge_set, i == 1, f, ndrange = size(edge_set))
+  end
+  return res
+end
+
+# TODO: Can move the horizontal/vertical handling into the higher level function
+@kernel function kernel_exterior_derivative_zero(res, is_h::Bool, f)
+  idx = @index(Global, Cartesian)
+  x, y = idx.I
+
+  res[idx] = 0
+
+  @inbounds if is_h # Horizontal edges
+      res[idx] = f[x + 1, y] - f[x, y]
+    else # Vertical edges
+      res[idx] = f[x, y + 1] - f[x, y]
+    end
+end
+
+function exterior_derivative!(res, ::Val{1}, f)
+  backend = get_backend(res)
+
+  @assert backend == get_backend(get_hedge_form(f))
+  @assert backend == get_backend(get_vedge_form(f))
+
+  kernel = kernel_exterior_derivative_one(backend, 32, size(res))
+  kernel(res, f, ndrange = size(res))
+  return res
+end
+
+@kernel function kernel_exterior_derivative_one(res, f)
+  idx = @index(Global, Cartesian)
+  x, y = idx.I
+
+  hes = get_hedge_form(f)
+  ves = get_vedge_form(f)
+
+  @inbounds res[idx] = hes[x, y] - hes[x, y + 1] - ves[x, y] + ves[x + 1, y]
+end
+
+function dual_derivative!(res, ::Val{0}, s::HasCubicalComplex, f)
+  backend = get_backend(f)
+
+  @assert length(f) == ndv(s)
+  @assert length(res) == nde(s)
+
+  @assert backend == get_backend(f)
+
+  kernel = kernel_dual_derivative_zero(backend, 32, size(res))
+  kernel(res, s, f, ndrange = size(res))
+  return nothing
+end
+
+@kernel function kernel_dual_derivative_zero(res, s::HasCubicalComplex, f)
+  de = @index(Global)
+
+  dv1, dv0 = edge_quads(s, de)
+
+  res[de] = 0
+
+  if dv0 != 0
+    @inbounds res[de] += f[dv0]
+  end
+
+  if dv1 != 0
+    @inbounds res[de] -= f[dv1]
+  end
+end
+
+function dual_derivative!(res, ::Val{1}, s::HasCubicalComplex, f)
+  backend = get_backend(f)
+
+  @assert length(f) == nde(s)
+  @assert length(res) == ndquads(s)
+
+  @assert backend == get_backend(f)
+
+  kernel = kernel_dual_derivative_one(backend, 32, size(res))
+  kernel(res, s, f, ndrange = size(res))
+  return nothing
+end
+
+@kernel function kernel_dual_derivative_one(res, s::HasCubicalComplex, f)
+  de = @index(Global)
+
+  dv1, dv0 = edge_quads(s, de)
+
+  res[de] = 0
+
+  if dv0 != 0
+    @inbounds res[de] += f[dv0]
+  end
+
+  if dv1 != 0
+    @inbounds res[de] -= f[dv1]
+  end
 end
 
 ### PERIODIC HELPERS ###
