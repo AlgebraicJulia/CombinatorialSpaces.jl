@@ -32,6 +32,11 @@ save("imgs/SquareGrid.png", fig)
 @test quad_vertices(s, 1) == [1,2,4,3]
 @test quad_edges(s, 1) == [1,2,3,4]
 
+@test edge_quads(s, 1) == [0, 1]
+@test edge_quads(s, 2) == [1, 0]
+@test edge_quads(s, 3) == [0, 1]
+@test edge_quads(s, 4) == [1, 0]
+
 for e in edges(s)
   @test all(1 .<= edge_vertices(s, e) .<= nv(s))
 end
@@ -153,6 +158,14 @@ save("imgs/IrregularGrid.png", fig)
 
 @test nhe(s) == 20
 @test nve(s) == 20
+
+@test edge_quads(s, 4) == [0, 4]
+@test edge_quads(s, 8) == [4, 8]
+@test edge_quads(s, 20) == [16, 0]
+
+@test edge_quads(s, 21) == [0, 1]
+@test edge_quads(s, 22) == [1, 2]
+@test edge_quads(s, 25) == [4, 0]
 
 for e in edges(s)
   @test all(1 .<= edge_vertices(s, e) .<= nv(s))
