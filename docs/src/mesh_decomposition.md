@@ -1,4 +1,20 @@
+```@meta
+Draft = false
+```
+
 # Mesh Decomposition
+
+We can decompose meshes into overlapping submeshes using `Subobject`s
+from Catlab. Given a mesh and a partition function on its vertices,
+we can create a cover of the mesh by creating submeshes corresponding
+to each part of the partition. The opens in the cover are by taking the non of the negation of the subobject defined by the vertices in each part.  These submeshes can overlap along their boundaries.
+
+We can then compute intersections of these
+submeshes using the `meet` operation. This allows us to analyze how the submeshes
+interact and overlap. The nerve of the cover can also be constructed, which encodes the combinatorial structure of the overlaps between the submeshes.
+
+The idea is to use this nerve to build sheaves of vector spaces over the mesh decomposition, allowing for algebraic analysis of functions defined on the mesh.
+
 
 ```@example mesh_decomposition
 using CombinatorialSpaces
@@ -8,10 +24,13 @@ using CairoMakie
 using Catlab
 ```
 
+We are going to draw our cover by drawing all the submeshes in orange
+and the total mesh in blue. The cover submeshes will be drawn on the top left triangle of a grid of plots. The diagonal entries are the individual submeshes, and the upper triangle entries are their pairwise intersections. A pairwise intersection will be empty if the two submeshes do not overlap, and the corresponding plot will be completely blue.
+
 ```@example mesh_decomposition
 function draw(mesh; color=:blue)
   f = Figure()
-  ax = CairoMakie.Axis(f[1,1])
+  ax = CairoMakie.Axis(f[1,1], aspect=1)
   draw!(ax, mesh, color=color)
   return f
 end
@@ -50,6 +69,9 @@ function draw(cover::Vector{T}; color=:blue) where T <: Subobject
 end
 ```
 
+## Example 1: Quadrants of a Rectangle
+First we create a triangulated grid mesh and its dual complex. Our partition function will divide the mesh into four quadrants that overlap along their boundaries.
+
 ```@example mesh_decomposition
 s = triangulated_grid(100,100,15,15,Point3d);
 sd = EmbeddedDeltaDualComplex2D{Bool,Float64,Point3d}(s);
@@ -74,6 +96,7 @@ quads = cover_mesh(quadrants, s)
 q = quads[1]
 draw(q)
 ```
+We can look at the individual submeshes in the cover, their joins, and their intersections.
 
 ```@example mesh_decomposition
 draw(quads[3])
@@ -92,6 +115,8 @@ draw(meet(quads[1], quads[2]))
 draw(quads)
 ```
 
+The nerve of the cover can be constructed by computing all pairwise intersections of the submeshes in the cover.
+
 ```@example mesh_decomposition
 using Catlab.FreeDiagrams
 function nerve(cover::Vector{T}) where T <: Subobject
@@ -106,6 +131,10 @@ function nerve(cover::Vector{T}) where T <: Subobject
 end
 D = nerve(quads)
 ```
+
+## Example 2: Arcs of a Circle
+
+We can also create a circular mesh and decompose it into overlapping arcs. Each arc will overlap with its neighbors along their endpoints.
 
 ```@example mesh_decomposition
 function circle(n, c)
@@ -126,6 +155,8 @@ mesh,dualmesh = circle(9, 100)
 draw(dualmesh)
 ```
 
+The circle can be decomposed into four overlapping arcs using a partition function based on the quadrants of the Cartesian plane. Notice how we supply a partition function rather than a list of vertex indices. The `cover_mesh` function will compute the vertex indices for us.
+
 ```@example mesh_decomposition
 function pizza_slices(x)
   (x[1] > 0) + 2*(x[2] > 0)
@@ -134,6 +165,10 @@ circ_quads = cover_mesh(pizza_slices,dualmesh)
 draw(circ_quads[1])
 draw(circ_quads)
 ```
+
+## Diagram Interpretation in Vect
+
+In order to build sheaves over the mesh decomposition, we first need to create a diagram representing the cover. Each object in the diagram is a morphism in `FinSet` representing the inclusion of one submesh into another.
 
 ```@example mesh_decomposition
 function finsetdiagram(cover; object=:V)
@@ -158,6 +193,8 @@ end
 diag = finsetdiagram(quads)
 ```
 
+The free vector space sheaf over the diagram can be constructed by composing the diagram with the free vector space functor and the appropriate pushforward or pullback operations. This creates a diagram in Vect representing the sheaf of vector spaces over the mesh decomposition. This is just the vertex component; similar constructions can be done for edges and faces.
+
 ```@example mesh_decomposition
 using Catlab.Sheaves: FVect
 import Catlab.Sheaves: pullback_matrix, FMatPullback, FMatPushforward
@@ -181,6 +218,10 @@ function vectdiagram(diag)
 end
 vectdiagram(diag)
 ```
+
+## Nerve Cover Type
+
+This data is getting rather involved, so we will encapsulate it in a `NerveCover` type for easier use and display.
 
 ```@example mesh_decomposition
 import Catlab.Sheaves: AbstractCover
