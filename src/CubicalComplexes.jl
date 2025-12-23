@@ -13,6 +13,8 @@ import GeometryBasics.Mesh
 using Makie
 import Makie: convert_arguments
 
+# TODO: Use KernelAbstractions
+
 abstract type HasCubicalComplex end
 
 # True orientation of edges will be from smaller to greater vertex index
@@ -215,6 +217,15 @@ end
 
 plottype(::HasCubicalComplex) = GeometryBasics.Mesh
 
+# TODO: Add in generic kwargs
+function plot_zeroform(s::HasCubicalComplex, f)
+  fig = Figure();
+  ax = CairoMakie.Axis(fig[1, 1])
+  msh = CairoMakie.mesh!(ax, s, color=ω, colormap=:jet)
+  Colorbar(fig[1, 2], msh)
+  fig
+end
+
 function plot_oneform(s::HasCubicalComplex, alpha)
   dps = dual_points(s)
   x = map(a -> dps[a][1], quadrilaterals(s))
@@ -338,9 +349,11 @@ hodge_star(::Val{2}, s::HasCubicalComplex) = spdiagm(1 ./ map(q -> quad_area(s, 
 inv_hodge_star(::Val{k}, s::HasCubicalComplex) where k = spdiagm(1 ./ diag(hodge_star(Val(k), s)))
 
 codifferential(::Val{1}, s::HasCubicalComplex) = inv_hodge_star(Val(0), s) * dual_derivative(Val(1), s) * hodge_star(Val(1), s)
+codifferential(::Val{2}, s::HasCubicalComplex) = inv_hodge_star(Val(1), s) * dual_derivative(Val(0), s) * hodge_star(Val(2), s)
 
 laplacian(::Val{0}, s::HasCubicalComplex) = codifferential(Val(1), s) * exterior_derivative(Val(0), s)
-
+laplacian(::Val{1}, s::HasCubicalComplex) = exterior_derivative(Val(0), s) * codifferential(Val(1), s) + codifferential(Val(2), s) * exterior_derivative(Val(1), s) 
+laplacian(::Val{2}, s::HasCubicalComplex) = exterior_derivative(Val(1), s) * codifferential(Val(2), s)
 
 # Take primal 1-form and output dual vector field
 function sharp_pd(s::HasCubicalComplex, alpha)
