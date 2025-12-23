@@ -160,8 +160,15 @@ diag = finsetdiagram(quads)
 
 ```{julia}
 using Catlab.Sheaves: FVect
-import Catlab.Sheaves: pullback_matrix
+import Catlab.Sheaves: pullback_matrix, FMatPullback, FMatPushforward
+import Catlab.CategoricalAlgebra.Matrices: MatrixDom
+MatrixDom(n::Int64) = MatrixDom{Matrix}(n)
+Vdiag = force(compose(FinDomFunctor(diag), FMatPushforward))
 
+```
+
+```{julia}
+# compose(FinDomFunctor(diag), op(FMatPullback))
 Catlab.dom(m::Matrix) = FinSet(size(m, 2))
 Catlab.codom(m::Matrix) = FinSet(size(m, 1))
 
