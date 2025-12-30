@@ -1,5 +1,7 @@
+# TODO: Fix plotting to work with multiple dimensions
+
 function GeometryBasics.Mesh(s::HasCubicalComplex)
-  ps = map(q -> point(s, q), vertices(s))
+  ps = points(s)
   qs = map(q -> QuadFace{Int}(quad_vertices(s, q)), quadrilaterals(s))
   GeometryBasics.Mesh(ps, qs)
 end

@@ -70,19 +70,19 @@ mesh!(ax, s, color = u_0)
 Colorbar(fig[1,2])
 save("imgs/InitialSquare.png", fig)
 
-v_0 = tensorfy_form(s, u_0)
-d0_res = init_tensor_form(Val(1), s)
-hdg1_res = init_tensor_form(Val(1), s)
-dd1_res = init_tensor_form(Val(0), s) # Init tensor dual form
-final_res = init_tensor_form(Val(0), s) # Init tensor dual form
+v_0 = tensorfy(s, u_0)
+d0_res = init_tensor(Val(1), s)
+hdg1_res = init_tensor(Val(1), s)
+dd1_res = init_tensor(Val(0), s) # Init tensor dual form
+final_res = init_tensor(Val(0), s) # Init tensor dual form
 
-# final = detensorfy_form(Val(0), s, final_res)
+# final = detensorfy(Val(0), s, final_res)
 
 Δt = 0.001
 v = deepcopy(v_0)
 
 diff_us = []
-push!(diff_us, detensorfy_form(Val(0), s, v_0))
+push!(diff_us, detensorfy(Val(0), s, v_0))
 
 for _ in 0:Δt:0.5
   exterior_derivative!(d0_res, Val(0), v)
@@ -91,7 +91,7 @@ for _ in 0:Δt:0.5
   hodge_star!(final_res, Val(0), s, dd1_res; inv = true)
 
   v .= v .- Δt * final_res
-  push!(diff_us, detensorfy_form(Val(0), s, deepcopy(v)))
+  push!(diff_us, detensorfy(Val(0), s, deepcopy(v)))
 end
 
 fig = Figure();

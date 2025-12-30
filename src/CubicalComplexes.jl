@@ -8,6 +8,7 @@ using SparseArrays
 using KernelAbstractions
 
 import Base.show
+import Base.getindex
 
 using GeometryBasics
 import GeometryBasics.Mesh

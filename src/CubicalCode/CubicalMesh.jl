@@ -26,20 +26,21 @@ function Base.show(io::IO, s::HasCubicalComplex)
   println(io, "Edges   : $(ne(s))")
   println(io, "Quads   : $(nquads(s))\n")
 
-  println(io, "Points:")
-  for (i, p) in enumerate(points(s))
-    println(io, "$i: $p")
-  end
+  # TODO: Remove this information if no longer useful
+  # println(io, "Points:")
+  # for (i, p) in enumerate(points(s))
+  #   println(io, "$i: $p")
+  # end
 
-  println(io, "\nEdges:")
-  for i in edges(s)
-    println(io, "$i: $(edge_vertices(s, i))")
-  end
+  # println(io, "\nEdges:")
+  # for i in edges(s)
+  #   println(io, "$i: $(edge_vertices(s, i))")
+  # end
 
-  println(io, "\nQuads:")
-  for i in quadrilaterals(s)
-    println(io, "$i: $(quad_edges(s, i))")
-  end
+  # println(io, "\nQuads:")
+  # for i in quadrilaterals(s)
+  #   println(io, "$i: $(quad_edges(s, i))")
+  # end
 end
 
 # Getters
@@ -49,267 +50,284 @@ ny(s::HasCubicalComplex) = s.ny
 points(s::HasCubicalComplex) = view(s.points, :)
 
 # Counts and Iterators
-nv(s::HasCubicalComplex) = nx(s) * ny(s)
+nv(s::EmbeddedCubicalComplex2D) = nx(s) * ny(s)
 
-nhe(s::HasCubicalComplex) = (nx(s) - 1) * ny(s)
-nve(s::HasCubicalComplex) = nx(s) * (ny(s) - 1)
-ne(s::HasCubicalComplex) = nhe(s) + nve(s)
+nhe(s::EmbeddedCubicalComplex2D) = (nx(s) - 1) * ny(s)
+nve(s::EmbeddedCubicalComplex2D) = nx(s) * (ny(s) - 1)
+ne(s::EmbeddedCubicalComplex2D) = nhe(s) + nve(s)
 
-nquads(s::HasCubicalComplex) = (nx(s) - 1) * (ny(s) - 1)
-nxquads(s::HasCubicalComplex) = nx(s) - 1
-nyquads(s::HasCubicalComplex) = ny(s) - 1
+nquads(s::EmbeddedCubicalComplex2D) = (nx(s) - 1) * (ny(s) - 1)
+nxquads(s::EmbeddedCubicalComplex2D) = nx(s) - 1
+nyquads(s::EmbeddedCubicalComplex2D) = ny(s) - 1
 
-ndv(s::HasCubicalComplex) = nquads(s)
-nde(s::HasCubicalComplex) = ne(s)
-ndquads(s::HasCubicalComplex) = nv(s)
+ndv(s::EmbeddedCubicalComplex2D) = nquads(s)
+nde(s::EmbeddedCubicalComplex2D) = ne(s)
+ndquads(s::EmbeddedCubicalComplex2D) = nv(s)
 
-vertices(s::HasCubicalComplex) = 1:nv(s)
-edges(s::HasCubicalComplex) = 1:ne(s)
-quadrilaterals(s::HasCubicalComplex) = 1:nquads(s)
+is_hedge(idx::CartesianIndex{3}) = (idx.I[1] == 1)
+is_vedge(idx::CartesianIndex{3}) = (idx.I[1] == 2)
 
-horizontal_edges(s::HasCubicalComplex) = 1:nhe(s)
-vertical_edges(s::HasCubicalComplex) = nhe(s)+1:ne(s)
+is_d_vedge(idx::CartesianIndex{3}) = is_hedge(idx)
+is_d_hedge(idx::CartesianIndex{3}) = is_vedge(idx)
 
-dual_vertices(s::HasCubicalComplex) = 1:ndv(s)
-dual_edges(s::HasCubicalComplex) = 1:nde(s)
-dual_quadrilaterals(s::HasCubicalComplex) = 1:ndquads(s)
+hdeges(g::Tuple) = getindex(g, 1)
+vedges(g::Tuple) = getindex(g, 2)
 
-# Coordinate representations can make certain operations easier
-coord_to_vert(s::HasCubicalComplex, x::Int, y::Int) = x + (y - 1) * nx(s)
+vertices(s::EmbeddedCubicalComplex2D) = Iterators.product(1:nx(s), 1:ny(s))
+function edges(s::EmbeddedCubicalComplex2D)
+  return Iterators.flatten((Iterators.product(1, 1:nx(s)-1, 1:ny(s)), Iterators.product(2, 1:nx(s), 1:ny(s)-1)))
+end
+quadrilaterals(s::EmbeddedCubicalComplex2D) = Iterators.product(1:nxquads(s), 1:nyquads(s))
 
-function coord_to_edge(s::EmbeddedCubicalComplex2D, x::Int, y::Int, is_h::Bool)
-  if is_h
+# abstract type AbstractDifferentialForm end
+
+# mutable struct ZeroForm <: AbstractDifferentialForm
+#   s::HasCubicalComplex
+#   vals::AbstractArray{Float64}
+# end
+
+# const ZeroForm_Dual = ZeroForm
+
+# ZeroForm(s::HasCubicalComplex, arr::AbstractVector) = ZeroForm(s, tensorfy(Val(0), s, arr))
+# ZeroForm(s::HasCubicalComplex) = ZeroForm(s, init_tensor(Val(0), s))
+
+# cube_complex(f::ZeroForm) = f.s
+# vals(f::ZeroForm) = f.vals
+
+# Base.show(io::IO, f::ZeroForm) = Base.show(io, vals(f))
+
+# valid_vertex(s::EmbeddedCubicalComplex2D, x::Int, y::Int) = (1 <= x <= nx(s)) && (1 <= y <= ny(s))
+# getindex(f::ZeroForm, x::Int, y::Int; padding::Real = 0.0) = valid_vertex(cube_complex(f), x, y) ? getindex(vals(f), x, y) : padding
+# getindex(f::ZeroForm, idx::CartesianIndex{2}; padding::Real = 0.0) = getindex(f, idx...; padding = padding)
+
+function tensorfy(s::EmbeddedCubicalComplex2D, f)
+    if length(f) == nv(s)
+      nv(s) == ne(s) && @warn "Form ambiguous, defaulting to 0-form"
+      return tensorfy(Val(0), s, f)
+    elseif length(f) == ne(s)
+      return tensorfy(Val(1), s, f)
+    else
+      return tensorfy(Val(2), s, f)
+    end
+end
+
+tensorfy(::Val{0}, s::EmbeddedCubicalComplex2D, f) = reshape(f, (nx(s), ny(s)))
+
+# This one has padding to make it into a 3D tensor
+# function tensorfy(::Val{1}, s::EmbeddedCubicalComplex2D, f)
+#   padded_fh = vcat(reshape(f[horizontal_edges(s)], (nx(s)-1, ny(s))), zeros(ny(s))')
+#   padded_fv = hcat(reshape(f[vertical_edges(s)], (nx(s), ny(s)-1)), zeros(ny(s)))
+#   return cat(padded_fh, padded_fv, dims=3)
+# end
+
+function tensorfy(::Val{1}, s::EmbeddedCubicalComplex2D, f)
+  fh = reshape(f[horizontal_edges(s)], (nx(s)-1, ny(s)))
+  fv = reshape(f[vertical_edges(s)], (nx(s), ny(s)-1))
+  return (fh, fv)
+end
+
+tensorfy(::Val{2}, s::EmbeddedCubicalComplex2D, f) = reshape(f, (nxquads(s), nyquads(s)))
+
+tensorfy_d(::Val{k}, s::EmbeddedCubicalComplex2D, f) where k = tensorfy(Val(2 - k), s, f)
+
+detensorfy(::Val{0}, s::EmbeddedCubicalComplex2D, g) = reshape(g, (nv(s)))
+
+# function detensorfy(::Val{1}, s::EmbeddedCubicalComplex2D, g)
+#   return vcat(vec(g[1:nx(s)-1, 1:ny(s), 1]), vec(g[1:nx(s), 1:ny(s)-1, 2]))
+# end
+
+detensorfy(::Val{1}, s::EmbeddedCubicalComplex2D, g) = vcat(vec(g[1]), vec(g[2]))
+
+detensorfy(::Val{2}, s::EmbeddedCubicalComplex2D, g) = reshape(g, (nquads(s)))
+
+detensorfy(s::EmbeddedCubicalComplex2D, g) = reshape(g, (nquads(s)))
+
+init_tensor(::Val{0}, s::EmbeddedCubicalComplex2D) = zeros((nx(s), ny(s)))
+init_tensor(::Val{1}, s::EmbeddedCubicalComplex2D) = (zeros((nx(s)-1, ny(s))), zeros(nx(s), ny(s)-1))
+init_tensor(::Val{2}, s::EmbeddedCubicalComplex2D) = zeros((nxquads(s), nyquads(s)))
+
+function valid_vertex(s::EmbeddedCubicalComplex2D, idx::CartesianIndex{2}) 
+  x, y = idx.I
+  (1 <= x <= nx(s)) && (1 <= y <= ny(s))
+end
+
+function valid_hedge(s::EmbeddedCubicalComplex2D, idx::CartesianIndex{3})
+  _, x, y = idx.I
+  (1 <= x <= nx(s) - 1) && (1 <= y <= ny(s))
+end
+
+function valid_vedge(s::EmbeddedCubicalComplex2D, idx::CartesianIndex{3}) 
+  _, x, y = idx.I
+  (1 <= x <= nx(s)) && (1 <= y <= ny(s) - 1)
+end
+
+function valid_quad(s::EmbeddedCubicalComplex2D, idx::CartesianIndex{2}) 
+  x, y = idx.I
+  (1 <= x <= nxquads(s)) && (1 <= y <= nyquads(s))
+end
+
+function get_onef(f, idx::CartesianIndex{3})
+  z, x, y = idx.I
+  return f[z][x, y]
+end
+
+get_zerodf(s::HasCubicalComplex, f, idx::CartesianIndex{2}; padding::Real = 0) = valid_quad(s, idx) ? f[idx] : padding
+
+function get_onedf(s::HasCubicalComplex, f, idx::CartesianIndex{3}; padding::Real = 0)
+  if is_hedge(idx)
+    return valid_hedge(s, x, y) ? hdeges(f)[x, y] : padding
+  elseif is_vedge(idx)
+    return valid_vedge(s, x, y) ? vedges(f)[x, y] : padding
+  else
+    return padding
+  end
+end
+
+function coord_to_vert(s::EmbeddedCubicalComplex2D, idx::CartesianIndex{2})
+  x, y = idx.I
+  return x + (y - 1) * nx(s)
+end
+
+function coord_to_edge(s::EmbeddedCubicalComplex2D, idx::CartesianIndex{3})
+  _, x, y = idx.I
+  if is_hedge(idx)
     return x + (y - 1) * (nx(s) - 1)
   else
     return x + (y - 1) * nx(s) + nhe(s)
   end
 end
 
-coord_to_quad(s::HasCubicalComplex, x::Int, y::Int) = x + (y - 1) * nxquads(s)
-
-function tensorfy_form(s::HasCubicalComplex, f)
-    if length(f) == nv(s)
-      nv(s) == ne(s) && @warn "Form ambiguous, defaulting to 0-form"
-      return tensorfy_form(Val(0), s, f)
-    elseif length(f) == ne(s)
-      return tensorfy_form(Val(1), s, f)
-    else
-      return tensorfy_form(Val(2), s, f)
-    end
+function coord_to_quad(s::EmbeddedCubicalComplex2D, idx::CartesianIndex{2})
+  x, y = idx.I
+  return x + (y - 1) * nxquads(s)
 end
 
-tensorfy_form(::Val{0}, s::EmbeddedCubicalComplex2D, f) = reshape(f, (nx(s), ny(s)))
-
-# This one has padding to make it into a 3D tensor
-# function tensorfy_form(::Val{1}, s::EmbeddedCubicalComplex2D, f)
-#   padded_fh = vcat(reshape(f[horizontal_edges(s)], (nx(s)-1, ny(s))), zeros(ny(s))')
-#   padded_fv = hcat(reshape(f[vertical_edges(s)], (nx(s), ny(s)-1)), zeros(ny(s)))
-#   return cat(padded_fh, padded_fv, dims=3)
-# end
-
-function tensorfy_form(::Val{1}, s::EmbeddedCubicalComplex2D, f)
-  fh = reshape(f[horizontal_edges(s)], (nx(s)-1, ny(s)))
-  fv = reshape(f[vertical_edges(s)], (nx(s), ny(s)-1))
-  return (fh, fv)
-end
-
-get_hedge_form(g) = getindex(g, 1)
-get_vedge_form(g) = getindex(g, 2)
-
-tensorfy_form(::Val{2}, s::EmbeddedCubicalComplex2D, f) = reshape(f, (nxquads(s), nyquads(s)))
-
-tensorfy_dual_form(::Val{k}, s::EmbeddedCubicalComplex2D, f) where k = tensorfy_form(Val(2 - k), s, f)
-
-detensorfy_form(::Val{0}, s::EmbeddedCubicalComplex2D, g) = reshape(g, (nv(s)))
-
-# function detensorfy_form(::Val{1}, s::EmbeddedCubicalComplex2D, g)
-#   return vcat(vec(g[1:nx(s)-1, 1:ny(s), 1]), vec(g[1:nx(s), 1:ny(s)-1, 2]))
-# end
-
-detensorfy_form(::Val{1}, s::EmbeddedCubicalComplex2D, g) = vcat(vec(g[1]), vec(g[2]))
-
-detensorfy_form(::Val{2}, s::EmbeddedCubicalComplex2D, g) = reshape(g, (nquads(s)))
-
-init_tensor_form(::Val{0}, s::EmbeddedCubicalComplex2D) = zeros((nx(s), ny(s)))
-init_tensor_form(::Val{1}, s::EmbeddedCubicalComplex2D) = (zeros((nx(s)-1, ny(s))), zeros(nx(s), ny(s)-1))
-init_tensor_form(::Val{2}, s::EmbeddedCubicalComplex2D) = zeros((nxquads(s), nyquads(s)))
-
-valid_quad_coor(s::EmbeddedCubicalComplex2D, x::Int, y::Int) = (1 <= x <= nxquads(s)) && (1 <= y <= nyquads(s))
-dual_zero_form_val(s::HasCubicalComplex, x::Int, y::Int, f; padding::Real = 0) = valid_quad_coor(s, x, y) ? f[x, y] : padding
-
-valid_hedge_coor(s::EmbeddedCubicalComplex2D, x::Int, y::Int) = (1 <= x <= nx(s) - 1) && (1 <= y <= ny(s))
-valid_vedge_coor(s::EmbeddedCubicalComplex2D, x::Int, y::Int) = (1 <= x <= nx(s)) && (1 <= y <= ny(s) - 1)
-
-function dual_ones_form_val(s::HasCubicalComplex, h_or_v::Int, x::Int, y::Int, f; padding::Real = 0)
-  if h_or_v == 1
-    return valid_hedge_coor(s, x, y) ? get_hedge_form(f)[x, y] : padding
-  elseif h_or_v == 2
-    return valid_vedge_coor(s, x, y) ? get_vedge_form(f)[x, y] : padding
-  else
-    return padding
-  end
-end
 
 # TODO: Remove this type assert, needed for performance now
-point(s::HasCubicalComplex, v::Int) = getindex(s.points, v)::Point3d
-point(s::HasCubicalComplex, x::Int, y::Int) = point(s, coord_to_vert(s, x, y))
+point(s::EmbeddedCubicalComplex2D, idx::CartesianIndex{2}) = point(s, coord_to_vert(s, idx))::Point3d
+point(s::HasCubicalComplex, v::Int) = getindex(s.points, v)
 
-is_hedge(s::HasCubicalComplex, e::Int) = 1 <= e <= nhe(s)
-is_vedge(s::HasCubicalComplex, e::Int) = nhe(s) < e <= ne(s)
-
-# The src of an edge (the lower index vertice) will also be the base point
-function src(s::HasCubicalComplex, e::Int)
-  if is_hedge(s, e)
-    return e + ((e - 1) ÷ (nx(s) - 1))
-  elseif is_vedge(s, e)
-    return e - nhe(s)
-  else
-    return 0
-  end
+# The src of an edge (which is either the leftmost or bottommost point)
+function hsrc(idx::CartesianIndex{3})
+  _, x, y = idx.I
+  return CartesianIndex(x, y)
 end
 
-function tgt(s::HasCubicalComplex, e::Int)
-  base_idx = src(s, e)
-  if is_hedge(s, e)
-    return base_idx + 1
-  elseif is_vedge(s, e)
-    return base_idx + nx(s)
-  else
-    return 0
-  end
+function vsrc(idx::CartesianIndex{3})
+  _, x, y = idx.I
+  return CartesianIndex(x, y)
 end
 
-src(x::Int, y::Int) = CartesianIndex(x, y)
-function tgt(x::Int, y::Int, is_h::Bool)
-  if is_h
-    return CartesianIndex(x + 1, y)
-  else
-    return CartesianIndex(x, y + 1)
-  end
+function htgt(idx::CartesianIndex{3})
+  _, x, y = idx.I
+  return CartesianIndex(x + 1, y)
 end
 
-edge_vertices(s::HasCubicalComplex, e::Int) = SVector(src(s, e), tgt(s, e))
-
-edge_length(s, x::Int, y::Int, is_h::Bool) = edge_length(s, coord_to_edge(s, x, y, is_h))
-edge_length(s, e::Int) = norm(point(s, tgt(s, e)) - point(s, src(s, e)))
-
-# Maps a quadrilateral to its base point (bottom left)
-quad_to_vert(s::HasCubicalComplex, q::Int) = coord_to_vert(s, (q - 1) % (nx(s) - 1) + 1, (q - 1) ÷ (nx(s) - 1) + 1)
-
-# Return from bottom left, ccw
-function quad_vertices(s::HasCubicalComplex, q::Int)
-  base_idx = quad_to_vert(s, q)
-  return SVector(base_idx, base_idx + 1, base_idx + nx(s) + 1, base_idx + nx(s))
+function vtgt(idx::CartesianIndex{3})
+  _, x, y = idx.I
+  return CartesianIndex(x, y + 1)
 end
 
-# Return bottom, top, left, right
-function quad_edges(s::HasCubicalComplex, q::Int)
-  shift = ((q - 1) ÷ (nx(s) - 1))
-  SVector(q, q + nx(s) - 1, q + nhe(s) + shift, q + nhe(s) + shift + 1)
+function src(idx::CartesianIndex{3})
+  z, x, y = idx.I
+  idx2 = CartesianIndex(x, y)
+  is_hedge(z) ? hsrc(idx2) : vsrc(idx2)
 end
 
-# Return bottom, top, left, right
-function quad_edges(x::Int, y::Int)
-  SVector(CartesianIndex(x,y), CartesianIndex(x,y+1), 
-    CartesianIndex(x,y), CartesianIndex(x+1,y))
+function tgt(idx::CartesianIndex{3})
+  z, x, y = idx.I
+  idx2 = CartesianIndex(x, y)
+  is_hedge(z) ? htgt(idx2) : vtgt(idx2)
 end
 
+hedge_len(s::EmbeddedCubicalComplex2D, idx::CartesianIndex{3}) = norm(point(s, htgt(idx)) - point(s, hsrc(idx)))
+vedge_len(s::EmbeddedCubicalComplex2D, idx::CartesianIndex{3}) = norm(point(s, vtgt(idx)) - point(s, vsrc(idx)))
 
-function quad_width(s::HasCubicalComplex, q::Int)
-  es = quad_edges(s, q)
-  return edge_length(s, es[1]) # bottom
+function edge_len(s::EmbeddedCubicalComplex2D, idx::CartesianIndex{3})
+  z, x, y = idx.I
+  idx2 = CartesianIndex(x, y)
+  is_hedge(z) ? hedge_len(s, idx2) : vedge_len(s, idx2)
 end
 
-function quad_height(s::HasCubicalComplex, q::Int)
-  es = quad_edges(s, q)
-  return edge_length(s, es[3]) # left
+# For quads to boundary vertices
+q_bl_v(idx::CartesianIndex{2}) = begin x, y = idx.I; return CartesianIndex(x, y) end;
+q_br_v(idx::CartesianIndex{2}) = begin x, y = idx.I; return CartesianIndex(x + 1, y) end;
+q_tr_v(idx::CartesianIndex{2}) = begin x, y = idx.I; return CartesianIndex(x + 1, y + 1) end;
+q_tl_v(idx::CartesianIndex{2}) = begin x, y = idx.I; return CartesianIndex(x, y + 1) end;
+
+quad_vertices(idx::CartesianIndex{2}) = SVector(q_bl_v(idx), q_br_v(idx), q_tr_v(idx), q_tl_v(idx))
+
+# For quads to boundary edges
+q_b_he(idx::CartesianIndex{2}) = begin x, y = idx.I; return CartesianIndex(1, x, y) end;
+q_t_he(idx::CartesianIndex{2}) = begin x, y = idx.I; return CartesianIndex(1, x, y + 1) end;
+q_l_ve(idx::CartesianIndex{2}) = begin x, y = idx.I; return CartesianIndex(2, x, y) end;
+q_r_ve(idx::CartesianIndex{2}) = begin x, y = idx.I; return CartesianIndex(2, x + 1, y) end;
+
+quad_edges(idx::CartesianIndex{2}) = SVector(q_b_he(idx), q_t_he(idx), q_l_ve(idx), q_r_ve(idx))
+
+quad_width(s::HasCubicalComplex, idx::CartesianIndex{2}) = hedge_len(s, q_b_he(idx)) # bottom
+quad_height(s::HasCubicalComplex, idx::CartesianIndex{2}) = vedge_len(s, q_l_ve(idx)) # left
+
+quad_area(s::HasCubicalComplex, idx::CartesianIndex{2}) = quad_width(s, idx) * quad_height(s, idx)
+safe_quad_area(s::EmbeddedCubicalComplex2D, idx::CartesianIndex{2}) = valid_quad(s, idx) ? quad_area(s, idx) : 0.0
+
+# For horizontal edges to neighboring quads
+he_t_q(idx::CartesianIndex{3}) = begin _, x, y = idx.I; return CartesianIndex(x, y) end; 
+he_b_q(idx::CartesianIndex{3}) = begin _, x, y = idx.I; return CartesianIndex(x, y - 1) end; 
+
+# For vertical edges to neighboring quads
+ve_l_q(idx::CartesianIndex{3}) = begin _, x, y = idx.I; return CartesianIndex(x - 1, y) end; 
+ve_r_q(idx::CartesianIndex{3}) = begin _, x, y = idx.I; return CartesianIndex(x, y) end;
+
+# For vertices to neighboring edges
+v_l_he(idx::CartesianIndex{2}) = begin x, y = idx.I; return CartesianIndex(1, x - 1, y) end;
+v_r_he(idx::CartesianIndex{2}) = begin x, y = idx.I; return CartesianIndex(1, x, y) end;
+v_t_ve(idx::CartesianIndex{2}) = begin x, y = idx.I; return CartesianIndex(2, x, y) end;
+v_b_ve(idx::CartesianIndex{2}) = begin x, y = idx.I; return CartesianIndex(2, x, y - 1) end;
+
+# For vertices to neighboring quads
+v_bl_q(idx::CartesianIndex{2}) = begin x, y = idx.I; return CartesianIndex(x - 1, y - 1) end;
+v_br_q(idx::CartesianIndex{2}) = begin x, y = idx.I; return CartesianIndex(x, y - 1) end;
+v_tr_q(idx::CartesianIndex{2}) = begin x, y = idx.I; return CartesianIndex(x, y) end;
+v_tl_q(idx::CartesianIndex{2}) = begin x, y = idx.I; return CartesianIndex(x - 1, y) end;
+
+# Midpoint of bottom left to top right diagonal
+dual_point(s::HasCubicalComplex, idx::CartesianIndex{2}) = 0.5 * (point(s, q_bl_v(idx)) + point(s, q_tr_v(idx)))
+
+# Done by half dual edges (divided by quad) in case dual edge runs off grid
+function d_vedge_thalf_len(s::EmbeddedCubicalComplex2D, idx::CartesianIndex{3})
+  top_dualv = he_t_q(idx)
+  _, y = top_dualv.I
+  y <= nyquads(s) ? 0.5 * quad_height(s, top_dualv) : 0.0
 end
 
-quad_area(s::HasCubicalComplex, q::Int) = quad_width(s, q) * quad_height(s, q)
-
-top_vertex(s::HasCubicalComplex, v::Int) = (v + nx(s)) > nv(s)
-bot_vertex(s::HasCubicalComplex, v::Int) = (v - nx(s)) < 1
-left_vertex(s::HasCubicalComplex, v::Int) = (v - 1) % nx(s) == 0
-right_vertex(s::HasCubicalComplex, v::Int) = v % nx(s) == 0
-
-left_edge(s::HasCubicalComplex, e::Int) = left_vertex(s, e - nhe(s))
-right_edge(s::HasCubicalComplex, e::Int) = right_vertex(s, e - nhe(s))
-
-function edge_quads(s::HasCubicalComplex, e::Int)
-  if is_hedge(s, e)
-    return hedge_quads(s, e)
-  elseif is_vedge(s, e)
-    return vedge_quads(s, e)
-  else
-    return SVector(0, 0)
-  end
+function d_vedge_bhalf_len(s::EmbeddedCubicalComplex2D, idx::CartesianIndex{3})
+  bot_dualv = he_b_q(idx)
+  _, y = bot_dualv.I
+  y >= 1 ? 0.5 * quad_height(s, bot_dualv) : 0.0
 end
 
-function hedge_quads(s::HasCubicalComplex, e::Int)
-  bottom = e - nxquads(s)
-  if bottom < 1 
-    bottom = 0
-  end
+d_vedge_len(s::EmbeddedCubicalComplex2D, idx::CartesianIndex{3}) = d_vedge_thalf_len(s, idx) + d_vedge_bhalf_len(s, idx)
 
-  top = e
-  if top > nquads(s)
-    top = 0
-  end
-
-  return SVector(top, bottom)
+function d_hedge_rhalf_len(s::EmbeddedCubicalComplex2D, idx::CartesianIndex{3})
+  right_dualv = ve_r_q(idx)
+  x, _ = right_dualv.I
+  x <= nxquads(s) ? 0.5 * quad_width(s, right_dualv) : 0.0
 end
 
-function vedge_quads(s::HasCubicalComplex, e::Int)
-  ve = e - nhe(s)
-
-  left = left_edge(s, e) ? 0 : ve - 1
-  right = right_edge(s, e) ? 0 : ve
-
-  return SVector(left, right)
+function d_hedge_lhalf_len(s::EmbeddedCubicalComplex2D, idx::CartesianIndex{3})
+  left_dualv = ve_l_q(idx)
+  x, _ = left_dualv.I
+  x >= 1 ? 0.5 * quad_width(s, left_dualv) : 0.0
 end
 
-dual_point(s::HasCubicalComplex, v::Int) = 0.25 * sum(map(x -> point(s, x), quad_vertices(s, v)))
-dual_points(s::HasCubicalComplex) = map(q -> dual_point(s, q), quadrilaterals(s))
+d_hedge_len(s::EmbeddedCubicalComplex2D, idx::CartesianIndex{3}) = d_hedge_rhalf_len(s, idx) + d_hedge_lhalf_len(s, idx)
 
-function top_dualsup_edge_length(s::HasCubicalComplex, v::Int)
-  top_vertex(s, v) && return 0.0
-  return 0.5 * norm(point(s, v + nx(s)) - point(s, v))
-end
+d_edge_len(s::HasCubicalComplex, idx::CartesianIndex{3}) = is_d_hedge(idx) ? d_hedge_len(s, idx) : d_vedge_len(s, idx)
 
-function bot_dualsup_edge_length(s::HasCubicalComplex, v::Int)
-  bot_vertex(s, v) && return 0.0
-  return 0.5 * norm(point(s, v) - point(s, v - nx(s)))
-end
-
-function left_dualsup_edge_length(s::HasCubicalComplex, v::Int)
-  left_vertex(s, v) && return 0.0
-  return 0.5 * norm(point(s, v) - point(s, v - 1))
-end
-
-function right_dualsup_edge_length(s::HasCubicalComplex, v::Int)
-  right_vertex(s, v) && return 0.0
-  return 0.5 * norm(point(s, v + 1) - point(s, v))
-end
-
-dual_edge_length(s::HasCubicalComplex, x::Int, y::Int, is_h::Bool) = dual_edge_length(s, coord_to_edge(s, x, y, is_h))
-function dual_edge_length(s::HasCubicalComplex, e::Int)
-  v = src(s, e)
-  if 1 <= e <= nhe(s) # Horizontal edge
-    return top_dualsup_edge_length(s, v) + bot_dualsup_edge_length(s, v)
-  elseif e <= ne(s) # Vertical edge
-    return left_dualsup_edge_length(s, v) + right_dualsup_edge_length(s, v)  
-  else
-    return 0.0
-  end
-end
-
-dual_quad_area(s::HasCubicalComplex, x::Int, y::Int) = dual_quad_area(s, coord_to_vert(s, x, y))
-function dual_quad_area(s::HasCubicalComplex, q::Int)
-  # v <=> dual_q index match
-  h = top_dualsup_edge_length(s, q) + bot_dualsup_edge_length(s, q)
-  w = left_dualsup_edge_length(s, q) + right_dualsup_edge_length(s, q)
-
-  return h * w
+function d_quad_area(s::HasCubicalComplex, idx::CartesianIndex{2})
+  return 0.25 * (safe_quad_area(s, v_bl_q(idx)) + safe_quad_area(s, v_br_q(idx)) +
+    safe_quad_area(s, v_tr_q(idx)) + safe_quad_area(s, v_tl_q(idx)))
 end
 
 ### MESH HELPERS ###
