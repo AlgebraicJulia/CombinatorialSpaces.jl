@@ -26,8 +26,8 @@ end
 function exterior_derivative!(res, ::Val{1}, f)
   backend = get_backend(res)
 
-  @assert backend == get_backend(get_hedge_form(f))
-  @assert backend == get_backend(get_vedge_form(f))
+  @assert backend == get_backend(hdeges(f))
+  @assert backend == get_backend(vedges(f))
 
   kernel = kernel_exterior_derivative_one(backend, 32, size(res))
   kernel(res, f, ndrange = size(res))
@@ -38,8 +38,8 @@ end
   idx = @index(Global, Cartesian)
   x, y = idx.I
 
-  hes = get_hedge_form(f)
-  ves = get_vedge_form(f)
+  hes = hdeges(f)
+  ves = vedges(f)
 
   @inbounds res[idx] = hes[x, y] - hes[x, y + 1] - ves[x, y] + ves[x + 1, y]
 end
@@ -61,17 +61,17 @@ end
   x, y = idx.I
 
   @inbounds if is_h # Horizontal edges
-    res[idx] = dual_zero_form_val(s, x, y - 1, f, padding = padding) - dual_zero_form_val(s, x, y, f, padding = padding)
+    res[idx] = get_zerodf(s, x, y - 1, f, padding = padding) - get_zerodf(s, x, y, f, padding = padding)
   else # Vertical edges
-    res[idx] = dual_zero_form_val(s, x, y, f, padding = padding) - dual_zero_form_val(s, x - 1, y, f, padding = padding)
+    res[idx] = get_zerodf(s, x, y, f, padding = padding) - get_zerodf(s, x - 1, y, f, padding = padding)
   end
 end
 
 function dual_derivative!(res, ::Val{1}, s::HasCubicalComplex, f; padding = 0)
   backend = get_backend(res)
 
-  @assert backend == get_backend(get_hedge_form(f))
-  @assert backend == get_backend(get_vedge_form(f))
+  @assert backend == get_backend(hdeges(f))
+  @assert backend == get_backend(vedges(f))
 
   kernel = kernel_dual_derivative_one(backend, 32, size(res))
   kernel(res, s, f, padding, ndrange = size(res))
@@ -87,8 +87,8 @@ end
   # | . |
   # V   V
   # ---->
-  @inbounds res[idx] = dual_ones_form_val(s, 2, x, y - 1, f; padding = padding) - dual_ones_form_val(s, 1, x, y, f; padding = padding) - 
-                       dual_ones_form_val(s, 2, x, y, f; padding = padding) + dual_ones_form_val(s, 1, x - 1, y, f; padding = padding)
+  @inbounds res[idx] = get_onedf(s, 2, x, y - 1, f; padding = padding) - get_onedf(s, 1, x, y, f; padding = padding) - 
+                       get_onedf(s, 2, x, y, f; padding = padding) + get_onedf(s, 1, x - 1, y, f; padding = padding)
 end
 
 function hodge_star!(res, ::Val{0}, s::HasCubicalComplex, f; inv::Bool = false)
@@ -117,7 +117,7 @@ end
 end
 
 function hodge_star!(res, ::Val{1}, s::HasCubicalComplex, f; inv::Bool = false)
-  backend = get_backend(get_hedge_form(res))
+  backend = get_backend(hdeges(res))
 
   for (i, (res_set, f_set)) in enumerate(zip(res, f))
     args = (backend, 32, size(res_set))
@@ -159,7 +159,7 @@ end
 end
 
 function wedge_product!(res, ::Val{(1,1)}, s::HasCubicalComplex, α, β)
-  backend = get_backend(get_hedge_form(f))
+  backend = get_backend(hdeges(f))
 
   kernel = kernel_wedge_product_one_one(backend, 32, size(res))
   kernel(res_set, f, α_set, ndrange = size(res_set))
@@ -186,14 +186,19 @@ end
 #   return res
 # end
 
-# function wedge_product(::Val{(1,1)}, s::HasCubicalComplex, alpha, beta)
-#   res = zeros(eltype(alpha), nquads(s))
+function wedge_product_dd!(res, ::Val{(0,1)}, s::HasCubicalComplex, f, α)
+  backend = get_backend(f)
 
-#   # a ∧ b = (a[x]b[y] - a[y]b[x])dx ∧ dy
-#   for q in quadrilaterals(s)
-#     e1, e2, e3, e4 = quad_edges(s, q)
-#     res[q] = 0.25 * ((alpha[e1] + alpha[e2]) * (beta[e3] + beta[e4]) - (alpha[e3] + alpha[e4]) * (beta[e1] + beta[e2]))
-#   end
+  for (i, (res_set, α_set)) in enumerate(zip(res, α))
+    kernel = kernel_wedge_product_dd_zero_one(backend, 32, size(res_set))
+    kernel(res_set, i == 1, f, α_set, ndrange = size(res_set))
+  end
+  return res
+end
 
-#   return res
-# end
+@kernel function kernel_wedge_product_zero_one(res, is_h::Bool, f, α)
+  idx = @index(Global, Cartesian)
+  x, y = idx.I
+
+  @inbounds res[idx] = 0.5 * (f[src(x, y)] + f[tgt(x, y, is_h)]) * α[idx]
+end

@@ -100,17 +100,17 @@ Colorbar(fig[1,2])
 save("imgs/InitialAdv.png", fig)
 
 # Rightwards motion
-V = init_tensor_form(Val(1), s)
-get_hedge_form(V) .= 1
+V = init_tensor(Val(1), s)
+hdeges(V) .= 1
 
-wdg01_res = init_tensor_form(Val(1), s)
-hdg1_res = init_tensor_form(Val(1), s)
-dd1_res = init_tensor_form(Val(0), s) # Init tensor dual form
-final_res = init_tensor_form(Val(0), s) # Init tensor dual form
+wdg01_res = init_tensor(Val(1), s)
+hdg1_res = init_tensor(Val(1), s)
+dd1_res = init_tensor(Val(0), s) # Init tensor dual form
+final_res = init_tensor(Val(0), s) # Init tensor dual form
 
-v = tensorfy_form(Val(0), s, deepcopy(u_0))
+v = tensorfy(Val(0), s, deepcopy(u_0))
 adv_us = []
-push!(adv_us, detensorfy_form(Val(0), s, deepcopy(v)))
+push!(adv_us, detensorfy(Val(0), s, deepcopy(v)))
 
 Δt = 0.001
 for _ in 0:Δt:1.0
@@ -121,7 +121,7 @@ for _ in 0:Δt:1.0
   hodge_star!(final_res, Val(0), s, dd1_res; inv = true)
 
   v .= v .+ Δt * final_res
-  push!(adv_us, detensorfy_form(Val(0), s, deepcopy(v)))
+  push!(adv_us, detensorfy(Val(0), s, deepcopy(v)))
 end
 
 fig = Figure();
@@ -132,11 +132,11 @@ save("imgs/KernelAdvectionEnd.png", fig)
 
 create_gif(adv_us, "imgs/KernelAdvection.mp4")
 
-flat_V = detensorfy_form(Val(1), s, V)
+flat_V = detensorfy(Val(1), s, V)
 test = wedge_product(Val((0,1)), s, u_0, flat_V)
 
-wdg01_res = init_tensor_form(Val(1), s)
+wdg01_res = init_tensor(Val(1), s)
 wedge_product!(wdg01_res, Val((0,1)), s, v_0, V)
-comp = detensorfy_form(Val(1), s, wdg01_res)
+comp = detensorfy(Val(1), s, wdg01_res)
 
 extrema(test .- comp)
