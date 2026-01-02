@@ -23,8 +23,9 @@ end
 function exterior_derivative!(res, ::Val{1}, f)
   backend = get_backend(res)
 
-  @assert backend == get_backend(hdeges(f))
-  @assert backend == get_backend(vedges(f))
+  for edge_set in f
+    @assert backend == get_backend(edge_set)
+  end
 
   kernel = kernel_exterior_derivative_one(backend, 32, size(res))
   kernel(res, f, ndrange = size(res))
@@ -35,8 +36,8 @@ end
   idx = @index(Global, Cartesian)
   x, y = idx.I
 
-  hes = hdeges(f)
-  ves = vedges(f)
+  hes = xedges(f)
+  ves = yedges(f)
 
   @inbounds res[idx] = hes[x, y] - hes[x, y + 1] - ves[x, y] + ves[x + 1, y]
 end
@@ -67,8 +68,8 @@ end
 function dual_derivative!(res, ::Val{1}, s::HasCubicalComplex, f; padding = 0)
   backend = get_backend(res)
 
-  @assert backend == get_backend(hdeges(f))
-  @assert backend == get_backend(vedges(f))
+  @assert backend == get_backend(xedges(f))
+  @assert backend == get_backend(yedges(f))
 
   kernel = kernel_dual_derivative_one(backend, 32, size(res))
   kernel(res, s, f, padding, ndrange = size(res))
@@ -114,7 +115,7 @@ end
 end
 
 function hodge_star!(res, ::Val{1}, s::HasCubicalComplex, f; inv::Bool = false)
-  backend = get_backend(hdeges(res))
+  backend = get_backend(xedges(res))
 
   for (i, (res_set, f_set)) in enumerate(zip(res, f))
     args = (backend, 32, size(res_set))
@@ -156,7 +157,7 @@ end
 end
 
 function wedge_product!(res, ::Val{(1,1)}, s::HasCubicalComplex, α, β)
-  backend = get_backend(hdeges(f))
+  backend = get_backend(xedges(f))
 
   kernel = kernel_wedge_product_one_one(backend, 32, size(res))
   kernel(res_set, f, α_set, ndrange = size(res_set))
