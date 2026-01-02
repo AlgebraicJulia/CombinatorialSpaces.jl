@@ -127,9 +127,13 @@ detensorfy(::Val{1}, s::EmbeddedCubicalComplex2D, g) = vcat(vec(g[1]), vec(g[2])
 
 detensorfy(::Val{2}, s::EmbeddedCubicalComplex2D, g) = reshape(g, (nquads(s)))
 
+detensorfy_d(::Val{k}, s::EmbeddedCubicalComplex2D, g) where k = detensorfy(Val(2-k), s, g)
+
 init_tensor(::Val{0}, s::EmbeddedCubicalComplex2D) = zeros((nx(s), ny(s)))
 init_tensor(::Val{1}, s::EmbeddedCubicalComplex2D) = (zeros((nx(s)-1, ny(s))), zeros(nx(s), ny(s)-1))
 init_tensor(::Val{2}, s::EmbeddedCubicalComplex2D) = zeros((nxquads(s), nyquads(s)))
+
+init_tensor_d(::Val{k}, s::EmbeddedCubicalComplex2D) where k = init_tensor(Val(2-k), s)
 
 valid_vertex(s::EmbeddedCubicalComplex2D, x::Int, y::Int) = (1 <= x <= nx(s)) && (1 <= y <= ny(s))
 valid_xedge(s::EmbeddedCubicalComplex2D, x::Int, y::Int) = (1 <= x <= nx(s) - 1) && (1 <= y <= ny(s))
@@ -139,9 +143,9 @@ valid_quad(s::EmbeddedCubicalComplex2D, x::Int, y::Int) = (1 <= x <= nxquads(s))
 get_onef(f, z::Int, x::Int, y::Int) = f[z][x, y]
 set_onef!(f, val::Real, z::Int, x::Int, y::Int) = f[z][x, y] = val
 
-get_zerodf(s::HasCubicalComplex, f, x::Int, y::Int; padding::Real = 0) = valid_quad(s, x, y) ? f[x, y] : padding
+get_zerodf(s::HasCubicalComplex, f, x::Int, y::Int; padding::Real = 0.0) = valid_quad(s, x, y) ? f[x, y] : padding
 
-function get_onedf(s::HasCubicalComplex, f, z::Int, x::Int, y::Int; padding::Real = 0)
+function get_onedf(s::HasCubicalComplex, f, z::Int, x::Int, y::Int; padding::Real = 0.0)
   if is_xedge(z)
     return valid_xedge(s, x, y) ? xedges(f)[x, y] : padding
   elseif is_yedge(z)
@@ -173,16 +177,16 @@ point(s::EmbeddedCubicalComplex2D, x::Int, y::Int) = point(s, coord_to_vert(s, x
 point(s::HasCubicalComplex, v::Int) = getindex(s.points, v)
 
 # The src of an edge (which is either the leftmost or bottommost point)
-hsrc(x::Int, y::Int) = (x, y)
-vsrc(x::Int, y::Int) = (x, y)
-htgt(x::Int, y::Int) = (x + 1, y)
-vtgt(x::Int, y::Int) = (x, y + 1)
+xe_src(x::Int, y::Int) = (x, y)
+ye_src(x::Int, y::Int) = (x, y)
+xe_tgt(x::Int, y::Int) = (x + 1, y)
+ye_tgt(x::Int, y::Int) = (x, y + 1)
 
-src(z::Int, x::Int, y::Int) = is_xedge(z) ? hsrc(x, y) : vsrc(x, y)
-tgt(z::Int, x::Int, y::Int) = is_xedge(z) ? htgt(x, y) : vtgt(x, y)
+src(z::Int, x::Int, y::Int) = is_xedge(z) ? xe_src(x, y) : ye_src(x, y)
+tgt(z::Int, x::Int, y::Int) = is_xedge(z) ? xe_tgt(x, y) : ye_tgt(x, y)
 
-xedge_len(s::EmbeddedCubicalComplex2D, x::Int, y::Int) = norm(point(s, htgt(x, y)...) - point(s, hsrc(x, y)...))
-yedge_len(s::EmbeddedCubicalComplex2D, x::Int, y::Int) = norm(point(s, vtgt(x, y)...) - point(s, vsrc(x, y)...))
+xedge_len(s::EmbeddedCubicalComplex2D, x::Int, y::Int) = norm(point(s, xe_tgt(x, y)...) - point(s, xe_src(x, y)...))
+yedge_len(s::EmbeddedCubicalComplex2D, x::Int, y::Int) = norm(point(s, ye_tgt(x, y)...) - point(s, ye_src(x, y)...))
 
 edge_len(s::EmbeddedCubicalComplex2D, z::Int, x::Int, y::Int) = is_xedge(z) ? xedge_len(s, x, y) : yedge_len(s, x, y)
 
@@ -221,6 +225,14 @@ ye_r_q(x::Int, y::Int) = (x, y)
 # Top/bottom, left/right
 edge_quads(z::Int, x::Int, y::Int) = is_xedge(z) ? SVector(xe_t_q(x, y), xe_b_q(x, y)) : SVector(ye_l_q(x, y), ye_r_q(x, y))
 
+d_xe_src(x::Int, y::Int) = ye_l_q(x, y)
+d_ye_src(x::Int, y::Int) = xe_t_q(x, y)
+d_xe_tgt(x::Int, y::Int) = ye_r_q(x, y)
+d_ye_tgt(x::Int, y::Int) = xe_b_q(x, y)
+
+d_src(z::Int, x::Int, y::Int) = is_d_xedge(z) ? d_xe_src(x, y) : d_ye_src(x, y)
+d_tgt(z::Int, x::Int, y::Int) = is_d_xedge(z) ? d_xe_tgt(x, y) : d_ye_tgt(x, y)
+
 # For vertices to neighboring edges
 v_l_xe(x::Int, y::Int) = (x - 1, y)
 v_r_xe(x::Int, y::Int) = (x, y)
@@ -255,6 +267,13 @@ end
 
 d_yedge_len(s::EmbeddedCubicalComplex2D, x::Int, y::Int) = d_yedge_thalf_len(s, x, y) + d_yedge_bhalf_len(s, x, y)
 
+# Top, bottom
+function d_yedge_ratio(s::EmbeddedCubicalComplex2D, x::Int, y::Int)
+  top_len = d_yedge_thalf_len(s, x, y); bottom_len = d_yedge_bhalf_len(s, x, y)
+  len = top_len + bottom_len
+  return top_len / len, bottom_len / len
+end
+
 function d_xedge_rhalf_len(s::EmbeddedCubicalComplex2D, x::Int, y::Int)
   x, y = ye_r_q(x, y)
   x <= nxquads(s) ? 0.5 * quad_width(s, x, y) : 0.0
@@ -267,7 +286,16 @@ end
 
 d_xedge_len(s::EmbeddedCubicalComplex2D, x::Int, y::Int) = d_xedge_rhalf_len(s, x, y) + d_xedge_lhalf_len(s, x, y)
 
+# Left, right
+function d_xedge_ratio(s::EmbeddedCubicalComplex2D, x::Int, y::Int)
+  left_len = d_xedge_lhalf_len(s, x, y); right_len = d_xedge_rhalf_len(s, x, y)
+  len = left_len + right_len
+  return left_len / len, right_len / len
+end
+
 d_edge_len(s::HasCubicalComplex, z::Int, x::Int, y::Int) = is_d_xedge(z) ? d_xedge_len(s, x, y) : d_yedge_len(s, x, y)
+
+d_edge_ratio(s::HasCubicalComplex, z::Int, x::Int, y::Int) = is_d_xedge(z) ? d_xedge_ratio(s, x, y) : d_yedge_ratio(s, x, y)
 
 function d_quad_area(s::HasCubicalComplex, x::Int, y::Int)
   return 0.25 * (safe_quad_area(s, v_bl_q(x, y)...) + safe_quad_area(s, v_br_q(x, y)...) +
