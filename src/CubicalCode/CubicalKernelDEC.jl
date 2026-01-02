@@ -14,10 +14,10 @@ end
 
 # TODO: Can move the horizontal/vertical handling into the higher level function
 @kernel function kernel_exterior_derivative_zero(res, z::Int, @Const(f))
-  idx_2 = @index(Global, Cartesian)
-  idx_3 = CartesianIndex(z, idx_2.I...)
+  idx = @index(Global, Cartesian)
+  x, y = idx.I
 
-  @inbounds res[idx_2] = f[tgt(idx_3)] - f[src(idx_3)]
+  @inbounds res[idx] = f[tgt(z, x, y)...] - f[src(z, x, y)...]
 end
 
 function exterior_derivative!(res, ::Val{1}, f)
@@ -32,51 +32,54 @@ function exterior_derivative!(res, ::Val{1}, f)
   return res
 end
 
-@kernel function kernel_exterior_derivative_one(res, f)
+@kernel function kernel_exterior_derivative_one(res, @Const(f))
   idx = @index(Global, Cartesian)
   x, y = idx.I
 
   hes = xedges(f)
   ves = yedges(f)
 
-  @inbounds res[idx] = hes[x, y] - hes[x, y + 1] - ves[x, y] + ves[x + 1, y]
+  b_xe, t_xe, l_ye, r_ye = quad_edges(x, y)
+
+  @inbounds res[idx] = hes[b_xe...] - hes[t_xe...] - ves[l_ye...] + ves[r_ye...]
 end
 
-function dual_derivative!(res, ::Val{0}, f; padding = 0)
+function dual_derivative!(res, ::Val{0}, s::HasCubicalComplex, f; padding = 0)
   backend = get_backend(f)
 
-  @assert backend == get_backend(f)
+  for edge_set in res
+    @assert backend == get_backend(edge_set)
+  end
 
   for (i, edge_set) in enumerate(res)
     kernel = kernel_dual_derivative_zero(backend, 32, size(edge_set))
-    kernel(edge_set, s, i == 1, f, padding, ndrange = size(edge_set))
+    kernel(edge_set, s, i, f, padding, ndrange = size(edge_set))
   end
   return res
 end
 
-@kernel function kernel_dual_derivative_zero(res, s::HasCubicalComplex, is_h::Bool, f, padding)
+@kernel function kernel_dual_derivative_zero(res, s::EmbeddedCubicalComplex2D, z::Int, f, padding)
   idx = @index(Global, Cartesian)
   x, y = idx.I
 
-  @inbounds if is_h # Horizontal edges
-    res[idx] = get_zerodf(s, x, y - 1, f, padding = padding) - get_zerodf(s, x, y, f, padding = padding)
-  else # Vertical edges
-    res[idx] = get_zerodf(s, x, y, f, padding = padding) - get_zerodf(s, x - 1, y, f, padding = padding)
-  end
+  tl_q, br_q = edge_quads(z, x, y)
+
+  res[idx] = get_zerodf(s, f, br_q..., padding = padding) - get_zerodf(s, f, tl_q..., padding = padding)
 end
 
 function dual_derivative!(res, ::Val{1}, s::HasCubicalComplex, f; padding = 0)
   backend = get_backend(res)
 
-  @assert backend == get_backend(xedges(f))
-  @assert backend == get_backend(yedges(f))
+  for edge_set in f
+    @assert backend == get_backend(edge_set)
+  end
 
   kernel = kernel_dual_derivative_one(backend, 32, size(res))
   kernel(res, s, f, padding, ndrange = size(res))
   return res
 end
 
-@kernel function kernel_dual_derivative_one(res, s::HasCubicalComplex, f, padding)
+@kernel function kernel_dual_derivative_one(res, s::EmbeddedCubicalComplex2D, @Const(f), padding::Real)
   idx = @index(Global, Cartesian)
   x, y = idx.I
 
@@ -85,8 +88,11 @@ end
   # | . |
   # V   V
   # ---->
-  @inbounds res[idx] = get_onedf(s, 2, x, y - 1, f; padding = padding) - get_onedf(s, 1, x, y, f; padding = padding) - 
-                       get_onedf(s, 2, x, y, f; padding = padding) + get_onedf(s, 1, x - 1, y, f; padding = padding)
+
+  b_dxe, t_dxe, l_dye, r_dye = vertex_edges(x, y)
+
+  @inbounds res[idx] = get_onedf(s, f, 2, b_dxe...; padding = padding) - get_onedf(s, f, 1, r_dye...; padding = padding) - 
+                       get_onedf(s, f, 2, t_dxe...; padding = padding) + get_onedf(s, f, 1, l_dye...; padding = padding)
 end
 
 function hodge_star!(res, ::Val{0}, s::HasCubicalComplex, f; inv::Bool = false)
@@ -94,49 +100,41 @@ function hodge_star!(res, ::Val{0}, s::HasCubicalComplex, f; inv::Bool = false)
 
   @assert backend == get_backend(res)
 
-  args = (backend, 32, size(res))
-  kernel = inv ? kernel_inv_hodge_star_zero(args...) : kernel_hodge_star_zero(args...)
-  kernel(res, s, f, ndrange = size(res))
+  kernel = kernel_hodge_star_zero(backend, 32, size(res))
+  kernel(res, s, f, inv, ndrange = size(res))
   return res
 end
 
-@kernel function kernel_hodge_star_zero(res, s::HasCubicalComplex, f)
+@kernel function kernel_hodge_star_zero(res, s::HasCubicalComplex, @Const(f), is_inv::Bool)
   idx = @index(Global, Cartesian)
   x, y = idx.I
 
-  @inbounds res[idx] = dual_quad_area(s, x, y) * f[idx]
-end
+  dqa = d_quad_area(s, x, y)
+  α = is_inv ? inv(dqa) : dqa
 
-@kernel function kernel_inv_hodge_star_zero(res, s::HasCubicalComplex, f)
-  idx = @index(Global, Cartesian)
-  x, y = idx.I
-
-  @inbounds res[idx] = f[idx] / dual_quad_area(s, x, y)
+  @inbounds res[idx] = α * f[idx]
 end
 
 function hodge_star!(res, ::Val{1}, s::HasCubicalComplex, f; inv::Bool = false)
   backend = get_backend(xedges(res))
 
   for (i, (res_set, f_set)) in enumerate(zip(res, f))
-    args = (backend, 32, size(res_set))
-    kernel = inv ? kernel_inv_hodge_star_one(args...) : kernel_hodge_star_one(args...)
-    kernel(res_set, s, i == 1, f_set, ndrange = size(res_set))
+    kernel = kernel_hodge_star_one(backend, 32, size(res_set))
+    kernel(res_set, s, i, f_set, inv, ndrange = size(res_set))
   end
   return res
 end
 
-@kernel function kernel_hodge_star_one(res, s::HasCubicalComplex, is_h::Bool, f)
+@kernel function kernel_hodge_star_one(res, s::HasCubicalComplex, z::Int, @Const(f), is_inv::Bool)
   idx = @index(Global, Cartesian)
   x, y = idx.I
 
-  @inbounds res[idx] = dual_edge_length(s, x, y, is_h) * f[idx] / edge_length(s, x, y, is_h)
-end
+  del = d_edge_len(s, z, x, y)
+  el = edge_len(s, z, x, y)
 
-@kernel function kernel_inv_hodge_star_one(res, s::HasCubicalComplex, is_h::Bool, f)
-  idx = @index(Global, Cartesian)
-  x, y = idx.I
+  α = is_inv ? (el / del) : (del / el)
 
-  @inbounds res[idx] = edge_length(s, x, y, is_h) * f[idx] / dual_edge_length(s, x, y, is_h)
+  @inbounds res[idx] = α * f[idx]
 end
 
 function wedge_product!(res, ::Val{(0,1)}, s::HasCubicalComplex, f, α)
@@ -144,33 +142,38 @@ function wedge_product!(res, ::Val{(0,1)}, s::HasCubicalComplex, f, α)
 
   for (i, (res_set, α_set)) in enumerate(zip(res, α))
     kernel = kernel_wedge_product_zero_one(backend, 32, size(res_set))
-    kernel(res_set, i == 1, f, α_set, ndrange = size(res_set))
+    kernel(res_set, i, f, α_set, ndrange = size(res_set))
   end
   return res
 end
 
-@kernel function kernel_wedge_product_zero_one(res, is_h::Bool, f, α)
+@kernel function kernel_wedge_product_zero_one(res, z::Int, @Const(f), @Const(α))
   idx = @index(Global, Cartesian)
   x, y = idx.I
 
-  @inbounds res[idx] = 0.5 * (f[src(x, y)] + f[tgt(x, y, is_h)]) * α[idx]
+  @inbounds res[idx] = 0.5 * (f[src(z, x, y)...] + f[tgt(z, x, y)...]) * α[idx]
 end
 
 function wedge_product!(res, ::Val{(1,1)}, s::HasCubicalComplex, α, β)
-  backend = get_backend(xedges(f))
+  backend = get_backend(xedges(α))
 
   kernel = kernel_wedge_product_one_one(backend, 32, size(res))
-  kernel(res_set, f, α_set, ndrange = size(res_set))
+  kernel(res, α, β, ndrange = size(res))
   return res
 end
 
-@kernel function kernel_wedge_product_one_one(res, α, β)
+@kernel function kernel_wedge_product_one_one(res, @Const(α), @Const(β))
   idx = @index(Global, Cartesian)
   x, y = idx.I
 
+  xα = xedges(α); yα = yedges(α)
+  xβ = xedges(β); yβ = yedges(β)
+
+
   # a ∧ b = (a[x]b[y] - a[y]b[x])dx ∧ dy
   e1, e2, e3, e4 = quad_edges(x, y)
-  @inbounds res[q] = 0.25 * ((α[e1] + α[e2]) * (β[e3] + β[e4]) - (α[e3] + α[e4]) * (β[e1] + β[e2]))
+  @inbounds res[idx] = 0.25 * ((xα[e1...] + xα[e2...]) * (yβ[e3...] + yβ[e4...]) - 
+    (yα[e3...] + yα[e4...]) * (xβ[e1...] + xβ[e2...]))
 end
 
 # function wedge_product(::Val{(0,2)}, s::HasCubicalComplex, f, alpha)
@@ -189,14 +192,22 @@ function wedge_product_dd!(res, ::Val{(0,1)}, s::HasCubicalComplex, f, α)
 
   for (i, (res_set, α_set)) in enumerate(zip(res, α))
     kernel = kernel_wedge_product_dd_zero_one(backend, 32, size(res_set))
-    kernel(res_set, i == 1, f, α_set, ndrange = size(res_set))
+    kernel(res_set, i, f, α_set, ndrange = size(res_set))
   end
   return res
 end
 
-@kernel function kernel_wedge_product_zero_one(res, is_h::Bool, f, α)
+@kernel function kernel_wedge_product_dd_zero_one(res, z::Int, @Const(f), @Const(α))
   idx = @index(Global, Cartesian)
   x, y = idx.I
 
-  @inbounds res[idx] = 0.5 * (f[src(x, y)] + f[tgt(x, y, is_h)]) * α[idx]
+  src_w, tgt_w = d_edge_ratio(s, z, x, y)
+
+  f_dsrc = get_zerodf(s, f, d_src(z, x, y)...) 
+  f_dtgt = get_zerodf(s, f, d_tgt(z, x, y)...) 
+
+  # println(z, x, y)
+  # println(src_w, tgt_w, f_dsrc, f_dtgt)
+
+  @inbounds res[idx] = (src_w * f_dsrc + tgt_w * f_dtgt) * α[idx]
 end
