@@ -1,26 +1,23 @@
 function exterior_derivative!(res, ::Val{0}, f)
   backend = get_backend(f)
 
-  @assert backend == get_backend(res[1])
-  @assert backend == get_backend(res[2])
+  for edge_set in res
+    @assert backend == get_backend(edge_set)
+  end
 
   for (i, edge_set) in enumerate(res)
-    kernel = kernel_exterior_derivative_zero(backend, 32, size(edge_set))
-    kernel(edge_set, i == 1, f, ndrange = size(edge_set))
+    kernel = kernel_exterior_derivative_zero(backend)
+    kernel(edge_set, i, f, ndrange = size(edge_set))
   end
   return res
 end
 
 # TODO: Can move the horizontal/vertical handling into the higher level function
-@kernel function kernel_exterior_derivative_zero(res, is_h::Bool, f)
-  idx = @index(Global, Cartesian)
-  x, y = idx.I
+@kernel function kernel_exterior_derivative_zero(res, z::Int, @Const(f))
+  idx_2 = @index(Global, Cartesian)
+  idx_3 = CartesianIndex(z, idx_2.I...)
 
-  @inbounds if is_h # Horizontal edges
-    res[idx] = f[x + 1, y] - f[x, y]
-  else # Vertical edges
-    res[idx] = f[x, y + 1] - f[x, y]
-  end
+  @inbounds res[idx_2] = f[tgt(idx_3)] - f[src(idx_3)]
 end
 
 function exterior_derivative!(res, ::Val{1}, f)
