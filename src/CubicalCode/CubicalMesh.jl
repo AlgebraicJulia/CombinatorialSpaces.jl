@@ -57,8 +57,15 @@ is_d_xedge(z::Int) = is_yedge(z)
 xedge(x::Int, y::Int) = (1, x, y); 
 yedge(x::Int, y::Int) = (2, x, y);
 
+d_xedge(x::Int, y::Int) = (2, x, y); 
+d_yedge(x::Int, y::Int) = (1, x, y);
+
 xedges(g::Tuple) = getindex(g, 1)
 yedges(g::Tuple) = getindex(g, 2)
+
+d_xedges(g::Tuple) = getindex(g, 2)
+d_yedges(g::Tuple) = getindex(g, 1)
+
 
 vertices(s::EmbeddedCubicalComplex2D) = Iterators.product(1:nx(s), 1:ny(s))
 function edges(s::EmbeddedCubicalComplex2D)

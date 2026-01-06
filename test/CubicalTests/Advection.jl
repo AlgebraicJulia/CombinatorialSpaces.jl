@@ -101,7 +101,7 @@ save("imgs/InitialAdv.png", fig)
 
 # Rightwards motion
 V = init_tensor(Val(1), s)
-hdeges(V) .= 1
+xedges(V) .= 1
 
 wdg01_res = init_tensor(Val(1), s)
 hdg1_res = init_tensor(Val(1), s)

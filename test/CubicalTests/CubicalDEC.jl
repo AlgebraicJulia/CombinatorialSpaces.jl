@@ -31,7 +31,7 @@ dual_derivative!(res_dd0, Val(0), s, f)
 
 @test detensorfy(Val(1), s, res_dd0) == [-1, 1, 1, -1]
 
-dual_derivative!(res_dd0, Val(0), f; padding = 1)
+dual_derivative!(res_dd0, Val(0), s, f; padding = 1)
 @test all(detensorfy(Val(1), s, res_dd0) .== 0)
 
 f = tensorfy_d(Val(1), s, ones(nde(s)))
@@ -60,16 +60,14 @@ hodge_star!(res_hdg1, Val(1), s, f)
 hodge_star!(res_hdg1, Val(1), s, f; inv = true)
 @test all(detensorfy_d(Val(1), s, res_hdg1) .== 2)
 
+f = tensorfy(Val(2), s, ones(nquads(s)))
+res_hdg2 = init_tensor_d(Val(0), s)
 
-# # TODO: Implement hodge 2
-# f = tensorfy(Val(2), s, ones(nquads(s)))
-# res_hdg2 = init_tensor_d(Val(0), s)
+hodge_star!(res_hdg2, Val(2), s, f)
+@test all(detensorfy_d(Val(0), s, res_hdg2) .== 100)
 
-# hodge_star!(res_hdg2, Val(2), s, f)
-# @test all(detensorfy_d(Val(0), s, res_hdg2) .== 0.5)
-
-# hodge_star!(res_hdg2, Val(2), s, f; inv = true)
-# @test all(detensorfy_d(Val(0), s, res_hdg2) .== 2)
+hodge_star!(res_hdg2, Val(2), s, f; inv = true)
+@test all(detensorfy_d(Val(0), s, res_hdg2) .== 1/100)
 
 # Wedge product
 v1 = tensorfy(Val(0), s, [1, 2, 1, 2])
@@ -108,96 +106,174 @@ res_wdgdd01 = init_tensor_d(Val(1), s)
 
 wedge_product_dd!(res_wdgdd01, Val((0,1)), s, dv1, de1)
 
-all(detensorfy_d(Val(1), s, res_wdgdd01) .== 1)
+@test all(detensorfy_d(Val(1), s, res_wdgdd01) .== 1)
 
-# # Sharp PD
-# alpha = zeros(ne(s))
-# alpha[1] = alpha[2] = 10
+# Sharp DD
 
-# X, Y = sharp_pd(s, alpha)
+f = tensorfy(Val(1), s, [-10, -10, 0, 0])
 
-# @test X[1] == 1.0 && Y[1] == 0.0
+X = init_tensor_d(Val(0), s)
+Y = init_tensor_d(Val(0), s)
 
-# alpha = zeros(ne(s))
-# alpha[3] = alpha[4] = -20
+sharp_dd!(X, Y, s, f)
+@test X[1, 1] == 0.0 && Y[1, 1] == 2.0
 
-# X, Y = sharp_pd(s, alpha)
+f = tensorfy(Val(1), s, [0, 0, 10, 10])
 
-# @test X[1] == 0.0 && Y[1] == -2.0
+sharp_dd!(X, Y, s, f)
+@test X[1, 1] == 2.0 && Y[1, 1] == 0.0
 
-# alpha = zeros(ne(s))
-# alpha[1] = alpha[2] = 10
-# alpha[3] = alpha[4] = -20
+f = tensorfy(Val(1), s, [-10, -10, 10, 10])
 
-# X, Y = sharp_pd(s, alpha)
+sharp_dd!(X, Y, s, f)
+@test X[1, 1] == 2.0 && Y[1, 1] == 2.0
 
-# @test X[1] == 1.0 && Y[1] == -2.0
+# Flat DP
 
-# # Sharp DD
-# alpha = zeros(ne(s))
-# alpha[1] = alpha[2] = -10
+res_flat_dp = init_tensor(Val(1), s)
 
-# X, Y = sharp_dd(s, alpha)
-# @test X[1] == 0.0 && Y[1] == 2.0
+X = [1]; Y = [0]
+flat_dp!(res_flat_dp, s, X, Y)
+@test all(xedges(res_flat_dp) .== 10)
+@test all(yedges(res_flat_dp) .== 0)
 
-# alpha = zeros(ne(s))
-# alpha[3] = alpha[4] = 10
+X = [0]; Y = [1]
+flat_dp!(res_flat_dp, s, X, Y)
+@test all(xedges(res_flat_dp) .== 0)
+@test all(yedges(res_flat_dp) .== 10)
 
-# X, Y = sharp_dd(s, alpha)
-# @test X[1] == 2.0 && Y[1] == 0.0
+X = [-1]; Y = [-1]
+flat_dp!(res_flat_dp, s, X, Y)
+@test all(xedges(res_flat_dp) .== -10)
+@test all(yedges(res_flat_dp) .== -10)
 
-# alpha = zeros(ne(s))
-# alpha[1] = alpha[2] = -10
-# alpha[3] = alpha[4] = 10
+### Test with irregular mesh w/ interior
+ps = Point3d[]
+for y in [0, 1, 3, 6, 10]
+  for x in [0, 1, 3, 6, 10]
+    push!(ps, Point3d(x, y, 0))
+  end
+end
 
-# X, Y = sharp_dd(s, alpha)
-# @test X[1] == 2.0 && Y[1] == 2.0
+s = EmbeddedCubicalComplex2D(5, 5, ps);
 
-# # Exterior derivative
-# d0 = exterior_derivative(Val(0), s)
-# d1 = exterior_derivative(Val(1), s)
+# Exterior derivative
+res_d0 = init_tensor(Val(1), s)
+f = tensorfy(Val(0), s, repeat([1, 2, 3, 4, 5], 5))
+exterior_derivative!(res_d0, Val(0), f)
 
-# @test all(0 .== d1 * d0)
+@test all(xedges(res_d0) .== 1)
+@test all(yedges(res_d0) .== 0)
 
-# dual_d0 = dual_derivative(Val(0), s)
-# dual_d1 = dual_derivative(Val(1), s)
+# res_d1 = init_tensor(Val(2), s)
+# f = tensorfy(Val(1), s, [2, -2, -2, 2])
+# exterior_derivative!(res_d1, Val(1), f)
 
-# @test all(0 .== dual_d1 * dual_d0)
+# @test detensorfy(Val(2), s, res_d1) == [8.0]
 
-# # Wedge product
-# v1 = ones(nv(s))
-# e1 = ones(ne(s))
-# q1 = ones(nquads(s))
+# Dual derivative
+f = repeat([1, 2, 3, 4], 1, 4)
+res_dd0 = init_tensor_d(Val(1), s)
+dual_derivative!(res_dd0, Val(0), s, f)
 
-# all(1.0 .== wedge_product(Val((0,1)), s, v1, e1))
-# all(1.0 .== wedge_product(Val((0,2)), s, v1, q1))
+@test all(d_xedges(res_dd0)[2:4, :] .== 1)
+@test all(d_xedges(res_dd0)[5, :] .== -4) # Due to boundary conditions
 
-# all(0.0 .== wedge_product(Val((1,1)), s, e1, e1))
-# all(0.0 .== wedge_product(Val((1,1)), s, e1, 10 * e1))
+@test all(d_yedges(res_dd0)[:, 2:4] .== 0)
+@test d_yedges(res_dd0)[:, 5] == [1, 2, 3, 4]
+@test d_yedges(res_dd0)[:, 1] == [-1, -2, -3, -4]
 
-# eX = zeros(ne(s))
-# eX[1:nhe(s)] .= 1
+dual_derivative!(res_dd0, Val(0), s, f; padding = 1)
+@test all(detensorfy(Val(1), s, res_dd0) .== 0)
 
-# eY = zeros(ne(s))
-# eY[nhe(s)+1:ne(s)] .= 1
-# all(1.0 .== wedge_product(Val((1,1)), s, eX, eY))
-# all(-1.0 .== wedge_product(Val((1,1)), s, eY, eX))
+@test all(d_xedges(res_dd0)[5, :] .== -3) # Due to boundary conditions
 
-# # Hodge star
-# hdg_0 = hodge_star(Val(0), s)
-# @test (100 == sum(diag(hdg_0)))
+# Hodge star
+f = tensorfy(Val(0), s, ones(nv(s)))
+res_hdg0 = init_tensor_d(Val(2), s)
 
-# hdg_1 = hodge_star(Val(1), s)
-# for i in 1:4 # Bottom horizontal edges
-#   @test 1/(2*i) == diag(hdg_1)[i]
-# end
+hodge_star!(res_hdg0, Val(0), s, f)
+@test res_hdg0 == res_hdg0'
 
-# for i in 2:4 # Bottom interior vertical edges
-#   @test 0.5*(2i-1) == diag(hdg_1)[i+nhe(s)]
-# end
+@test res_hdg0[5, 1] == 1.0
+@test res_hdg0[5, 2] == 2.0 + 1.0
+@test res_hdg0[5, 3] == 3.0 + 2.0
 
-# hdg_2 = hodge_star(Val(2), s)
-# @test 1 == diag(hdg_2)[1]
-# @test 1/4 == diag(hdg_2)[6]
-# @test 1/9 == diag(hdg_2)[11]
-# @test 1/16 == diag(hdg_2)[16]
+hodge_star!(res_hdg0, Val(0), s, f; inv = true)
+@test res_hdg0[5, 5] == 1 / (4.0)
+
+f = tensorfy(Val(1), s, ones(ne(s)))
+res_hdg1 = init_tensor_d(Val(1), s)
+
+hodge_star!(res_hdg1, Val(1), s, f)
+@test d_yedges(res_hdg1)[4, 1] == 1/8
+@test d_yedges(res_hdg1)[4, 2] == 1.5/4
+
+@test d_xedges(res_hdg1)[1, 1] == 0.5
+@test d_xedges(res_hdg1)[2, 1] == 1.5
+
+f = tensorfy(Val(2), s, ones(nquads(s)))
+res_hdg2 = init_tensor_d(Val(0), s)
+
+qA = init_tensor(Val(2), s)
+for q in CartesianIndices(qA)
+  x, y = q.I
+  qA[q] = quad_area(s, x, y)
+end
+
+hodge_star!(res_hdg2, Val(2), s, f)
+@test all(res_hdg2 .== qA)
+
+hodge_star!(res_hdg2, Val(2), s, f; inv = true)
+@test all(res_hdg2 .== 1 ./ qA)
+
+# Wedge product
+v1 = tensorfy(Val(0), s, ones(nv(s)))
+e1 = tensorfy(Val(1), s, ones(ne(s)))
+q1 = tensorfy(Val(2), s, ones(nquads(s)))
+
+res_wdg01 = init_tensor(Val(1), s)
+wedge_product!(res_wdg01, Val((0,1)), s, v1, e1)
+@test all(xedges(res_wdg01) .== 1)
+@test all(yedges(res_wdg01) .== 1)
+
+res_wdg11 = init_tensor(Val(2), s)
+wedge_product!(res_wdg11, Val((1,1)), s, e1, e1)
+@test all(res_wdg11 .== 0)
+
+wedge_product!(res_wdg11, Val((1,1)), s, e1, 10 .* e1)
+@test all(res_wdg11 .== 0)
+
+eX = init_tensor(Val(1), s); xedges(eX) .= 1
+eY = init_tensor(Val(1), s); yedges(eY) .= 1
+
+wedge_product!(res_wdg11, Val((1,1)), s, eX, eY)
+@test all(res_wdg11 .== 1)
+
+wedge_product!(res_wdg11, Val((1,1)), s, eY, eX)
+@test all(res_wdg11 .== -1)
+
+eX = init_tensor(Val(1), s)
+for e in CartesianIndices(xedges(eX))
+  x, y = e.I
+  xedges(eX)[e] = edge_len(s, 1, x, y)
+end
+
+eY = init_tensor(Val(1), s)
+for e in CartesianIndices(yedges(eY))
+  x, y = e.I
+  yedges(eY)[e] = edge_len(s, 2, x, y)
+end
+
+wedge_product!(res_wdg11, Val((1,1)), s, eX, eY)
+
+@test all(res_wdg11 .== qA)
+
+dv1 = tensorfy_d(Val(0), s, ones(ndv(s)))
+de1 = tensorfy_d(Val(1), s, ones(nde(s)))
+
+res_wdgdd01 = init_tensor_d(Val(1), s)
+
+wedge_product_dd!(res_wdgdd01, Val((0,1)), s, dv1, de1)
+
+@test all(detensorfy_d(Val(1), s, res_wdgdd01) .== 1)
