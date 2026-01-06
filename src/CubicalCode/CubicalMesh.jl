@@ -192,8 +192,8 @@ ye_tgt(x::Int, y::Int) = (x, y + 1)
 src(z::Int, x::Int, y::Int) = is_xedge(z) ? xe_src(x, y) : ye_src(x, y)
 tgt(z::Int, x::Int, y::Int) = is_xedge(z) ? xe_tgt(x, y) : ye_tgt(x, y)
 
-xedge_len(s::EmbeddedCubicalComplex2D, x::Int, y::Int) = norm(point(s, xe_tgt(x, y)...) - point(s, xe_src(x, y)...))
-yedge_len(s::EmbeddedCubicalComplex2D, x::Int, y::Int) = norm(point(s, ye_tgt(x, y)...) - point(s, ye_src(x, y)...))
+xedge_len(s::EmbeddedCubicalComplex2D, x::Int, y::Int) = getindex(point(s, xe_tgt(x, y)...), 1) - getindex(point(s, xe_src(x, y)...), 1)
+yedge_len(s::EmbeddedCubicalComplex2D, x::Int, y::Int) = getindex(point(s, ye_tgt(x, y)...), 2) - getindex(point(s, ye_src(x, y)...), 2)
 
 edge_len(s::EmbeddedCubicalComplex2D, z::Int, x::Int, y::Int) = is_xedge(z) ? xedge_len(s, x, y) : yedge_len(s, x, y)
 
@@ -207,10 +207,10 @@ q_tl_v(x::Int, y::Int) = (x, y + 1)
 quad_vertices(x::Int, y::Int) = SVector(q_bl_v(x, y), q_br_v(x, y), q_tr_v(x, y), q_tl_v(x, y))
 
 # For quads to boundary edges
-q_b_xe(x::Int, y::Int) = (x, y)
-q_t_xe(x::Int, y::Int) = (x, y + 1)
-q_l_ye(x::Int, y::Int) = (x, y)
-q_r_ye(x::Int, y::Int) = (x + 1, y)
+@inline q_b_xe(x::Int, y::Int) = (x, y)
+@inline q_t_xe(x::Int, y::Int) = (x, y + 1)
+@inline q_l_ye(x::Int, y::Int) = (x, y)
+@inline q_r_ye(x::Int, y::Int) = (x + 1, y)
 
 # Bottom, top, left, right
 quad_edges(x::Int, y::Int) = SVector(q_b_xe(x, y), q_t_xe(x, y), q_l_ye(x, y), q_r_ye(x, y))
@@ -321,3 +321,5 @@ function uniform_grid(lx::Real, ly::Real, nx::Int, ny::Int)
 
   return EmbeddedCubicalComplex2D(nx, ny, ps)
 end
+
+uniform_grid(l::Real, n::Int) = uniform_grid(l, l, n, n)

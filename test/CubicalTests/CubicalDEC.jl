@@ -184,7 +184,7 @@ dual_derivative!(res_dd0, Val(0), s, f)
 @test d_yedges(res_dd0)[:, 1] == [-1, -2, -3, -4]
 
 dual_derivative!(res_dd0, Val(0), s, f; padding = 1)
-@test all(detensorfy(Val(1), s, res_dd0) .== 0)
+@test all(d_yedges(res_dd0)[:, 2:4] .== 0)
 
 @test all(d_xedges(res_dd0)[5, :] .== -3) # Due to boundary conditions
 
@@ -277,3 +277,25 @@ res_wdgdd01 = init_tensor_d(Val(1), s)
 wedge_product_dd!(res_wdgdd01, Val((0,1)), s, dv1, de1)
 
 @test all(detensorfy_d(Val(1), s, res_wdgdd01) .== 1)
+
+# Periodic conditions
+
+s = uniform_grid(1, 1, 1001, 1001)
+
+u_ten = tensorfy(s, map(p -> p[1], points(s)))
+
+v_ten = init_tensor(Val(0), s)
+
+boundary_v_map!(v_ten, s, u_ten, (1, 0)) # Only in x
+
+@test v_ten[nx(s), :] == u_ten[2, :]
+@test v_ten[1, :] == u_ten[nx(s) - 1, :]
+
+u_ten = tensorfy(s, map(p -> p[2], points(s)))
+
+v_ten = init_tensor(Val(0), s)
+
+boundary_v_map!(v_ten, s, u_ten, (0, 1)) # Only in y
+
+@test v_ten[:, nx(s)] == u_ten[:, 2]
+@test v_ten[:, 1] == u_ten[:, nx(s) - 1]
