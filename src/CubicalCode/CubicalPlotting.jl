@@ -7,7 +7,7 @@ function GeometryBasics.Mesh(s::EmbeddedCubicalComplex2D)
   qs = QuadFace{Int}[]
   for y in 1:nyquads(s)
     for x in 1:nxquads(s)
-      push!(qs, map(v -> coord_to_vert(s, v), quad_vertices(CartesianIndex(x, y))))
+      push!(qs, map(v -> coord_to_vert(s, v...), quad_vertices(x, y)))
     end
   end
   

@@ -137,6 +137,25 @@ end
   @inbounds res[idx] = α * f[idx]
 end
 
+function hodge_star!(res, ::Val{2}, s::HasCubicalComplex, f; inv::Bool = false)
+  backend = get_backend(res)
+
+  kernel = kernel_hodge_star_two(backend, 32, size(res))
+  kernel(res, s, f, inv, ndrange = size(res))
+  return res
+end
+
+@kernel function kernel_hodge_star_two(res, s::HasCubicalComplex, @Const(f), is_inv::Bool)
+  idx = @index(Global, Cartesian)
+  x, y = idx.I
+
+  qa = quad_area(s, x, y)
+
+  α = is_inv ? 1 / qa : qa
+
+  @inbounds res[idx] = α * f[idx]
+end
+
 function wedge_product!(res, ::Val{(0,1)}, s::HasCubicalComplex, f, α)
   backend = get_backend(f)
 
@@ -206,8 +225,87 @@ end
   f_dsrc = get_zerodf(s, f, d_src(z, x, y)...) 
   f_dtgt = get_zerodf(s, f, d_tgt(z, x, y)...) 
 
-  # println(z, x, y)
-  # println(src_w, tgt_w, f_dsrc, f_dtgt)
-
   @inbounds res[idx] = (src_w * f_dsrc + tgt_w * f_dtgt) * α[idx]
+end
+
+function sharp_dd!(X, Y, s::HasCubicalComplex, f)
+  backend = get_backend(X)
+
+  @assert size(X) == size(Y)
+
+  kernel = kernel_sharp_dd(backend, 32, size(X))
+  kernel(X, Y, s, f, ndrange = size(X))
+  return X, Y
+end
+
+# Take dual 1-form and output dual vector field
+@kernel function kernel_sharp_dd(X, Y, s::EmbeddedCubicalComplex2D, @Const(f))
+  idx = @index(Global, Cartesian)
+  x, y = idx.I
+
+  deb, det, del, der = quad_edges(x, y)
+
+  @inbounds X[idx] = 0.5 * (d_xedges(f)[del...] / d_xedge_len(s, del...) + d_xedges(f)[der...] / d_xedge_len(s, der...))
+  @inbounds Y[idx] = -0.5 * (d_yedges(f)[deb...] / d_yedge_len(s, deb...) + d_yedges(f)[det...] / d_yedge_len(s, det...))
+end
+
+function flat_dp!(res, s::HasCubicalComplex, X, Y)
+  backend = get_backend(X)
+
+  @assert size(X) == size(Y)
+
+  for (i, (res_set, vec_set)) in enumerate(zip(res, (X, Y)))
+    kernel = kernel_flat_dp(backend, 32, size(res_set))
+    kernel(res_set, s, i, vec_set, ndrange = size(res_set))
+  end
+
+  return res
+end
+
+# Take dual 1-form and output dual vector field
+@kernel function kernel_flat_dp(f, s::EmbeddedCubicalComplex2D, z::Int, @Const(V))
+  idx = @index(Global, Cartesian)
+  x, y = idx.I
+
+  tlq, brq = edge_quads(z, x, y)
+  l = edge_len(s, z, x, y)
+
+  avg_denom = 0 # Divide for linear interpolation
+  tot = 0 # Local total to be stored globally
+
+  if valid_quad(s, tlq...) # Top or left quad
+    α = is_xedge(z) ? quad_width(s, tlq...) : quad_height(s, tlq...)
+    avg_denom += α
+
+    tot += α * V[tlq...]
+  end
+  
+  if valid_quad(s, brq...) # Bottom or right quad
+    β = is_xedge(z) ? quad_width(s, brq...) : quad_height(s, brq...)
+    avg_denom += β
+
+    tot += β * V[brq...]
+  end
+
+  @inbounds f[idx] = tot * l / (avg_denom)
+end
+
+# Take dual vector field and output primal 1-form
+# TODO: Might need to weight by dimensions of quad
+function flat_dp(s::HasCubicalComplex, X, Y)
+  alpha = zeros(eltype(X), nde(s))
+
+  for q in quadrilaterals(s)
+    h = quad_height(s, q)
+    w = quad_width(s, q)
+
+    eb, et, el, er = quad_edges(s, q)
+    alpha[el] += 0.5 * h * Y[q]
+    alpha[er] += 0.5 * h * Y[q]
+
+    alpha[eb] += 0.5 * w * X[q]
+    alpha[et] += 0.5 * w * X[q]
+  end
+
+  return alpha
 end
