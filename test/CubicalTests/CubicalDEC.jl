@@ -299,3 +299,16 @@ boundary_v_map!(v_ten, s, u_ten, (0, 1)) # Only in y
 
 @test v_ten[:, nx(s)] == u_ten[:, 2]
 @test v_ten[:, 1] == u_ten[:, nx(s) - 1]
+
+# TODO: Investigate matrix-free solvers
+# Matrix DEC (Needed for linear solves)
+
+s = uniform_grid(10, 10, 2, 2)
+
+d0_mat = exterior_derivative(Val(0), s)
+d1_mat = exterior_derivative(Val(1), s)
+
+@test all(d1_mat * d0_mat .== 0)
+@test all(d0_mat * ones(nv(s)) .== 0)
+@test all(d1_mat * ones(ne(s)) .== 0)
+

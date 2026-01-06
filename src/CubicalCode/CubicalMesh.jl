@@ -67,11 +67,11 @@ d_xedges(g::Tuple) = getindex(g, 2)
 d_yedges(g::Tuple) = getindex(g, 1)
 
 
-vertices(s::EmbeddedCubicalComplex2D) = Iterators.product(1:nx(s), 1:ny(s))
+vertices(s::EmbeddedCubicalComplex2D) = Iterators.flatten((Iterators.product(1:nx(s), 1:ny(s)),))
 function edges(s::EmbeddedCubicalComplex2D)
   return Iterators.flatten((Iterators.product(1, 1:nx(s)-1, 1:ny(s)), Iterators.product(2, 1:nx(s), 1:ny(s)-1)))
 end
-quadrilaterals(s::EmbeddedCubicalComplex2D) = Iterators.product(1:nxquads(s), 1:nyquads(s))
+quadrilaterals(s::EmbeddedCubicalComplex2D) = Iterators.flatten((Iterators.product(1:nxquads(s), 1:nyquads(s)),))
 
 # abstract type AbstractDifferentialForm end
 

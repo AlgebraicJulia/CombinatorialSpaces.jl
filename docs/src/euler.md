@@ -70,9 +70,9 @@ function plot_dvf(sd, X; ls=1f0, title="Dual Vector Field")
   f
 end
 
-sharp_pd = ♯_mat(sd, AltPPSharp())
+sharp_pp = ♯_mat(sd, AltPPSharp())
 function plot_vf(sd, X; ls=1f0, title="Primal Vector Field")
-  X♯ = sharp_pd * X
+  X♯ = sharp_pp * X
   # Makie will throw an error if the colorrange end points are not unique:
   f = Figure()
   ax = Axis(f[1, 1], title=title)

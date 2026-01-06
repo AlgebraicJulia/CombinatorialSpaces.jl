@@ -6,6 +6,7 @@ include("../../src/CubicalComplexes.jl")
 
 s = uniform_grid(1, 1001)
 
+### KERNELS ###
 
 # Exterior derivatives
 
@@ -98,5 +99,16 @@ out_periodic_v = init_tensor(Val(0), s);
 
 @benchmark boundary_v_map!(out_periodic_v, s, in_periodic_v, (1, 1)) # 1.335 ms
 
+### MATRICES ###
 
+d0_mat = exterior_derivative(Val(0), s) # 4.092 ms
+input = ones(nv(s));
+output = zeros(ne(s));
 
+@benchmark mul!(res, d0_mat, input)
+
+hdg_0 = hodge_star(Val(0), s)
+input = ones(nv(s));
+output = ones(nv(s));
+
+@benchmark mul!(output, hdg_0, input) # 1.884 ms
