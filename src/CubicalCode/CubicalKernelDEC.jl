@@ -301,31 +301,12 @@ function local_smoothing!(res, s::HasCubicalComplex, f)
   return res
 end
 
-# Take dual 1-form and output dual vector field
+
+# TODO: Actually do this
+# First blur and then sharpen surrounding area
 @kernel function smoothing_kernel(res, s::EmbeddedCubicalComplex2D, @Const(f))
   idx = @index(Global, Cartesian)
   x, y = idx.I
 
-  tlq, brq = edge_quads(z, x, y)
-  l = edge_len(s, z, x, y)
-
-  avg_denom = 0 # Divide for linear interpolation
-  tot = 0 # Local total to be stored globally
-
-  if valid_quad(s, tlq...) # Top or left quad
-    α = is_xedge(z) ? quad_width(s, tlq...) : quad_height(s, tlq...)
-    avg_denom += α
-
-    tot += α * V[tlq...]
-  end
-  
-  if valid_quad(s, brq...) # Bottom or right quad
-    β = is_xedge(z) ? quad_width(s, brq...) : quad_height(s, brq...)
-    avg_denom += β
-
-    tot += β * V[brq...]
-  end
-
-  @inbounds f[idx] = tot * l / (avg_denom)
 end
 
