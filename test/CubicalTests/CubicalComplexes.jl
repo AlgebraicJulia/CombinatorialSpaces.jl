@@ -110,7 +110,7 @@ save("imgs/SquareGrid.png", fig)
 @test coord_to_quad(s, v_tl_q(2,1)...) == 1
 @test coord_to_quad(s, v_tr_q(1,1)...) == 1
 
-@test dual_point(s, CartesianIndex(1,1)) == Point3d(5,5,0)
+@test dual_point(s, 1, 1) == Point3d(5,5,0)
 
 for e in edges(s)
   @test d_edge_len(s, e...) == 5.0

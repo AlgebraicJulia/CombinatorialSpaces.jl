@@ -290,22 +290,42 @@ end
   @inbounds f[idx] = tot * l / (avg_denom)
 end
 
-# Take dual vector field and output primal 1-form
-# TODO: Might need to weight by dimensions of quad
-function flat_dp(s::HasCubicalComplex, X, Y)
-  alpha = zeros(eltype(X), nde(s))
+function local_smoothing!(res, s::HasCubicalComplex, f)
+  backend = get_backend(f)
 
-  for q in quadrilaterals(s)
-    h = quad_height(s, q)
-    w = quad_width(s, q)
+  @assert size(res) == size(f)
 
-    eb, et, el, er = quad_edges(s, q)
-    alpha[el] += 0.5 * h * Y[q]
-    alpha[er] += 0.5 * h * Y[q]
+  kernel = smoothing_kernel(backend, 32, size(res))
+  kernel(res, s, f, ndrange = size(res))
 
-    alpha[eb] += 0.5 * w * X[q]
-    alpha[et] += 0.5 * w * X[q]
+  return res
+end
+
+# Take dual 1-form and output dual vector field
+@kernel function smoothing_kernel(res, s::EmbeddedCubicalComplex2D, @Const(f))
+  idx = @index(Global, Cartesian)
+  x, y = idx.I
+
+  tlq, brq = edge_quads(z, x, y)
+  l = edge_len(s, z, x, y)
+
+  avg_denom = 0 # Divide for linear interpolation
+  tot = 0 # Local total to be stored globally
+
+  if valid_quad(s, tlq...) # Top or left quad
+    α = is_xedge(z) ? quad_width(s, tlq...) : quad_height(s, tlq...)
+    avg_denom += α
+
+    tot += α * V[tlq...]
+  end
+  
+  if valid_quad(s, brq...) # Bottom or right quad
+    β = is_xedge(z) ? quad_width(s, brq...) : quad_height(s, brq...)
+    avg_denom += β
+
+    tot += β * V[brq...]
   end
 
-  return alpha
+  @inbounds f[idx] = tot * l / (avg_denom)
 end
+
