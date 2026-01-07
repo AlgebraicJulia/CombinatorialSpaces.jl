@@ -91,7 +91,7 @@ f_rhs = factorize(rhs)
 
 U = zeros(ne(s) + nquads(s))
 
-tₑ = 5.0
+tₑ = 8.0
 steps = ceil(Int64, tₑ / Δt)
 Us = [u_star_0]
 
@@ -112,7 +112,7 @@ end
 ω_end = δ1 * u_star
 
 fig = Figure();
-ax = CairoMakie.Axis(fig[1, 1])
+ax = CairoMakie.Axis(fig[1, 1]) 
 msh = CairoMakie.mesh!(ax, s, color=ω_end, colormap=:jet)
 Colorbar(fig[1, 2], msh)
 save("imgs/FinalVortices.png", fig)
