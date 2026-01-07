@@ -2,7 +2,7 @@ using Test
 using CairoMakie
 using LinearAlgebra
 
-include("../src/CubicalComplexes.jl")
+include("../../src/CubicalComplexes.jl")
 
 lx = ly = 2π;
 s = uniform_grid(lx, ly, 81, 81);
@@ -54,7 +54,6 @@ u_star_0 = d0 * ψ
 save("imgs/RoundTrip_Vortices.png", plot_zeroform(s, ω_test))
 
 Δt = 1e-3
-tₑ = 5.0
 μ = 0
 
 rhs_U_mat = (-1 / Δt) * I + μ * d0 * inv_hdg_0 * dual_d1 * hdg_1
@@ -66,11 +65,18 @@ vΔ1 = -μ * d0 * inv_hdg_0 * d_beta
 adv_u_star = 0.5 * abs.(d0) * inv_hdg_0 * dual_d1 * hdg_1
 adv_v = 0.5 * abs.(d0) * inv_hdg_0 * d_beta
 
+X = init_tensor_d(Val(0), s)
+Y = init_tensor_d(Val(0), s)
+
+v_ten = init_tensor(Val(1), s)
+
 # TODO: Increase performance of this step (mainly in sharp)
 function generate_F(u_star)
     u = hdg_1 * u_star
-    X, Y = sharp_dd(s, u)
-    v = flat_dp(s, X, Y)
+    sharp_dd!(X, Y, s, tensorfy(s, u))
+    flat_dp!(v_ten, s, X, Y)
+
+    v = detensorfy(Val(1), s, v_ten)
 
     # Diffusion and advection
     return (-1 / Δt) * u_star + vΔ1 * v + Wv(v) * (adv_u_star * u_star + adv_v * v)
@@ -84,6 +90,8 @@ rhs = vcat(rhs_top, rhs_bottom)
 f_rhs = factorize(rhs)
 
 U = zeros(ne(s) + nquads(s))
+
+tₑ = 5.0
 steps = ceil(Int64, tₑ / Δt)
 Us = [u_star_0]
 
