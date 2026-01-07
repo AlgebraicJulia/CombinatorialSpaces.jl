@@ -53,12 +53,30 @@
 function boundary_v_map!(res, s::HasCubicalComplex, f, depths::Tuple)
   backend = get_backend(f)
 
-  kernel = boundary_v_map_kernel(backend, 32, size(res))
+  kernel = boundary_map_kernel(backend, 32, size(res))
   kernel(res, s, f, depths, ndrange = size(res))
   return res
 end
 
-@kernel function boundary_v_map_kernel(res, s::EmbeddedCubicalComplex2D, @Const(f), depths::Tuple{Int, Int})
+function boundary_e_map!(res, s::HasCubicalComplex, f, depths::Tuple)
+  backend = get_backend(xedges(f))
+
+  for (res_set, f_set, depth) in zip(res, f, depths)
+    kernel = boundary_map_kernel(backend, 32, size(res_set))
+    kernel(res_set, s, f_set, depth, ndrange = size(res_set))
+  end
+  return res
+end
+
+function boundary_quad_map!(res, s::HasCubicalComplex, f, depths::Tuple)
+  backend = get_backend(f)
+
+  kernel = boundary_map_kernel(backend, 32, size(res))
+  kernel(res, s, f, depths, ndrange = size(res))
+  return res
+end
+
+@kernel function boundary_map_kernel(res, s::EmbeddedCubicalComplex2D, @Const(f), depths::Tuple{Int, Int})
   idx = @index(Global, Cartesian)
   x, y = idx.I
 
@@ -66,15 +84,17 @@ end
 
   res[idx] = f[idx]
 
+  n_x, n_y = size(res)
+
   @inbounds if x <= xdepth # Right to left
-    res[idx] = f[nx(s) - 2 * xdepth + x, y]
-  elseif x >= nx(s) - xdepth + 1 # Left to right
-    res[idx] = f[2 * xdepth + x - nx(s), y]
+    res[idx] = f[n_x - 2 * xdepth + x, y]
+  elseif x >= n_x - xdepth + 1 # Left to right
+    res[idx] = f[2 * xdepth + x - n_x, y]
   end
 
   @inbounds if y <= ydepth # Top to bottom
-    res[idx] = f[x, ny(s) - 2 * ydepth + y]
-  elseif y >= ny(s) - ydepth + 1 # Bottom to top
-    res[idx] = f[x, 2 * ydepth + y - ny(s)]
+    res[idx] = f[x, n_y - 2 * ydepth + y]
+  elseif y >= n_y - ydepth + 1 # Bottom to top
+    res[idx] = f[x, 2 * ydepth + y - n_y]
   end
 end

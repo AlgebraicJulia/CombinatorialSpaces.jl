@@ -64,10 +64,10 @@ f = tensorfy(Val(2), s, ones(nquads(s)))
 res_hdg2 = init_tensor_d(Val(0), s)
 
 hodge_star!(res_hdg2, Val(2), s, f)
-@test all(detensorfy_d(Val(0), s, res_hdg2) .== 100)
+@test all(detensorfy_d(Val(0), s, res_hdg2) .== 1/100)
 
 hodge_star!(res_hdg2, Val(2), s, f; inv = true)
-@test all(detensorfy_d(Val(0), s, res_hdg2) .== 1/100)
+@test all(detensorfy_d(Val(0), s, res_hdg2) .== 100)
 
 # Wedge product
 v1 = tensorfy(Val(0), s, [1, 2, 1, 2])
@@ -222,10 +222,10 @@ for q in CartesianIndices(qA)
 end
 
 hodge_star!(res_hdg2, Val(2), s, f)
-@test all(res_hdg2 .== qA)
+@test all(res_hdg2 .== 1 ./ qA)
 
 hodge_star!(res_hdg2, Val(2), s, f; inv = true)
-@test all(res_hdg2 .== 1 ./ qA)
+@test all(res_hdg2 .== qA)
 
 # Wedge product
 v1 = tensorfy(Val(0), s, ones(nv(s)))
@@ -280,25 +280,53 @@ wedge_product_dd!(res_wdgdd01, Val((0,1)), s, dv1, de1)
 
 # Periodic conditions
 
-s = uniform_grid(1, 1, 1001, 1001)
+s = uniform_grid(1, 1, 9, 9);
 
 u_ten = tensorfy(s, map(p -> p[1], points(s)))
-
 v_ten = init_tensor(Val(0), s)
 
-boundary_v_map!(v_ten, s, u_ten, (1, 0)) # Only in x
+boundary_v_map!(v_ten, s, u_ten, (1, 0)); # Only in x
 
 @test v_ten[nx(s), :] == u_ten[2, :]
 @test v_ten[1, :] == u_ten[nx(s) - 1, :]
 
 u_ten = tensorfy(s, map(p -> p[2], points(s)))
-
 v_ten = init_tensor(Val(0), s)
 
-boundary_v_map!(v_ten, s, u_ten, (0, 1)) # Only in y
+boundary_v_map!(v_ten, s, u_ten, (0, 1)); # Only in y
 
 @test v_ten[:, nx(s)] == u_ten[:, 2]
 @test v_ten[:, 1] == u_ten[:, nx(s) - 1]
+
+u_ten = tensorfy(s, map(p -> Float64(p[2]), edges(s)))
+v_ten = init_tensor(Val(1), s)
+
+boundary_e_map!(v_ten, s, u_ten, ((1, 0), (0, 0))); # Only x edges, left/right
+
+@test yedges(v_ten) == yedges(u_ten)
+@test xedges(v_ten)[begin, :] == xedges(u_ten)[nx(s) - 2, :]
+@test xedges(v_ten)[end, :] == xedges(u_ten)[2, :]
+
+boundary_e_map!(v_ten, s, u_ten, ((0, 0), (1, 0))); # Only y edges, left/right
+
+@test xedges(v_ten) == xedges(u_ten)
+@test yedges(v_ten)[begin, :] == yedges(u_ten)[nx(s) - 1, :]
+@test yedges(v_ten)[end, :] == yedges(u_ten)[2, :]
+
+u_ten = tensorfy(s, map(p -> Float64(p[3]), edges(s)))
+v_ten = init_tensor(Val(1), s)
+
+boundary_e_map!(v_ten, s, u_ten, ((0, 1), (0, 0))); # Only x edges, top/bottom
+
+@test yedges(v_ten) == yedges(u_ten)
+@test xedges(v_ten)[:, begin] == xedges(u_ten)[:, ny(s) - 1]
+@test xedges(v_ten)[:, end] == xedges(u_ten)[:, 2]
+
+boundary_e_map!(v_ten, s, u_ten, ((0, 0), (0, 1))); # Only y edges, top/bottom
+
+@test xedges(v_ten) == xedges(u_ten)
+@test yedges(v_ten)[:, begin] == yedges(u_ten)[:, ny(s) - 2]
+@test yedges(v_ten)[:, end] == yedges(u_ten)[:, 2]
 
 # TODO: Investigate matrix-free solvers
 # Matrix DEC (Needed for linear solves)

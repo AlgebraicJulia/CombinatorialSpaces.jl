@@ -151,7 +151,7 @@ end
 
   qa = quad_area(s, x, y)
 
-  α = is_inv ? 1 / qa : qa
+  α = is_inv ? qa : 1 / qa
 
   @inbounds res[idx] = α * f[idx]
 end

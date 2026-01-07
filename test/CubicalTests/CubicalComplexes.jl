@@ -24,8 +24,8 @@ save("imgs/SquareGrid.png", fig)
 @test ne(s) == 4
 @test nquads(s) == 1
 
-@test nhe(s) == 2
-@test nve(s) == 2
+@test nxe(s) == 2
+@test nye(s) == 2
 
 @test ndv(s) == 1
 @test nde(s) == 4
@@ -139,8 +139,8 @@ save("imgs/IrregularGrid.png", fig)
 @test ne(s) == 40
 @test nquads(s) == 16
 
-@test nhe(s) == 20
-@test nve(s) == 20
+@test nxe(s) == 20
+@test nye(s) == 20
 
 @test coords_to_quads(s, edge_quads(xedge(4, 1)...)) == [4, 0]
 @test coords_to_quads(s, edge_quads(xedge(4, 2)...)) == [8, 4]

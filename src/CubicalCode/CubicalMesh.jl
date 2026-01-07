@@ -33,12 +33,14 @@ ny(s::HasCubicalComplex) = s.ny
 
 points(s::HasCubicalComplex) = view(s.points, :)
 
+dimension(s::EmbeddedCubicalComplex2D) = 2
+
 # Counts and Iterators
 nv(s::EmbeddedCubicalComplex2D) = nx(s) * ny(s)
 
-nhe(s::EmbeddedCubicalComplex2D) = (nx(s) - 1) * ny(s)
-nve(s::EmbeddedCubicalComplex2D) = nx(s) * (ny(s) - 1)
-ne(s::EmbeddedCubicalComplex2D) = nhe(s) + nve(s)
+nxe(s::EmbeddedCubicalComplex2D) = (nx(s) - 1) * ny(s)
+nye(s::EmbeddedCubicalComplex2D) = nx(s) * (ny(s) - 1)
+ne(s::EmbeddedCubicalComplex2D) = nxe(s) + nye(s)
 
 nquads(s::EmbeddedCubicalComplex2D) = (nx(s) - 1) * (ny(s) - 1)
 nxquads(s::EmbeddedCubicalComplex2D) = nx(s) - 1
@@ -109,14 +111,14 @@ tensorfy(::Val{0}, s::EmbeddedCubicalComplex2D, f) = reshape(f, (nx(s), ny(s)))
 
 # # This one has padding to make it into a 3D tensor
 # function tensorfy(::Val{1}, s::EmbeddedCubicalComplex2D, f)
-#   padded_fh = vcat(reshape(f[begin:nhe(s)], (nx(s)-1, ny(s))), zeros(ny(s))')
-#   padded_fv = hcat(reshape(f[nhe(s)+1:end], (nx(s), ny(s)-1)), zeros(ny(s)))
+#   padded_fh = vcat(reshape(f[begin:nxe(s)], (nx(s)-1, ny(s))), zeros(ny(s))')
+#   padded_fv = hcat(reshape(f[nxe(s)+1:end], (nx(s), ny(s)-1)), zeros(ny(s)))
 #   return cat(padded_fh, padded_fv, dims=3)
 # end
 
 function tensorfy(::Val{1}, s::EmbeddedCubicalComplex2D, f)
-  fh = reshape(f[begin:nhe(s)], (nx(s)-1, ny(s)))
-  fv = reshape(f[nhe(s)+1:end], (nx(s), ny(s)-1))
+  fh = reshape(f[begin:nxe(s)], (nx(s)-1, ny(s)))
+  fv = reshape(f[nxe(s)+1:end], (nx(s), ny(s)-1))
   return (fh, fv)
 end
 
@@ -165,7 +167,7 @@ end
 coord_to_vert(s::EmbeddedCubicalComplex2D, x::Int, y::Int) = x + (y - 1) * nx(s)
 
 coord_to_xedge(s::EmbeddedCubicalComplex2D, x::Int, y::Int) = x + (y - 1) * (nx(s) - 1)
-coord_to_yedge(s::EmbeddedCubicalComplex2D, x::Int, y::Int) = x + (y - 1) * nx(s) + nhe(s)
+coord_to_yedge(s::EmbeddedCubicalComplex2D, x::Int, y::Int) = x + (y - 1) * nx(s) + nxe(s)
 coord_to_edge(s::EmbeddedCubicalComplex2D, z::Int, x::Int, y::Int) = is_xedge(z) ? coord_to_xedge(s, x, y) : coord_to_yedge(s, x, y)
 
 coord_to_quad(s::EmbeddedCubicalComplex2D, x::Int, y::Int) = x + (y - 1) * nxquads(s)
