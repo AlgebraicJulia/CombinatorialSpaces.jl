@@ -311,4 +311,3 @@ d1_mat = exterior_derivative(Val(1), s)
 @test all(d1_mat * d0_mat .== 0)
 @test all(d0_mat * ones(nv(s)) .== 0)
 @test all(d1_mat * ones(ne(s)) .== 0)
-
