@@ -115,14 +115,14 @@ push!(adv_us, detensorfy(Val(0), s, deepcopy(v)))
 
 Δt = 0.001
 for _ in 0:Δt:1.0
-  boundary_v_map!(bound_res, s, v, (1, 0))
   wedge_product!(wdg01_res, Val((0,1)), s, bound_res, V)
   hodge_star!(hdg1_res, Val(1), s, wdg01_res)
   dual_derivative!(dd1_res, Val(1), s, hdg1_res)
   hodge_star!(final_res, Val(0), s, dd1_res; inv = true)
 
   v .= v .+ Δt .* final_res
-  push!(adv_us, detensorfy(Val(0), s, deepcopy(v)))
+  boundary_v_map!(bound_res, s, v, (1, 0))
+  push!(adv_us, detensorfy(Val(0), s, deepcopy(bound_res)))
 end
 
 fig = Figure();
@@ -193,9 +193,9 @@ scatter!(ax, xpos, ypos; color = first(adv_us))
 save("imgs/DualAdvInit.png", fig)
 
 Δt = 0.001
-for _ in 0:Δt:1.0
+for _ in 0:Δt:0.3 # 1.0
   boundary_quad_map!(bound_res, s, v, (1, 0))
-  
+
   hodge_star!(hdg2_res, Val(2), s, bound_res)
   dual_derivative!(dd0_res, Val(0), s, hdg2_res)
   hodge_star!(invhdg1_res, Val(1), s, dd0_res; inv = true)
