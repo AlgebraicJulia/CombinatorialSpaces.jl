@@ -49,11 +49,22 @@ d0 = dual_derivative()
 
 # This doesn't properly deal with boundary conditions
 # Between a one form and a dual one form
-function central_interior(X, dω)
+function upwinding_interior(X, dω)
   res = zeros(nx - 1)
-  res[end] = X[end] * (dω[1] + dω[end - 1]) / (2 * h^2)
+  res[end] = X[end] * dω[1] / h^2
   for i in 1:nx-2
-    res[i] = X[i] * (dω[i+1] + dω[i+1]) / (2 * h^2)
+    res[i] = X[i] * dω[i+1] / h^2
+  end
+  return res
+end
+
+# We're basically just implementing the wedge product since the 1 / h^2 is basically the two Hodges
+function upwinding_interior_quick(X, dω)
+  res = zeros(nx - 1)
+  res[end] = X[end] * (3/8 * dω[end] + 6/8 * dω[1] - 1/8 * dω[2]) / h^2
+  res[end - 1] = X[end - 1] * (3/8 * dω[end-1] + 6/8 * dω[end] - 1/8 * dω[1]) / h^2
+  for i in 1:nx-1-2
+    res[i] = X[i] * (3/8 * dω[i] + 6/8 * dω[i+1] - 1/8 * dω[i+2]) / h^2
   end
   return res
 end
@@ -64,7 +75,7 @@ dist = Normal(lx / 2, 0.1)
 ω_0 = [pdf(dist, x) for x in dual_points];
 
 Δt = 0.001
-t_e = 100 * Δt
+t_e = 20 * Δt
 
 ω = deepcopy(ω_0)
 
@@ -74,7 +85,7 @@ plot!(ax, dual_points, ω_0)
 fig
 
 for _ in 0:Δt:t_e
-  ω .= ω .+ Δt * central_interior(X, d0 * ω)
+  ω .= ω .+ Δt * upwinding_interior_quick(X, d0 * ω)
 end
 
 fig = Figure();
