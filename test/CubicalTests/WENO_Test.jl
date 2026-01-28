@@ -1,16 +1,13 @@
 using Plots
 using Distributions
 
-nx = 101
-hx = 1 / (nx - 1)
+nx = 201
+lx = 2
+hx = lx / (nx - 1)
 
-xs = range(0, 1; length = nx)
+xs = range(0, lx; length = nx)
 
-# f = zeros(nx)
-# f[1:half_nx] = map(x -> sin(2pi*x), xs[1:half_nx])
-# f[half_nx+1:end] = map(x -> 1 - sin(2pi*x), xs[half_nx+1:end])
-
-dist = Normal(0.5, 0.1)
+dist = Normal(0.3, 0.05)
 f_0 = map(x -> pdf(dist, x), xs)
 
 plot(xs, f_0)
@@ -37,19 +34,50 @@ a3_21 = 1/3
 a3_22 = 5/6
 a3_23 = -1/6
 
-f = deepcopy(f_0)
+IS0(f, j::Int) = 13/12 *(f[j-2]-2f[j-1]+f[j])^2 + 1/4*(f[j-2]-4f[j-1]+3f[j])^2
+IS1(f, j::Int) = 13/12 *(f[j-1]-2f[j]+f[j+1])^2 + 1/4*(f[j-1]-f[j+1])^2
+IS2(f, j::Int) = 13/12 *(f[j]-2f[j+1]+f[j+2])^2 + 1/4*(3f[j]-4f[j+1]+f[j+2])^2
 
-t_e = 0.1
-Δt = hx
+f = [f_0[end-1], f_0[end], f_0..., f_0[1], f_0[2]]
 
-function IS()
+t_e = 1
 
-for _ in 0:Δt:t_e
-  f_hat = zeros(nx - 1)
-  # f_hat[3:end] = map(i -> a3_01 * f[i - 2] + a3_02 * f[i - 1] + a3_03 * f[i], 3:nx-1)
-  f_hat[2:end] = map(i -> a3_11 * f[i - 1] + a3_12 * f[i] + a3_13 * f[i + 1], 2:nx-1)
-  # f_hat[1:end-1] = map(i -> a3_21 * f[i] + a3_22 * f[i + 1] + a3_23 * f[i + 2], 1:nx-2)
-  f[2:end-1] -= Δt * diff(f_hat) / hx
+CFL = 0.1
+Δt = CFL * hx
+
+for (i,_) in enumerate(0:Δt:t_e)
+  f_hat = zeros(nx)
+  f_hat += C3_0 * map(i -> a3_01 * f[i - 2] + a3_02 * f[i - 1] + a3_03 * f[i], 3:nx+2)
+  f_hat += C3_1 * map(i -> a3_11 * f[i - 1] + a3_12 * f[i] + a3_13 * f[i + 1], 3:nx+2)
+  f_hat += C3_2 * map(i -> a3_21 * f[i] + a3_22 * f[i + 1] + a3_23 * f[i + 2], 3:nx+2)
+
+  
+  f[4:end-2] -= Δt * diff(f_hat) / hx
+  f[3] -= Δt * (f_hat[1] - f_hat[end]) / hx
+
+  f[1] = f[end-3]
+  f[2] = f[end-2]
+
+  f[end-1] = f[3]
+  f[end] = f[4]
+
+  if i % 100 == 0
+    display(plot(xs, f[3:end-2]))
+  end
 end
 
-plot(xs, f)
+for (i,_) in enumerate(0:Δt:t_e)
+  f_hat = map(i -> 1/2 * (f[i] + f[i - 1]) , 3:nx+3)
+  
+  f[3:end-2] -= Δt * diff(f_hat) / hx
+
+  f[1] = f[end-3]
+  f[2] = f[end-2]
+
+  f[end-1] = f[3]
+  f[end] = f[4]
+
+  if i % 100 == 0
+    display(plot(xs, f[3:end-2]))
+  end
+end
