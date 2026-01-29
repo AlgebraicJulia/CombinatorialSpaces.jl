@@ -261,7 +261,9 @@ v_tl_q(x::Int, y::Int) = (x - 1, y)
 vertex_quads(x::Int, y::Int) = SVector(v_bl_q(x, y), v_br_q(x, y), v_tr_q(x, y), v_tl_q(x, y))
 
 # Midpoint of bottom left to top right diagonal
-dual_point(s::HasCubicalComplex, x::Int, y::Int) = 0.5 * (point(s, q_bl_v(x, y)...) + point(s, q_tr_v(x, y)...))
+dual_point(s::EmbeddedCubicalComplex2D, x::Int, y::Int) = 0.5 * (point(s, q_bl_v(x, y)...) + point(s, q_tr_v(x, y)...))
+
+dual_points(s::EmbeddedCubicalComplex2D) = Iterators.map(c -> dual_point(s, c...), quadrilaterals(s))
 
 # Done by half dual edges (divided by quad) in case dual edge runs off grid
 function d_yedge_thalf_len(s::EmbeddedCubicalComplex2D, x::Int, y::Int)

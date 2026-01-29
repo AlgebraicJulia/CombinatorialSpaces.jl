@@ -5,7 +5,7 @@ using OrdinaryDiffEq
 
 include("../../src/CubicalComplexes.jl")
 
-s = uniform_grid(10, 10, 101, 101);
+s = uniform_grid(10, 10, 201, 201);
 sd = dual_mesh(s); # Mainly for plotting
 
 fig = Figure();
@@ -16,12 +16,11 @@ save("imgs/AdvGrid.png", fig)
 # dist = MvNormal([5, 5], [1, 1])
 # u_0 = map(q -> begin p = dual_point(s, q...); pdf(dist, [p[1], p[2]]); end, quadrilaterals(s))
 
-u_0 = map(q -> begin p = dual_point(s, q...); (4 <= p[1] <= 6 && 4 <= p[2] <= 6) ? 1 : 0; end, quadrilaterals(s))
+# u_0 = map(q -> begin p = dual_point(s, q...); (4 <= p[1] <= 6 && 4 <= p[2] <= 6) ? 1 : 0; end, quadrilaterals(s))
 
-xpos = map(q -> dual_point(s, q...)[1], quadrilaterals(s))
-ypos = map(q -> dual_point(s, q...)[2], quadrilaterals(s))
+dist = MvNormal([5, 5], [1, 1])
+u_0 = [pdf(dist, [p[1], p[2]]) for p in dual_points(s)]
 
-# TODO: Better way to plot dual values
 fig = Figure();
 ax = CairoMakie.Axis(fig[1,1])
 mesh!(ax, sd; color = u_0)
@@ -29,7 +28,7 @@ save("imgs/DualAdv.png", fig)
 
 # Rightwards motion
 V = init_tensor(Val(1), s)
-xedges(V) .= 1
+xedges(V) .= edge_len(s, 1, 1, 1)
 
 bound_res = init_tensor(Val(2), s);
 
@@ -58,9 +57,9 @@ function interior_product_quick(::Val{1}, s::EmbeddedCubicalComplex2D, X, f)
 
   h = edge_len(s, 1, 1, 1)
 
-  for i in 1:nxquads(s) - 1
+  for i in 2:nxquads(s)
     for j in 1:nyquads(s)
-      res[i, j] = 0.5 * (Xx[i, j+1] + Xx[i, j]) * (3/8 * fx[i, j] + 6/8 * fx[i+1,j] - 1/8 * fx[i+2,j]) / h^2
+      res[i, j] = 0.5 * (Xx[i, j+1] + Xx[i, j]) * (3/8 * fx[i + 1, j] + 6/8 * fx[i,j] - 1/8 * fx[i-1,j]) / h^2
     end
   end
 
@@ -78,9 +77,9 @@ function interior_product_upwind(::Val{1}, s::EmbeddedCubicalComplex2D, X, f)
 
   h = edge_len(s, 1, 1, 1)
 
-  for i in 1:nxquads(s) - 1
+  for i in 1:nxquads(s)
     for j in 1:nyquads(s)
-      res[i, j] = 0.5 * (Xx[i, j+1] + Xx[i, j]) * fx[i+1, j] / h^2
+      res[i, j] = 0.5 * (Xx[i, j+1] + Xx[i, j]) * fx[i, j] / h^2
     end
   end
 
@@ -130,7 +129,6 @@ function interior_product_WENO5(::Val{1}, s::EmbeddedCubicalComplex2D, X, f)
   f_hat .+= w1 .* map(i -> a3_11 * f[i - 1] + a3_12 * f[i] + a3_13 * f[i + 1], 3:nx+2)
   f_hat .+= w2 .* map(i -> a3_21 * f[i] + a3_22 * f[i + 1] + a3_23 * f[i + 2], 3:nx+2)
 
-
   Xx = xedges(X)
   Xy = yedges(X)
 
@@ -143,6 +141,7 @@ function interior_product_WENO5(::Val{1}, s::EmbeddedCubicalComplex2D, X, f)
 
   for i in 1:nxquads(s) - 1
     for j in 1:nyquads(s)
+
       res[i, j] = 0.5 * (Xx[i, j+1] + Xx[i, j]) * (3/8 * fx[i, j] + 6/8 * fx[i+1,j] - 1/8 * fx[i+2,j]) / h^2
     end
   end
@@ -150,12 +149,12 @@ function interior_product_WENO5(::Val{1}, s::EmbeddedCubicalComplex2D, X, f)
   return res
 end
 
-t_e = 0.05
+t_e = 1
 
 save_res(arr) = detensorfy_d(Val(0), s, deepcopy(hodge_star!(final_res, Val(2), s, arr)))
 
-function upwind_adv(u, p, t)
-  boundary_quad_map!(bound_res, s, v, (1, 0))
+function upwind_adv(du, u, p, t)
+  boundary_quad_map!(bound_res, s, u, (1, 0))
 
   hodge_star!(hdg2_res, Val(2), s, bound_res)
   dual_derivative!(dd0_res, Val(0), s, hdg2_res)
@@ -164,11 +163,11 @@ function upwind_adv(u, p, t)
 
   hodge_star!(invhdg2_res, Val(2), s, iXv_res, inv = true)
 
-  return invhdg2_res
+  du .= -invhdg2_res
 end
 
-function QUICK_adv(u, p, t)
-  boundary_quad_map!(bound_res, s, v, (1, 0))
+function QUICK_adv(du, u, p, t)
+  boundary_quad_map!(bound_res, s, u, (1, 0))
 
   hodge_star!(hdg2_res, Val(2), s, bound_res)
   dual_derivative!(dd0_res, Val(0), s, hdg2_res)
@@ -177,7 +176,7 @@ function QUICK_adv(u, p, t)
 
   hodge_star!(invhdg2_res, Val(2), s, iXv_res, inv = true)
 
-  return invhdg2_res
+  du .= -invhdg2_res
 end
 
 prob = ODEProblem(upwind_adv, v_0, (0.0, t_e))
@@ -185,7 +184,8 @@ soln = solve(prob, Tsit5())
 
 fig = Figure();
 ax = CairoMakie.Axis(fig[1,1])
-mesh!(ax, sd; color = save_res(soln.u[end]))
+mesh!(ax, sd; color = save_res(soln.u[2]))
+Colorbar(fig[1,2])
 save("imgs/UpwindAdvEnd.png", fig)
 
 prob = ODEProblem(QUICK_adv, v_0, (0.0, t_e))
@@ -194,4 +194,5 @@ soln = solve(prob, Tsit5())
 fig = Figure();
 ax = CairoMakie.Axis(fig[1,1])
 mesh!(ax, sd; color = save_res(soln.u[end]))
+Colorbar(fig[1,2])
 save("imgs/QUICKDualAdvEnd.png", fig)
