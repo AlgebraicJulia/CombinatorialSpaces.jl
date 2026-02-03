@@ -219,8 +219,6 @@ The free vector space sheaf over the diagram can be constructed by composing the
 ```@example mesh_decomposition
 using Catlab.Sheaves: FVect
 import Catlab.Sheaves: pullback_matrix, FMatPullback, FMatPushforward
-import Catlab.CategoricalAlgebra.Matrices: MatrixDom
-MatrixDom(n::Int64) = MatrixDom{Matrix}(n)
 Vdiag = force(compose(FinDomFunctor(diag), FMatPushforward))
 ```
 
@@ -279,7 +277,7 @@ Base.show(io::IO, K::NerveCover) = begin
   end
 end
 
-import Catlab.CategoricalAlgebra.CSets: SubACSetComponentwise
+import Catlab.CategoricalAlgebra.Pointwise.SubCSets: SubACSetComponentwise
 
 function Base.show(io::IO, U::SubACSetComponentwise{X}) where X <: HasDeltaSet
   print(io, "Subdelta-set")
