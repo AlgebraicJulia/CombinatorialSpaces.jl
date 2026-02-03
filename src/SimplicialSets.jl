@@ -37,7 +37,7 @@ export Simplex, V, E, Tri, Tet, SimplexChain, VChain, EChain, TriChain, TetChain
   glue_sorted_tet_cube!, is_manifold_like, nonboundaries,
   star, St, closed_star, St̄, link, Lk, simplex_vertices, dimension,
   DeltaSet, OrientedDeltaSet, EmbeddedDeltaSet,
-  boundary_inds
+  boundary_inds, interior
 
 using LinearAlgebra: det
 using SparseArrays
@@ -50,6 +50,7 @@ import Catlab.Graphs: src, tgt, nv, ne, vertices, edges, has_vertex, has_edge,
   add_vertex!, add_vertices!, add_edge!, add_edges!
 using ..ArrayUtils
 
+const 𝒞 = SkelFinSet()
 
 """ Abstract type for C-sets that contain a delta set of some dimension.
 
@@ -799,9 +800,9 @@ orient!(s::AbstractDeltaSet3D) = orient!(s, Tet)
 function orient!(s::HasDeltaSet, ::Type{Simplex{n}}) where n
   # Compute connected components as coequalizer of face maps.
   ndom, ncodom = nsimplices(n, s), nsimplices(n-1, s)
-  face_maps = SVector{n+1}([ FinFunction(x -> ∂(n,i,s,x), ndom, ncodom)
-                             for i in 0:n ])
-  π = only(coequalizer(face_maps))
+  face_maps = [ FinFunction(x -> ∂(n,i,s,x), FinSet(ndom), FinSet(ncodom))
+                for i in 0:n ]
+  π = only(coequalizer[𝒞](face_maps))
 
   # Choose an arbitrary representative of each component.
   reps = zeros(Int, length(codom(π)))
@@ -1076,5 +1077,46 @@ function boundary_inds(::Type{Val{2}}, s::HasDeltaSet2D)
   end
   unique(vcat(inds...))
 end
+
+function interior(::Type{Val{0}}, s::HasDeltaSet2D)
+  boundaries = boundary_inds(Val{0}, s)
+  setdiff(vertices(s), boundaries)
+end
+
+function boundary_inds(::Type{Val{3}}, s::HasDeltaSet3D)
+  # A tetrahedron is on the boundary if any of its triangles a face of that tetrahedron alone.
+  filter(tetrahedra(s)) do tet
+    tris = tetrahedron_triangles(s, tet)
+    any(map(tris) do t
+      tets = union(reduce(vcat,
+                   [incident(s, t, :∂t0)...,
+                    incident(s, t, :∂t1)...,
+                    incident(s, t, :∂t2)...,
+                    incident(s, t, :∂t3)...]))
+      length(tets) == 1
+    end)
+  end
+end
+
+# REPL IO
+#########
+
+import Base: show
+const PRETTY_PRINT_CUTOFF = 32
+
+Base.show(io::IO, ::MIME"text/plain", s::HasDeltaSet1D) =
+  nv(s) < PRETTY_PRINT_CUTOFF ?
+    pretty_tables(io, s) :
+    write(io, "1D Delta Set with $(nv(s)) vertices and $(ne(s)) edges.")
+
+Base.show(io::IO, ::MIME"text/plain", s::HasDeltaSet2D) =
+  nv(s) < PRETTY_PRINT_CUTOFF ?
+    pretty_tables(io, s) :
+    write(io, "2D Delta Set with $(nv(s)) vertices, $(ne(s)) edges, and $(ntriangles(s)) triangles.")
+
+Base.show(io::IO, ::MIME"text/plain", s::HasDeltaSet3D) =
+  nv(s) < PRETTY_PRINT_CUTOFF ?
+    pretty_tables(io, s) :
+    write(io, "3D Delta Set with $(nv(s)) vertices, $(ne(s)) edges, $(ntriangles(s)) triangles, and $(ntetrahedra(s)) tetrahedra.")
 
 end
