@@ -221,10 +221,12 @@ using Catlab.Sheaves: FVect
 import Catlab.Sheaves: pullback_matrix, FMatPullback, FMatPushforward
 using Catlab.Theories: hom_map
 
-# Construct Vdiag by composing the diagram with FMatPushforward functor
-# Apply FMatPushforward to transform morphisms (using hom_map from Catlab)
-# Objects: Keep as dimensions (length of FinSets)
-# Morphisms: Use hom_map to apply FMatPushforward functor
+# In Catlab 0.17, the equivalent of:
+#   Vdiag = force(compose(FinDomFunctor(diag), FMatPushforward))
+# is to manually apply the functor to objects and morphisms of the diagram.
+# This approach explicitly shows the functor composition:
+# - For objects: map FinSets to their dimensions (vector space dimensions)
+# - For morphisms: use hom_map to apply FMatPushforward functor
 vect_obs = [length(ob) for ob in diag[:ob]]
 vect_homs = [(hom_map(FMatPushforward, diag[e, :hom]), diag[e, :src], diag[e, :tgt]) 
              for e in edges(diag)]
