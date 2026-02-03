@@ -79,7 +79,8 @@ sd = EmbeddedDeltaDualComplex2D{Bool,Float64,Point3d}(s);
 subdivide_duals!(sd, Barycenter());
 
 # Create a category instance for working with Subobjects
-const 𝒞 = ACSetCategory(MADACSetCat(s))
+# Pass the Type to MADACSetCat constructor (Catlab 0.17 API)
+const 𝒞 = ACSetCategory(MADACSetCat(typeof(s)))
 
 f = draw(sd)
 f
@@ -176,7 +177,8 @@ function pizza_slices(x)
 end
 
 # Create a category instance for the circle mesh
-const 𝒞₁ = ACSetCategory(MADACSetCat(dualmesh))
+# Pass the Type to MADACSetCat constructor (Catlab 0.17 API)
+const 𝒞₁ = ACSetCategory(MADACSetCat(typeof(dualmesh)))
 
 circ_quads = cover_mesh(pizza_slices, dualmesh, 𝒞₁)
 draw(circ_quads[1])
