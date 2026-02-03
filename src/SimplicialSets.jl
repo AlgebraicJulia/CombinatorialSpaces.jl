@@ -46,6 +46,7 @@ using StatsBase: counts
 
 using ACSets.DenseACSets: attrtype_type
 using Catlab, Catlab.CategoricalAlgebra, Catlab.Graphs
+using Catlab.CategoricalAlgebra.SetCats: FinSetC
 import Catlab.Graphs: src, tgt, nv, ne, vertices, edges, has_vertex, has_edge,
   add_vertex!, add_vertices!, add_edge!, add_edges!
 using ..ArrayUtils
@@ -802,7 +803,10 @@ function orient!(s::HasDeltaSet, ::Type{Simplex{n}}) where n
   # In Catlab 0.17, FinFunction requires a vector, not a function
   face_maps = SVector{n+1}([ FinFunction([∂(n,i,s,x) for x in 1:ndom], ndom, ncodom)
                              for i in 0:n ])
-  π = only(coequalizer(face_maps))
+  # In Catlab 0.17, coequalizer requires a model parameter
+  # Use FinSetC for working with FinSets and FinFunctions
+  cat = FinSetC()
+  π = only(coequalizer[cat](collect(face_maps)))
 
   # Choose an arbitrary representative of each component.
   reps = zeros(Int, length(codom(π)))
