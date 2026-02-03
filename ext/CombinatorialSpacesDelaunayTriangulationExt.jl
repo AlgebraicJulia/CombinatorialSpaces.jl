@@ -8,11 +8,15 @@ import DelaunayTriangulation: number_type
 function EmbeddedDeltaSet2D(triangulation::T) where {T<:DelaunayTriangulation.Triangulation}
   # Check if points have z-coordinates and if they're non-zero
   # DelaunayTriangulation typically uses 2D points, so we need to check the dimension
-  first_point = first(triangulation.points)
-  if length(first_point) >= 3
-    z_coords = map(p -> p[3], triangulation.points)
-    if any(z_coords .!= 0)
-      error("This EmbeddedDeltaSet2D is designed for triangulations on the XY plane, but some z-coordinates of T are nonzero.")
+  if !isempty(triangulation.points)
+    first_point = first(triangulation.points)
+    if length(first_point) >= 3
+      # If points have 3+ dimensions, check if all z-coordinates are zero
+      for p in triangulation.points
+        if length(p) >= 3 && p[3] != 0
+          error("This EmbeddedDeltaSet2D is designed for triangulations on the XY plane, but some z-coordinates of T are nonzero.")
+        end
+      end
     end
   end
   float_type = number_type(triangulation.points)
