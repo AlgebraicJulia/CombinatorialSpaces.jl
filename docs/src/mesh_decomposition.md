@@ -220,11 +220,13 @@ The free vector space sheaf over the diagram can be constructed by composing the
 using Catlab.Sheaves: FVect
 import Catlab.Sheaves: pullback_matrix, FMatPullback, FMatPushforward
 
-# Construct Vdiag by mapping the FinSet diagram to a vector space diagram
-# Objects: map FinSets to their dimensions (vector spaces)
-# Morphisms: map FinFunctions to matrices (via pullback_matrix)
+# Construct Vdiag using FMatPushforward functor as defined in Catlab
+# FMatPushforward maps:
+#   - Objects: FinSets to their dimensions (vector space dimensions)
+#   - Morphisms: FinFunctions to pushforward matrices (transpose of pullback)
+pushforward_matrix(f) = pullback_matrix(f)'
 vect_obs = [length(ob) for ob in diag[:ob]]
-vect_homs = [(pullback_matrix(diag[e, :hom]), diag[e, :src], diag[e, :tgt]) 
+vect_homs = [(pushforward_matrix(diag[e, :hom]), diag[e, :src], diag[e, :tgt]) 
              for e in edges(diag)]
 Vdiag = FreeGraph(vect_obs, vect_homs)
 ```
