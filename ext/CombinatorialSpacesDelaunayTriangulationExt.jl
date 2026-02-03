@@ -12,8 +12,9 @@ function EmbeddedDeltaSet2D(triangulation::T) where {T<:DelaunayTriangulation.Tr
     first_point = first(triangulation.points)
     if length(first_point) >= 3
       # If points have 3+ dimensions, check if all z-coordinates are zero
+      # Assuming all points in triangulation have uniform dimensionality
       for p in triangulation.points
-        if length(p) >= 3 && p[3] != 0
+        if p[3] != 0
           error("This EmbeddedDeltaSet2D is designed for triangulations on the XY plane, but some z-coordinates of T are nonzero.")
         end
       end
