@@ -805,6 +805,7 @@ function orient!(s::HasDeltaSet, ::Type{Simplex{n}}) where n
                              for i in 0:n ])
   # In Catlab 0.17, coequalizer requires a model parameter
   # Use FinSetC for working with FinSets and FinFunctions
+  # The bracket notation coequalizer[cat](...) is Catlab 0.17 API for model-parameterized operations
   cat = FinSetC()
   π = only(coequalizer[cat](collect(face_maps)))
 
