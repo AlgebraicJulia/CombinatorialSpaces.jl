@@ -219,14 +219,14 @@ The free vector space sheaf over the diagram can be constructed by composing the
 ```@example mesh_decomposition
 using Catlab.Sheaves: FVect
 import Catlab.Sheaves: pullback_matrix, FMatPullback, FMatPushforward
+using Catlab.Theories: hom_map
 
-# Construct Vdiag using FMatPushforward functor as defined in Catlab
-# FMatPushforward maps:
-#   - Objects: FinSets to their dimensions (vector space dimensions)
-#   - Morphisms: FinFunctions to pushforward matrices (transpose of pullback)
-pushforward_matrix(f) = pullback_matrix(f)'
+# Construct Vdiag by composing the diagram with FMatPushforward functor
+# Apply FMatPushforward to transform morphisms (using hom_map from Catlab)
+# Objects: Keep as dimensions (length of FinSets)
+# Morphisms: Use hom_map to apply FMatPushforward functor
 vect_obs = [length(ob) for ob in diag[:ob]]
-vect_homs = [(pushforward_matrix(diag[e, :hom]), diag[e, :src], diag[e, :tgt]) 
+vect_homs = [(hom_map(FMatPushforward, diag[e, :hom]), diag[e, :src], diag[e, :tgt]) 
              for e in edges(diag)]
 Vdiag = FreeGraph(vect_obs, vect_homs)
 ```
