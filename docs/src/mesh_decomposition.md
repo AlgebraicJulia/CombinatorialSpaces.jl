@@ -25,6 +25,7 @@ using Catlab
 using Catlab.CategoricalAlgebra: ACSetCategory, ACSetCat
 using Catlab.CategoricalAlgebra.Subobjects: Subobject, negate, non, meet, join
 using Catlab.Theories: @withmodel
+using Catlab.BasicSets: FinFunction
 ```
 
 We are going to draw our cover by drawing all the submeshes in orange
@@ -197,7 +198,7 @@ function finsetdiagram(cover; object=:V)
   f = hom(u1)
   X = codom(f)
   ObT = FinSet
-  HomT = Catlab.CategoricalAlgebra.FinFunction
+  HomT = FinFunction
   homs = [(hom(cover[i]).components[object], i+1, 1) for i in 1:n]
   opens = dom.(hom.(cover))
   obs = [X]
