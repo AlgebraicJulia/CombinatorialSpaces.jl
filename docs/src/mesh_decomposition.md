@@ -208,7 +208,7 @@ function finsetdiagram(cover; object=:V)
   # edge_homs = map(homs) do (ui, s, t)
   #   println("$s --> $t = $ui")
   # end
-  diag = FreeDiagram(obs, homs)
+  diag = FreeGraph(obs, homs)
 end
 
 diag = finsetdiagram(quads)
