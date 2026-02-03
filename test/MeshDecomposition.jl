@@ -2,7 +2,8 @@ using Test
 using CombinatorialSpaces
 using GeometryBasics: Point2, Point3
 using Catlab
-using Catlab.CategoricalAlgebra: ACSetCategory, MADACSetCat
+using Catlab.CategoricalAlgebra: ACSetCategory, ACSetCat
+using Catlab.CategoricalAlgebra.Subobjects: Subobject, negate, non, meet, join
 using Catlab.Theories: @withmodel
 
 @testset "Mesh Decomposition with Catlab 0.17" begin
@@ -10,9 +11,9 @@ using Catlab.Theories: @withmodel
     # Create a simple 2D triangulated grid
     s = triangulated_grid(10, 10, 5, 5, Point3{Float64})
     
-    # Test category creation with Type
-    @test_nowarn ACSetCategory(MADACSetCat(typeof(s)))
-    𝒞 = ACSetCategory(MADACSetCat(typeof(s)))
+    # Test category creation with ACSetCat
+    @test_nowarn ACSetCategory(ACSetCat(s))
+    𝒞 = ACSetCategory(ACSetCat(s))
     
     # Define quadrant partition function
     quadrants(x) = Int(x[1] > 5) + 2*Int(x[2] > 5)
@@ -89,8 +90,8 @@ using Catlab.Theories: @withmodel
     mesh, dualmesh = circle(6, 100)
     
     # Test category creation for 1D mesh
-    @test_nowarn ACSetCategory(MADACSetCat(typeof(dualmesh)))
-    𝒞₁ = ACSetCategory(MADACSetCat(typeof(dualmesh)))
+    @test_nowarn ACSetCategory(ACSetCat(dualmesh))
+    𝒞₁ = ACSetCategory(ACSetCat(dualmesh))
     
     # Define pizza slice partition
     pizza_slices(x) = Int(x[1] > 0) + 2*Int(x[2] > 0)
@@ -121,7 +122,7 @@ using Catlab.Theories: @withmodel
   
   @testset "NerveCover Type" begin
     s = triangulated_grid(10, 10, 5, 5, Point3{Float64})
-    𝒞 = ACSetCategory(MADACSetCat(typeof(s)))
+    𝒞 = ACSetCategory(ACSetCat(s))
     
     quadrants(x) = Int(x[1] > 5) + 2*Int(x[2] > 5)
     

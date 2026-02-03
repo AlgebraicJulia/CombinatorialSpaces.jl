@@ -22,7 +22,8 @@ using GeometryBasics: Point3d
 using LinearAlgebra: norm
 using CairoMakie
 using Catlab
-using Catlab.CategoricalAlgebra: ACSetCategory, MADACSetCat
+using Catlab.CategoricalAlgebra: ACSetCategory, ACSetCat
+using Catlab.CategoricalAlgebra.Subobjects: Subobject, negate, non, meet, join
 using Catlab.Theories: @withmodel
 ```
 
@@ -79,8 +80,8 @@ sd = EmbeddedDeltaDualComplex2D{Bool,Float64,Point3d}(s);
 subdivide_duals!(sd, Barycenter());
 
 # Create a category instance for working with Subobjects
-# Pass the Type to MADACSetCat constructor (Catlab 0.17 API)
-const 𝒞 = ACSetCategory(MADACSetCat(typeof(s)))
+# Pass the ACSet instance to ACSetCat constructor (Catlab 0.17 API)
+const 𝒞 = ACSetCategory(ACSetCat(s))
 
 f = draw(sd)
 f
@@ -177,8 +178,8 @@ function pizza_slices(x)
 end
 
 # Create a category instance for the circle mesh
-# Pass the Type to MADACSetCat constructor (Catlab 0.17 API)
-const 𝒞₁ = ACSetCategory(MADACSetCat(typeof(dualmesh)))
+# Pass the ACSet instance to ACSetCat constructor (Catlab 0.17 API)
+const 𝒞₁ = ACSetCategory(ACSetCat(dualmesh))
 
 circ_quads = cover_mesh(pizza_slices, dualmesh, 𝒞₁)
 draw(circ_quads[1])

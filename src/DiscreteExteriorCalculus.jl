@@ -36,7 +36,7 @@ import Base: *
 import LinearAlgebra: mul!
 using LinearAlgebra: Diagonal, dot, norm, cross, pinv, qr, ColumnNorm, normalize
 using SparseArrays
-using StaticArrays: @SVector, SVector, SMatrix, MVector, MMatrix
+using StaticArrays: @SVector, SVector, SMatrix, MVector, MMatrix, StaticVector
 using Statistics: mean
 using GeometryBasics: Point2, Point3, Point2d, Point3d
 
@@ -46,7 +46,8 @@ const Point3D = SVector{3,Float64}
 
 using ACSets.DenseACSets: attrtype_type
 using Catlab, Catlab.CategoricalAlgebra.CSets
-using Catlab.BasicSets.FinSets: deleteat
+using Catlab.BasicSets
+using Catlab.BasicSets.FinSets
 using Catlab.CategoricalAlgebra.FunctorialDataMigrations: DeltaMigration, migrate
 import Catlab.CategoricalAlgebra.CSets: ∧
 import Catlab.Theories: Δ
