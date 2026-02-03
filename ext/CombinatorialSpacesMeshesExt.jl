@@ -17,7 +17,7 @@ function EmbeddedDeltaSet2D(mesh::SimpleMesh)
     elseif dim == 2
       return Point3{float_type}(c..., 0)
     else
-      @error "The mesh provided has points of unsupported dimension $dim"
+      error("The mesh provided has points of unsupported dimension $dim")
     end
   end
   cs = map(p -> numerical_coords(p), Meshes.vertices(mesh))
@@ -25,7 +25,7 @@ function EmbeddedDeltaSet2D(mesh::SimpleMesh)
   s = EmbeddedDeltaSet2D{Bool, typeof(first(cs))}()
   add_vertices!(s, length(cs), point=cs)
   for tri in mesh.topology.connec
-    length(tri.indices) == 3 || @error "Mesh contains non-triangular elements"
+    length(tri.indices) == 3 || error("Mesh contains non-triangular elements")
     glue_sorted_triangle!(s, tri.indices...)
   end
   s[:edge_orientation] = false

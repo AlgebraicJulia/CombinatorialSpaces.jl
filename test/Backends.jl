@@ -191,8 +191,13 @@ if CUDA.functional()
     test_binary_operators(Float32, Val{:CUDA}, CuArray, 1e-15)
   end
 else
-  @info "CUDA tests were not run, since CUDA.functional() is false."
-  @info CUDA.functional(true)
+  # Get the short error description instead of full stacktrace
+  error_msg = if isdefined(CUDA, :_initialization_error) && CUDA._initialization_error !== nothing
+    CUDA._initialization_error
+  else
+    "unknown reason"
+  end
+  @info "CUDA tests were not run, since CUDA.functional() is false." reason=error_msg
 end
 
 if Sys.isapple()

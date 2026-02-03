@@ -6,7 +6,8 @@ using GeometryBasics: Mesh, QuadFace, volume
 using Test
 using TetGen
 using DelaunayTriangulation: triangulate, get_area, each_solid_triangle
-using Meshes
+using Meshes: PolyArea, discretize, DelaunayTriangulation, SimpleMesh, refine, TriSubdivision,
+              Plane, Disk, simplexify, nvertices, nelements, topology, connect
 using Random
 
 # 2D
@@ -143,7 +144,7 @@ s = EmbeddedDeltaSet2D(mesh)
 
 # Test with 2D surface in 3D space
 points = [(0,0,0),(1,0,0),(1,1,0),(0,1,0),(0,0,1),(1,0,1),(1,1,1),(0,1,1)]
-connec = Meshes.connect.([(1,4,3,2),(5,6,7,8),(1,2,6,5),(3,4,8,7),(1,5,8,4),(2,3,7,6)])
+connec = connect.([(1,4,3,2),(5,6,7,8),(1,2,6,5),(3,4,8,7),(1,5,8,4),(2,3,7,6)])
 mesh   = refine(SimpleMesh(points, connec), TriSubdivision())
 
 s = EmbeddedDeltaSet2D(mesh)
@@ -159,7 +160,7 @@ aPlane = Plane((0.0, 0.0, 0.0), (0.0, 0.0, 1.0))
 aDisk = Disk(aPlane, 1.0)
 mesh = discretize(aDisk)
 
-@test_throws MethodError s = EmbeddedDeltaSet2D(mesh)
+@test_throws ErrorException s = EmbeddedDeltaSet2D(mesh)
 
 # Test with simplexify functionality
 aPlane = Plane((0.0, 0.0, 0.0), (0.0, 0.0, 1.0))
