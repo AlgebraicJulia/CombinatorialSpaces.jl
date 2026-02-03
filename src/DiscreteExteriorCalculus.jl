@@ -46,7 +46,7 @@ const Point3D = SVector{3,Float64}
 
 using ACSets.DenseACSets: attrtype_type
 using Catlab, Catlab.CategoricalAlgebra.CSets
-using Catlab.CategoricalAlgebra.FinSets: deleteat
+using Catlab.BasicSets.FinSets: deleteat
 using Catlab.CategoricalAlgebra.FunctorialDataMigrations: DeltaMigration, migrate
 import Catlab.CategoricalAlgebra.CSets: ∧
 import Catlab.Theories: Δ
@@ -56,6 +56,9 @@ using ..SimplicialSets: CayleyMengerDet, operator_nz, ∂_nz, d_nz,
   cayley_menger, negate, numeric_sign
 
 import ..SimplicialSets: ∂, d, volume
+
+# This non-mutating version of deleteat returns a new (static) vector.
+deleteat(vec::Vector, i) = deleteat!(copy(vec), i)
 
 abstract type DiscreteFlat end
 struct DPPFlat <: DiscreteFlat end
