@@ -123,6 +123,12 @@ subdivide_duals!(sd, Circumcenter())
 @test sum(sd[:area]) ≈ get_area(tri)
 @test is_manifold_like(s)
 
+# Test that non-zero z-coordinates are rejected
+# Create a triangulation with 3D points that have non-zero z-coordinates
+points_3d = [(0.0, 0.0, 1.0), (1.0, 0.0, 1.0), (0.0, 1.0, 1.0), (1.0, 1.0, 1.0)]
+tri_3d = triangulate(points_3d)
+@test_throws ErrorException EmbeddedDeltaSet2D(tri_3d)
+
 # Meshes compatibility
 #---------------------
 
