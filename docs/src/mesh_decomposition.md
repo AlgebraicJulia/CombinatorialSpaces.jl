@@ -219,7 +219,7 @@ The free vector space sheaf over the diagram can be constructed by composing the
 ```@example mesh_decomposition
 using Catlab.Sheaves: FVect
 import Catlab.Sheaves: pullback_matrix, FMatPullback, FMatPushforward
-Vdiag = force(compose(FinDomFunctor(diag), FMatPushforward))
+# Vdiag = force(compose(FinDomFunctor(diag), FMatPushforward))
 ```
 
 ```@example mesh_decomposition
