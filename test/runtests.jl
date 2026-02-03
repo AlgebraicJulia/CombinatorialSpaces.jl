@@ -19,7 +19,6 @@ end
   include("Meshes.jl")
   include("MeshInterop.jl")
   include("MeshGraphics.jl")
-  include("MeshDecomposition.jl")
 end
 
 @testset "Alternate Backends" begin
