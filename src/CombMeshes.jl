@@ -1,15 +1,17 @@
-module Meshes
+module CombMeshes
 
 using Artifacts
-using Catlab, Catlab.CategoricalAlgebra
-using CombinatorialSpaces, CombinatorialSpaces.SimplicialSets
+using Catlab
+using CombinatorialSpaces
 using FileIO
+using GeometryBasics: Mesh, MetaMesh, Point, Point2d, Point3d, QuadFace
 using JSON
 using LinearAlgebra: diagm
-using GeometryBasics: Point2d, Point3d
+using TetGen
 
-export loadmesh, Icosphere, Rectangle_30x10, Torus_30x10, Point_Map, triangulated_grid, makeSphere
-
+export loadmesh, Icosphere, Rectangle_30x10, Torus_30x10, Point_Map,
+       triangulated_grid, makeSphere, mirrored_mesh, parallelepiped,
+       tetgen_readme_mesh
 
 abstract type AbstractMeshKey end
 
@@ -67,26 +69,26 @@ loadmesh_icosphere_helper(obj_file_name) = EmbeddedDeltaSet2D(
 
 
 # This function was once the gridmeshes.jl file from Decapodes.jl.
-"""    function triangulated_grid(max_x, max_y, dx, dy, point_type, compress=true)
+"""    function triangulated_grid(lx, ly, dx, dy, point_type, compress=true)
 
-Triangulate the rectangle [0,max_x] x [0,max_y] by approximately equilateral
+Triangulate the rectangle [0,lx] x [0,ly] by approximately equilateral
 triangles of width `dx` and height `dy`.
 
-If `compress` is true (default), then enforce that all rows of points are less than `max_x`,
+If `compress` is true (default), then enforce that all rows of points are less than `lx`,
 otherwise, keep `dx` as is.
 """
-function triangulated_grid(max_x, max_y, dx, dy, point_type, compress=true)
+function triangulated_grid(lx, ly, dx, dy, point_type, compress=true)
   s = EmbeddedDeltaSet2D{Bool, point_type}()
 
-  scale = max_x/(max_x+dx/2)
+  scale = lx/(lx+dx/2)
   shift = dx/2
 
-  nx = length(0:dx:max_x)
-  ny = length(0:dy:max_y)
+  nx = length(0:dx:lx)
+  ny = length(0:dy:ly)
   add_vertices!(s, nx * ny)
 
-  for (y_idx, raw_y) in enumerate(0:dy:max_y)
-    for (x_idx, raw_x) in enumerate(0:dx:max_x)
+  for (y_idx, raw_y) in enumerate(0:dy:ly)
+    for (x_idx, raw_x) in enumerate(0:dx:lx)
       x_coord = raw_x + shift * iseven(y_idx)
       if compress
         x_coord *= scale
@@ -131,10 +133,55 @@ function triangulated_grid(max_x, max_y, dx, dy, point_type, compress=true)
   s
 end
 
+"""    triangulated_grid(lx::Real, ly::Real, nx::Int, ny::Int; point_type::DataType = Point3d, compress::Bool=true)
+
+Generate a rectangle [0,lx] x [0,ly] with `nx+1` by `ny+1` vertices. This results in a mesh containing `2*nx*ny` triangles.
+Setting the `dx` or `dy` keywords will override the respective `nx` or `ny` keywords.
+"""
+function triangulated_grid(lx::Real, ly::Real; nx::Int = 10, ny::Int = 10, dx::Real = 0, dy::Real = 0, point_type::DataType = Point3d, compress::Bool = true)
+  @assert lx > 0 && ly > 0
+  @assert nx > 0 && ny > 0
+  @assert dx >= 0 && dy >= 0
+
+  arg_dx = dx != 0 ? dx : lx / nx
+  arg_dy = dy != 0 ? dy : ly / ny
+
+  triangulated_grid(lx, ly, arg_dx, arg_dy, point_type, compress)
+end
+
+"""    function mirrored_mesh()
+
+Return a mesh with triangles mirrored around a central axis.
+"""
+function mirrored_mesh(lx, ly)
+  s = EmbeddedDeltaSet2D{Bool, Point{3, Float64}}();
+  lx, ly = 40.0, 20.0
+  xs = range(0, lx; length = 3)
+  ys = range(0, ly; length = 3)
+
+  add_vertices!(s, 9)
+  i = 1
+  for y in ys
+    for x in xs
+      s[i, :point] = Point3([x, y, 0.0])
+      i += 1
+    end
+  end
+  glue_sorted_triangle!(s, 1, 2, 4)
+  glue_sorted_triangle!(s, 2, 4, 5)
+  glue_sorted_triangle!(s, 2, 5, 6)
+  glue_sorted_triangle!(s, 2, 3, 6)
+  glue_sorted_triangle!(s, 4, 5, 7)
+  glue_sorted_triangle!(s, 5, 7, 8)
+  glue_sorted_triangle!(s, 5, 8, 9)
+  glue_sorted_triangle!(s, 5, 6, 9)
+  orient!(s)
+  s[:edge_orientation] = false
+  s
+end
 
 # This function was once the sphericalmeshes.jl file from Decapodes.jl.
-"""
-    makeSphere(minLat, maxLat, dLat, minLong, maxLong, dLong, radius)
+"""    makeSphere(minLat, maxLat, dLat, minLong, maxLong, dLong, radius)
 
 Construct a spherical mesh (inclusively) bounded by the given latitudes and
 longitudes, discretized at dLat and dLong intervals, at the given radius from
@@ -344,6 +391,8 @@ function grid_345()
   glue_sorted_triangle!(primal_s, 5, 6, 8)
   glue_sorted_triangle!(primal_s, 9, 6, 8)
   primal_s[:edge_orientation] = true
+  orient!(primal_s)
+  primal_s[:tri_orientation] = .!(primal_s[:tri_orientation]) # Flips orientation to ccw
   s = EmbeddedDeltaDualComplex2D{Bool,Float64,Point3d}(primal_s)
   subdivide_duals!(s, Barycenter())
   (primal_s, s)
@@ -377,6 +426,60 @@ function single_tetrahedron()
   s = EmbeddedDeltaDualComplex3D{Bool, Float64, Point3d}(primal_s)
   subdivide_duals!(s, Barycenter())
   (primal_s, s)
+end
+
+"""	function parallelepiped(;lx::Real = 1.0, ly::Real = 1.0, lz::Real = 1.0, dx::Real = 0.0, dy::Real = 0.0, point_type = Point3d, tetcmd::String = "vpq1.414a0.1")
+
+Uses TetGen to generate turn a specificed parallelepiped to a tetrahedralized mesh. `lx`, `ly`, and `lz` kwargs control the side lengths in the respective dimensions and `dx` and `dy` kwargs will translate the top face relative to the bottom face.
+
+Default TetGen command is "pQq1.414a0.1" and user desired cmds can be passed through the `tetcmd` kwarg.
+"""
+function parallelepiped(;lx::Real = 1.0, ly::Real = 1.0, lz::Real = 1.0, dx::Real = 0.0, dy::Real = 0.0, point_type = Point3d, tetcmd::String = "pQq1.414a0.1")
+	points = point_type[
+    (0.0, 0.0, 0.0), (dx, dy, lz), (0.0, ly, 0.0), (dx, ly+dy, lz),
+    (lx, 0.0, 0.0), (lx+dx, dy, lz), (lx, ly, 0.0), (lx+dx, ly+dy, lz)]
+
+  faces = QuadFace{Cint}[
+    [1,2,4,3], [5,6,8,7], [1,2,6,5],
+    [3,4,8,7], [1,3,7,5], [2,4,8,6]]
+
+  tet_mesh = tetrahedralize(Mesh(points, faces), tetcmd)
+
+  s = EmbeddedDeltaSet3D(tet_mesh)
+
+  orient!(s)
+  s[:edge_orientation] = false
+  s[:tri_orientation] = false
+
+  return s
+end
+
+"""    function tetgen_readme_mesh()
+
+Create the mesh from the TetGen.jl/README.md as a delta set.
+
+https://github.com/JuliaGeometry/TetGen.jl/blob/ea73adce3ea4dfa6062eb84b1eff05f3fcab60a5/README.md
+"""
+function tetgen_readme_mesh()
+  points = Point{3, Float64}[
+    (0.0, 0.0, 0.0), (2.0, 0.0, 0.0),
+    (2.0, 2.0, 0.0), (0.0, 2.0, 0.0),
+    (0.0, 0.0, 12.0), (2.0, 0.0, 12.0),
+    (2.0, 2.0, 12.0), (0.0, 2.0, 12.0)]
+  facets = QuadFace{Cint}[
+    1:4, 5:8,
+    [1,5,6,2],
+    [2,6,7,3],
+    [3, 7, 8, 4],
+    [4, 8, 5, 1]]
+  markers = Cint[-1, -2, 0, 0, 0, 0]
+  msh = MetaMesh(points, facets; markers)
+  tet_msh = tetrahedralize(msh, "Qvpq1.414a0.1")
+  s = EmbeddedDeltaSet3D(tet_msh)
+  orient!(s)
+  s[:edge_orientation] = false
+  s[:tri_orientation] = false
+  s
 end
 
 end

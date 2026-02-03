@@ -1,18 +1,19 @@
 module TestDiscreteExteriorCalculus
 using Test
 
-using LinearAlgebra: Diagonal, mul!, norm, dot
-using SparseArrays, StaticArrays
-
-using Catlab.CategoricalAlgebra.CSets
-using Catlab.Graphs
-using ACSets
-using ACSets.DenseACSets: attrtype_type
 using CombinatorialSpaces
-using CombinatorialSpaces.Meshes: tri_345, tri_345_false, grid_345, right_scalene_unit_hypot
+using CombinatorialSpaces.CombMeshes: tri_345, tri_345_false, grid_345,
+  right_scalene_unit_hypot, single_tetrahedron
 using CombinatorialSpaces.SimplicialSets: boundary_inds
-using CombinatorialSpaces.DiscreteExteriorCalculus: eval_constant_primal_form, eval_constant_dual_form
-using Statistics: mean
+using CombinatorialSpaces.DiscreteExteriorCalculus: eval_constant_primal_form,
+  eval_constant_dual_form
+
+using Catlab
+using GeometryBasics: Point, QuadFace, MetaMesh
+using LinearAlgebra: Diagonal, mul!, norm, dot, cross, diag
+using SparseArrays
+using StaticArrays
+using Statistics: mean, median
 
 # 1D dual complex
 #################
@@ -156,6 +157,25 @@ g♯_d = ♯(s, g, PDSharp())     # Dual Vector Field: (1)
 g♯_p = ♯(s, g, PPSharp())     # Primal Vector Field: (1)
 @test g♯_d == [Point3d(1,0,0), Point3d(1,0,0), Point3d(1,0,0)]
 @test g♯_p == [Point3d(1,0,0), Point3d(1,0,0), Point3d(1,0,0), Point3d(1,0,0)]
+
+# (Pedagogically) test the (reflective) boundary conditions of the Laplacian in 1D.
+# A line with linearly-spaced x-coordinates:
+primal_s = path_graph(EmbeddedDeltaSet1D{Bool,Point3d}, 1_000)
+primal_s[:point] = map(x -> Point3d(x,0,0), 0:999)
+s = EmbeddedDeltaDualComplex1D{Bool,Float64,Point3d}(primal_s)
+subdivide_duals!(s, Barycenter())
+f = map(x -> x[1], point(s)) # 0-Form: x
+lap0 = Δ(0,s)
+# Observe that this results in a _positive_ curvature.
+# This is equivalent to assuming a ghost point with value +1 at (-1,0,0),
+# using second-order central difference.
+@test lap0[1,:] == sparsevec([1, 2], [-2.0, 2.0], 1000)
+@test (lap0*f)[1] == 2.0
+# Observe that this results in a _negative_ curvature.
+# This is equivalent to assuming a ghost point with value +998 at (1000,0,0),
+# using second-order central difference.
+@test lap0[end,:] == sparsevec([999, 1000], [2.0, -2.0], 1000)
+@test (lap0*f)[end] == -2.0
 
 # 2D dual complex
 #################
@@ -513,7 +533,7 @@ subdivide_duals!(s, Barycenter())
 @test only(∧(s, VForm([3,3,3]), TriForm([only(s[:area])*5]))) ≈ 15
 
 # Grid of 3,4,5 triangles.
-primal_s, s = grid_345()
+primal_s, s = grid_345();
 
 # ∀ βᵏ ∧(α,βᵏ) = id(βᵏ), where α = 1.
 α = VForm(ones(nv(s)))
@@ -525,16 +545,26 @@ end
 # 1dx ∧ 1dy = 1 dx∧dy
 onedx = eval_constant_primal_form(s, @SVector [1.0,0.0,0.0])
 onedy = eval_constant_primal_form(s, @SVector [0.0,1.0,0.0])
-@test ∧(s, onedx, onedy) == map(s[:tri_orientation], s[:area]) do o,a
-  # Note by the order of -1 and 1 here that
-  a * (o ? -1 : 1)
-end
+@test all(∧(s, onedx, onedy) .≈ s[:area])
 
 # 1dx∧dy = -1dy∧dx
 @test ∧(s, onedx, onedy) == -∧(s, onedy, onedx)
 
 # 3dx ∧ 2dy = 2 dx ∧ 3dy
 @test ∧(s, EForm(3*onedx), EForm(2*onedy)) == ∧(s, EForm(2*onedx), EForm(3*onedy))
+
+# Test flipped edge orientation preserves value
+for i in 1:ne(s)
+  s[i, :edge_orientation] = !s[i, :edge_orientation]
+  onedx[i] = -onedx[i]; onedy[i] = -onedy[i];
+  @test all(∧(s, onedx, onedy) .≈ s[:area])
+end
+
+# Orientation of this mesh is cw and not ccw
+primal_s, s = tri_345_false()
+onedx = eval_constant_primal_form(s, @SVector [1.0,0.0,0.0])
+onedy = eval_constant_primal_form(s, @SVector [0.0,1.0,0.0])
+@test all(∧(s, onedx, onedy) .≈ -s[:area])
 
 # A triangulated quadrilateral where edges are all of distinct length.
 primal_s = EmbeddedDeltaSet2D{Bool,Point2d}()
@@ -588,7 +618,7 @@ rect′ = loadmesh(Rectangle_30x10());
 rect = EmbeddedDeltaDualComplex2D{Bool,Float64,Point3d}(rect′);
 subdivide_duals!(rect, Barycenter());
 
-flat_meshes = [tri_345(), tri_345_false(), right_scalene_unit_hypot(), grid_345(), (tg′, tg), (rect′, rect)];
+flat_ccw_meshes = [tri_345(), right_scalene_unit_hypot(), grid_345(), (tg′, tg), (rect′, rect)];
 
 # Over a static vector-field...
 # ... Test the primal-to-primal flat operation agrees with the dual-to-primal flat operation.
@@ -647,7 +677,7 @@ u = s1 * d0 * u_potential; # -dy or dy, depending on left vs. right-hand rule: �
 # Test that the technique for evaluating 1-forms is consistent across primal
 # and dual forms.
 # ♭ᵈ_discrete(f_continuous) = ⋆₁_discrete∘♭ᵖ_discrete(⋆_continuous f_continuous)
-for (primal_s,s) in flat_meshes
+for (primal_s,s) in flat_ccw_meshes
   α = SVector(1/√2,1/√2,0)
   left_hand_α = SVector(1/√2,-1/√2,0)
   f′ = eval_constant_primal_form(s, left_hand_α)
@@ -666,7 +696,7 @@ function all_are_approx(f::Vector{SVector{2,Float64}}, g::SVector{3,Float64}; at
   end)
 end
 
-for (primal_s,s) in flat_meshes
+for (primal_s,s) in flat_ccw_meshes
   # Test that the least-squares ♯ from dual vector fields to dual 1-forms
   # preserves constant fields.
   ♯_m = ♯_mat(s, LLSDDSharp())
@@ -729,7 +759,7 @@ end
 #      = ffdxdy - ggdydx
 #      = (ff+gg)dxdy
 # ⋆(u∧⋆u) = ff+gg
-for (primal_s,s) in flat_meshes
+for (primal_s,s) in flat_ccw_meshes
   f = 2
   g = 7
   ff_gg = (f*f + g*g)
@@ -739,10 +769,6 @@ for (primal_s,s) in flat_meshes
   u = eval_constant_primal_form(s, u_def)
   u_star = DualForm{1}(hodge_star(1,s) * u)
 
-  v_def = SVector{3,Float64}(-g,f,0)
-  v = eval_constant_primal_form(s, v_def)
-  dec_hodge_star(2,s) * ∧(s, u, v)
-
   @test all(isapprox.(
     dec_hodge_star(2,s) * ∧(s, u, u_star),
     ff_gg,
@@ -750,12 +776,11 @@ for (primal_s,s) in flat_meshes
 end
 
 # Constant interpolation on flat meshes with boundaries
-for (s, sd) in flat_meshes
-  ex_1 = sign(2, sd)
+for (s, sd) in flat_ccw_meshes
   interp = p2_d2_interpolation(sd)
   inv_hdg_0 = dec_inv_hodge_star(0, sd)
 
-  res_1 = inv_hdg_0 * interp * ex_1
+  res_1 = inv_hdg_0 * interp * ones(ntriangles(sd))
 
   @test all(res_1 .≈ ntriangles(sd)/(sum(sd[:area])))
 end
@@ -764,12 +789,10 @@ end
 d_ico1 = EmbeddedDeltaDualComplex2D{Bool,Float64,Point3{Float64}}(loadmesh(Icosphere(1)));
 subdivide_duals!(d_ico1, Circumcenter());
 
-ico_form_2 = sign(2, d_ico1) .* d_ico1[:area]
-
 interp = p2_d2_interpolation(d_ico1)
 inv_hdg_0 = dec_inv_hodge_star(0, d_ico1)
 
-interp_form_0 = inv_hdg_0 * interp * ico_form_2
+interp_form_0 = inv_hdg_0 * interp * d_ico1[:area]
 
 @test all(interp_form_0 .≈ 1)
 
@@ -830,6 +853,36 @@ dual_form = map(p->0.1*(p[1]-lx/2.0)^2 + 5,dual_points)
 
 diff = (primal_form .- interp_mat * dual_form) ./ primal_form
 @test rmse(diff[interior_points]) < 0.0006
+
+# Interpolation of primal to dual
+interp_dual_mat = p0_d0_interpolation(d_rect)
+
+# Function growing in x
+dual_form = map(p->2*p[1],dual_points)
+primal_form = map(p->2*p[1],primal_points)
+
+diff = dual_form .- interp_dual_mat * primal_form
+@test rmse(diff) < 3e-13
+
+# Function growing in y
+dual_form = map(p->2*p[2],dual_points)
+primal_form = map(p->2*p[2],primal_points)
+
+diff = dual_form .- interp_dual_mat * primal_form
+# Likely worse since each triangle in this mesh has two points at same y
+@test rmse(diff) < 0.07
+
+# Test on a spherical mesh
+s = loadmesh(Icosphere(4))
+sd = EmbeddedDeltaDualComplex2D{Bool,Float64,Point3{Float64}}(s);
+subdivide_duals!(sd, Circumcenter());
+
+dual_form = map(p -> p[1], sd[triangle_center(sd), :dual_point])
+primal_form = map(p -> p[1], sd[:point])
+
+interp_dual_mat = p0_d0_interpolation(sd)
+diff = dual_form .- interp_dual_mat * primal_form
+@test rmse(diff) < 0.005
 
 # 3D dual complex
 #################
@@ -919,16 +972,17 @@ regular_tetrahedron_volume(len) = len^3/(6√2)
 @test all(dual_volume(3,s,1:24) .≈ regular_tetrahedron_volume(2√2)/24)
 @test dual_point(s,tetrahedron_center(s,1)) == sum(point(s)) / length(point(s))
 
-# Heat equation:
+# Test convergence of the heat equation.
+# This involves the following operators: d₀, ⋆₁, d̃₂, ⋆₀⁻¹
 d₀_mat = d(0,s)
 star₁_mat = hodge_star(1,s,DiagonalHodge())
-dual_d₀_mat = dual_derivative(2,s)
+dual_d₂_mat = dual_derivative(2,s)
 inv_star₃_mat = inv_hodge_star(0,s,DiagonalHodge())
 
-lap_mat = inv_star₃_mat * dual_d₀_mat * star₁_mat * d₀_mat
+lap_mat = inv_star₃_mat * dual_d₂_mat * star₁_mat * d₀_mat
 
-C = collect(1.0:4.0)
-C₀ = collect(1.0:4.0)
+C = collect(range(1, 4; length=nv(s)))
+C₀ = copy(C)
 D = 0.005
 for _ in 0:100_000
   dt_C = D * lap_mat*C
@@ -961,14 +1015,111 @@ orient!(primal_s)
 # dual tetrahedron.  e.g. circumcenter([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0,
 # 1.0, 1.0]) == circumcenter([0.0, 0.0, 0.0], [1.0, 1.0, 0.0], [1.0, 0.0, 0.0],
 # [0.0, 1.0, 1.0])
-#s = EmbeddedDeltaDualComplex3D{Bool,Float64,Point3d}(primal_s)
-#subdivide_duals!(s, Circumcenter())
-#@test_throws sum(dual_volume(3,s,parts(s,:DualTet))) ≈ 1
+s = EmbeddedDeltaDualComplex3D{Bool,Float64,Point3d}(primal_s)
+subdivide_duals!(s, Circumcenter())
+@test !(sum(dual_volume(3,s,parts(s,:DualTet))) ≈ 1)
 
 # Barycentric subdivision avoids the above issue.
 s = EmbeddedDeltaDualComplex3D{Bool,Float64,Point3d}(primal_s)
 subdivide_duals!(s, Barycenter())
 @test sum(dual_volume(3,s,parts(s,:DualTet))) ≈ 1
 @test all(dual_volume(3,s,parts(s,:DualTet)) .≈ 1/nparts(s,:DualTet))
+
+# Test the 2-1 wedge product.
+primal_s, s = single_tetrahedron()
+
+as_vec(s,e) = (point(s, tgt(s,e)) - point(s, src(s,e))) * sign(1,s,e)
+function surface_integral_dXdY(s)
+  map(triangles(s)) do tri
+    _, e2, e3 = triangle_edges(s,tri)
+    e3_vec, e2_vec = as_vec(s,e3), as_vec(s,e2)
+    (cross(e3_vec, e2_vec) * sign(2,s,tri))[3] / 2
+    # Note that normalizing is the same as dividing by 2*s[tri, :area],
+    # so the above is equivalent to:
+    #n = normalize(cross(e1_vec, e2_vec) * sign(2,s,tri))
+    #s[tri, :area] * n[3] # i.e. n ⋅ SVector{3,Float64}(0,0,1)
+    # , but is more accurate.
+  end
+end
+# This is a primal 2-form, encoding (signed) unit areas parallel to the z=0 plane.
+dXdY = surface_integral_dXdY(s)
+d0 = d(0,s)
+# This is a primal 1-form, encoding a constant gradient pointing "up."
+dZ = d0 * map(p -> p[3], s[:point])
+@test only(∧(2, 1, s, dXdY, dZ)) ≈ only(s[:vol])
+
+# Test the 2-1 wedge product on a larger mesh.
+
+primal_s = tetgen_readme_mesh()
+s = EmbeddedDeltaDualComplex3D{Bool, Float64, Point3d}(primal_s)
+subdivide_duals!(s, Barycenter())
+# Adjusts from lefthand rule to righthand rule orientation
+s[:tet_orientation] = .!(s[:tet_orientation])
+
+dXdY = surface_integral_dXdY(s)
+d0 = d(0,s)
+dZ = d0 * map(p -> p[3], s[:point])
+@test all(∧(2, 1, s, dXdY, dZ) .≈ s[:vol])
+
+# Construct a 3-volume form using basis 1-forms.
+# This also tests ∧₁₁ in 3D, and ⋆₃.
+dX = d0 * map(p -> p[1], s[:point])
+dY = d0 * map(p -> p[2], s[:point])
+dZ = d0 * map(p -> p[3], s[:point])
+∧₁₁(x,y) = ∧(1, 1, s, x, y)
+∧₂₁(x,y) = ∧(2, 1, s, x, y)
+∧₁₂(x,y) = ∧(1, 2, s, x, y)
+⋆₃(x) = hodge_star(3, s, x, DiagonalHodge())
+
+# Respect mass:
+# ⋆((dX ∧ dY) ∧ dZ) = 1
+@test all(⋆₃((dX ∧₁₁ dY) ∧₂₁ dZ) .≈ 1.0)
+
+# Associativity:
+# (dX ∧ dY) ∧ dZ = dX ∧ (dY ∧ dZ)
+@test all((dX ∧₁₁ dY) ∧₂₁ dZ .≈ dX ∧₁₂ (dY  ∧₁₁ dZ))
+
+# Antisymmetry:
+# (dX ∧ dY) ∧ dZ = -1 (dX ∧ dZ) ∧ dY
+@test all((dX ∧₁₁ dY) ∧₂₁ dZ .≈
+        -((dX ∧₁₁ dZ) ∧₂₁ dY))
+
+# Associativity and Antisymmetry:
+# (dX ∧ dY) ∧ dZ = -1 dY ∧ (dX ∧ dZ)
+@test all((dX ∧₁₁ dY) ∧₂₁ dZ .≈
+         -(dY ∧₁₂ (dX ∧₁₁ dZ)))
+
+# (Consequence of) Antisymmetry:
+# (dX ∧ dY) ∧ dY = 0
+@test all(abs.((dX ∧₁₁ dY) ∧₂₁ dY) .< 1e-15)
+
+# Test the 2-1 wedge product on spatially varying data.
+
+# Z²
+Z_squared = map(p -> p[3]^2, s[s[:tet_center], :dual_point])
+# 2Z dZ
+twoZ_dZ = dual_derivative(0,s) * Z_squared
+# 2Z dX ∧ dY or -2Z dX ∧ dY, depending on sign of the Hodge.
+twoZ_dXdY = inv_hodge_star(2, s, DiagonalHodge()) * twoZ_dZ
+# 2Z dX ∧ dY ∧ dZ
+twoZ_dXdYdZ = twoZ_dXdY ∧₂₁ dZ
+# 2Z
+twoZ = ⋆₃(twoZ_dXdYdZ)
+
+abs_diff = abs.(twoZ .- map(p -> 2*p[3], s[s[:tet_center], :dual_point]));
+@test median(abs_diff) < 4.0
+
+# 3D Point Interpolation
+pd_interp = p3_d3_interpolation(s)
+interp = d0_p0_interpolation(s)
+mesh_vols = s[:vol]
+
+@test sum(pd_interp * mesh_vols) ≈ sum(s[:vol])
+@test all(pd_interp * mesh_vols .≈ diag(dec_hodge_star(0, s, DiagonalHodge())))
+@test all(dec_inv_hodge_star(0, s, DiagonalHodge()) * pd_interp * mesh_vols .≈ 1)
+
+# Constant interpolation
+@test all(interp * ones(ntetrahedra(s)) .≈ 1)
+
 
 end
