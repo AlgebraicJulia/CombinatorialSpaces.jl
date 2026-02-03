@@ -6,9 +6,14 @@ import CombinatorialSpaces: EmbeddedDeltaSet2D
 import DelaunayTriangulation: number_type
 
 function EmbeddedDeltaSet2D(triangulation::T) where {T<:DelaunayTriangulation.Triangulation}
-  z_coords = map(p -> p[3], triangulation.points)
-  if any(z_coords .!= 0)
-    error("This EmbeddedDeltaSet2D is designed for triangulations on the XY plane, but some z-coordinates of T are nonzero.")
+  # Check if points have z-coordinates and if they're non-zero
+  # DelaunayTriangulation typically uses 2D points, so we need to check the dimension
+  first_point = first(triangulation.points)
+  if length(first_point) >= 3
+    z_coords = map(p -> p[3], triangulation.points)
+    if any(z_coords .!= 0)
+      error("This EmbeddedDeltaSet2D is designed for triangulations on the XY plane, but some z-coordinates of T are nonzero.")
+    end
   end
   float_type = number_type(triangulation.points)
   coords = map(p -> Point3{float_type}(p[1], p[2], 0), triangulation.points)
