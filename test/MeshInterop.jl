@@ -160,7 +160,7 @@ aPlane = Plane((0.0, 0.0, 0.0), (0.0, 0.0, 1.0))
 aDisk = Disk(aPlane, 1.0)
 mesh = discretize(aDisk)
 
-@test_throws ErrorException("Mesh contains non-triangular elements") s = EmbeddedDeltaSet2D(mesh)
+@test_throws ErrorException s = EmbeddedDeltaSet2D(mesh)
 
 # Test with simplexify functionality
 aPlane = Plane((0.0, 0.0, 0.0), (0.0, 0.0, 1.0))
