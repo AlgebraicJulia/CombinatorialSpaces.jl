@@ -6,7 +6,10 @@ import CombinatorialSpaces: EmbeddedDeltaSet2D
 import DelaunayTriangulation: number_type
 
 function EmbeddedDeltaSet2D(triangulation::T) where {T<:DelaunayTriangulation.Triangulation}
-  @debug "EmbeddedDeltaSet2D mesh will use 3D points, setting z-coordinate to 0"
+  z_coords = map(p -> p[3], triangulation.points)
+  if any(z_coords .!= 0)
+    error("This EmbeddedDeltaSet2D is designed for triangulations on the XY plane, but some z-coordinates of T are nonzero.")
+  end
   float_type = number_type(triangulation.points)
   coords = map(p -> Point3{float_type}(p[1], p[2], 0), triangulation.points)
 
