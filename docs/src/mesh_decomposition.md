@@ -22,6 +22,8 @@ using GeometryBasics: Point3d
 using LinearAlgebra: norm
 using CairoMakie
 using Catlab
+using Catlab.CategoricalAlgebra: ACSetCategory, MADACSetCat
+using Catlab.Theories: @withmodel
 ```
 
 We are going to draw our cover by drawing all the submeshes in orange
@@ -52,17 +54,16 @@ function draw!(ax, submesh::Subobject; color=:orange)
   draw!(ax, dom(ϕ), color=:orange)
 end
 
-function draw(cover::Vector{T}; color=:blue) where T <: Subobject
+function draw(cover::Vector{T}; color=:blue, cat) where T <: Subobject
   f = Figure()
   n = length(cover)
   for i in 1:n
     for j in i:n
       ax = CairoMakie.Axis(f[i,j])
       ui,uj = cover[i], cover[j]
-      # ϕ = hom(meet(ui,uj))
-      # draw!(ax, codom(ϕ), color=:blue)
-      # draw!(ax, dom(ϕ), color=color)
-      draw!(ax, meet(ui,uj), color=color)
+      @withmodel cat (meet,) begin
+        draw!(ax, meet(ui,uj), color=color)
+      end
     end
   end
   f
@@ -77,6 +78,9 @@ s = triangulated_grid(100,100,15,15,Point3d);
 sd = EmbeddedDeltaDualComplex2D{Bool,Float64,Point3d}(s);
 subdivide_duals!(sd, Barycenter());
 
+# Create a category instance for working with Subobjects
+const 𝒞 = ACSetCategory(MADACSetCat(s))
+
 f = draw(sd)
 f
 ```
@@ -84,15 +88,18 @@ f
 ```@example mesh_decomposition
 quadrants(x) = Int(x[1] > 50) + 2*Int(x[2] > 50)
 
-function cover_mesh(partition_function, s)
+function cover_mesh(partition_function, s, cat)
   vertex_partition = map(partition_function, s[:point])
   parts = map(unique(vertex_partition)) do p
     vp = findall(i->i==p, vertex_partition)
-    sp = non(negate(Subobject(s; V=vp)))
+    subobj = Subobject(s; V=vp)
+    @withmodel cat (negate, non) begin
+      sp = non(negate(subobj))
+    end
   end
   return parts
 end
-quads = cover_mesh(quadrants, s)
+quads = cover_mesh(quadrants, s, 𝒞)
 q = quads[1]
 draw(q)
 ```
@@ -103,33 +110,39 @@ draw(quads[3])
 ```
 
 ```@example mesh_decomposition
-q = join(quads[1], quads[3])
+@withmodel 𝒞 (join,) begin
+  q = join(quads[1], quads[3])
+end
 draw(q)
 ```
 
 ```@example mesh_decomposition
-draw(meet(quads[1], quads[2]))
+@withmodel 𝒞 (meet,) begin
+  draw(meet(quads[1], quads[2]))
+end
 ```
 
 ```@example mesh_decomposition
-draw(quads)
+draw(quads; cat=𝒞)
 ```
 
 The nerve of the cover can be constructed by computing all pairwise intersections of the submeshes in the cover.
 
 ```@example mesh_decomposition
 using Catlab.FreeDiagrams
-function nerve(cover::Vector{T}) where T <: Subobject
+function nerve(cover::Vector{T}, cat) where T <: Subobject
   n = length(cover)
-  map(1:n) do i
-    map(i:n) do j
-      ui,uj = cover[i], cover[j]
-      uij = meet(ui,uj)
-      (uij, i, j)
-    end
-  end |> Iterators.flatten
+  @withmodel cat (meet,) begin
+    map(1:n) do i
+      map(i:n) do j
+        ui,uj = cover[i], cover[j]
+        uij = meet(ui,uj)
+        (uij, i, j)
+      end
+    end |> Iterators.flatten
+  end
 end
-D = nerve(quads)
+D = nerve(quads, 𝒞)
 ```
 
 ## Example 2: Arcs of a Circle
@@ -161,9 +174,13 @@ The circle can be decomposed into four overlapping arcs using a partition functi
 function pizza_slices(x)
   (x[1] > 0) + 2*(x[2] > 0)
 end
-circ_quads = cover_mesh(pizza_slices,dualmesh)
+
+# Create a category instance for the circle mesh
+const 𝒞₁ = ACSetCategory(MADACSetCat(dualmesh))
+
+circ_quads = cover_mesh(pizza_slices, dualmesh, 𝒞₁)
 draw(circ_quads[1])
-draw(circ_quads)
+draw(circ_quads; cat=𝒞₁)
 ```
 
 ## Diagram Interpretation in Vect
@@ -226,22 +243,23 @@ This data is getting rather involved, so we will encapsulate it in a `NerveCover
 ```@example mesh_decomposition
 import Catlab.Sheaves: AbstractCover
 
-struct NerveCover{T, X} <: AbstractCover
+struct NerveCover{T, X, C} <: AbstractCover
   vertices::Dict{T, Int}
   basis::Vector{X}
+  cat::C
 end
 
-function NerveCover(subobjects::Vector{X}) where X <: Subobject
+function NerveCover(subobjects::Vector{X}, cat) where X <: Subobject
   lookup = enumerate(subobjects)
   vertices = Dict{Int, Int}(i=>i for (i, _) in lookup)
-  return NerveCover{Int, Subobject}(vertices, subobjects)
+  return NerveCover{Int, Subobject, typeof(cat)}(vertices, subobjects, cat)
 end
 
-function NerveCover(subobjects::Dict{T,Subobject}) where T
+function NerveCover(subobjects::Dict{T,Subobject}, cat) where T
   lookup = enumerate(keys(subobjects))
   vertices = Dict{T, Int}(k=>i for (i, k) in lookup)
   opens = collect(values(subobjects))
-  return NerveCover{T, Subobject}(vertices, opens)
+  return NerveCover{T, Subobject, typeof(cat)}(vertices, opens, cat)
 end
 
 Base.length(K::NerveCover) = length(K.basis)
@@ -272,9 +290,11 @@ function Base.show(io::IO, U::SubACSetComponentwise{X}) where X <: HasDeltaSet
 end
 
 function Base.getindex(K::NerveCover, I::Vararg{Int})
-  map(I) do i
-    K.basis[i]
-  end |> x->foldl(meet, x)
+  @withmodel K.cat (meet,) begin
+    map(I) do i
+      K.basis[i]
+    end |> x->foldl(meet, x)
+  end
 end
 
 using Combinatorics: powerset
@@ -286,7 +306,7 @@ end
 ```
 
 ```@example mesh_decomposition
-K = NerveCover(quads)
+K = NerveCover(quads, 𝒞)
 K[1,2]
 ```
 
