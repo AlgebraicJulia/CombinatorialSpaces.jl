@@ -217,14 +217,12 @@ diag = finsetdiagram(quads)
 The free vector space sheaf over the diagram can be constructed by composing the diagram with the free vector space functor and the appropriate pushforward or pullback operations. This creates a diagram in Vect representing the sheaf of vector spaces over the mesh decomposition. This is just the vertex component; similar constructions can be done for edges and faces.
 
 ```@example mesh_decomposition
-using Catlab.Sheaves: FVect
+using Catlab.Sheaves: FVect, FinVect
 import Catlab.Sheaves: pullback_matrix, FMatPullback, FMatPushforward
 using Catlab.CategoricalAlgebra.Cats.FinFunctors: FinDomFunctor
 using Catlab: force, compose
 
-# Apply FMatPushforward functor to the diagram using functor composition
-# FinDomFunctor converts the diagram to a functor, then compose with FMatPushforward
-Vdiag = force(compose(FinDomFunctor(diag), FMatPushforward))
+Vdiag = force(compose[Category(FinVect())](FinDomFunctor(diag), FMatPushforward))
 ```
 
 ```@example mesh_decomposition
