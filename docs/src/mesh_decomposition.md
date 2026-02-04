@@ -220,7 +220,7 @@ The free vector space sheaf over the diagram can be constructed by composing the
 using Catlab.Sheaves: FVect
 import Catlab.Sheaves: pullback_matrix, FMatPullback, FMatPushforward
 using Catlab.FreeDiagrams: FinDomFunctor
-using Catlab.Theories: force, compose
+using Catlab: force, compose
 
 # Apply FMatPushforward functor to the diagram using functor composition
 # FinDomFunctor converts the diagram to a functor, then compose with FMatPushforward
