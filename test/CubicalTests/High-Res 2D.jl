@@ -15,8 +15,8 @@ save("imgs/AdvGrid.png", fig)
 
 u_0 = map(q -> begin p = dual_point(s, q...); (4 <= p[1] <= 6 && 4 <= p[2] <= 6) ? 1 : 0; end, quadrilaterals(s))
 
-dist = MvNormal([5, 5], [1, 1])
-u_0 = [pdf(dist, [p[1], p[2]]) for p in dual_points(s)]
+# dist = MvNormal([5, 5], [1, 1])
+# u_0 = [pdf(dist, [p[1], p[2]]) for p in dual_points(s)]
 
 fig = Figure();
 ax = CairoMakie.Axis(fig[1,1])
@@ -83,6 +83,7 @@ function interior_product_upwind(::Val{1}, s::EmbeddedCubicalComplex2D, X, f)
   return res
 end
 
+# TODO: Implement improved WENO-Z
 function WENO5_left_upwind(s::EmbeddedCubicalComplex2D, f, i::Int, j::Int)
   # Optimal coefficients for combined stencil, 5th order
   # Cr_k, r is order, k is stencil shift
@@ -90,7 +91,7 @@ function WENO5_left_upwind(s::EmbeddedCubicalComplex2D, f, i::Int, j::Int)
   C3_1 = 6/10
   C3_2 = 3/10
 
-  ϵ = 1e-6
+  ϵ = 1e-40
 
   # Coefficients for individual stencils, 3rd order
   # ar_kl, r is order, j is stencil shift, l is term
@@ -110,9 +111,12 @@ function WENO5_left_upwind(s::EmbeddedCubicalComplex2D, f, i::Int, j::Int)
   IS1(f, i::Int, j::Int) = 13/12*(f[i-1, j]-2f[i, j]+f[i+1, j])^2 + 1/4*(f[i-1, j]-f[i+1, j])^2
   IS2(f, i::Int, j::Int) = 13/12*(f[i, j]-2f[i+1, j]+f[i+2, j])^2 + 1/4*(3f[i, j]-4f[i+1, j]+f[i+2, j])^2
 
+
   IS_0 = IS0(f, i, j); IS_1 = IS1(f, i, j); IS_2 = IS2(f, i, j);
 
-  a0 = C3_0 ./ (IS_0 + ϵ); a1 = C3_1 ./ (IS_1 + ϵ); a2 = C3_2 ./ (IS_2 + ϵ);
+  tau_5 = abs(IS_0 - IS_2)
+
+  a0 = C3_0 * (1 + tau_5 / (IS_0 + ϵ)); a1 = C3_1 * (1 + tau_5 / (IS_1 + ϵ)); a2 = C3_2 * (1 + tau_5 / (IS_2 + ϵ));
 
   a = a0 + a1 + a2
 
@@ -154,7 +158,9 @@ function WENO5_right_upwind(s::EmbeddedCubicalComplex2D, f, i::Int, j::Int)
 
   IS_0 = IS0(f, i, j); IS_1 = IS1(f, i, j); IS_2 = IS2(f, i, j);
 
-  a0 = C3_0 ./ (IS_0 + ϵ); a1 = C3_1 ./ (IS_1 + ϵ); a2 = C3_2 ./ (IS_2 + ϵ);
+  tau_5 = abs(IS_0 - IS_2)
+
+  a0 = C3_0 * (1 + tau_5 / (IS_0 + ϵ)); a1 = C3_1 * (1 + tau_5 / (IS_1 + ϵ)); a2 = C3_2 * (1 + tau_5 / (IS_2 + ϵ));
 
   a = a0 + a1 + a2
 
@@ -281,4 +287,4 @@ function create_gif(solution, s::HasCubicalComplex, file_name, length)
   end
 end
 
-create_gif(soln, sd, "WENO5_DualAdv.mp4", 100)
+create_gif(soln, sd, "imgs/WENO5_DualAdv.mp4", 100)
