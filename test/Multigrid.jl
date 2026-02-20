@@ -4,7 +4,7 @@ using Random
 using SparseArrays
 using CombinatorialSpaces.CombMeshes: tri_345
 
-using CombinatorialSpaces.Multigrid: UnarySubdivision, unary_subdivision, unary_subdivision_map
+using CombinatorialSpaces.Multigrid: UnarySubdivision, unary_subdivision, unary_subdivision_map, subdivision
 
 Random.seed!(0)
 
@@ -56,22 +56,22 @@ function test_residuals(s::HasDeltaSet2D, scheme::AbstractSubdivisionScheme)
 
   mgv_lapl = dec_Δ⁻¹(Val{0}, series, scheme=scheme)
   u = mgv_lapl(b)
-  @test norm(L*u-b)/norm(b) < 10^-6
+  @test norm(L*u-b)/norm(b) < 1e-6
 
   u = multigrid_vcycles(u0,b,md,5)
-  @test norm(L*u-b)/norm(b) < 10^-7
+  @test norm(L*u-b)/norm(b) < 1e-7
   @debug "Relative residual for V: $(norm(L*u-b)/norm(b))"
 
   u = multigrid_wcycles(u0,b,md,5)
-  @test norm(L*u-b)/norm(b) < 10^-7
+  @test norm(L*u-b)/norm(b) < 1e-7
   @debug "Relative residual for W: $(norm(L*u-b)/norm(b))"
 
   u = full_multigrid(b,md,5)
-  @test norm(L*u-b)/norm(b) < 10^-6
+  @test norm(L*u-b)/norm(b) < 1e-6
   @debug "Relative residual for FMG_V: $(norm(L*u-b)/norm(b))"
 
   u = full_multigrid(b,md,5,cg,2)
-  @test norm(L*u-b)/norm(b) < 10^-7
+  @test norm(L*u-b)/norm(b) < 1e-7
   @debug "Relative residual for FMG_W: $(norm(L*u-b)/norm(b))"
 end
 
@@ -101,6 +101,44 @@ md_directly_allocs = @allocated begin
   MultigridData(s, BinarySubdivision(), 4, sd -> ∇²(0, sd), 3);
 end;
 @test md_directly_allocs < md_via_series_allocs
+
+# Galerkin optimization
+#----------------------
+
+function test_galerkin(s::HasDeltaSet2D, scheme::AbstractSubdivisionScheme)
+  md = MultigridData(s, scheme, 4, sd -> ∇²(0, sd), 3, galerkin=true)
+  for _ in 1:4
+    s = subdivision(s, scheme)
+  end
+  sd = dualize(s)
+  L = first(md.operators)
+
+  Random.seed!(0)
+  b = L*rand(nv(sd)) #put into range of the Laplacian for solvability
+  u0 = zeros(nv(sd))
+
+  u = multigrid_vcycles(u0,b,md,5)
+  @test norm(L*u-b)/norm(b) < 2e-6
+  @debug "Relative residual for V: $(norm(L*u-b)/norm(b))"
+
+  u = multigrid_wcycles(u0,b,md,5)
+  @test norm(L*u-b)/norm(b) < 7e-7
+  @debug "Relative residual for W: $(norm(L*u-b)/norm(b))"
+
+  u = full_multigrid(b,md,5)
+  @test norm(L*u-b)/norm(b) < 1e-3
+  @debug "Relative residual for FMG_V: $(norm(L*u-b)/norm(b))"
+
+  u = full_multigrid(b,md,5,cg,2)
+  @test norm(L*u-b)/norm(b) < 8e-7
+  @debug "Relative residual for FMG_W: $(norm(L*u-b)/norm(b))"
+end
+
+s = triangulated_grid(1, 1, 1/4, sqrt(3)/2 * 1/4, Point3d, false)
+
+test_galerkin(s, UnarySubdivision())
+test_galerkin(s, BinarySubdivision())
+test_galerkin(s, CubicSubdivision())
 
 # Divergence from Default Krylov.jl Behavior. (No iterations). Issue #178
 #------------------------------------------------------------------------

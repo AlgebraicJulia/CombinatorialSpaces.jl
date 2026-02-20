@@ -100,13 +100,6 @@ end
 
 MultigridData(g,r,p,s) = MultigridData{typeof(g),typeof(r)}(g,r,p,s)
 
-MultigridData(s::HasDeltaSet, ::UnarySubdivision, levels::Int, op::Function, steps, alg=Circumcenter()) =
-  MultigridData(s, unary_subdivision_map, levels, op, steps, alg)
-MultigridData(s::HasDeltaSet, ::BinarySubdivision, levels::Int, op::Function, steps, alg=Circumcenter()) =
-  MultigridData(s, binary_subdivision_map, levels, op, steps, alg)
-MultigridData(s::HasDeltaSet, ::CubicSubdivision, levels::Int, op::Function, steps, alg=Circumcenter()) =
-  MultigridData(s, cubic_subdivision_map, levels, op, steps, alg)
-
 # This function definition is kept for backwards compatibility.
 MGData(series::PrimalGeometricMapSeries, op::Function, s::Int, ::T) where T <: AbstractSubdivisionScheme =
   MultigridData(series, op, fill(s,length(series.meshes)))
@@ -197,13 +190,20 @@ function MultigridData(series::PrimalGeometricMapSeries, op::Function, s::Abstra
   MultigridData(ops, rs, ps, s)
 end
 
-"""    MultigridData(s::HasDeltaSet, subdivider, levels::Int, op::Function, steps, alg=Circumcenter())
+"""    MultigridData(s::HasDeltaSet, subdivider, levels::Int, op::Function, steps, alg=Circumcenter(); galerkin=false)
 
 Construct a `MultigridData` directly from a base mesh without allocating an
-entire `PrimalGeometricMapSeries`. Meshes are subdivided and dualized on demand
-so that at most two primal meshes (the current level and its subdivision) and
-one dual mesh are in memory at a time. Each dual mesh and the previous primal
-mesh are freed before proceeding to the next level.
+entire `PrimalGeometricMapSeries`. Meshes are subdivided on demand so that at
+most two primal meshes (the current level and its subdivision) are in memory at
+a time.
+
+When `galerkin=false` (default), every level is dualized and `op` is called on
+each dual mesh independently. Only one dual mesh is in memory at a time.
+
+When `galerkin=true`, only the *finest* mesh is dualized and `op` is called
+once. Coarser operators are derived algebraically via the Galerkin condition:
+`A_coarse = R * A_fine * P`. This eliminates all dualizations except one, which
+is typically the dominant cost.
 
 `subdivider` is either a subdivision scheme (e.g. `BinarySubdivision()`) or a
 subdivision map function (e.g. `binary_subdivision_map`).
@@ -213,57 +213,84 @@ subdivision map function (e.g. `binary_subdivision_map`).
 # Example
 ```julia
 md = MultigridData(s, BinarySubdivision(), 4, s -> ∇²(0, s), 3)
+md = MultigridData(s, BinarySubdivision(), 4, s -> ∇²(0, s), 3; galerkin=true)
 ```
 """
-function MultigridData(s::HasDeltaSet, subdivider::Function, levels::Int, op::Function, steps, alg=Circumcenter())
+function MultigridData(s::HasDeltaSet, subdivider::Function, levels::Int, op::Function, steps, alg=Circumcenter(); galerkin=false)
   steps_vec = steps isa AbstractVector ? steps : fill(steps, levels + 1)
 
-  # Process the coarsest mesh (s) first to determine the operator type.
-  sd = dualize(s, alg)
-  coarsest_op = op(sd)
-  sd = nothing
-
-  # Storage in coarsest-first order; reversed to finest-first at the end.
-  ops_c2f = Vector{typeof(coarsest_op)}(undef, levels + 1)
-  ops_c2f[1] = coarsest_op
-
   if levels == 0
-    return MultigridData(ops_c2f, typeof(coarsest_op)[], typeof(coarsest_op)[], steps_vec)
+    sd = dualize(s, alg)
+    only_op = op(sd)
+    return MultigridData([only_op], typeof(only_op)[], typeof(only_op)[], steps_vec)
   end
 
-  # First subdivision to determine the matrix type.
+  # --- Phase 1: Walk coarse-to-fine, subdividing on demand. ---
+  # Collect subdivision matrices into mats (finest-first).
+  # In non-galerkin mode, also dualize each mesh and stash operators into
+  # coarse_ops (coarsest-first); these are moved into the final vector later.
+
+  coarse_ops = []
+
+  if !galerkin
+    sd = dualize(s, alg)
+    push!(coarse_ops, op(sd))
+  end
+
   current_primal = s
   pgm = subdivider(current_primal)
   first_mat = as_matrix(pgm)
-  mats_c2f = Vector{typeof(first_mat)}(undef, levels)
-  mats_c2f[1] = first_mat
+  mats = Vector{typeof(first_mat)}(undef, levels)
+  mats[levels] = first_mat
   current_primal = dom(pgm)
 
-  # Each iteration: dualize current_primal → compute operator → free dual,
-  # then subdivide current_primal → extract matrix and next primal → free old primal.
   for i in 2:levels
-    sd = dualize(current_primal, alg)
-    ops_c2f[i] = op(sd)
+    if !galerkin
+      sd = dualize(current_primal, alg)
+      push!(coarse_ops, op(sd))
+    end
 
     pgm = subdivider(current_primal)
-    mats_c2f[i] = as_matrix(pgm)
+    mats[levels - i + 1] = as_matrix(pgm)
     next_primal = dom(pgm)
     current_primal = next_primal
   end
 
-  # Process the finest mesh (no further subdivision needed).
+  # current_primal is now the finest primal mesh.
+
+  # --- Phase 2: Dualize the finest mesh (required in both modes). ---
   sd = dualize(current_primal, alg)
-  ops_c2f[levels + 1] = op(sd)
+  finest_op = op(sd)
 
-  # Reverse to finest-first order expected by MultigridData.
-  reverse!(ops_c2f)
-  reverse!(mats_c2f)
-
-  ps = transpose.(mats_c2f)
+  # --- Phase 3: Assemble operators, prolongations, and restrictions. ---
+  ps = transpose.(mats)
   rs = normalize_restrictions(ps)
 
-  MultigridData(ops_c2f, rs, ps, steps_vec)
+  ops = Vector{typeof(finest_op)}(undef, levels + 1)
+  ops[1] = finest_op
+
+  if galerkin
+    # Derive coarser operators via Galerkin condition: A_coarse = R * A_fine * P.
+    for i in 1:levels
+      ops[i + 1] = rs[i] * ops[i] * ps[i]
+    end
+  else
+    # Place the coarse_ops (coarsest-first) into ops (finest-first).
+    for j in 1:levels
+      ops[levels - j + 2] = coarse_ops[j]
+    end
+  end
+
+  MultigridData(ops, rs, ps, steps_vec)
 end
+
+# Convenience: accept an AbstractSubdivisionScheme instead of a raw function.
+MultigridData(s::HasDeltaSet, ::UnarySubdivision, levels::Int, op::Function, steps, alg=Circumcenter(); kwargs...) =
+  MultigridData(s, unary_subdivision_map, levels, op, steps, alg; kwargs...)
+MultigridData(s::HasDeltaSet, ::BinarySubdivision, levels::Int, op::Function, steps, alg=Circumcenter(); kwargs...) =
+  MultigridData(s, binary_subdivision_map, levels, op, steps, alg; kwargs...)
+MultigridData(s::HasDeltaSet, ::CubicSubdivision, levels::Int, op::Function, steps, alg=Circumcenter(); kwargs...) =
+  MultigridData(s, cubic_subdivision_map, levels, op, steps, alg; kwargs...)
 
 # XXX: This function does not detect e.g. dangling edges.
 function is_simplicial_complex(s::HasDeltaSet2D)
@@ -496,7 +523,7 @@ repeated_subdivisions(k, ss, subdivider) =
 # - Input arbitrary iterative solver,
 # - Implement weighted Jacobi and maybe Gauss-Seidel,
 # - Masking for boundary condtions
-# - This could use Galerkin conditions to construct As from As[1]
+# - This could use Galerkin conditions to construct As from As[1] (see galerkin=true in MultigridData constructor)
 # - Add maxcycles and tolerances
 """
 Solve `Ax=b` on `s` with initial guess `u` using , for `cycles` V-cycles, performing `md.steps` steps of the
@@ -560,3 +587,4 @@ function _multigrid_μ_cycle(u, b, md::MultigridData, alg=cg, μ=1)
 end
 
 end
+
