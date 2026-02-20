@@ -81,6 +81,27 @@ test_residuals(s, UnarySubdivision())
 test_residuals(s, BinarySubdivision())
 test_residuals(s, CubicSubdivision())
 
+# Equivalence between constructors
+#---------------------------------
+s = triangulated_grid(1, 1, 1/4, sqrt(3)/2 * 1/4, Point3d, false)
+series = PrimalGeometricMapSeries(s, BinarySubdivision(), 4);
+md_via_series = MGData(series, sd -> ∇²(0, sd), 3)
+md_directly = MultigridData(s, BinarySubdivision(), 4, sd -> ∇²(0, sd), 3)
+
+@test md_directly.operators == md_via_series.operators
+@test md_directly.prolongations == md_via_series.prolongations
+@test md_directly.restrictions == md_via_series.restrictions
+@test md_directly.steps == md_via_series.steps
+
+md_via_series_allocs = @allocated begin
+  series = PrimalGeometricMapSeries(s, BinarySubdivision(), 4);
+  MGData(series, sd -> ∇²(0, sd), 3);
+end;
+md_directly_allocs = @allocated begin
+  MultigridData(s, BinarySubdivision(), 4, sd -> ∇²(0, sd), 3);
+end;
+@test md_directly_allocs < md_via_series_allocs
+
 # Divergence from Default Krylov.jl Behavior. (No iterations). Issue #178
 #------------------------------------------------------------------------
 

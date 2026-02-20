@@ -100,6 +100,13 @@ end
 
 MultigridData(g,r,p,s) = MultigridData{typeof(g),typeof(r)}(g,r,p,s)
 
+MultigridData(s::HasDeltaSet, ::UnarySubdivision, levels::Int, op::Function, steps, alg=Circumcenter()) =
+  MultigridData(s, unary_subdivision_map, levels, op, steps, alg)
+MultigridData(s::HasDeltaSet, ::BinarySubdivision, levels::Int, op::Function, steps, alg=Circumcenter()) =
+  MultigridData(s, binary_subdivision_map, levels, op, steps, alg)
+MultigridData(s::HasDeltaSet, ::CubicSubdivision, levels::Int, op::Function, steps, alg=Circumcenter()) =
+  MultigridData(s, cubic_subdivision_map, levels, op, steps, alg)
+
 # This function definition is kept for backwards compatibility.
 MGData(series::PrimalGeometricMapSeries, op::Function, s::Int, ::T) where T <: AbstractSubdivisionScheme =
   MultigridData(series, op, fill(s,length(series.meshes)))
@@ -188,6 +195,74 @@ function MultigridData(series::PrimalGeometricMapSeries, op::Function, s::Abstra
   ps = transpose.(matrices(series))
   rs = normalize_restrictions(ps)
   MultigridData(ops, rs, ps, s)
+end
+
+"""    MultigridData(s::HasDeltaSet, subdivider, levels::Int, op::Function, steps, alg=Circumcenter())
+
+Construct a `MultigridData` directly from a base mesh without allocating an
+entire `PrimalGeometricMapSeries`. Meshes are subdivided and dualized on demand
+so that at most two primal meshes (the current level and its subdivision) and
+one dual mesh are in memory at a time. Each dual mesh and the previous primal
+mesh are freed before proceeding to the next level.
+
+`subdivider` is either a subdivision scheme (e.g. `BinarySubdivision()`) or a
+subdivision map function (e.g. `binary_subdivision_map`).
+
+`steps` may be an `Int` (constant across all grids) or an `AbstractVector`.
+
+# Example
+```julia
+md = MultigridData(s, BinarySubdivision(), 4, s -> ∇²(0, s), 3)
+```
+"""
+function MultigridData(s::HasDeltaSet, subdivider::Function, levels::Int, op::Function, steps, alg=Circumcenter())
+  steps_vec = steps isa AbstractVector ? steps : fill(steps, levels + 1)
+
+  # Process the coarsest mesh (s) first to determine the operator type.
+  sd = dualize(s, alg)
+  coarsest_op = op(sd)
+  sd = nothing
+
+  # Storage in coarsest-first order; reversed to finest-first at the end.
+  ops_c2f = Vector{typeof(coarsest_op)}(undef, levels + 1)
+  ops_c2f[1] = coarsest_op
+
+  if levels == 0
+    return MultigridData(ops_c2f, typeof(coarsest_op)[], typeof(coarsest_op)[], steps_vec)
+  end
+
+  # First subdivision to determine the matrix type.
+  current_primal = s
+  pgm = subdivider(current_primal)
+  first_mat = as_matrix(pgm)
+  mats_c2f = Vector{typeof(first_mat)}(undef, levels)
+  mats_c2f[1] = first_mat
+  current_primal = dom(pgm)
+
+  # Each iteration: dualize current_primal → compute operator → free dual,
+  # then subdivide current_primal → extract matrix and next primal → free old primal.
+  for i in 2:levels
+    sd = dualize(current_primal, alg)
+    ops_c2f[i] = op(sd)
+
+    pgm = subdivider(current_primal)
+    mats_c2f[i] = as_matrix(pgm)
+    next_primal = dom(pgm)
+    current_primal = next_primal
+  end
+
+  # Process the finest mesh (no further subdivision needed).
+  sd = dualize(current_primal, alg)
+  ops_c2f[levels + 1] = op(sd)
+
+  # Reverse to finest-first order expected by MultigridData.
+  reverse!(ops_c2f)
+  reverse!(mats_c2f)
+
+  ps = transpose.(mats_c2f)
+  rs = normalize_restrictions(ps)
+
+  MultigridData(ops_c2f, rs, ps, steps_vec)
 end
 
 # XXX: This function does not detect e.g. dangling edges.
