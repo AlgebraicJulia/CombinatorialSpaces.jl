@@ -43,10 +43,18 @@ expected_parts(s, cubic_subdivision, cubic_nv_ne_ntriangles)
 # Subdivision integration
 #------------------------
 
+function fast_laplace_beltrami(sd)
+  -1 * dec_inv_hodge_star(0,sd) * dec_dual_derivative(1,sd) * dec_hodge_star(1,sd) * dec_differential(0,sd)
+end
+
+function fast_laplace_derham(sd)
+  dec_inv_hodge_star(0,sd) * dec_dual_derivative(1,sd) * dec_hodge_star(1,sd) * dec_differential(0,sd)
+end
+
 function test_residuals(s::HasDeltaSet2D, scheme::AbstractSubdivisionScheme)
   series = PrimalGeometricMapSeries(s, scheme, 4);
 
-  md = MGData(series, sd -> ∇²(0, sd), 3)
+  md = MGData(series, fast_laplace_beltrami, 3)
   sd = finest_mesh(series)
   L = first(md.operators)
 
@@ -85,8 +93,8 @@ test_residuals(s, CubicSubdivision())
 #---------------------------------
 s = triangulated_grid(1, 1, 1/4, sqrt(3)/2 * 1/4, Point3d, false)
 series = PrimalGeometricMapSeries(s, BinarySubdivision(), 4);
-md_via_series = MGData(series, sd -> ∇²(0, sd), 3)
-md_directly = MultigridData(s, BinarySubdivision(), 4, sd -> ∇²(0, sd), 3)
+md_via_series = MGData(series, fast_laplace_beltrami, 3)
+md_directly = MultigridData(s, BinarySubdivision(), 4, fast_laplace_beltrami, 3)
 
 @test md_directly.operators == md_via_series.operators
 @test md_directly.prolongations == md_via_series.prolongations
@@ -95,10 +103,10 @@ md_directly = MultigridData(s, BinarySubdivision(), 4, sd -> ∇²(0, sd), 3)
 
 md_via_series_allocs = @allocated begin
   series = PrimalGeometricMapSeries(s, BinarySubdivision(), 4);
-  MGData(series, sd -> ∇²(0, sd), 3);
+  MGData(series, fast_laplace_beltrami, 3);
 end;
 md_directly_allocs = @allocated begin
-  MultigridData(s, BinarySubdivision(), 4, sd -> ∇²(0, sd), 3);
+  MultigridData(s, BinarySubdivision(), 4, fast_laplace_beltrami, 3);
 end;
 @test md_directly_allocs < md_via_series_allocs
 
@@ -106,7 +114,7 @@ end;
 #----------------------
 
 function test_galerkin(s::HasDeltaSet2D, scheme::AbstractSubdivisionScheme)
-  md = MultigridData(s, scheme, 4, sd -> ∇²(0, sd), 3, galerkin=true)
+  md = MultigridData(s, scheme, 4, fast_laplace_beltrami, 3; mode=GalerkinMode())
   for _ in 1:4
     s = subdivision(s, scheme)
   end
@@ -145,8 +153,8 @@ test_galerkin(s, CubicSubdivision())
 
 s = triangulated_grid(1,1,1/4,sqrt(3)/2*1/4,Point3d,false)
 bin_series = PrimalGeometricMapSeries(s, BinarySubdivision(), 4);
-md_zero_iterations = MGData(bin_series, sd -> ∇²(0, sd), 0)
-md_one_iteration = MGData(bin_series, sd -> ∇²(0, sd), 1)
+md_zero_iterations = MGData(bin_series, fast_laplace_beltrami, 0)
+md_one_iteration = MGData(bin_series, fast_laplace_beltrami, 1)
 sd = finest_mesh(bin_series)
 L = first(md_zero_iterations.operators)
 Random.seed!(0)
