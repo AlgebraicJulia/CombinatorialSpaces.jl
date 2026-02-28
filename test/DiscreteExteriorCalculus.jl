@@ -600,7 +600,8 @@ primal_s′ = EmbeddedDeltaSet2D{Bool,Point2d}()
 add_vertices!(primal_s′, 4, point=[Point2d(0,0), Point2d(1,0), Point2d(0,2), Point2d(-2,5)])
 glue_triangle!(primal_s′, 1, 2, 3)
 glue_triangle!(primal_s′, 1, 3, 4)
-orient!(primal_s′)
+primal_s′[:edge_orientation] = primal_s[:edge_orientation]
+primal_s′[:tri_orientation] = primal_s[:tri_orientation]
 s′ = EmbeddedDeltaDualComplex2D{Bool,Float64,Point2d}(primal_s′)
 s′[1, :tri_center] = 11
 s′[2, :tri_center] = 10

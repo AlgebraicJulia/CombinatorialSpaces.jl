@@ -423,6 +423,9 @@ function single_tetrahedron()
   primal_s = EmbeddedDeltaSet3D{Bool, Point3d}()
   add_vertices!(primal_s, 4, point=pnts)
   glue_sorted_tetrahedron!(primal_s, 1:4...)
+  primal_s[:edge_orientation] = true
+  primal_s[:tri_orientation] = true
+  orient!(primal_s)
   s = EmbeddedDeltaDualComplex3D{Bool, Float64, Point3d}(primal_s)
   subdivide_duals!(s, Barycenter())
   (primal_s, s)

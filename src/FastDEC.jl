@@ -663,9 +663,9 @@ function dec_hodge_star(::Val{1}, sd::EmbeddedDeltaDualComplex2D{Bool, float_typ
   V = Vector{float_type}(undef, ntriangles(sd) * 9)
 
   # Reversed by contruction
-  tri_edges_1 = @view sd[:∂e2]
-  tri_edges_2 = @view sd[:∂e1]
-  tri_edges_3 = @view sd[:∂e0]
+  tri_edges_1 = subpart(sd, :∂e2)
+  tri_edges_2 = subpart(sd, :∂e1)
+  tri_edges_3 = subpart(sd, :∂e0)
   tri_edges = [tri_edges_1, tri_edges_2, tri_edges_3]
 
   evt = MVector{3, point_type}(undef)
