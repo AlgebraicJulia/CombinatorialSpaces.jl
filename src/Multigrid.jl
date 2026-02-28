@@ -683,13 +683,6 @@ function MultigridData(s::HasDeltaSet2D, scheme::AbstractSubdivisionScheme,
   _build_multigrid(mode, s, scheme, levels, op, steps, alg)
 end
 
-# Fallback for HasDeltaSet (1D) — delegates to function-based path.
-function MultigridData(s::HasDeltaSet, scheme::AbstractSubdivisionScheme,
-                       levels::Int, op::Function, steps; alg=Circumcenter(),
-                       mode::AbstractMultigridMode=DirectMode())
-  MultigridData(s, x -> subdivision_map(x, scheme), levels, op, steps, alg)
-end
-
 # _build_multigrid
 #-----------------
 
@@ -730,7 +723,7 @@ function _finalize_ops(::GalerkinMode, _, S, topo, points, ps, rs, levels, op, a
   finest_op = op(dualize(topo_to_mesh(S, topo, points), alg))
   ops = Vector{typeof(finest_op)}(undef, levels + 1)
   ops[1] = finest_op
-  for i in 1:levels
+  @inbounds for i in 1:levels
     ops[i + 1] = rs[i] * ops[i] * ps[i]
   end
   ops
