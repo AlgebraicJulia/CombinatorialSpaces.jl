@@ -1,7 +1,7 @@
 module CombMeshes
 
 using Artifacts
-using Catlab
+using Catlab, Catlab.CategoricalAlgebra
 using CombinatorialSpaces
 using FileIO
 using GeometryBasics: Mesh, MetaMesh, Point, Point2d, Point3d, QuadFace

@@ -8,7 +8,7 @@ using CombinatorialSpaces.SimplicialSets: boundary_inds
 using CombinatorialSpaces.DiscreteExteriorCalculus: eval_constant_primal_form,
   eval_constant_dual_form
 
-using Catlab
+using Catlab, Catlab.Graphs, Catlab.CategoricalAlgebra
 using GeometryBasics: Point, QuadFace, MetaMesh
 using LinearAlgebra: Diagonal, mul!, norm, dot, cross, diag
 using SparseArrays
@@ -215,6 +215,7 @@ implicit_s = OrientedDeltaSet2D{Bool}()
 add_vertices!(implicit_s, 4)
 glue_triangle!(implicit_s, 1, 2, 3)
 glue_triangle!(implicit_s, 1, 3, 4)
+orient!(implicit_s)
 
 for primal_s in [explicit_s, implicit_s]
   s = dualize(primal_s)
@@ -591,6 +592,7 @@ primal_s = EmbeddedDeltaSet2D{Bool,Point2d}()
 add_vertices!(primal_s, 4, point=[Point2d(0,0), Point2d(1,0), Point2d(0,2), Point2d(-2,5)])
 glue_triangle!(primal_s, 1, 2, 3)
 glue_triangle!(primal_s, 1, 3, 4)
+orient!(primal_s)
 s = EmbeddedDeltaDualComplex2D{Bool,Float64,Point2d}(primal_s)
 subdivide_duals!(s, Barycenter())
 
@@ -598,6 +600,7 @@ primal_s′ = EmbeddedDeltaSet2D{Bool,Point2d}()
 add_vertices!(primal_s′, 4, point=[Point2d(0,0), Point2d(1,0), Point2d(0,2), Point2d(-2,5)])
 glue_triangle!(primal_s′, 1, 2, 3)
 glue_triangle!(primal_s′, 1, 3, 4)
+orient!(primal_s′)
 s′ = EmbeddedDeltaDualComplex2D{Bool,Float64,Point2d}(primal_s′)
 s′[1, :tri_center] = 11
 s′[2, :tri_center] = 10

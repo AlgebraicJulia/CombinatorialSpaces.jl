@@ -39,7 +39,7 @@ CombinatorialSpacesMeshesExt = "Meshes"
 [compat]
 Artifacts = "1.9, 1"
 CUDA = "5.2"
-Catlab = "0.14"
+Catlab = "0.14.4"
 DelaunayTriangulation = "1.6.4"
 FileIO = "^1"
 GeometryBasics = "0.5"
@@ -72,4 +72,4 @@ Statistics = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
-test = ["CairoMakie", "CUDA", "DelaunayTriangulation", "Meshes", "Pkg", "Random", "Test", "Statistics"]
+test = ["CairoMakie", "DelaunayTriangulation", "Meshes", "Pkg", "Random", "Test", "Statistics"]

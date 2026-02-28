@@ -4,7 +4,7 @@ using CombinatorialSpaces
 using LinearAlgebra: I, Diagonal, Transpose
 using Krylov, Catlab, SparseArrays
 using ..SimplicialSets
-import Catlab: dom, codom
+import Catlab.CategoricalAlgebra: dom, codom
 
 export multigrid_vcycles, multigrid_wcycles, full_multigrid,
   repeated_subdivisions, repeated_subdivision_maps,

@@ -3,7 +3,7 @@ using Test
 
 using SparseArrays, StaticArrays
 
-using Catlab
+using Catlab, Catlab.Graphs, Catlab.CategoricalAlgebra
 using CombinatorialSpaces
 
 """ Check that the semi-simplicial identities hold in dimension `n`.
