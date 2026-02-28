@@ -75,12 +75,6 @@ s = OrientedDeltaSet1D{Bool}()
 add_vertices!(s, 10)
 add_edges!(s, 1:4, 2:5)
 add_edges!(s, 6:9, 7:10)
-@test orient_component!(s, 1, true)
-@test orientation(s, E(1:4)) == trues(4)
-@test orient_component!(s, 8, true)
-@test orientation(s, E(1:8)) == trues(8)
-
-s[:edge_orientation] = rand(Bool, 8)
 @test orient!(s)
 @test orientation(s, E(1:8)) == trues(8)
 
@@ -127,7 +121,7 @@ s = OrientedDeltaSet2D{Bool}()
 add_vertices!(s, 3)
 add_sorted_edges!(s, [1,2,3], [2,3,1], edge_orientation=[true,true,false])
 glue_triangle!(s, 1, 2, 3)
-@test orient_component!(s, 1, true)
+@test orient!(s)
 @test orientation(s, Tri(1)) == true
 @test ∂(2, s, 1) == [1,1,1]
 @test d(1, s, [45,3,34]) == [82]
@@ -246,7 +240,7 @@ add_vertices!(s, 4)
 glue_tetrahedron!(s, 1, 2, 3, 4)
 s[:edge_orientation] = [true, false, true, false, true, false]
 s[:tri_orientation] = [true, false, true, false]
-@test orient_component!(s, 1, true)
+@test orient!(s)
 @test orientation(s, Tet(1)) == true
 @test ∂(3, s, 1) == [1,1,1,1]
 @test ∂(2, s, 1) == [1,-1,-1,0,0,0]
@@ -576,13 +570,13 @@ s = cycle_graph(DeltaSet1D, 8)
 ##################################
 # Line:
 s = path_graph(DeltaSet1D, 8)
-bvs, bes = boundary_inds(Val{0}, s), boundary_inds(Val{1}, s)
+bvs, bes = boundary_inds(Val(0), s), boundary_inds(Val(1), s)
 @test issetequal(bvs, [1,8])
 @test issetequal(bes, [1,7])
 
 # Circle:
 s = cycle_graph(DeltaSet1D, 8)
-bvs, bes = boundary_inds(Val{0}, s), boundary_inds(Val{1}, s)
+bvs, bes = boundary_inds(Val(0), s), boundary_inds(Val(1), s)
 @test issetequal(bvs, [])
 @test issetequal(bes, [])
 
@@ -590,7 +584,7 @@ bvs, bes = boundary_inds(Val{0}, s), boundary_inds(Val{1}, s)
 s = path_graph(DeltaSet1D, 8)
 const 𝒞 = ACSetCategory(CSetCat(DeltaSet1D()))
 s = apex(coproduct[𝒞](s,s))
-bvs, bes = boundary_inds(Val{0}, s), boundary_inds(Val{1}, s)
+bvs, bes = boundary_inds(Val(0), s), boundary_inds(Val(1), s)
 @test issetequal(bvs, [1,8,9,16])
 @test issetequal(bes, [1,7,8,14])
 

@@ -127,11 +127,11 @@ end
 
 dec_op_results = run(dec_op_suite, verbose = true, seconds = 1)
 
-for op in sort(collect(keys(dec_op_results)))
+for op in sort(Base.collect(keys(dec_op_results)))
     test = median(dec_op_results[op])
 
     println("Operator: $op")
-    for k in sort(collect(keys(test)))
+    for k in sort(Base.collect(keys(test)))
         t = test[k].time / 1e6
         m = test[k].memory / 1e6
         println("Variant: $k, [$t ms, $m MB]")
@@ -167,11 +167,11 @@ end
 
 dual_mesh_results = run(dual_mesh_suite, verbose = true)
 
-for center in sort(collect(keys(dual_mesh_results)))
+for center in sort(Base.collect(keys(dual_mesh_results)))
     trial = median(dual_mesh_results[center][filler_name])
 
     println("Center: $center")
-    for k in sort(collect(keys(trial)), rev=true)
+    for k in sort(Base.collect(keys(trial)), rev=true)
         t = trial[k].time / 1e9
         m = trial[k].memory / 1e9
         println("$k, [$t s, $m GB]")

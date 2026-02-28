@@ -318,7 +318,8 @@ subdivide_duals!(s, Barycenter())
 # Test consistency regardless of base triangle orientation (relevant for
 # geometric hodge star)
 flipped_ps = deepcopy(primal_s)
-orient_component!(flipped_ps, 1, false)
+orient!(flipped_ps)
+flipped_ps[:tri_orientation] = .!(flipped_ps[:tri_orientation])
 flipped_s = EmbeddedDeltaDualComplex2D{Bool,Float64,Point2d}(flipped_ps)
 subdivide_duals!(flipped_s, Barycenter())
 @test ⋆(1,s) ≈ ⋆(1,flipped_s)
@@ -538,7 +539,7 @@ primal_s, s = grid_345();
 # ∀ βᵏ ∧(α,βᵏ) = id(βᵏ), where α = 1.
 α = VForm(ones(nv(s)))
 for k = 0:2
-  βᵏ = SimplexForm{k}(collect(1:nsimplices(k,s)))
+  βᵏ = SimplexForm{k}(Base.collect(1:nsimplices(k,s)))
   @test all(∧(s, α, βᵏ) .≈ βᵏ)
 end
 
@@ -666,11 +667,11 @@ v = d0 * v_potential; # dy: Ω₁
 u = s1 * d0 * u_potential; # -dy or dy, depending on left vs. right-hand rule: Ω̃₁
 # Only test the interior of the domain. Boundary conditions were not enforced.
 α = dd0 * (interior_product(tg, EForm(v), DualForm{1}(u)))# : Ω̃₁
-α_int = α[setdiff(parts(tg,:E), boundary_inds(Val{1}, tg))]
+α_int = α[setdiff(parts(tg,:E), boundary_inds(Val(1), tg))]
 @test all(x -> isapprox(x,0,atol=1e-14), α_int)
 # Test the Lie derivative (which employs the primal-dual interior product).
-β = lie_derivative_flat(Val{1}, tg, v, u)
-β_int = β[setdiff(parts(tg,:E), boundary_inds(Val{1}, tg))]
+β = lie_derivative_flat(Val(1), tg, v, u)
+β_int = β[setdiff(parts(tg,:E), boundary_inds(Val(1), tg))]
 # Boundary conditions were not enforced.
 @test .85 < sum(map(x -> isapprox(x,0,atol=1e-14), β_int)) / length(β_int)
 
@@ -723,8 +724,8 @@ for (primal_s,s) in flat_ccw_meshes
   # This test shows how the musical isomorphism chaining lets you further
   # define a primal-dual wedge that preserves properties from the continuous
   # exterior calculus.
-  Λpd = dec_wedge_product_pd(Tuple{1,1}, s)
-  Λdp = dec_wedge_product_dp(Tuple{1,1}, s)
+  Λpd = dec_wedge_product_pd(1, 1, s)
+  Λdp = dec_wedge_product_dp(1, 1, s)
 
   f_def = SVector{3,Float64}(2,7,0)
   g_def = SVector{3,Float64}(8,1,0)
@@ -812,7 +813,7 @@ x_interior_points = findall(rect[:point]) do p
   dx < p[1] < lx - dx
 end
 
-interior_points = setdiff(vertices(rect), boundary_inds(Val{0}, rect))
+interior_points = setdiff(vertices(rect), boundary_inds(Val(0), rect))
 
 primal_points = d_rect[:point]
 dual_points = d_rect[triangle_center(d_rect), :dual_point]
@@ -981,7 +982,7 @@ inv_star₃_mat = inv_hodge_star(0,s,DiagonalHodge())
 
 lap_mat = inv_star₃_mat * dual_d₂_mat * star₁_mat * d₀_mat
 
-C = collect(range(1, 4; length=nv(s)))
+C = Base.collect(range(1, 4; length=nv(s)))
 C₀ = copy(C)
 D = 0.005
 for _ in 0:100_000

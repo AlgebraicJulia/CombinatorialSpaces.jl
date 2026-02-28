@@ -125,7 +125,7 @@ See also: [`SimulatedAnnealing`](@ref).
 """
 function optimize_mesh!(s::HasDeltaSet2D, alg::SimulatedAnnealing, noise_generator::Function)
   @unpack_SimulatedAnnealing alg
-  int = interior(Val{0}, s)
+  int = interior(Val(0), s)
   map(1:epochs) do epoch
     # TODO: You could vectorize (with a MVN) instead of iterating over points.
     for v in (hold_boundaries ? int : vertices(s))
