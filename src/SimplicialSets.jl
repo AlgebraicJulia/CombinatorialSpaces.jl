@@ -26,7 +26,7 @@ export Simplex, V, E, Tri, Tet, SimplexChain, VChain, EChain, TriChain, TetChain
   EmbeddedDeltaSet3D, SchEmbeddedDeltaSet3D,
   ∂, boundary, coface, d, coboundary, exterior_derivative,
   simplices, nsimplices, point, volume,
-  orientation, set_orientation!, orient!, orient_component!,
+  orientation, set_orientation!, orient!,
   src, tgt, nv, ne, vertices, edges, has_vertex, has_edge, edge_vertices,
   add_vertex!, add_vertices!, add_edge!, add_edges!,
   add_sorted_edge!, add_sorted_edges!,
@@ -785,95 +785,98 @@ operator_nz(f, ::Type{T}, m::Int, n::Int,
 # Consistent orientation
 ########################
 
-""" Consistently orient simplices in a simplicial set, if possible.
-
-Two simplices with a common face are *consistently oriented* if they induce
-opposite orientations on the shared face. This function attempts to consistently
-orient all simplices of a given dimension and returns whether this has been
-achieved. Each connected component is oriently independently using the helper
-function [`orient_component!`](@ref).
-"""
 orient!(s::AbstractDeltaSet1D) = orient!(s, Val(1))
 orient!(s::AbstractDeltaSet2D) = orient!(s, Val(2))
 orient!(s::AbstractDeltaSet3D) = orient!(s, Val(3))
 
+"""    function orient!(s::HasDeltaSet, ::Val{n}) where n
+
+Consistently orient simplices in the same connected component, if possible.
+
+Two simplices with a common face are *consistently oriented* if they induce
+opposite orientations on the shared face. Given a delta set, this function
+attempts to consistently orient all ``n``-simplices that may be reached from it
+by traversing ``(n-1)``-faces. The traversal is depth-first. If a consistent
+orientation is possible, the function returns `true` and the orientations are
+assigned; otherwise, it returns `false` and no orientations are changed.
+"""
 function orient!(s::HasDeltaSet, ::Val{n}) where n
-  # Compute connected components as coequalizer of face maps.
+  # Empty delta sets are oriented by definition.
+  nsimplices(n, s) == 0 && return true
+  neighbors(x) = (coface(n, j, s, ∂(n, i, s, x)) for i in 0:n for j in 0:n)
+
+  # Perform DFS.
+  ors = zeros(Int8, nsimplices(n, s)) # (-1, 0, 1)::(negative, visited, positive)
+  stack = Int[]
+  for seed in simplices(n, s)
+    @inbounds ors[seed] != 0 && continue
+    empty!(stack) # Invariant.
+    push!(stack, seed)
+    @inbounds ors[seed] = 1
+    while !isempty(stack)
+      x = pop!(stack)
+      @inbounds ox = ors[x]
+      nox = -ox
+      for i in 0:n
+        face = ∂(n, i, s, x)
+        for j in 0:n
+          y = coface(n, j, s, face)
+          y == x && continue
+          oy = ors[y]
+          if oy == 0
+            @inbounds ors[y] = nox
+            push!(stack, y)
+          elseif oy == ox
+            return false
+          end
+        end
+      end
+    end
+  end
+
+  # Map from sentinel types to attr types.
+  seed_o = one(attrtype_type(s, :Orientation))
+  attr_ors = [val == 1 ? seed_o : negate(seed_o) for val in ors]
+  set_orientation!(n, s, simplices(n, s), attr_ors)
+  return true
+end
+
+negate(x) = -x
+negate(x::Bool) = !x
+
+# Connected components
+######################
+
+"""    function connected_components(s::HasDeltaSet, ::Val{n}) where n
+
+Compute connected components as coequalizer of face maps.
+
+See also [`connected_components_representatives`](@ref).
+"""
+function connected_components(s::HasDeltaSet, ::Val{n}) where n
   ndom, ncodom = nsimplices(n, s), nsimplices(n-1, s)
   face_maps = [ FinFunction(x -> ∂(n,i,s,x), FinSet(ndom), FinSet(ncodom))
                 for i in 0:n ]
   π = only(coequalizer[𝒞](face_maps))
+end
+
+"""    function connected_components_representatives(s::HasDeltaSet, ::Val{n}) where n
+
+Compute connected components as coequalizer of face maps, and return a simplex from each.
+
+See also [`connected_components`](@ref).
+"""
+function connected_components_representatives(s::HasDeltaSet, ::Val{n}) where n
+  π = connected_components(s, n)
 
   # Choose an arbitrary representative of each component.
   reps = zeros(Int, length(codom(π)))
   for x in reverse(simplices(n, s))
     reps[π(∂(n,0,s,x))] = x
   end
-
-  # Orient each component, starting at the chosen representative.
-  init_orientation = one(attrtype_type(s, :Orientation))
-  for x in reps
-    #orient_component!(s, Simplex{n}(x), init_orientation) || return false
-    orient_component!(Val(n), s, x, init_orientation) || return false
-  end
-  true
+  reps
 end
 
-""" Consistently orient simplices in the same connected component, if possible.
-
-Given an ``n``-simplex and a choice of orientation for it, this function
-attempts to consistently orient all ``n``-simplices that may be reached from it
-by traversing ``(n-1)``-faces. The traversal is depth-first. If a consistent
-orientation is possible, the function returns `true` and the orientations are
-assigned; otherwise, it returns `false` and no orientations are changed.
-
-If the simplicial set is not connected, the function [`orient!`](@ref) may be
-more convenient.
-"""
-orient_component!(s::AbstractDeltaSet1D, e::Int, args...) =
-  orient_component!(Val(1), s, e, args...)
-orient_component!(s::AbstractDeltaSet2D, t::Int, args...) =
-  orient_component!(Val(2), s, t, args...)
-orient_component!(s::AbstractDeltaSet3D, tet::Int, args...) =
-  orient_component!(Val(3), s, tet, args...)
-
-function orient_component!(::Val{n}, s::HasDeltaSet, x,
-                           x_orientation::Orientation) where {n, Orientation}
-  orientations = repeat(Union{Orientation,Nothing}[nothing], nsimplices(n, s))
-
-  orient_stack = Vector{Pair{Int64, Orientation}}()
-
-  # TODO: Make this an Int32 or Int.
-  #push!(orient_stack, Int64[] => x_orientation)
-  push!(orient_stack, x => x_orientation)
-  is_orientable = true
-  while !isempty(orient_stack)
-    x, target = pop!(orient_stack)
-    current = orientations[x]
-    if isnothing(current)
-      # If not visited, set the orientation and add neighbors to stack.
-      orientations[x] = target
-      for i in 0:n, j in 0:n
-        next = iseven(i+j) ? negate(target) : target
-        for y in coface(n, j, s, ∂(n, i, s, x))
-          y == x || push!(orient_stack, y=>next)
-        end
-      end
-    elseif current != target
-      is_orientable = false
-      break
-    end
-  end
-
-  if is_orientable
-    component = findall(!isnothing, orientations)
-    set_orientation!(n, s, component, orientations[component])
-  end
-  is_orientable
-end
-
-negate(x) = -x
-negate(x::Bool) = !x
 
 # Euclidean geometry
 ####################

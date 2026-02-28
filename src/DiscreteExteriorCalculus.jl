@@ -526,14 +526,17 @@ complex. The elementary dual edges are oriented following (Hirani, 2003, Example
 relative to the primal triangles they subdivide.
 """
 function make_dual_simplices_2d!(s::HasDeltaSet2D, ::Simplex{n}) where n
+  # Fetch faces.
+  ∂2 = (∂(2,0,s), ∂(2,1,s), ∂(2,2,s))
   # Make dual vertices and edges.
   D_edges01 = make_dual_simplices_1d!(s)
   s[:tri_center] = tri_centers = add_parts!(s, :DualV, ntriangles(s))
   D_edges12 = map((0,1,2)) do e
     add_parts!(s, :DualE, ntriangles(s);
-               D_∂v0=tri_centers, D_∂v1=edge_center(s, ∂(2,e,s)))
+               D_∂v0=tri_centers, D_∂v1=edge_center(s, ∂2[e+1]))
   end
-  D_edges02 = map(triangle_vertices(s)) do vs
+  tri_verts = SVector(s[∂2[2], :∂v1], s[∂2[3], :∂v0], s[∂2[2], :∂v0])
+  D_edges02 = map(tri_verts) do vs
     add_parts!(s, :DualE, ntriangles(s);
                D_∂v0=tri_centers, D_∂v1=vertex_center(s, vs))
   end
@@ -544,35 +547,44 @@ function make_dual_simplices_2d!(s::HasDeltaSet2D, ::Simplex{n}) where n
   D_triangles = map(D_triangle_schemas) do (v,e,ev)
     add_parts!(s, :DualTri, ntriangles(s);
                D_∂e0=D_edges12[e+1], D_∂e1=D_edges02[v+1],
-               D_∂e2=view(D_edges01[ev+1], ∂(2,e,s)))
+               D_∂e2=view(D_edges01[ev+1], ∂2[e+1]))
   end
 
   if has_subpart(s, :tri_orientation)
+    tri_orient_buf = s[:tri_orientation]
     # If orientations are not set, then set them here.
-    if any(isnothing, s[:tri_orientation])
+    if any(isnothing, tri_orient_buf)
       # 2-simplices only need to be orientable if the delta set is 2D.
       # (The 2-simplices in a 3D delta set need not represent a valid 2-Manifold.)
       if n == 2
         orient!(s, Val(2)) || error("The 2-simplices of the given 2D delta set are non-orientable.")
       else
-        s[findall(isnothing, s[:tri_orientation]), :tri_orientation] = zero(attrtype_type(s, :Orientation))
+        orient_zero = zero(attrtype_type(s, :Orientation))
+        @inbounds for i in eachindex(tri_orient_buf)
+          if isnothing(tri_orient_buf[i])
+            s[i, :tri_orientation] = orient_zero
+          end
+        end
       end
+      tri_orient_buf = s[:tri_orientation]
     end
     # Orient elementary dual triangles.
-    tri_orient = s[:tri_orientation]
-    rev_tri_orient = negate.(tri_orient)
+    rev_tri_orient = negate.(tri_orient_buf)
     for (i, D_tris) in enumerate(D_triangles)
-      s[D_tris, :D_tri_orientation] = isodd(i) ? rev_tri_orient : tri_orient
+      s[D_tris, :D_tri_orientation] = isodd(i) ? rev_tri_orient : tri_orient_buf
     end
 
     # Orient elementary dual edges.
     for e in (0,1,2)
       s[D_edges12[e+1], :D_edge_orientation] = relative_sign.(
-        s[∂(2,e,s), :edge_orientation],
-        isodd(e) ? rev_tri_orient : tri_orient)
+        s[∂2[e+1], :edge_orientation],
+        isodd(e) ? rev_tri_orient : tri_orient_buf)
     end
     # Remaining dual edges are oriented arbitrarily.
-    s[lazy(vcat, D_edges02...), :D_edge_orientation] = one(attrtype_type(s, :Orientation))
+    orient_one = one(attrtype_type(s, :Orientation))
+    for D_edges in D_edges02
+        s[D_edges, :D_edge_orientation] = orient_one
+    end
   end
 
   D_triangles
