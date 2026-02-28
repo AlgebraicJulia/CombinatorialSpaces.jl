@@ -185,7 +185,7 @@ end
 function parse_struct_signature(expr)
   if expr isa Expr
     expr.head == :curly || error("Invalid struct expression: $expr")
-    (expr.args[1]::Symbol, collect(Symbol, expr.args[2:end]))
+    (expr.args[1]::Symbol, Base.collect(Symbol, expr.args[2:end]))
   else
     (expr::Symbol, Symbol[])
   end
