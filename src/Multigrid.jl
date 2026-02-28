@@ -80,6 +80,24 @@ abstract type AbstractSubdivisionScheme end
 struct UnarySubdivision <: AbstractSubdivisionScheme end
 struct BinarySubdivision <: AbstractSubdivisionScheme end
 struct CubicSubdivision <: AbstractSubdivisionScheme end
+# Unary Subdivision
+#------------------
+
+function propagate_points(::UnarySubdivision, topo::MeshTopology,
+    coarse_points::AbstractVector)
+  copy(coarse_points)
+end
+
+function refine(::UnarySubdivision, topo::MeshTopology)
+  deepcopy(topo)
+end
+
+function subdivision_matrix(::UnarySubdivision, topo::MeshTopology)
+  I(topo.nv)
+end
+
+unary_subdivision_topo(topo::MeshTopology) =
+  (refine(UnarySubdivision(), topo), subdivision_matrix(UnarySubdivision(), topo))
 
 # Binary Subdivision
 #-------------------
@@ -91,7 +109,7 @@ Interpolate vertex positions for binary subdivision.
 Original vertices are copied; midpoints are averaged from edge endpoints.
 """
 function propagate_points(::BinarySubdivision, topo::MeshTopology,
-                          coarse_points::AbstractVector)
+    coarse_points::AbstractVector)
   nv_c = topo.nv
   nv_f = nv_c + topo.ne
   fine_points = similar(coarse_points, nv_f)
@@ -219,7 +237,7 @@ Original vertices are copied; edge points at ⅓/⅔ positions and
 triangle centroids are computed from connectivity.
 """
 function propagate_points(::CubicSubdivision, topo::MeshTopology,
-                          coarse_points::AbstractVector)
+    coarse_points::AbstractVector)
   nv_c = topo.nv
   ne_c = topo.ne
   nv_f = nv_c + 2 * ne_c + topo.ntri
@@ -750,8 +768,8 @@ function _build_multigrid(mode::AbstractMultigridMode, s::HasDeltaSet2D,
 
   # Phase 2: Coarse-to-fine subdivision walk.
   # First step bootstraps concrete types for ps/rs.
-  points = propagate_points(scheme, topo, points)
   mat = subdivision_matrix(scheme, topo)
+  points = propagate_points(scheme, topo, points)
   topo = refine(scheme, topo)
   first_p = transpose(mat)
   first_r = make_restriction(first_p)

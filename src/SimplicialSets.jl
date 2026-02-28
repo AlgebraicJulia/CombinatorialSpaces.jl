@@ -705,7 +705,7 @@ Note that the face map returns *simplices*, while the boundary operator returns
 *chains* (vectors in the free vector space spanned by oriented simplices).
 """
 @inline ∂(i::Int, s::HasDeltaSet, x::Simplex{n}) where n =
-  Simplex{n-1}(face(Val(n, Val(i), s, x.data)))
+  Simplex{n-1}(face(Val(n), Val(i), s, x.data))
 @inline ∂(n::Int, i::Int, s::HasDeltaSet, args...) =
   face(Val(n), Val(i), s, args...)
 
@@ -789,6 +789,15 @@ orient!(s::AbstractDeltaSet1D) = orient!(s, Val(1))
 orient!(s::AbstractDeltaSet2D) = orient!(s, Val(2))
 orient!(s::AbstractDeltaSet3D) = orient!(s, Val(3))
 
+# Recall that the boundary of an n-simplex is an *alternating* sum of
+# its faces.
+# When two n-simplices share an (n-1)-simplex, they are like-oriented
+# when the shared simplex face is even (∂₀, ∂₂, ...) for one and odd
+# (∂₁, ∂₃, ...) for the other.
+# Why? Roughly, when you integrate across the shared edge during an application
+# of Stokes' rule, the 2 integrals cancel. If it is not the case that these
+# subscripts are of opposite parity already, we amend matters by flipping the
+# orientation flag of one of them.
 """    function orient!(s::HasDeltaSet, ::Val{n}) where n
 
 Consistently orient simplices in the same connected component, if possible.
@@ -803,14 +812,13 @@ assigned; otherwise, it returns `false` and no orientations are changed.
 function orient!(s::HasDeltaSet, ::Val{n}) where n
   # Empty delta sets are oriented by definition.
   nsimplices(n, s) == 0 && return true
-  neighbors(x) = (coface(n, j, s, ∂(n, i, s, x)) for i in 0:n for j in 0:n)
 
   # Perform DFS.
-  ors = zeros(Int8, nsimplices(n, s)) # (-1, 0, 1)::(negative, visited, positive)
+  ors = zeros(Int8, nsimplices(n, s)) #(-1, 0, 1)::(negative, visited, positive)
   stack = Int[]
   for seed in simplices(n, s)
     @inbounds ors[seed] != 0 && continue
-    empty!(stack) # Invariant.
+    empty!(stack) #Invariant.
     push!(stack, seed)
     @inbounds ors[seed] = 1
     while !isempty(stack)
@@ -820,14 +828,16 @@ function orient!(s::HasDeltaSet, ::Val{n}) where n
       for i in 0:n
         face = ∂(n, i, s, x)
         for j in 0:n
-          y = coface(n, j, s, face)
-          y == x && continue
-          oy = ors[y]
-          if oy == 0
-            @inbounds ors[y] = nox
-            push!(stack, y)
-          elseif oy == ox
-            return false
+          same_parity = iseven(i+j)
+          for y in coface(n, j, s, face)
+            y == x && continue
+            oy = ors[y]
+            if oy == 0
+              @inbounds ors[y] = same_parity ? nox : ox
+              push!(stack, y)
+            elseif same_parity && oy == ox
+              return false
+            end
           end
         end
       end
@@ -934,9 +944,9 @@ two triangles that share 2 vertices share an edge. Nor does it test that e.g.
 there is at most one triangle that connects 3 vertices. Nor does it test that
 the delta set consists of a single component.
 """
-is_manifold_like(s::AbstractDeltaSet1D) = is_manifold_like(s, E)
-is_manifold_like(s::AbstractDeltaSet2D) = is_manifold_like(s, Tri)
-is_manifold_like(s::AbstractDeltaSet3D) = is_manifold_like(s, Tet)
+is_manifold_like(s::AbstractDeltaSet1D) = is_manifold_like(s, E(0))
+is_manifold_like(s::AbstractDeltaSet2D) = is_manifold_like(s, Tri(0))
+is_manifold_like(s::AbstractDeltaSet3D) = is_manifold_like(s, Tet(0))
 
 function is_manifold_like(s::HasDeltaSet, ::Simplex{n}) where n
   # The yth k-simplex c is not a face of an (k+1)-simplex if the yth column of
@@ -958,9 +968,9 @@ We choose the term "nonboundaries" so as not to be confused with the term
 "nonface", defined as those faces that are not in a simplical complex, whose
 corresponding monomials are the basis of the Stanley-Reisner ideal.
 """
-nonboundaries(s::AbstractDeltaSet1D) = nonboundaries(s, E)
-nonboundaries(s::AbstractDeltaSet2D) = nonboundaries(s, Tri)
-nonboundaries(s::AbstractDeltaSet3D) = nonboundaries(s, Tet)
+nonboundaries(s::AbstractDeltaSet1D) = nonboundaries(s, E(0))
+nonboundaries(s::AbstractDeltaSet2D) = nonboundaries(s, Tri(0))
+nonboundaries(s::AbstractDeltaSet3D) = nonboundaries(s, Tet(0))
 
 function nonboundaries(s::HasDeltaSet, ::Simplex{n}) where n
   # The yth k-simplex c is not a face of an (k+1)-simplex if the yth column of
@@ -973,9 +983,9 @@ end
 # Topological helper functions
 ##############################
 
-star(s::AbstractDeltaSet1D, v::Int) = star(s, v, E)
-star(s::AbstractDeltaSet2D, v::Int) = star(s, v, Tri)
-star(s::AbstractDeltaSet3D, v::Int) = star(s, v, Tet)
+star(s::AbstractDeltaSet1D, v::Int) = star(s, v, E(0))
+star(s::AbstractDeltaSet2D, v::Int) = star(s, v, Tri(0))
+star(s::AbstractDeltaSet3D, v::Int) = star(s, v, Tet(0))
 
 """ Star of a vertex in a delta set.
 
@@ -1006,9 +1016,9 @@ end
 """
 St = star
 
-closed_star(s::AbstractDeltaSet1D, v::Int) = closed_star(s, v, star(s, v), E)
-closed_star(s::AbstractDeltaSet2D, v::Int) = closed_star(s, v, star(s, v), Tri)
-closed_star(s::AbstractDeltaSet3D, v::Int) = closed_star(s, v, star(s, v), Tet)
+closed_star(s::AbstractDeltaSet1D, v::Int) = closed_star(s, v, star(s, v), E(0))
+closed_star(s::AbstractDeltaSet2D, v::Int) = closed_star(s, v, star(s, v), Tri(0))
+closed_star(s::AbstractDeltaSet3D, v::Int) = closed_star(s, v, star(s, v), Tet(0))
 
 """ Closed star of a vertex in a delta set.
 
@@ -1034,9 +1044,9 @@ end
 """
 St̄ = closed_star
 
-link(s::AbstractDeltaSet1D, v::Int) = link(s, v, E)
-link(s::AbstractDeltaSet2D, v::Int) = link(s, v, Tri)
-link(s::AbstractDeltaSet3D, v::Int) = link(s, v, Tet)
+link(s::AbstractDeltaSet1D, v::Int) = link(s, v, E(0))
+link(s::AbstractDeltaSet2D, v::Int) = link(s, v, Tri(0))
+link(s::AbstractDeltaSet3D, v::Int) = link(s, v, Tet(0))
 
 """ Link of a vertex in a delta set.
 

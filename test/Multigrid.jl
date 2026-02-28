@@ -59,7 +59,7 @@ function test_residuals(s::HasDeltaSet2D, scheme::AbstractSubdivisionScheme)
   L = first(md.operators)
 
   Random.seed!(0)
-  b = L*rand(nv(sd)) #put into range of the Laplacian for solvability
+  b = L*rand(nv(sd))
   u0 = zeros(nv(sd))
 
   mgv_lapl = dec_Δ⁻¹(Val{0}, series, scheme=scheme)
@@ -122,7 +122,7 @@ function test_galerkin(s::HasDeltaSet2D, scheme::AbstractSubdivisionScheme)
   L = first(md.operators)
 
   Random.seed!(0)
-  b = L*rand(nv(sd)) #put into range of the Laplacian for solvability
+  b = L*rand(nv(sd))
   u0 = zeros(nv(sd))
 
   u = multigrid_vcycles(u0,b,md,5)
@@ -158,7 +158,7 @@ md_one_iteration = MGData(bin_series, fast_laplace_beltrami, 1)
 sd = finest_mesh(bin_series)
 L = first(md_zero_iterations.operators)
 Random.seed!(0)
-b = L*rand(nv(sd)) #put into range of the Laplacian for solvability
+b = L*rand(nv(sd))
 u0 = zeros(nv(sd))
 u_zero_iterations = multigrid_vcycles(u0,b,md_zero_iterations,5)
 u_one_iteration = multigrid_vcycles(u0,b,md_one_iteration,5)
