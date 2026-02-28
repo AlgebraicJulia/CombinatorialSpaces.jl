@@ -27,7 +27,7 @@ binary_nv_ne_ntriangles(s) =
 cubic_nv_ne_ntriangles(s) =
   (nv(s) + 2*ne(s) + ntriangles(s), 3*ne(s) + 9*ntriangles(s), 9*ntriangles(s))
 
-function expected_parts(s, subdivider, nv_ne_ntriangles)
+function test_expected_parts(s, subdivider, nv_ne_ntriangles)
   for _ in 1:4
     t = subdivider(s)
     @test (nv(t), ne(t), ntriangles(t)) == nv_ne_ntriangles(s)
@@ -36,9 +36,9 @@ function expected_parts(s, subdivider, nv_ne_ntriangles)
   end
 end
 
-expected_parts(s, unary_subdivision, unary_nv_ne_ntriangles)
-expected_parts(s, binary_subdivision, binary_nv_ne_ntriangles)
-expected_parts(s, cubic_subdivision, cubic_nv_ne_ntriangles)
+test_expected_parts(s, unary_subdivision, unary_nv_ne_ntriangles)
+test_expected_parts(s, binary_subdivision, binary_nv_ne_ntriangles)
+test_expected_parts(s, cubic_subdivision, cubic_nv_ne_ntriangles)
 
 # Subdivision integration
 #------------------------
@@ -62,7 +62,7 @@ function test_residuals(s::HasDeltaSet2D, scheme::AbstractSubdivisionScheme)
   b = L*rand(nv(sd))
   u0 = zeros(nv(sd))
 
-  mgv_lapl = dec_Δ⁻¹(Val{0}, series, scheme=scheme)
+  mgv_lapl = dec_Δ⁻¹(Val(0), series, scheme=scheme)
   u = mgv_lapl(b)
   @test norm(L*u-b)/norm(b) < 1e-6
 

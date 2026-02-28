@@ -893,7 +893,7 @@ end
 # XXX: This reference implementation is kept for pedagogical purposes;
 # it is faster to vectorize coefficient generation.
 # Wedge product of two primal 1-forms, as in Hirani 2003, Example 7.1.2.
-function ∧(::Tuple{1,1}, s::HasDeltaSet2D, α, β, x::Int)
+function ∧(::Val{1}, ::Val{1}, s::HasDeltaSet2D, α, β, x::Int)
   dual_vs = vertex_center(s, triangle_vertices(s, x))
   dual_es = sort(SVector{6}(incident(s, triangle_center(s, x), :D_∂v0)),
                  by=e -> s[e,:D_∂v1] .== dual_vs, rev=true)[1:3]
@@ -1309,7 +1309,7 @@ end
 # XXX: This reference implementation is for pedagogical purposes;
 # it is faster to vectorize coefficient generation.
 # Wedge product of a primal 2-form with a primal 1-form.
-function ∧(::Type{Tuple{2,1}}, s::HasDeltaSet3D, α, β, x::Int)
+function ∧(::Val{2}, ::Val{1}, s::HasDeltaSet3D, α, β, x::Int)
   d_tets = subsimplices(3, s, x)
   d_volume(tets) = sum(s[tets, :dual_vol])
 
@@ -1352,8 +1352,8 @@ function ∧(::Type{Tuple{2,1}}, s::HasDeltaSet3D, α, β, x::Int)
   form / 3
 end
 
-∧(::Type{Tuple{1,2}}, s::HasDeltaSet3D, α, β, x::Int) =
-  ∧(Tuple{2,1}, s, β, α, x)
+∧(::Val{1}, ::Val{2}, s::HasDeltaSet3D, α, β, x::Int) =
+  ∧(Val(2), Val(1), s, β, α, x)
 
 # General operators
 ###################
@@ -2024,19 +2024,21 @@ requires the dual complex. Note that we diverge from Hirani in that his
 formulation explicitly divides by (k+1)!. We do not do so in this computation.
 """
 ∧(s::HasDeltaSet, α::SimplexForm{k}, β::SimplexForm{l}) where {k,l} =
-  SimplexForm{k+l}(∧(Tuple{k,l}, s, α.data, β.data))
-@inline ∧(k::Int, l::Int, s::HasDeltaSet, args...) = ∧(Tuple{k,l}, s, args...)
+  SimplexForm{k+l}(∧(Val(k), Val(l), s, α.data, β.data))
+@inline ∧(k::Int, l::Int, s::HasDeltaSet, args...) =
+  ∧(Val(k), Val(l), s, args...)
 
-function ∧(::Type{Tuple{k,l}}, s::HasDeltaSet, α, β) where {k,l}
+function ∧(::Val{k}, ::Val{l}, s::HasDeltaSet, α, β) where {k,l}
   map(simplices(k+l, s)) do x
-    ∧(Tuple{k,l}, s, α, β, x)
+    ∧(Val(k), Val(l), s, α, β, x)
   end
 end
 
-∧(::Type{Tuple{0,0}}, s::HasDeltaSet, f, g, x::Int) = f[x]*g[x]
-∧(::Type{Tuple{k,0}}, s::HasDeltaSet, α, g, x::Int) where k =
+∧(::Val{0}, ::Val{0}, s::HasDeltaSet, f, g, x::Int) =
+  f[x]*g[x]
+∧(::Val{k}, ::Val{0}, s::HasDeltaSet, α, g, x::Int) where k =
   wedge_product_zero(Val(k), s, g, α, x)
-∧(::Type{Tuple{0,k}}, s::HasDeltaSet, f, β, x::Int) where k =
+∧(::Val{0}, ::Val{k}, s::HasDeltaSet, f, β, x::Int) where k =
   wedge_product_zero(Val(k), s, f, β, x)
 
 """ Wedge product of a 0-form and a ``k``-form.

@@ -1,10 +1,6 @@
 module RunTests
 using Test
 
-@testset "Multigrid" begin
-  include("Multigrid.jl")
-end
-
 @testset "CombinatorialMaps" begin
   include("CombinatorialMaps.jl")
 end
@@ -35,6 +31,10 @@ end
 
 @testset "Mesh Optimization" begin
   include("MeshOptimization.jl")
+end
+
+@testset "Multigrid" begin
+  include("Multigrid.jl")
 end
 
 end

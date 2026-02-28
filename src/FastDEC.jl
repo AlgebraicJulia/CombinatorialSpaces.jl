@@ -39,13 +39,15 @@ export dec_wedge_product, cache_wedge, dec_c_wedge_product, dec_c_wedge_product!
 #--------------
 
 # Cache coefficients to be used by wedge product kernels.
-function wedge_kernel_coeffs(::Type{Tuple{0,1}}, sd::Union{EmbeddedDeltaDualComplex1D, EmbeddedDeltaDualComplex2D, EmbeddedDeltaDualComplex3D})
-  (hcat(convert(Vector{Int32}, sd[:∂v0])::Vector{Int32}, convert(Vector{Int32}, sd[:∂v1])::Vector{Int32}),
-    ne(sd))
+function wedge_kernel_coeffs(::Val{0}, ::Val{1}, sd::Union{EmbeddedDeltaDualComplex1D, EmbeddedDeltaDualComplex2D, EmbeddedDeltaDualComplex3D})
+  (
+   hcat(convert(Vector{Int32}, sd[:∂v0])::Vector{Int32},
+        convert(Vector{Int32}, sd[:∂v1])::Vector{Int32}),
+   ne(sd))
 end
 
 # TODO: Tagging `shift` as `::Int` can sometimes increase efficiency.
-function wedge_kernel_coeffs(::Type{Tuple{0,2}}, sd::Union{EmbeddedDeltaDualComplex2D{Bool, float_type, _p}, EmbeddedDeltaDualComplex3D{Bool, float_type, _p}}) where {float_type, _p}
+function wedge_kernel_coeffs(::Val{0}, ::Val{2}, sd::Union{EmbeddedDeltaDualComplex2D{Bool, float_type, _p}, EmbeddedDeltaDualComplex3D{Bool, float_type, _p}}) where {float_type, _p}
   verts = Array{Int32}(undef, 6, ntriangles(sd))
   coeffs = Array{float_type}(undef, 6, ntriangles(sd))
   shift = ntriangles(sd)
@@ -59,7 +61,7 @@ function wedge_kernel_coeffs(::Type{Tuple{0,2}}, sd::Union{EmbeddedDeltaDualComp
   (verts, coeffs, ntriangles(sd))
 end
 
-function wedge_kernel_coeffs(::Type{Tuple{0,3}}, sd::EmbeddedDeltaDualComplex3D{Bool, float_type, _p}) where {float_type, _p}
+function wedge_kernel_coeffs(::Val{0}, ::Val{3}, sd::EmbeddedDeltaDualComplex3D{Bool, float_type, _p}) where {float_type, _p}
   verts = Array{Int32}(undef, 24, ntetrahedra(sd))
   coeffs = Array{float_type}(undef, 24, ntetrahedra(sd))
   stride = 24
@@ -73,7 +75,7 @@ function wedge_kernel_coeffs(::Type{Tuple{0,3}}, sd::EmbeddedDeltaDualComplex3D{
   (verts, coeffs, ntetrahedra(sd))
 end
 
-function wedge_kernel_coeffs(::Type{Tuple{1,1}}, sd::Union{EmbeddedDeltaDualComplex2D{Bool, float_type, _p}, EmbeddedDeltaDualComplex3D{Bool, float_type, _p}}) where {float_type, _p}
+function wedge_kernel_coeffs(::Val{1}, ::Val{1}, sd::Union{EmbeddedDeltaDualComplex2D{Bool, float_type, _p}, EmbeddedDeltaDualComplex3D{Bool, float_type, _p}}) where {float_type, _p}
   coeffs = Array{float_type}(undef, 3, ntriangles(sd))
   shift = ntriangles(sd)
   e = Array{Int32}(undef, 3, ntriangles(sd))
@@ -91,7 +93,7 @@ function wedge_kernel_coeffs(::Type{Tuple{1,1}}, sd::Union{EmbeddedDeltaDualComp
 end
 
 # TODO: Improve generatation of coefficients
-function wedge_kernel_coeffs(::Type{Tuple{2,1}}, sd::EmbeddedDeltaDualComplex3D{Bool, float_type, _p}) where {float_type, _p}
+function wedge_kernel_coeffs(::Val{2}, ::Val{1}, sd::EmbeddedDeltaDualComplex3D{Bool, float_type, _p}) where {float_type, _p}
   coeffs = Array{float_type}(undef, 12, ntetrahedra(sd))
   ets = Array{Int32}(undef, 10, ntetrahedra(sd))
 
@@ -131,20 +133,20 @@ function wedge_kernel_coeffs(::Type{Tuple{2,1}}, sd::EmbeddedDeltaDualComplex3D{
 end
 
 # Grab the float type of the volumes of the complex.
-function cache_wedge(::Type{Tuple{m,n}}, sd::EmbeddedDeltaDualComplex1D{Bool, float_type, _p}, backend, arr_cons=identity, cast_float=nothing) where {float_type,_p,m,n}
+function cache_wedge(::Val{m}, ::Val{n}, sd::EmbeddedDeltaDualComplex1D{Bool, float_type, _p}, backend, arr_cons=identity, cast_float=nothing) where {float_type,_p,m,n}
   cache_wedge(m, n, sd, float_type, arr_cons, cast_float)
 end
-function cache_wedge(::Type{Tuple{m,n}}, sd::EmbeddedDeltaDualComplex2D{Bool, float_type, _p}, backend, arr_cons=identity, cast_float=nothing) where {float_type,_p,m,n}
+function cache_wedge(::Val{m}, ::Val{n}, sd::EmbeddedDeltaDualComplex2D{Bool, float_type, _p}, backend, arr_cons=identity, cast_float=nothing) where {float_type,_p,m,n}
   cache_wedge(m, n, sd, float_type, arr_cons, cast_float)
 end
-function cache_wedge(::Type{Tuple{m,n}}, sd::EmbeddedDeltaDualComplex3D{Bool, float_type, _p}, backend, arr_cons=identity, cast_float=nothing) where {float_type,_p,m,n}
+function cache_wedge(::Val{m}, ::Val{n}, sd::EmbeddedDeltaDualComplex3D{Bool, float_type, _p}, backend, arr_cons=identity, cast_float=nothing) where {float_type,_p,m,n}
   cache_wedge(m, n, sd, float_type, arr_cons, cast_float)
 end
 
 # Grab wedge kernel coeffs and cast.
 function cache_wedge(m::Int, n::Int, sd::HasDeltaSet1D, float_type::DataType, arr_cons, cast_float::Union{Nothing, DataType})
   ft = isnothing(cast_float) ? float_type : cast_float
-  wc = wedge_kernel_coeffs(Tuple{m,n}, sd)
+  wc = wedge_kernel_coeffs(Val(m), Val(n), sd)
   if wc[2] isa Matrix
     (arr_cons(wc[1]), arr_cons(Matrix{ft}(wc[2])), wc[3])
   else
@@ -212,7 +214,7 @@ end
 
 # Manually dispatch, since CUDA.jl kernels cannot.
 # Alternatively, wrap each wedge_kernel separately.
-function dec_c_wedge_product!(::Type{Tuple{j,k}}, res, α, β, p, c) where {j,k}
+function dec_c_wedge_product!(::Val{j}, ::Val{k}, res, α, β, p, c) where {j,k}
   kernel_function = if (j,k) == (0,1)
     wedge_kernel_01!
   elseif (j,k) == (0,2)
@@ -229,13 +231,13 @@ function dec_c_wedge_product!(::Type{Tuple{j,k}}, res, α, β, p, c) where {j,k}
   auto_select_backend(kernel_function, res, α, β, p, c)
 end
 
-function dec_c_wedge_product(::Type{Tuple{m,n}}, α, β, wedge_cache) where {m,n}
+function dec_c_wedge_product(::Val{m}, ::Val{n}, α, β, wedge_cache) where {m,n}
   α_data = α isa SimplexForm ? α.data : α
   res = KernelAbstractions.zeros(get_backend(α_data), eltype(α_data), last(wedge_cache))
-  dec_c_wedge_product!(Tuple{m,n}, res, α, β, wedge_cache[1], wedge_cache[2])
+  dec_c_wedge_product!(Val(m), Val(n), res, α, β, wedge_cache[1], wedge_cache[2])
 end
 
-"""    dec_wedge_product(::Type{Tuple{m,n}}, sd::HasDeltaSet, backend=Val{:CPU}, arr_cons=identity, cast_float=nothing) where {m,n}
+"""    dec_wedge_product(::Val{m}, ::Val{n}, sd::HasDeltaSet, backend=Val{:CPU}, arr_cons=identity, cast_float=nothing) where {m,n}
 
 Return a function that computes the wedge product between a primal `m`-form and a primal `n`-form, assuming special properties of the mesh.
 
@@ -244,46 +246,46 @@ It is assumed...
 ... for the 1-1 wedge product, that the dual mesh simplices are in the default order as returned by the dual complex constructor.
 
 # Arguments:
-`Tuple{m,n}`: the degrees of the differential forms.
+`::Val{m}, ::Val{n}`: the degrees of the differential forms.
 `sd`: the simplicial complex.
 `backend=Val{:CPU}`: a value-type to select special backend logic, if implemented.
 `arr_cons=identity`: a constructor of the desired array type on the appropriate backend e.g. `MtlArray`.
 `cast_float=nothing`: a specific Float type to use e.g. `Float32`. Otherwise, the type of the first differential form will be used.
 """
-function dec_wedge_product(::Type{Tuple{m,n}}, sd::HasDeltaSet, backend=Val{:CPU}, arr_cons=identity, cast_float=nothing) where {m,n}
+function dec_wedge_product(::Val{m}, ::Val{n}, sd::HasDeltaSet, backend=Val{:CPU}, arr_cons=identity, cast_float=nothing) where {m,n}
   error("Unsupported combination of degrees $m and $n. Ensure that their sum is not greater than the degree of the complex.")
 end
 
-dec_wedge_product(m::Int, n::Int, sd::HasDeltaSet) =
-  dec_wedge_product(Tuple{m,n}, sd::HasDeltaSet)
+dec_wedge_product(m::Int, n::Int, sd::HasDeltaSet, args...) =
+  dec_wedge_product(Val(m), Val(n), sd::HasDeltaSet, args...)
 
-function dec_wedge_product(::Type{Tuple{0,0}}, sd::HasDeltaSet, backend=Val{:CPU}, arr_cons=identity, cast_float=nothing)
+function dec_wedge_product(::Val{0}, ::Val{0}, sd::HasDeltaSet, backend=Val{:CPU}, arr_cons=identity, cast_float=nothing)
   (f, g) -> f .* g
 end
 
-function dec_wedge_product(::Type{Tuple{k,0}}, sd::HasDeltaSet, backend=Val{:CPU}, arr_cons=identity, cast_float=nothing) where {k}
-  wedge_cache = cache_wedge(Tuple{0,k}, sd, backend, arr_cons, cast_float)
-  (α, β) -> dec_c_wedge_product(Tuple{0,k}, β, α, wedge_cache)
+function dec_wedge_product(::Val{k}, ::Val{0}, sd::HasDeltaSet, backend=Val{:CPU}, arr_cons=identity, cast_float=nothing) where {k}
+  wedge_cache = cache_wedge(Val(0), Val(k), sd, backend, arr_cons, cast_float)
+  (α, β) -> dec_c_wedge_product(Val(0), Val(k), β, α, wedge_cache)
 end
 
-function dec_wedge_product(::Type{Tuple{0,k}}, sd::HasDeltaSet, backend=Val{:CPU}, arr_cons=identity, cast_float=nothing) where {k}
-  wedge_cache = cache_wedge(Tuple{0,k}, sd, backend, arr_cons, cast_float)
-  (α, β) -> dec_c_wedge_product(Tuple{0,k}, α, β, wedge_cache)
+function dec_wedge_product(::Val{0}, ::Val{k}, sd::HasDeltaSet, backend=Val{:CPU}, arr_cons=identity, cast_float=nothing) where {k}
+  wedge_cache = cache_wedge(Val(0), Val(k), sd, backend, arr_cons, cast_float)
+  (α, β) -> dec_c_wedge_product(Val(0), Val(k), α, β, wedge_cache)
 end
 
-function dec_wedge_product(::Type{Tuple{1,1}}, sd::HasDeltaSet2D, backend=Val{:CPU}, arr_cons=identity, cast_float=nothing)
-  wedge_cache = cache_wedge(Tuple{1,1}, sd, backend, arr_cons, cast_float)
-  (α, β) -> dec_c_wedge_product(Tuple{1,1}, α, β, wedge_cache)
+function dec_wedge_product(::Val{1}, ::Val{1}, sd::HasDeltaSet2D, backend=Val{:CPU}, arr_cons=identity, cast_float=nothing)
+  wedge_cache = cache_wedge(Val(1), Val(1), sd, backend, arr_cons, cast_float)
+  (α, β) -> dec_c_wedge_product(Val(1), Val(1), α, β, wedge_cache)
 end
 
-function dec_wedge_product(::Type{Tuple{1,2}}, sd::HasDeltaSet3D, backend=Val{:CPU}, arr_cons=identity, cast_float=nothing)
-  wedge_cache = cache_wedge(Tuple{2,1}, sd, backend, arr_cons, cast_float)
-  (α, β) -> dec_c_wedge_product(Tuple{2,1}, β, α, wedge_cache)
+function dec_wedge_product(::Val{1}, ::Val{2}, sd::HasDeltaSet3D, backend=Val{:CPU}, arr_cons=identity, cast_float=nothing)
+  wedge_cache = cache_wedge(Val(2), Val(1), sd, backend, arr_cons, cast_float)
+  (α, β) -> dec_c_wedge_product(Val(2), Val(1), β, α, wedge_cache)
 end
 
-function dec_wedge_product(::Type{Tuple{2,1}}, sd::HasDeltaSet3D, backend=Val{:CPU}, arr_cons=identity, cast_float=nothing)
-  wedge_cache = cache_wedge(Tuple{2,1}, sd, backend, arr_cons, cast_float)
-  (α, β) -> dec_c_wedge_product(Tuple{2,1}, α, β, wedge_cache)
+function dec_wedge_product(::Val{2}, ::Val{1}, sd::HasDeltaSet3D, backend=Val{:CPU}, arr_cons=identity, cast_float=nothing)
+  wedge_cache = cache_wedge(Val(2), Val(1), sd, backend, arr_cons, cast_float)
+  (α, β) -> dec_c_wedge_product(Val(2), Val(1), α, β, wedge_cache)
 end
 
 # Return a matrix that can be multiplied to a dual 0-form, before being
@@ -302,22 +304,22 @@ function wedge_dd_01_mat(sd::HasDeltaSet)
   m
 end
 
-"""    dec_wedge_product_dd(::Type{Tuple{m,n}}, sd::HasDeltaSet) where {m,n}
+"""    dec_wedge_product_dd(::Val{m}, ::Val{n}, sd::HasDeltaSet) where {m,n}
 
 Return a function that computes the wedge product between a dual `m`-form and a dual `n`-form.
 
 The currently supported dual-dual wedges are 0-1 and 1-0.
 """
-function dec_wedge_product_dd(::Type{Tuple{m,n}}, sd::HasDeltaSet) where {m,n}
+function dec_wedge_product_dd(::Val{m}, ::Val{n}, sd::HasDeltaSet) where {m,n}
   error("Unsupported combination of degrees $m and $n. Ensure that their sum is not greater than the degree of the complex. The currently supported dual-dual wedges are 0-1 and 1-0.")
 end
 
-function dec_wedge_product_dd(::Type{Tuple{0,1}}, sd::HasDeltaSet)
+function dec_wedge_product_dd(::Val{0}, ::Val{1}, sd::HasDeltaSet)
   m = wedge_dd_01_mat(sd)
   (f,g) -> (m * f) .* g
 end
 
-function dec_wedge_product_dd(::Type{Tuple{1,0}}, sd::HasDeltaSet)
+function dec_wedge_product_dd(::Val{1}, ::Val{0}, sd::HasDeltaSet)
   m = wedge_dd_01_mat(sd)
   (f,g) -> f .* (m * g)
 end
@@ -344,7 +346,16 @@ function wedge_pd_01_mat(sd::HasDeltaSet)
   m
 end
 
-"""    dec_wedge_product_dp(::Type{Tuple{m,n}}, sd::HasDeltaSet) where {m,n}
+dec_wedge_product_pd(m::Int, n::Int, sd::HasDeltaSet) =
+  dec_wedge_product_pd(Val(m), Val(n), sd::HasDeltaSet)
+
+dec_wedge_product_dp(m::Int, n::Int, sd::HasDeltaSet) =
+  dec_wedge_product_dp(Val(m), Val(n), sd::HasDeltaSet)
+
+dec_wedge_product_dd(m::Int, n::Int, sd::HasDeltaSet) =
+  dec_wedge_product_dd(Val(m), Val(n), sd::HasDeltaSet)
+
+"""    dec_wedge_product_dp(::Val{m}, ::Val{n}, sd::HasDeltaSet) where {m,n}
 
 Return a function that computes the wedge product between a dual `m`-form and a primal `n`-form.
 
@@ -353,39 +364,39 @@ It is assumed...
 
 The currently supported dual-primal wedges are 0-1, 1-0, and 1-1.
 """
-function dec_wedge_product_dp(::Type{Tuple{m,n}}, sd::HasDeltaSet) where {m,n}
+function dec_wedge_product_dp(::Val{m}, ::Val{n}, sd::HasDeltaSet) where {m,n}
   error("Unsupported combination of degrees $m and $n. Ensure that their sum is not greater than the degree of the complex. The currently supported dual-primal wedges are 0-1, 1-0, and 1-1.")
 end
 
-"""    dec_wedge_product_pd(::Type{Tuple{m,n}}, sd::HasDeltaSet) where {m,n}
+"""    dec_wedge_product_pd(::Val{m}, ::Val{n}, sd::HasDeltaSet) where {m,n}
 
 Return a function that computes the wedge product between a primal `m`-form and a dual `n`-form.
 
 See [`dec_wedge_product_dp`](@ref) for assumptions.
 """
-function dec_wedge_product_pd(::Type{Tuple{m,n}}, sd::HasDeltaSet) where {m,n}
+function dec_wedge_product_pd(::Val{m}, ::Val{n}, sd::HasDeltaSet) where {m,n}
   error("Unsupported combination of degrees $m and $n. Ensure that their sum is not greater than the degree of the complex. The currently supported primal-dual wedges are 0-1, 1-0, and 1-1.")
 end
 
-function dec_wedge_product_dp(::Type{Tuple{1,0}}, sd::HasDeltaSet)
+function dec_wedge_product_dp(::Val{1}, ::Val{0}, sd::HasDeltaSet)
   m = wedge_pd_01_mat(sd)
   (f,g) -> f .* (m * g)
 end
 
-function dec_wedge_product_pd(::Type{Tuple{0,1}}, sd::HasDeltaSet)
+function dec_wedge_product_pd(::Val{0}, ::Val{1}, sd::HasDeltaSet)
   m = wedge_pd_01_mat(sd)
   (g,f) -> (m * g) .* f
 end
 
-function dec_wedge_product_pd(::Type{Tuple{1,1}}, sd::HasDeltaSet)
+function dec_wedge_product_pd(::Val{1}, ::Val{1}, sd::HasDeltaSet)
   ♭♯_m = ♭♯_mat(sd)
-  Λ_cached = dec_wedge_product(Tuple{1, 1}, sd)
+  Λ_cached = dec_wedge_product(Val(1), Val(1), sd)
   (f, g) -> Λ_cached(f, ♭♯_m * g)
 end
 
-function dec_wedge_product_dp(::Type{Tuple{1,1}}, sd::HasDeltaSet)
+function dec_wedge_product_dp(::Val{1}, ::Val{1}, sd::HasDeltaSet)
   ♭♯_m = ♭♯_mat(sd)
-  Λ_cached = dec_wedge_product(Tuple{1, 1}, sd)
+  Λ_cached = dec_wedge_product(Val(1), Val(1), sd)
   (f, g) -> Λ_cached(♭♯_m * f, g)
 end
 
@@ -398,7 +409,7 @@ Chain the musical isomorphisms to interpolate the dual 1-form to a primal
 version of the Hirani primal-primal weddge.
 """
 ∧(s::HasDeltaSet, α::SimplexForm{1}, β::DualForm{1}) =
-  dec_wedge_product_pd(Tuple{1,1}, s)(α, β)
+  dec_wedge_product_pd(Val(1), Val(1), s)(α, β)
 
 """    ∧(s::HasDeltaSet, α::DualForm{1}, β::SimplexForm{1})
 
@@ -409,7 +420,7 @@ Chain the musical isomorphisms to interpolate the dual 1-form to a primal
 weddge (without explicitly dividing by 2.)
 """
 ∧(s::HasDeltaSet, α::DualForm{1}, β::SimplexForm{1}) =
-  dec_wedge_product_dp(Tuple{1,1}, s)(α, β)
+  dec_wedge_product_dp(Val(1), Val(1), s)(α, β)
 
 
 # Boundary and Co-boundary
@@ -419,42 +430,45 @@ weddge (without explicitly dividing by 2.)
 
 Return the boundary operator (as a matrix) for `(n+1)`-simplices to `(n)`-simplices
 """
-dec_boundary(n::Int, sd::HasDeltaSet) = sparse(dec_p_boundary(Val{n}, sd)...)
+dec_boundary(n::Int, sd::HasDeltaSet) =
+  sparse(dec_p_boundary(Val(n), sd)...)
 
-dec_p_boundary(::Type{Val{k}}, sd::HasDeltaSet; negate::Bool=false) where {k} =
-  dec_p_derivbound(Val{k - 1}, sd, transpose=true, negate=negate)
+dec_p_boundary(::Val{k}, sd::HasDeltaSet; negate::Bool=false) where {k} =
+  dec_p_derivbound(Val(k-1), sd, transpose=true, negate=negate)
 
 """    dec_dual_derivative(n::Int, sd::HasDeltaSet)
 
 Return the dual exterior derivative (as a matrix) between dual `n`-simplices and dual `(n+1)`-simplices
 """
-dec_dual_derivative(n::Int, sd::HasDeltaSet) = sparse(dec_p_dual_derivative(Val{n}, sd)...)
+dec_dual_derivative(n::Int, sd::HasDeltaSet) =
+  sparse(dec_p_dual_derivative(Val(n), sd)...)
 
-dec_p_dual_derivative(::Type{Val{0}}, sd::HasDeltaSet1D) =
-  dec_p_boundary(Val{1}, sd, negate=true)
+dec_p_dual_derivative(::Val{0}, sd::HasDeltaSet1D) =
+  dec_p_boundary(Val(1), sd, negate=true)
 
-dec_p_dual_derivative(::Type{Val{0}}, sd::HasDeltaSet2D) =
-  dec_p_boundary(Val{2}, sd)
+dec_p_dual_derivative(::Val{0}, sd::HasDeltaSet2D) =
+  dec_p_boundary(Val(2), sd)
 
-dec_p_dual_derivative(::Type{Val{1}}, sd::HasDeltaSet2D) =
-  dec_p_boundary(Val{1}, sd, negate=true)
+dec_p_dual_derivative(::Val{1}, sd::HasDeltaSet2D) =
+  dec_p_boundary(Val(1), sd, negate=true)
 
-dec_p_dual_derivative(::Type{Val{0}}, sd::HasDeltaSet3D) =
-  dec_p_boundary(Val{3}, sd, negate=true)
+dec_p_dual_derivative(::Val{0}, sd::HasDeltaSet3D) =
+  dec_p_boundary(Val(3), sd, negate=true)
 
-dec_p_dual_derivative(::Type{Val{1}}, sd::HasDeltaSet3D) =
-  dec_p_boundary(Val{2}, sd)
+dec_p_dual_derivative(::Val{1}, sd::HasDeltaSet3D) =
+  dec_p_boundary(Val(2), sd)
 
-dec_p_dual_derivative(::Type{Val{2}}, sd::HasDeltaSet3D) =
-  dec_p_boundary(Val{1}, sd, negate=true)
+dec_p_dual_derivative(::Val{2}, sd::HasDeltaSet3D) =
+  dec_p_boundary(Val(1), sd, negate=true)
 
 """    dec_differential(n::Int, sd::HasDeltaSet)
 
 Return the exterior derivative (as a matrix) between `n`-simplices and `(n+1)`-simplices
 """
-dec_differential(n::Int, sd::HasDeltaSet) = sparse(dec_p_derivbound(Val{n}, sd)...)
+dec_differential(n::Int, sd::HasDeltaSet) =
+  sparse(dec_p_derivbound(Val(n), sd)...)
 
-function dec_p_derivbound(::Type{Val{0}}, sd::HasDeltaSet; transpose::Bool=false, negate::Bool=false)
+function dec_p_derivbound(::Val{0}, sd::HasDeltaSet; transpose::Bool=false, negate::Bool=false)
   vec_size = 2 * ne(sd)
   I = Vector{Int32}(undef, vec_size)
   J = Vector{Int32}(undef, vec_size)
@@ -479,7 +493,7 @@ function dec_p_derivbound(::Type{Val{0}}, sd::HasDeltaSet; transpose::Bool=false
   (I, J, V)
 end
 
-function dec_p_derivbound(::Type{Val{1}}, sd::HasDeltaSet; transpose::Bool=false, negate::Bool=false)
+function dec_p_derivbound(::Val{1}, sd::HasDeltaSet; transpose::Bool=false, negate::Bool=false)
   vec_size = 3 * ntriangles(sd)
   I = Vector{Int32}(undef, vec_size)
   J = Vector{Int32}(undef, vec_size)
@@ -509,7 +523,7 @@ function dec_p_derivbound(::Type{Val{1}}, sd::HasDeltaSet; transpose::Bool=false
   (I, J, V)
 end
 
-function dec_p_derivbound(::Type{Val{2}}, sd::HasDeltaSet; transpose::Bool=false, negate::Bool=false)
+function dec_p_derivbound(::Val{2}, sd::HasDeltaSet; transpose::Bool=false, negate::Bool=false)
   vec_size = 4 * ntetrahedra(sd)
   I = Vector{Int32}(undef, vec_size)
   J = Vector{Int32}(undef, vec_size)
@@ -545,7 +559,7 @@ end
 # Diagonal Hodge Star
 #--------------------
 
-function dec_p_hodge_diag(::Type{Val{0}}, sd::EmbeddedDeltaDualComplex1D{Bool, float_type, _p} where _p) where float_type
+function dec_p_hodge_diag(::Val{0}, sd::EmbeddedDeltaDualComplex1D{Bool, float_type, _p} where _p) where float_type
   nvsd = nv(sd)
   h_0 = zeros(float_type, nvsd)
   for de in parts(sd, :DualE)
@@ -557,13 +571,13 @@ function dec_p_hodge_diag(::Type{Val{0}}, sd::EmbeddedDeltaDualComplex1D{Bool, f
   h_0
 end
 
-function dec_p_hodge_diag(::Type{Val{1}}, sd::EmbeddedDeltaDualComplex1D{Bool, float_type, _p} where _p) where float_type
-  vols::Vector{float_type} = volume(Val{1}, sd, edges(sd))
+function dec_p_hodge_diag(::Val{1}, sd::EmbeddedDeltaDualComplex1D{Bool, float_type, _p} where _p) where float_type
+  vols::Vector{float_type} = volume(Val(1), sd, edges(sd))
   1 ./ vols
 end
 
 
-function dec_p_hodge_diag(::Type{Val{0}}, sd::EmbeddedDeltaDualComplex2D{Bool, float_type, _p} where _p) where float_type
+function dec_p_hodge_diag(::Val{0}, sd::EmbeddedDeltaDualComplex2D{Bool, float_type, _p} where _p) where float_type
   h_0 = zeros(float_type, nv(sd))
   for dt in parts(sd, :DualTri)
     v = sd[sd[dt, :D_∂e1], :D_∂v1]
@@ -572,7 +586,7 @@ function dec_p_hodge_diag(::Type{Val{0}}, sd::EmbeddedDeltaDualComplex2D{Bool, f
   h_0
 end
 
-function dec_p_hodge_diag(::Type{Val{1}}, sd::EmbeddedDeltaDualComplex2D{Bool, float_type, _p} where _p) where float_type
+function dec_p_hodge_diag(::Val{1}, sd::EmbeddedDeltaDualComplex2D{Bool, float_type, _p} where _p) where float_type
   nvsd, nesd = nv(sd), ne(sd)
   h_1 = zeros(float_type, nesd)
   for de in parts(sd, :DualE)
@@ -584,37 +598,38 @@ function dec_p_hodge_diag(::Type{Val{1}}, sd::EmbeddedDeltaDualComplex2D{Bool, f
   h_1
 end
 
-function dec_p_hodge_diag(::Type{Val{2}}, sd::EmbeddedDeltaDualComplex2D{Bool, float_type, _p} where _p) where float_type
+function dec_p_hodge_diag(::Val{2}, sd::EmbeddedDeltaDualComplex2D{Bool, float_type, _p} where _p) where float_type
   tri_areas::Vector{float_type} = sd[:area]
   1 ./ tri_areas
 end
 
 # TODO: Improve the generation of these 3D hodge stars
-function dec_p_hodge_diag(::Type{Val{0}}, sd::EmbeddedDeltaDualComplex3D{Bool, float_type, _p} where _p) where float_type
+function dec_p_hodge_diag(::Val{0}, sd::EmbeddedDeltaDualComplex3D{Bool, float_type, _p} where _p) where float_type
   h_0 = zeros(float_type, nv(sd))
   for v in vertices(sd)
-    h_0[v] = sum(sd[elementary_duals(Val{0},sd,v), :dual_vol])
+    h_0[v] = sum(sd[elementary_duals(Val(0),sd,v), :dual_vol])
   end
   h_0
 end
 
-function dec_p_hodge_diag(::Type{Val{1}}, sd::EmbeddedDeltaDualComplex3D{Bool, float_type, _p} where _p) where float_type
+function dec_p_hodge_diag(::Val{1}, sd::EmbeddedDeltaDualComplex3D{Bool, float_type, _p} where _p) where float_type
   h_1 = zeros(float_type, ne(sd))
   for e in edges(sd)
-    h_1[e] = sum(dual_volume(Val{2}, sd, elementary_duals(Val{1},sd,e))) / volume(Val{1},sd,e)
+    h_1[e] = sum(dual_volume(Val(2), sd, elementary_duals(Val(1),sd,e))) /
+      volume(Val(1),sd,e)
   end
   h_1
 end
 
-function dec_p_hodge_diag(::Type{Val{2}}, sd::EmbeddedDeltaDualComplex3D{Bool, float_type, _p} where _p) where float_type
+function dec_p_hodge_diag(::Val{2}, sd::EmbeddedDeltaDualComplex3D{Bool, float_type, _p} where _p) where float_type
   h_2 = zeros(float_type, ntriangles(sd))
   for t in triangles(sd)
-    h_2[t] = sum(dual_volume(Val{1}, sd, elementary_duals(Val{2},sd,t))) / volume(Val{2},sd,t)
+    h_2[t] = sum(dual_volume(Val(1), sd, elementary_duals(Val(2),sd,t))) / volume(Val(2),sd,t)
   end
   h_2
 end
 
-function dec_p_hodge_diag(::Type{Val{3}}, sd::EmbeddedDeltaDualComplex3D{Bool, float_type, _p} where _p) where float_type
+function dec_p_hodge_diag(::Val{3}, sd::EmbeddedDeltaDualComplex3D{Bool, float_type, _p} where _p) where float_type
   tet_volumes::Vector{float_type} = sd[:vol]
   1 ./ tet_volumes
 end
@@ -624,25 +639,25 @@ end
 Return the hodge matrix between `n`-simplices and dual 'n'-simplices.
 """
 dec_hodge_star(n::Int, sd::HasDeltaSet; hodge=GeometricHodge()) =
-  dec_hodge_star(Val{n}, sd, hodge)
+  dec_hodge_star(Val(n), sd, hodge)
 dec_hodge_star(n::Int, sd::HasDeltaSet, ::DiagonalHodge) =
-  dec_hodge_star(Val{n}, sd, DiagonalHodge())
+  dec_hodge_star(Val(n), sd, DiagonalHodge())
 dec_hodge_star(n::Int, sd::HasDeltaSet, ::GeometricHodge) =
-  dec_hodge_star(Val{n}, sd, GeometricHodge())
-dec_hodge_star(::Type{Val{k}}, sd::HasDeltaSet, ::DiagonalHodge) where {k} =
-  Diagonal(dec_p_hodge_diag(Val{k}, sd))
+  dec_hodge_star(Val(n), sd, GeometricHodge())
+dec_hodge_star(::Val{k}, sd::HasDeltaSet, ::DiagonalHodge) where {k} =
+  Diagonal(dec_p_hodge_diag(Val(k), sd))
 
 # Geometric Hodge Star
 #---------------------
 
 # TODO: Still need better implementation for Hodge 1 in 2D
-dec_hodge_star(::Type{Val{j}}, sd::EmbeddedDeltaDualComplex1D, ::GeometricHodge) where {j} =
-  dec_hodge_star(Val{j}, sd, DiagonalHodge())
+dec_hodge_star(::Val{j}, sd::EmbeddedDeltaDualComplex1D, ::GeometricHodge) where {j} =
+  dec_hodge_star(Val(j), sd, DiagonalHodge())
 
-dec_hodge_star(::Type{Val{j}}, sd::EmbeddedDeltaDualComplex2D, ::GeometricHodge) where {j} =
-  dec_hodge_star(Val{j}, sd, DiagonalHodge())
+dec_hodge_star(::Val{j}, sd::EmbeddedDeltaDualComplex2D, ::GeometricHodge) where {j} =
+  dec_hodge_star(Val(j), sd, DiagonalHodge())
 
-function dec_hodge_star(::Type{Val{1}}, sd::EmbeddedDeltaDualComplex2D{Bool, float_type, point_type}, ::GeometricHodge) where {float_type, point_type}
+function dec_hodge_star(::Val{1}, sd::EmbeddedDeltaDualComplex2D{Bool, float_type, point_type}, ::GeometricHodge) where {float_type, point_type}
   I = Vector{Int32}(undef, ntriangles(sd) * 9)
   J = Vector{Int32}(undef, ntriangles(sd) * 9)
   V = Vector{float_type}(undef, ntriangles(sd) * 9)
@@ -708,75 +723,81 @@ end
 Return the inverse hodge matrix between dual `n`-simplices and 'n'-simplices.
 """
 dec_inv_hodge_star(n::Int, sd::HasDeltaSet; hodge=GeometricHodge()) =
-  dec_inv_hodge_star(Val{n}, sd, hodge)
+  dec_inv_hodge_star(Val(n), sd, hodge)
 dec_inv_hodge_star(n::Int, sd::HasDeltaSet, ::DiagonalHodge) =
-  dec_inv_hodge_star(Val{n}, sd, DiagonalHodge())
+  dec_inv_hodge_star(Val(n), sd, DiagonalHodge())
 dec_inv_hodge_star(n::Int, sd::HasDeltaSet, ::GeometricHodge) =
-  dec_inv_hodge_star(Val{n}, sd, GeometricHodge())
+  dec_inv_hodge_star(Val(n), sd, GeometricHodge())
 
-function dec_inv_hodge_star(::Type{Val{k}}, sd::HasDeltaSet, ::DiagonalHodge) where {k}
-  hdg = dec_p_hodge_diag(Val{k}, sd)
+function dec_inv_hodge_star(::Val{k}, sd::HasDeltaSet, ::DiagonalHodge) where {k}
+  hdg = dec_p_hodge_diag(Val(k), sd)
   mult_term = iseven(k * (ndims(sd) - k)) ? 1 : -1
   hdg .= (1 ./ hdg) .* mult_term
   Diagonal(hdg)
 end
 
-dec_inv_hodge_star(::Type{Val{j}}, sd::EmbeddedDeltaDualComplex1D, ::GeometricHodge) where {j} =
-  dec_inv_hodge_star(Val{j}, sd, DiagonalHodge())
+dec_inv_hodge_star(::Val{j}, sd::EmbeddedDeltaDualComplex1D, ::GeometricHodge) where {j} =
+  dec_inv_hodge_star(Val(j), sd, DiagonalHodge())
 
-dec_inv_hodge_star(::Type{Val{j}}, sd::EmbeddedDeltaDualComplex2D, ::GeometricHodge) where {j} =
-  dec_inv_hodge_star(Val{j}, sd, DiagonalHodge())
+dec_inv_hodge_star(::Val{j}, sd::EmbeddedDeltaDualComplex2D, ::GeometricHodge) where {j} =
+  dec_inv_hodge_star(Val(j), sd, DiagonalHodge())
 
-function dec_inv_hodge_star(::Type{Val{1}}, sd::EmbeddedDeltaDualComplex2D, ::GeometricHodge)
+function dec_inv_hodge_star(::Val{1}, sd::EmbeddedDeltaDualComplex2D, ::GeometricHodge)
   hdg_lu = factorize(-1 * dec_hodge_star(1, sd, GeometricHodge()))
   x -> hdg_lu \ x
 end
 
-dec_inv_hodge_star(::Type{Val{0}}, sd::EmbeddedDeltaDualComplex3D, ::GeometricHodge) =
-  dec_inv_hodge_star(Val{0}, sd, DiagonalHodge())
+dec_inv_hodge_star(::Val{0}, sd::EmbeddedDeltaDualComplex3D, ::GeometricHodge) =
+  dec_inv_hodge_star(Val(0), sd, DiagonalHodge())
 
-dec_inv_hodge_star(::Type{Val{3}}, sd::EmbeddedDeltaDualComplex3D, ::GeometricHodge) =
-  dec_inv_hodge_star(Val{3}, sd, DiagonalHodge())
+dec_inv_hodge_star(::Val{3}, sd::EmbeddedDeltaDualComplex3D, ::GeometricHodge) =
+  dec_inv_hodge_star(Val(3), sd, DiagonalHodge())
 
-dec_inv_hodge_star(::Type{Val{j}}, sd::EmbeddedDeltaDualComplex3D, ::GeometricHodge) where {j} =
+dec_inv_hodge_star(::Val{j}, sd::EmbeddedDeltaDualComplex3D, ::GeometricHodge) where {j} =
   @error "The Geometric Hodge star in 3D for 1-forms and 2-forms has not yet been implemented. Please use the Diagonal Hodge star instead."
 
 # Interior Product and Lie Derivative
 #------------------------------------
 
-"""    function interior_product_dd(::Type{Tuple{1,1}}, s::SimplicialSets.HasDeltaSet)
+interior_product_dd(m::Int, n::Int, sd::HasDeltaSet) =
+  interior_product_dd(Val(m), Val(n), sd::HasDeltaSet)
+
+"""    function interior_product_dd(::Val{1}, ::Val{1}, s::SimplicialSets.HasDeltaSet)
 
 Given a dual 1-form and a dual 1-form, return their interior product as a dual 0-form.
 """
-function interior_product_dd(::Type{Tuple{1,1}}, s::SimplicialSets.HasDeltaSet)
-  ihs1 = dec_inv_hodge_star(Val{1}, s, GeometricHodge())
-  Λ11 = dec_wedge_product_pd(Tuple{1,1}, s)
-  hs2 = dec_hodge_star(Val{2}, s, GeometricHodge())
+function interior_product_dd(::Val{1}, ::Val{1}, s::SimplicialSets.HasDeltaSet)
+  ihs1 = dec_inv_hodge_star(Val(1), s, GeometricHodge())
+  Λ11 = dec_wedge_product_pd(Val(1), Val(1), s)
+  hs2 = dec_hodge_star(Val(2), s, GeometricHodge())
   (f,g) -> hs2 * Λ11(ihs1(g), f)
 end
 
-"""    function interior_product_dd(::Type{Tuple{1,1}}, s::SimplicialSets.HasDeltaSet)
+"""    function interior_product_dd(::Val{1}, ::Val{2}, s::SimplicialSets.HasDeltaSet)
 
 Given a dual 1-form and a dual 2-form, return their interior product as a dual 1-form.
 """
-function interior_product_dd(::Type{Tuple{1,2}}, s::SimplicialSets.HasDeltaSet)
-  ihs0 = dec_inv_hodge_star(Val{0}, s, GeometricHodge())
-  hs1 = dec_hodge_star(Val{1}, s, GeometricHodge())
+function interior_product_dd(::Val{1}, ::Val{2}, s::SimplicialSets.HasDeltaSet)
+  ihs0 = dec_inv_hodge_star(Val(0), s, GeometricHodge())
+  hs1 = dec_hodge_star(Val(1), s, GeometricHodge())
   ♭♯_m = ♭♯_mat(s)
   Λ01_m = wedge_pd_01_mat(s)
   (f,g) -> hs1 * ♭♯_m * ((Λ01_m * ihs0 * g) .* f)
 end
 
-"""    function ℒ_dd(::Type{Tuple{1,1}}, s::SimplicialSets.HasDeltaSet)
+ℒ_dd(m::Int, n::Int, sd::HasDeltaSet) =
+  ℒ_dd(Val(m), Val(n), sd::HasDeltaSet)
+
+"""    function ℒ_dd(::Val{1}, ::Val{1}, s::SimplicialSets.HasDeltaSet)
 
 Given a dual 1-form and a dual 1-form, return their lie derivative as a dual 1-form.
 """
-function ℒ_dd(::Type{Tuple{1,1}}, s::SimplicialSets.HasDeltaSet)
+function ℒ_dd(::Val{1}, ::Val{1}, s::SimplicialSets.HasDeltaSet)
   # ℒ := -diuv - iduv
   d0 = dec_dual_derivative(0, s)
   d1 = dec_dual_derivative(1, s)
-  i1 = interior_product_dd(Tuple{1,1}, s)
-  i2 = interior_product_dd(Tuple{1,2}, s)
+  i1 = interior_product_dd(Val(1), Val(1), s)
+  i2 = interior_product_dd(Val(1), Val(2), s)
   (f,g) -> -(d0 * i1(f,g)) - i2(f,d1 * g)
 end
 
@@ -785,11 +806,11 @@ const lie_derivative_dd = ℒ_dd
 # Laplacian
 #----------
 
-"""    function Δᵈ_mat(::Type{Val{0}}, s::SimplicialSets.HasDeltaSet)
+"""    function Δᵈ_mat(::Val{0}, s::SimplicialSets.HasDeltaSet)
 
 Return a function matrix encoding the dual 0-form Laplacian.
 """
-function Δᵈ(::Type{Val{0}}, s::SimplicialSets.HasDeltaSet)
+function Δᵈ(::Val{0}, s::SimplicialSets.HasDeltaSet)
   dd0 = dec_dual_derivative(0, s);
   ihs1 = dec_inv_hodge_star(0, s, GeometricHodge());
   d1 = dec_differential(0,s);
@@ -798,7 +819,7 @@ function Δᵈ(::Type{Val{0}}, s::SimplicialSets.HasDeltaSet)
   x -> m * x
 end
 
-function Δᵈ(::Type{Val{0}}, s::SimplicialSets.HasDeltaSet2D)
+function Δᵈ(::Val{0}, s::SimplicialSets.HasDeltaSet2D)
   dd0 = dec_dual_derivative(0, s);
   ihs1 = dec_inv_hodge_star(1, s, GeometricHodge());
   d1 = dec_differential(1,s);
@@ -808,7 +829,7 @@ function Δᵈ(::Type{Val{0}}, s::SimplicialSets.HasDeltaSet2D)
   x -> m * ihs1(dd0 * x)
 end
 
-function Δᵈ(::Type{Val{0}}, s::SimplicialSets.HasDeltaSet3D)
+function Δᵈ(::Val{0}, s::SimplicialSets.HasDeltaSet3D)
   dd0 = dec_dual_derivative(0, s);
   ihs2 = dec_inv_hodge_star(2, s, DiagonalHodge());
   d2 = dec_differential(2,s);
@@ -817,11 +838,11 @@ function Δᵈ(::Type{Val{0}}, s::SimplicialSets.HasDeltaSet3D)
   x -> m * x
 end
 
-"""    function Δᵈ_mat(::Type{Val{2}}, s::SimplicialSets.HasDeltaSet)
+"""    function Δᵈ_mat(::Val{1}, s::SimplicialSets.HasDeltaSet)
 
 Return a function matrix encoding the dual 1-form Laplacian.
 """
-function Δᵈ(::Type{Val{1}}, s::SimplicialSets.HasDeltaSet)
+function Δᵈ(::Val{1}, s::SimplicialSets.HasDeltaSet)
   dd0 = dec_dual_derivative(0, s);
   ihs1 = dec_inv_hodge_star(1, s, GeometricHodge());
   d1 = dec_differential(1,s);
@@ -838,11 +859,11 @@ function Δᵈ(::Type{Val{1}}, s::SimplicialSets.HasDeltaSet)
   end
 end
 
-"""    dec_Δ⁻¹(::Type{Val{0}}, s::AbstractGeometricMapSeries; steps = 3, cycles = 5, alg = cg, μ = 2)
+"""    dec_Δ⁻¹(::Val{0}, s::AbstractGeometricMapSeries; steps = 3, cycles = 5, alg = cg, μ = 2)
 
 Return a function that solves the inverse Laplacian problem.
 """
-function dec_Δ⁻¹(::Type{Val{0}}, s::AbstractGeometricMapSeries; scheme::AbstractSubdivisionScheme = BinarySubdivision(), steps = 3, cycles = 5, alg = cg, μ = 2)
+function dec_Δ⁻¹(::Val{0}, s::AbstractGeometricMapSeries; scheme::AbstractSubdivisionScheme = BinarySubdivision(), steps = 3, cycles = 5, alg = cg, μ = 2)
   md = MGData(s, sd -> ∇²(0, sd), steps, scheme)
   b -> full_multigrid(b, md, cycles, alg, μ)
 end

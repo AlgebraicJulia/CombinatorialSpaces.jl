@@ -118,8 +118,8 @@ function test_hodge_solver()
       V_1 = Float64.(I[1:ne(sd), 1])
       cuV_1 = CuArray(V_1)
       @test all(isapprox.(
-        dec_inv_hodge_star(Val{1}, sd, GeometricHodge())(V_1),
-        Array(dec_inv_hodge_star(Val{1}, sd, GeometricHodge(), Val{:CUDA})(cuV_1));
+        dec_inv_hodge_star(1, sd, GeometricHodge())(V_1),
+        Array(dec_inv_hodge_star(1, sd, GeometricHodge(), Val{:CUDA})(cuV_1));
         atol = 1e-10))
     end
   end
@@ -136,13 +136,13 @@ function test_binary_operators(float_type, backend, arr_cons, tol)
       V1, V2, E1 = rand.(float_type, [nv(sd), nv(sd), ne(sd)])
       altV1, altV2, altE1 = arr_cons.([V1, V2, E1])
 
-      wdg00 = dec_wedge_product(Tuple{0,0}, sd, backend, arr_cons, float_type)
-      wdg01 = dec_wedge_product(Tuple{0,1}, sd, backend, arr_cons, float_type)
-      wdg10 = dec_wedge_product(Tuple{1,0}, sd, backend, arr_cons, float_type)
+      wdg00 = dec_wedge_product(0, 0, sd, backend, arr_cons, float_type)
+      wdg01 = dec_wedge_product(0, 1, sd, backend, arr_cons, float_type)
+      wdg10 = dec_wedge_product(1, 0, sd, backend, arr_cons, float_type)
 
-      @test mse(wdg00(altV1, altV2), ∧(Tuple{0,0}, sd, V1, V2))
-      @test mse(wdg01(altV1, altE1), ∧(Tuple{0,1}, sd, V1, E1))
-      @test mse(wdg10(altE1, altV1), ∧(Tuple{1,0}, sd, E1, V1))
+      @test mse(wdg00(altV1, altV2), ∧(0, 0, sd, V1, V2))
+      @test mse(wdg01(altV1, altE1), ∧(0, 1, sd, V1, E1))
+      @test mse(wdg10(altE1, altV1), ∧(1, 0, sd, E1, V1))
     end
 
     function test_wedge_2D(sd, backend)
@@ -151,18 +151,18 @@ function test_binary_operators(float_type, backend, arr_cons, tol)
       V_ones, E_ones = ones(float_type, nv(sd)), ones(float_type, ne(sd))
       altV_ones, altE_ones = arr_cons.([V_ones, E_ones])
 
-      wdg00 = dec_wedge_product(Tuple{0,0}, sd, backend, arr_cons, float_type)
-      wdg01 = dec_wedge_product(Tuple{0,1}, sd, backend, arr_cons, float_type)
-      wdg10 = dec_wedge_product(Tuple{1,0}, sd, backend, arr_cons, float_type)
-      wdg11 = dec_wedge_product(Tuple{1,1}, sd, backend, arr_cons, float_type)
-      wdg02 = dec_wedge_product(Tuple{0,2}, sd, backend, arr_cons, float_type)
+      wdg00 = dec_wedge_product(0, 0, sd, backend, arr_cons, float_type)
+      wdg01 = dec_wedge_product(0, 1, sd, backend, arr_cons, float_type)
+      wdg10 = dec_wedge_product(1, 0, sd, backend, arr_cons, float_type)
+      wdg11 = dec_wedge_product(1, 1, sd, backend, arr_cons, float_type)
+      wdg02 = dec_wedge_product(0, 2, sd, backend, arr_cons, float_type)
 
       @test mse(wdg01(altV_ones, altE_ones), E_ones)
-      @test mse(wdg00(altV1, altV2), ∧(Tuple{0,0}, sd, V1, V2))
-      @test mse(wdg01(altV1, altE2), ∧(Tuple{0,1}, sd, V1, E2))
-      @test mse(wdg10(altE1, altV2), ∧(Tuple{1,0}, sd, E1, V2))
-      @test mse(wdg02(altV1, altT1), ∧(Tuple{0,2}, sd, V1, T1))
-      @test mse(wdg11(altE1, altE2), ∧(Tuple{1,1}, sd, E1, E2))
+      @test mse(wdg00(altV1, altV2), ∧(0, 0, sd, V1, V2))
+      @test mse(wdg01(altV1, altE2), ∧(0, 1, sd, V1, E2))
+      @test mse(wdg10(altE1, altV2), ∧(1, 0, sd, E1, V2))
+      @test mse(wdg02(altV1, altT1), ∧(0, 2, sd, V1, T1))
+      @test mse(wdg11(altE1, altE2), ∧(1, 1, sd, E1, E2))
     end
 
     for sd in dual_meshes_1D
