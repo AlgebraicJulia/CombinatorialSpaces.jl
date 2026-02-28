@@ -539,7 +539,7 @@ primal_s, s = grid_345();
 # ∀ βᵏ ∧(α,βᵏ) = id(βᵏ), where α = 1.
 α = VForm(ones(nv(s)))
 for k = 0:2
-  βᵏ = SimplexForm{k}(collect(1:nsimplices(k,s)))
+  βᵏ = SimplexForm{k}(Base.collect(1:nsimplices(k,s)))
   @test all(∧(s, α, βᵏ) .≈ βᵏ)
 end
 
@@ -982,7 +982,7 @@ inv_star₃_mat = inv_hodge_star(0,s,DiagonalHodge())
 
 lap_mat = inv_star₃_mat * dual_d₂_mat * star₁_mat * d₀_mat
 
-C = collect(range(1, 4; length=nv(s)))
+C = Base.collect(range(1, 4; length=nv(s)))
 C₀ = copy(C)
 D = 0.005
 for _ in 0:100_000
