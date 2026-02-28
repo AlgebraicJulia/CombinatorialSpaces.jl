@@ -133,13 +133,13 @@ function wedge_kernel_coeffs(::Val{2}, ::Val{1}, sd::EmbeddedDeltaDualComplex3D{
 end
 
 # Grab the float type of the volumes of the complex.
-function cache_wedge(::Val{m}, ::Val{n}, sd::EmbeddedDeltaDualComplex1D{Bool, float_type, _p}, arr_cons=identity, cast_float=nothing) where {float_type,_p,m,n}
+function cache_wedge(::Val{m}, ::Val{n}, sd::EmbeddedDeltaDualComplex1D{Bool, float_type, _p}, backend=Val(:CPU), arr_cons=identity, cast_float=nothing) where {float_type,_p,m,n}
   cache_wedge(m, n, sd, float_type, arr_cons, cast_float)
 end
-function cache_wedge(::Val{m}, ::Val{n}, sd::EmbeddedDeltaDualComplex2D{Bool, float_type, _p}, arr_cons=identity, cast_float=nothing) where {float_type,_p,m,n}
+function cache_wedge(::Val{m}, ::Val{n}, sd::EmbeddedDeltaDualComplex2D{Bool, float_type, _p}, backend=Val(:CPU), arr_cons=identity, cast_float=nothing) where {float_type,_p,m,n}
   cache_wedge(m, n, sd, float_type, arr_cons, cast_float)
 end
-function cache_wedge(::Val{m}, ::Val{n}, sd::EmbeddedDeltaDualComplex3D{Bool, float_type, _p}, arr_cons=identity, cast_float=nothing) where {float_type,_p,m,n}
+function cache_wedge(::Val{m}, ::Val{n}, sd::EmbeddedDeltaDualComplex3D{Bool, float_type, _p}, backend=Val(:CPU), arr_cons=identity, cast_float=nothing) where {float_type,_p,m,n}
   cache_wedge(m, n, sd, float_type, arr_cons, cast_float)
 end
 
@@ -237,7 +237,7 @@ function dec_c_wedge_product(::Val{m}, ::Val{n}, α, β, wedge_cache) where {m,n
   dec_c_wedge_product!(Val(m), Val(n), res, α, β, wedge_cache[1], wedge_cache[2])
 end
 
-"""    dec_wedge_product(::Val{m}, ::Val{n}, sd::HasDeltaSet, arr_cons=identity, cast_float=nothing) where {m,n}
+"""    dec_wedge_product(::Val{m}, ::Val{n}, sd::HasDeltaSet, backend=Val(:CPU), arr_cons=identity, cast_float=nothing) where {m,n}
 
 Return a function that computes the wedge product between a primal `m`-form and a primal `n`-form, assuming special properties of the mesh.
 
@@ -248,42 +248,43 @@ It is assumed...
 # Arguments:
 `::Val{m}, ::Val{n}`: the degrees of the differential forms.
 `sd`: the simplicial complex.
+`backend=Val(:CPU)`: a value-type to select special backend logic, if implemented.
 `arr_cons=identity`: a constructor of the desired array type on the appropriate backend e.g. `MtlArray`.
 `cast_float=nothing`: a specific Float type to use e.g. `Float32`. Otherwise, the type of the first differential form will be used.
 """
-function dec_wedge_product(::Val{m}, ::Val{n}, sd::HasDeltaSet, arr_cons=identity, cast_float=nothing) where {m,n}
+function dec_wedge_product(::Val{m}, ::Val{n}, sd::HasDeltaSet, backend=Val(:CPU), arr_cons=identity, cast_float=nothing) where {m,n}
   error("Unsupported combination of degrees $m and $n. Ensure that their sum is not greater than the degree of the complex.")
 end
 
 dec_wedge_product(m::Int, n::Int, sd::HasDeltaSet, args...) =
   dec_wedge_product(Val(m), Val(n), sd::HasDeltaSet, args...)
 
-function dec_wedge_product(::Val{0}, ::Val{0}, sd::HasDeltaSet, arr_cons=identity, cast_float=nothing)
+function dec_wedge_product(::Val{0}, ::Val{0}, sd::HasDeltaSet, backend=Val(:CPU), arr_cons=identity, cast_float=nothing)
   (f, g) -> f .* g
 end
 
-function dec_wedge_product(::Val{k}, ::Val{0}, sd::HasDeltaSet, arr_cons=identity, cast_float=nothing) where {k}
-  wedge_cache = cache_wedge(Val(0), Val(k), sd, arr_cons, cast_float)
+function dec_wedge_product(::Val{k}, ::Val{0}, sd::HasDeltaSet, backend=Val(:CPU), arr_cons=identity, cast_float=nothing) where {k}
+  wedge_cache = cache_wedge(Val(0), Val(k), sd, backend, arr_cons, cast_float)
   (α, β) -> dec_c_wedge_product(Val(0), Val(k), β, α, wedge_cache)
 end
 
-function dec_wedge_product(::Val{0}, ::Val{k}, sd::HasDeltaSet, arr_cons=identity, cast_float=nothing) where {k}
-  wedge_cache = cache_wedge(Val(0), Val(k), sd, arr_cons, cast_float)
+function dec_wedge_product(::Val{0}, ::Val{k}, sd::HasDeltaSet, backend=Val(:CPU), arr_cons=identity, cast_float=nothing) where {k}
+  wedge_cache = cache_wedge(Val(0), Val(k), sd, backend, arr_cons, cast_float)
   (α, β) -> dec_c_wedge_product(Val(0), Val(k), α, β, wedge_cache)
 end
 
-function dec_wedge_product(::Val{1}, ::Val{1}, sd::HasDeltaSet2D, arr_cons=identity, cast_float=nothing)
-  wedge_cache = cache_wedge(Val(1), Val(1), sd, arr_cons, cast_float)
+function dec_wedge_product(::Val{1}, ::Val{1}, sd::HasDeltaSet2D, backend=Val(:CPU), arr_cons=identity, cast_float=nothing)
+  wedge_cache = cache_wedge(Val(1), Val(1), sd, backend, arr_cons, cast_float)
   (α, β) -> dec_c_wedge_product(Val(1), Val(1), α, β, wedge_cache)
 end
 
-function dec_wedge_product(::Val{1}, ::Val{2}, sd::HasDeltaSet3D, arr_cons=identity, cast_float=nothing)
-  wedge_cache = cache_wedge(Val(2), Val(1), sd, arr_cons, cast_float)
+function dec_wedge_product(::Val{1}, ::Val{2}, sd::HasDeltaSet3D, backend=Val(:CPU), arr_cons=identity, cast_float=nothing)
+  wedge_cache = cache_wedge(Val(2), Val(1), sd, backend, arr_cons, cast_float)
   (α, β) -> dec_c_wedge_product(Val(2), Val(1), β, α, wedge_cache)
 end
 
-function dec_wedge_product(::Val{2}, ::Val{1}, sd::HasDeltaSet3D, arr_cons=identity, cast_float=nothing)
-  wedge_cache = cache_wedge(Val(2), Val(1), sd, arr_cons, cast_float)
+function dec_wedge_product(::Val{2}, ::Val{1}, sd::HasDeltaSet3D, backend=Val(:CPU), arr_cons=identity, cast_float=nothing)
+  wedge_cache = cache_wedge(Val(2), Val(1), sd, backend, arr_cons, cast_float)
   (α, β) -> dec_c_wedge_product(Val(2), Val(1), α, β, wedge_cache)
 end
 
