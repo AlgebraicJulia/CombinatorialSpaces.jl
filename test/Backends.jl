@@ -59,7 +59,7 @@ dual_meshes_2D_circum = map(x -> generate_dual(x, Circumcenter()), [
 # Operator Test Definitions
 #--------------------------
 
-function test_unary_operators()
+function test_unary_operators(backend)
   function all_are_equal(cpu_ans::SparseMatrixCSC, alt_ans)
     KernelAbstractions.synchronize(get_backend(alt_ans))
     all(cpu_ans .== SparseMatrixCSC(alt_ans))
@@ -72,13 +72,13 @@ function test_unary_operators()
 
   function test_cpu_gpu_equality(meshes, degrees, operator)
     for (n, sd) in Iterators.product(degrees, meshes)
-      @test all_are_equal(operator(n, sd), operator(n, sd))
+      @test all_are_equal(operator(n, sd), operator(n, sd, backend))
     end
   end
 
   function test_cpu_gpu_equality(meshes, degrees, operator, hodge::DiscreteHodge)
     for (n, sd) in Iterators.product(degrees, meshes)
-      @test all_are_equal(operator(n, sd, hodge), operator(n, sd, hodge))
+      @test all_are_equal(operator(n, sd, hodge), operator(n, sd, hodge, backend))
     end
   end
 
@@ -119,43 +119,43 @@ function test_hodge_solver()
       cuV_1 = CuArray(V_1)
       @test all(isapprox.(
         dec_inv_hodge_star(1, sd, GeometricHodge())(V_1),
-        Array(dec_inv_hodge_star(1, sd, GeometricHodge())(cuV_1));
+        Array(dec_inv_hodge_star(1, sd, GeometricHodge(), Val(:CUDA))(cuV_1));
         atol = 1e-10))
     end
   end
 end
 
-function test_binary_operators(float_type, arr_cons, tol)
+function test_binary_operators(float_type, backend, arr_cons, tol)
   function mse(x,y)
     KernelAbstractions.synchronize(get_backend(y))
     mean(map(z -> z^2, Array(x) .- y)) < tol
   end
 
   @testset "Wedge Product" begin
-    function test_wedge_1D(sd)
+    function test_wedge_1D(sd, backend)
       V1, V2, E1 = rand.(float_type, [nv(sd), nv(sd), ne(sd)])
       altV1, altV2, altE1 = arr_cons.([V1, V2, E1])
 
-      wdg00 = dec_wedge_product(0, 0, sd, arr_cons, float_type)
-      wdg01 = dec_wedge_product(0, 1, sd, arr_cons, float_type)
-      wdg10 = dec_wedge_product(1, 0, sd, arr_cons, float_type)
+      wdg00 = dec_wedge_product(0, 0, sd, backend, arr_cons, float_type)
+      wdg01 = dec_wedge_product(0, 1, sd, backend, arr_cons, float_type)
+      wdg10 = dec_wedge_product(1, 0, sd, backend, arr_cons, float_type)
 
       @test mse(wdg00(altV1, altV2), ∧(0, 0, sd, V1, V2))
       @test mse(wdg01(altV1, altE1), ∧(0, 1, sd, V1, E1))
       @test mse(wdg10(altE1, altV1), ∧(1, 0, sd, E1, V1))
     end
 
-    function test_wedge_2D(sd)
+    function test_wedge_2D(sd, backend)
       V1, V2, E1, E2, T1 = rand.(float_type, [nv(sd), nv(sd), ne(sd), ne(sd), ntriangles(sd)])
       altV1, altV2, altE1, altE2, altT1 = arr_cons.([V1, V2, E1, E2, T1])
       V_ones, E_ones = ones(float_type, nv(sd)), ones(float_type, ne(sd))
       altV_ones, altE_ones = arr_cons.([V_ones, E_ones])
 
-      wdg00 = dec_wedge_product(0, 0, sd, arr_cons, float_type)
-      wdg01 = dec_wedge_product(0, 1, sd, arr_cons, float_type)
-      wdg10 = dec_wedge_product(1, 0, sd, arr_cons, float_type)
-      wdg11 = dec_wedge_product(1, 1, sd, arr_cons, float_type)
-      wdg02 = dec_wedge_product(0, 2, sd, arr_cons, float_type)
+      wdg00 = dec_wedge_product(0, 0, sd, backend, arr_cons, float_type)
+      wdg01 = dec_wedge_product(0, 1, sd, backend, arr_cons, float_type)
+      wdg10 = dec_wedge_product(1, 0, sd, backend, arr_cons, float_type)
+      wdg11 = dec_wedge_product(1, 1, sd, backend, arr_cons, float_type)
+      wdg02 = dec_wedge_product(0, 2, sd, backend, arr_cons, float_type)
 
       @test mse(wdg01(altV_ones, altE_ones), E_ones)
       @test mse(wdg00(altV1, altV2), ∧(0, 0, sd, V1, V2))
@@ -166,10 +166,10 @@ function test_binary_operators(float_type, arr_cons, tol)
     end
 
     for sd in dual_meshes_1D
-      test_wedge_1D(sd)
+      test_wedge_1D(sd, backend)
     end
     for sd in dual_meshes_2D_bary
-      test_wedge_2D(sd)
+      test_wedge_2D(sd, backend)
     end
   end
 end
@@ -179,16 +179,16 @@ end
 
 # Test that Float32s pass through correctly.
 @testset "Float32 Operators" begin
-  test_binary_operators(Float32, Array, 1e-15)
+  test_binary_operators(Float32, Val(:CPU), Array, 1e-15)
 end
 
 using CUDA
 if CUDA.functional()
   @testset "CUDA" begin
-    test_unary_operators()
+    test_unary_operators(Val(:CUDA))
     test_hodge_solver()
-    test_binary_operators(Float64, CuArray, 1e-15)
-    test_binary_operators(Float32, CuArray, 1e-15)
+    test_binary_operators(Float64, Val(:CUDA), CuArray, 1e-15)
+    test_binary_operators(Float32, Val(:CUDA), CuArray, 1e-15)
   end
 else
   # Get the short error description instead of full stacktrace
@@ -207,8 +207,8 @@ if Sys.isapple()
   dev = Metal.device()
   if Metal.supports_family(dev, Metal.MTL.MTLGPUFamilyApple7) && Metal.supports_family(dev, Metal.MTL.MTLGPUFamilyMetal3)
     @testset "Metal" begin
-      test_binary_operators(Float32, MtlArray, 0.5e-6)
-      test_binary_operators(Float16, MtlArray, 0.5e-3)
+      test_binary_operators(Float32, Val(:Metal), MtlArray, 0.5e-6)
+      test_binary_operators(Float16, Val(:Metal), MtlArray, 0.5e-3)
     end
   else
     @info "Metal tests were not run, since the current device does not support Apple7 and Metal3."
