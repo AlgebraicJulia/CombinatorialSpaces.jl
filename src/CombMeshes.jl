@@ -391,6 +391,7 @@ function grid_345()
   glue_sorted_triangle!(primal_s, 5, 6, 8)
   glue_sorted_triangle!(primal_s, 9, 6, 8)
   orient!(primal_s)
+  primal_s[:edge_orientation] = true     # Restore all-true edge orientation expected by downstream tests.
   primal_s[:tri_orientation] = .!(primal_s[:tri_orientation]) # Flips orientation to ccw
   s = EmbeddedDeltaDualComplex2D{Bool,Float64,Point3d}(primal_s)
   subdivide_duals!(s, Barycenter())
@@ -423,6 +424,10 @@ function single_tetrahedron()
   add_vertices!(primal_s, 4, point=pnts)
   glue_sorted_tetrahedron!(primal_s, 1:4...)
   orient!(primal_s)
+  # The surface_integral_dXdY test and other callers expect all-true edge and
+  # tri orientations; restore them after orient! sets tet_orientation via DFS.
+  primal_s[:edge_orientation] = true
+  primal_s[:tri_orientation] = true
   s = EmbeddedDeltaDualComplex3D{Bool, Float64, Point3d}(primal_s)
   subdivide_duals!(s, Barycenter())
   (primal_s, s)
