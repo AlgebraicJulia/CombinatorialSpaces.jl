@@ -61,6 +61,7 @@ add_edges!(explicit_s, [1,2], [2,3], edge_orientation=true)
 implicit_s = EmbeddedDeltaSet1D{Bool,Point2d}()
 add_vertices!(implicit_s, 3, point=[Point2d(1,0), Point2d(0,0), Point2d(0,2)])
 add_edges!(implicit_s, [1,2], [2,3])
+orient!(implicit_s)
 
 for primal_s in [explicit_s, implicit_s]
   s = EmbeddedDeltaDualComplex1D{Bool,Float64,Point2d}(primal_s)
@@ -114,6 +115,7 @@ f = VForm([0,1,2,1,0])
 # A line with linearly-spaced x-coordinates.
 primal_s = path_graph(EmbeddedDeltaSet1D{Bool,Point3d}, 1_000)
 primal_s[:point] = map(x -> Point3d(x,0,0), 0:999)
+orient!(primal_s)
 s = EmbeddedDeltaDualComplex1D{Bool,Float64,Point3d}(primal_s)
 subdivide_duals!(s, Barycenter())
 f = map(x -> x[1]^2, s[:point]) # 0-Form: x^2
@@ -126,6 +128,7 @@ g♯_p = ♯(s, g, PPSharp())       # Primal Vector Field: 2x
 # A line with x-coordinates arranged 0,1,3,6.
 primal_s = path_graph(EmbeddedDeltaSet1D{Bool,Point3d}, 4)
 primal_s[:point] = [Point3d(0,0,0), Point3d(1,0,0), Point3d(3,0,0), Point3d(6,0,0)]
+orient!(primal_s)
 s = EmbeddedDeltaDualComplex1D{Bool,Float64,Point3d}(primal_s)
 subdivide_duals!(s, Barycenter())
 f = map(x -> x[1], s[:point]) # 0-Form: x
@@ -146,6 +149,7 @@ g♯_p = ♯(s, g, PPSharp()) # Primal Vector Field: (0)
 # and a perturbed dual point.
 primal_s = path_graph(EmbeddedDeltaSet1D{Bool,Point3d}, 4)
 primal_s[:point] = [Point3d(0,0,0), Point3d(1,0,0), Point3d(3,0,0), Point3d(6,0,0)]
+orient!(primal_s)
 s = EmbeddedDeltaDualComplex1D{Bool,Float64,Point3d}(primal_s)
 subdivide_duals!(s, Barycenter())
 s[6, :dual_point] = Point3d(1.25, 0, 0)
@@ -162,6 +166,7 @@ g♯_p = ♯(s, g, PPSharp())     # Primal Vector Field: (1)
 # A line with linearly-spaced x-coordinates:
 primal_s = path_graph(EmbeddedDeltaSet1D{Bool,Point3d}, 1_000)
 primal_s[:point] = map(x -> Point3d(x,0,0), 0:999)
+orient!(primal_s)
 s = EmbeddedDeltaDualComplex1D{Bool,Float64,Point3d}(primal_s)
 subdivide_duals!(s, Barycenter())
 f = map(x -> x[1], point(s)) # 0-Form: x
@@ -256,6 +261,7 @@ primal_s = get_regular_polygon(6)
 # Rotate counter-clockwise by pi/6 to match the Hirani figure.
 θ = -pi/6
 primal_s[:point] = [[[cos(θ), -sin(θ), 0];; [sin(θ), cos(θ), 0];; [0,0,1]] * p for p in primal_s[:point]]
+orient!(primal_s)
 s = EmbeddedDeltaDualComplex2D{Bool,Float64,Point3d}(primal_s)
 subdivide_duals!(s, Circumcenter())
 X = map([8,4,0,8,4,0]) do i
@@ -441,6 +447,7 @@ foreach(vf -> test_♯(s, vf), vfs)
 # Triangulated regular dodecagon.
 primal_s = get_regular_polygon(12)
 primal_s[:point] = [Point3d(1/4,1/5,0) + p for p in primal_s[:point]]
+orient!(primal_s)
 s = EmbeddedDeltaDualComplex2D{Bool,Float64,Point3d}(primal_s)
 subdivide_duals!(s, Circumcenter())
 foreach(vf -> test_♯(s, vf), vfs)
@@ -573,6 +580,7 @@ primal_s = EmbeddedDeltaSet2D{Bool,Point2d}()
 add_vertices!(primal_s, 4, point=[Point2d(0,0), Point2d(1,0), Point2d(0,2), Point2d(-2,5)])
 glue_triangle!(primal_s, 1, 2, 3)
 glue_triangle!(primal_s, 1, 3, 4)
+orient!(primal_s)
 s = EmbeddedDeltaDualComplex2D{Bool,Float64,Point2d}(primal_s)
 subdivide_duals!(s, Barycenter())
 X = [SVector(2,3), SVector(5,7)]
@@ -948,6 +956,8 @@ tetrahedron_s = OrientedDeltaDualComplex3D{Bool}(primal_s)
 primal_s = OrientedDeltaSet3D{Bool}()
 add_vertices!(primal_s, 8)
 glue_sorted_tet_cube!(primal_s, 1:8..., tet_orientation=true)
+primal_s[:edge_orientation] = true
+primal_s[:tri_orientation] = true
 cube_s = OrientedDeltaDualComplex3D{Bool}(primal_s)
 
 for s in [tetrahedron_s, cube_s]
@@ -971,6 +981,7 @@ primal_s = EmbeddedDeltaSet3D{Bool,Point3d}()
 add_vertices!(primal_s, 4, point=[Point3d(1,1,1), Point3d(1,-1,-1),
   Point3d(-1,1,-1), Point3d(-1,-1,1)])
 glue_tetrahedron!(primal_s, 1, 2, 3, 4)
+orient!(primal_s)
 s = EmbeddedDeltaDualComplex3D{Bool,Float64,Point3d}(primal_s)
 subdivide_duals!(s, Circumcenter())
 regular_tetrahedron_volume(len) = len^3/(6√2)

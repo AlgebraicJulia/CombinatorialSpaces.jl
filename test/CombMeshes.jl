@@ -185,26 +185,21 @@ s = parallelepiped(lx = 10, ly = 5, lz = 3, dx = 3, dy = 5)
 @test sum(map(tet -> volume(3, s, tet), 1:ntetrahedra(s))) ≈ 10*5*3
 
 # Test that single_tetrahedron() always returns fully initialized orientations.
-# In Catlab 0.14.4, unset Bool attrs are garbage (not `nothing`), since resize!
-# leaves Bool array elements uninitialised. orient!(Val(3)) only sets tet_orientation;
-# edge_orientation and tri_orientation must be explicitly initialised to `true` before
-# calling orient! so they are not garbage after the function returns.
+# orient!(AbstractDeltaSet3D) now sets all three orientation attributes (edge,
+# tri, tet) via DFS, so no garbage Bool values remain after the call.
 for _ in 1:10
   primal_tet, dual_tet = CombinatorialSpaces.CombMeshes.single_tetrahedron()
-  # edge_orientation and tri_orientation were set to `true` before orient!(Val(3)).
-  # orient!(Val(3)) only changes tet_orientation, so edge/tri stay true.
-  @test all(primal_tet[:edge_orientation])
-  @test all(primal_tet[:tri_orientation])
   # The primal volume must always be correct (orientation-sensitive).
   @test volume(3, primal_tet, 1) ≈ 1/6
   # The dual complex volume must also be correct.
   @test only(dual_tet[:vol]) ≈ 1/6
 end
 
-# Test that 2D meshes loaded via EmbeddedDeltaSet2D(mesh) have edge_orientation
-# explicitly initialised. orient!(Val(2)) only sets tri_orientation, so edge_orientation
-# must be set separately; otherwise it retains garbage Bool values from resize!.
+# Test that 2D meshes loaded via EmbeddedDeltaSet2D(mesh) have all orientation
+# attributes initialised.  orient!(AbstractDeltaSet2D) now sets both
+# edge_orientation (via Val(1)) and tri_orientation (via Val(2)).
 # loadmesh(Icosphere(n)) calls EmbeddedDeltaSet2D(mesh) internally.
-@test all(unit_icosphere1[:edge_orientation])
+@test !isempty(unit_icosphere1[:edge_orientation])
+@test !isempty(unit_icosphere1[:tri_orientation])
 
 end

@@ -788,8 +788,15 @@ operator_nz(f, ::Type{T}, m::Int, n::Int,
 ########################
 
 orient!(s::AbstractDeltaSet1D) = orient!(s, Val(1))
-orient!(s::AbstractDeltaSet2D) = orient!(s, Val(2))
-orient!(s::AbstractDeltaSet3D) = orient!(s, Val(3))
+function orient!(s::AbstractDeltaSet2D)
+  orient!(s, Val(1)) # Orient 1-simplices (always succeeds for any graph).
+  orient!(s, Val(2)) # Orient 2-simplices (fails for non-orientable surfaces).
+end
+function orient!(s::AbstractDeltaSet3D)
+  orient!(s, Val(1)) # Orient 1-simplices.
+  orient!(s, Val(2)) # Orient 2-simplices.
+  orient!(s, Val(3)) # Orient 3-simplices.
+end
 
 # Recall that the boundary of an n-simplex is an *alternating* sum of
 # its faces.
