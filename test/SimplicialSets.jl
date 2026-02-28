@@ -582,8 +582,7 @@ bvs, bes = boundary_inds(Val(0), s), boundary_inds(Val(1), s)
 
 # Disconnected Lines:
 s = path_graph(DeltaSet1D, 8)
-const 𝒞 = ACSetCategory(CSetCat(DeltaSet1D()))
-s = apex(coproduct[𝒞](s,s))
+s = apex(coproduct(s,s))
 bvs, bes = boundary_inds(Val(0), s), boundary_inds(Val(1), s)
 @test issetequal(bvs, [1,8,9,16])
 @test issetequal(bes, [1,7,8,14])
@@ -606,8 +605,7 @@ end
 s = CombinatorialSpaces.CombMeshes.single_tetrahedron()[1]
 s[:edge_orientation] = false; s[:tri_orientation] = false; orient!(s);
 
-const 𝒟 = ACSetCategory(EmbeddedDeltaSet3D{Bool, Point3d}())
-@test show_to_string(apex(coproduct[𝒟]([s for _ in 1:32]...))) ==
+@test show_to_string(apex(coproduct([s for _ in 1:32]))) ==
   "3D Delta Set with 128 vertices, 192 edges, 128 triangles, and 32 tetrahedra."
 
 end

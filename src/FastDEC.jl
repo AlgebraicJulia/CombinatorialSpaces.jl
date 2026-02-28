@@ -14,7 +14,7 @@ using ..SimplicialSets, ..DiscreteExteriorCalculus
 using ..DiscreteExteriorCalculus: crossdot
 using ..Multigrid: AbstractGeometricMapSeries, AbstractSubdivisionScheme, BinarySubdivision, MGData, full_multigrid
 
-using ACSets
+using Catlab.CategoricalAlgebra
 using Base.Iterators
 using KernelAbstractions
 using LinearAlgebra: cross, dot, Diagonal, factorize, norm

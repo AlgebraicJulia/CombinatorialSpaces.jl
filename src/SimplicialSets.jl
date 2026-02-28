@@ -37,20 +37,22 @@ export Simplex, V, E, Tri, Tet, SimplexChain, VChain, EChain, TriChain, TetChain
   glue_sorted_tet_cube!, is_manifold_like, nonboundaries,
   star, St, closed_star, St̄, link, Lk, simplex_vertices, dimension,
   DeltaSet, OrientedDeltaSet, EmbeddedDeltaSet,
-  boundary_inds, interior
+  boundary_inds, interior,
+  attrtype_type
 
 using LinearAlgebra: det
 using SparseArrays
 using StaticArrays: @SVector, SVector, SMatrix
 using StatsBase: counts
 
-using ACSets.DenseACSets: attrtype_type
 using Catlab, Catlab.CategoricalAlgebra, Catlab.Graphs
 import Catlab.Graphs: src, tgt, nv, ne, vertices, edges, has_vertex, has_edge,
   add_vertex!, add_vertices!, add_edge!, add_edges!
+import Catlab.Theories: attrtype_num
 using ..ArrayUtils
 
-const 𝒞 = SkelFinSet()
+attrtype_type(::Type{<:StructACSet{S,Ts}}, n::Symbol) where {S,Ts} = Ts.parameters[attrtype_num(S,n)]
+attrtype_type(s::StructACSet, n::Symbol) = attrtype_type(typeof(s), n)
 
 """ Abstract type for C-sets that contain a delta set of some dimension.
 
@@ -865,9 +867,9 @@ See also [`connected_components_representatives`](@ref).
 """
 function connected_components(s::HasDeltaSet, ::Val{n}) where n
   ndom, ncodom = nsimplices(n, s), nsimplices(n-1, s)
-  face_maps = [ FinFunction(x -> ∂(n,i,s,x), FinSet(ndom), FinSet(ncodom))
-                for i in 0:n ]
-  π = only(coequalizer[𝒞](face_maps))
+  face_maps = SVector{n+1}([ FinFunction(x -> ∂(n,i,s,x), ndom, ncodom)
+                              for i in 0:n ])
+  π = only(coequalizer(face_maps))
 end
 
 """    function connected_components_representatives(s::HasDeltaSet, ::Val{n}) where n
