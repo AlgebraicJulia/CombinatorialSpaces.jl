@@ -184,4 +184,21 @@ s = parallelepiped(lx = 10, ly = 5, lz = 3, dx = 3, dy = 5)
 @test euler_characteristic(s) == 1
 @test sum(map(tet -> volume(3, s, tet), 1:ntetrahedra(s))) ≈ 10*5*3
 
+# Test that single_tetrahedron() always returns fully initialized orientations.
+# Previously, orient!(3D) only set tet_orientation, leaving edge_orientation and
+# tri_orientation at their default values, causing non-deterministic dual complex
+# construction when those uninitialized values were read.
+# Calling the function multiple times must give consistent, valid results.
+for _ in 1:10
+  primal_tet, dual_tet = CombinatorialSpaces.CombMeshes.single_tetrahedron()
+  # All orientation attributes must be properly set (explicitly initialized).
+  @test all(v -> !isnothing(v), primal_tet[:edge_orientation])
+  @test all(v -> !isnothing(v), primal_tet[:tri_orientation])
+  @test all(v -> !isnothing(v), primal_tet[:tet_orientation])
+  # The primal volume must always be correct (not sensitive to random memory state).
+  @test volume(3, primal_tet, 1) ≈ 1/6
+  # The dual complex must have exactly 1 tetrahedron with correct volume.
+  @test only(dual_tet[:vol]) ≈ 1/6
+end
+
 end
