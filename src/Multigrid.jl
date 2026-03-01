@@ -60,6 +60,10 @@ function topo_to_mesh(::Type{S}, topo::MeshTopology,
     sd[1:topo.ntri, :∂e1] = topo.∂e1
     sd[1:topo.ntri, :∂e2] = topo.∂e2
   end
+  # Initialize lower-dimensional orientations to a deterministic default before
+  # calling orient! so that orient!(Val(n)) doesn't depend on uninitialized values.
+  has_subpart(sd, :edge_orientation) &&
+    (sd[:edge_orientation] = one(attrtype_type(sd, :Orientation)))
   orient!(sd)
   sd
 end

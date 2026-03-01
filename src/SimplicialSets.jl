@@ -788,20 +788,9 @@ operator_nz(f, ::Type{T}, m::Int, n::Int,
 ########################
 
 orient!(s::AbstractDeltaSet1D) = orient!(s, Val(1))
-function orient!(s::AbstractDeltaSet2D)
-  # Set edge orientations to a deterministic default: orient!(Val(1)) on the
-  # 1-skeleton of a 2D mesh is non-deterministic (many valid consistent
-  # orientations exist) and would produce garbage in Catlab 0.14.4.
-  has_subpart(s, :edge_orientation) &&
-    (s[:edge_orientation] = one(attrtype_type(s, :Orientation)))
-  orient!(s, Val(2))
-end
+orient!(s::AbstractDeltaSet2D) = orient!(s, Val(1)) && orient!(s, Val(2))
 function orient!(s::AbstractDeltaSet3D)
-  has_subpart(s, :edge_orientation) &&
-    (s[:edge_orientation] = one(attrtype_type(s, :Orientation)))
-  has_subpart(s, :tri_orientation) &&
-    (s[:tri_orientation]  = one(attrtype_type(s, :Orientation)))
-  orient!(s, Val(3))
+  orient!(s, Val(1)) && orient!(s, Val(2)) && orient!(s, Val(3))
 end
 
 # Recall that the boundary of an n-simplex is an *alternating* sum of
