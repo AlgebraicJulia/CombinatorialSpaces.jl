@@ -5,10 +5,12 @@ version = "0.9.0"
 authors = ["Luke Morris <luke.morris@ufl.edu>", "George Rauta <grauta@ufl.edu>", "Evan Patterson <evan@epatters.org>", "James Fairbanks <fairbanksj@ufl.edu>"]
 
 [deps]
+ArrayLayouts = "4c555306-a7a7-4459-81d9-ec55ddd5c99a"
 Artifacts = "56f22d72-fd6d-98f1-02f0-08ddc0907c33"
 Catlab = "134e5e36-593f-5add-ad60-77f754baafbe"
 FileIO = "5789e2e9-d7fb-5bc7-8068-2c6fae9b9549"
 GeometryBasics = "5c1252a2-5f33-56bf-86c9-59e7332b4326"
+JET = "c3a54625-cd67-489e-a8e7-0a5a0ff4e31b"
 JSON = "682c06a0-de6a-54ab-a142-c8b1cf79cde6"
 KernelAbstractions = "63c18a36-062a-441e-b654-da1e3ab1ce7c"
 Krylov = "ba0b0d4f-ebba-5204-a429-3ac8c609bfb7"
@@ -37,12 +39,14 @@ CombinatorialSpacesMakieExt = "Makie"
 CombinatorialSpacesMeshesExt = "Meshes"
 
 [compat]
+ArrayLayouts = "1.12.2"
 Artifacts = "1.9, 1"
 CUDA = "5.2"
 Catlab = "0.14.4"
 DelaunayTriangulation = "1.6.4"
 FileIO = "^1"
 GeometryBasics = "0.5"
+JET = "0.11.3"
 JSON = "0.21.4"
 KernelAbstractions = "0.9"
 Krylov = "0.9.6, 0.10"
