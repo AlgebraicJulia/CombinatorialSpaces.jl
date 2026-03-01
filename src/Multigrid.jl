@@ -4,7 +4,7 @@ using CombinatorialSpaces
 using LinearAlgebra: I, Diagonal, Transpose
 using Krylov, Catlab, SparseArrays
 using ..SimplicialSets
-import Catlab.CategoricalAlgebra: dom, codom
+import Catlab.CategoricalAlgebra: dom, codom, add_parts!
 
 export multigrid_vcycles, multigrid_wcycles, full_multigrid,
   repeated_subdivisions, repeated_subdivision_maps,
@@ -60,6 +60,7 @@ function topo_to_mesh(::Type{S}, topo::MeshTopology,
     sd[1:topo.ntri, :∂e1] = topo.∂e1
     sd[1:topo.ntri, :∂e2] = topo.∂e2
   end
+  orient!(sd)
   sd
 end
 
