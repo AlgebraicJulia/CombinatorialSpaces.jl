@@ -50,20 +50,23 @@ function topo_to_mesh(::Type{S}, topo::MeshTopology,
                       points) where S <: Union{EmbeddedDeltaSet1D, EmbeddedDeltaSet2D}
   sd = S()
   add_vertices!(sd, topo.nv)
-  sd[1:topo.nv, :point] = points
+  @inbounds for v in 1:topo.nv; sd[v, :point] = points[v]; end
   add_parts!(sd, :E, topo.ne)
-  sd[1:topo.ne, :∂v0] = topo.∂v0
-  sd[1:topo.ne, :∂v1] = topo.∂v1
+  @inbounds for e in 1:topo.ne
+    sd[e, :∂v0] = topo.∂v0[e]
+    sd[e, :∂v1] = topo.∂v1[e]
+  end
   if S <: EmbeddedDeltaSet2D && topo.ntri > 0
     add_parts!(sd, :Tri, topo.ntri)
-    sd[1:topo.ntri, :∂e0] = topo.∂e0
-    sd[1:topo.ntri, :∂e1] = topo.∂e1
-    sd[1:topo.ntri, :∂e2] = topo.∂e2
+    @inbounds for t in 1:topo.ntri
+      sd[t, :∂e0] = topo.∂e0[t]
+      sd[t, :∂e1] = topo.∂e1[t]
+      sd[t, :∂e2] = topo.∂e2[t]
+    end
+    # Initialize edge orientations to a deterministic default before calling
+    # orient! so that the DEC operators are consistent across both construction paths.
+    @inbounds for e in 1:topo.ne; sd[e, :edge_orientation] = true; end
   end
-  # Initialize lower-dimensional orientations to a deterministic default before
-  # calling orient! so that orient!(Val(n)) doesn't depend on uninitialized values.
-  has_subpart(sd, :edge_orientation) &&
-    (sd[:edge_orientation] = one(attrtype_type(sd, :Orientation)))
   orient!(sd)
   sd
 end

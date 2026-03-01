@@ -788,10 +788,8 @@ operator_nz(f, ::Type{T}, m::Int, n::Int,
 ########################
 
 orient!(s::AbstractDeltaSet1D) = orient!(s, Val(1))
-orient!(s::AbstractDeltaSet2D) = orient!(s, Val(1)) && orient!(s, Val(2))
-function orient!(s::AbstractDeltaSet3D)
-  orient!(s, Val(1)) && orient!(s, Val(2)) && orient!(s, Val(3))
-end
+orient!(s::AbstractDeltaSet2D) = orient!(s, Val(2))
+orient!(s::AbstractDeltaSet3D) = orient!(s, Val(3))
 
 # Recall that the boundary of an n-simplex is an *alternating* sum of
 # its faces.
