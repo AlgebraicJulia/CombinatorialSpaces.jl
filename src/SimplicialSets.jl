@@ -183,6 +183,8 @@ orientation(::Val{1}, s::HasDeltaSet1D, args...) =
   s[args..., :edge_orientation]
 set_orientation!(::Val{1}, s::HasDeltaSet1D, e, orientation) =
   (s[e, :edge_orientation] = orientation)
+set_orientation!(::Val{1}, s::HasDeltaSet1D, es::AbstractVector, ors::AbstractVector) =
+  (@inbounds for (e, o) in zip(es, ors); s[e, :edge_orientation] = o; end)
 
 function ∂_nz(::Val{1}, s::HasDeltaSet1D, e::Int)
   (edge_vertices(s, e), sign(1,s,e) * @SVector([1,-1]))
@@ -386,6 +388,8 @@ orientation(::Val{2}, s::HasDeltaSet2D, args...) =
   s[args..., :tri_orientation]
 set_orientation!(::Val{2}, s::HasDeltaSet2D, t, orientation) =
   (s[t, :tri_orientation] = orientation)
+set_orientation!(::Val{2}, s::HasDeltaSet2D, ts::AbstractVector, ors::AbstractVector) =
+  (@inbounds for (t, o) in zip(ts, ors); s[t, :tri_orientation] = o; end)
 
 function ∂_nz(::Val{2}, s::HasDeltaSet2D, t::Int)
   edges = triangle_edges(s,t)
@@ -577,6 +581,8 @@ orientation(::Val{3}, s::HasDeltaSet3D, args...) =
   s[args..., :tet_orientation]
 set_orientation!(::Val{3}, s::HasDeltaSet3D, t, orientation) =
   (s[t, :tet_orientation] = orientation)
+set_orientation!(::Val{3}, s::HasDeltaSet3D, ts::AbstractVector, ors::AbstractVector) =
+  (@inbounds for (t, o) in zip(ts, ors); s[t, :tet_orientation] = o; end)
 
 function ∂_nz(::Val{3}, s::HasDeltaSet3D, tet::Int)
   tris = tetrahedron_triangles(s, tet)
@@ -849,7 +855,7 @@ function orient!(s::HasDeltaSet, ::Val{n}) where n
   # Map from sentinel types to attr types.
   seed_o = one(attrtype_type(s, :Orientation))
   attr_ors = [val == 1 ? seed_o : negate(seed_o) for val in ors]
-  set_orientation!(n, s, simplices(n, s), attr_ors)
+  set_orientation!(Val(n), s, simplices(n, s), attr_ors)
   return true
 end
 
