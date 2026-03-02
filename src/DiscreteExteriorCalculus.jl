@@ -1222,7 +1222,7 @@ function make_dual_simplices_3d!(s::HasDeltaSet3D, ::Simplex{n}) where n
     for e in edges(s)
       # TODO: Perhaps multiply by tet_orientation.
       primal_edge_orient = s[e, :edge_orientation]
-      @inbounds for dt in elementary_duals(1,s,e)
+      @inbounds for dt in elementary_duals(Val(1),s,e)
         s[dt, :D_tri_orientation] = primal_edge_orient
       end
     end
@@ -1231,7 +1231,7 @@ function make_dual_simplices_3d!(s::HasDeltaSet3D, ::Simplex{n}) where n
     for t in triangles(s)
       # TODO: Perhaps multiply by tet_orientation.
       primal_tri_orient = s[t, :tri_orientation]
-      @inbounds for de in elementary_duals(2,s,t)
+      @inbounds for de in elementary_duals(Val(2),s,t)
         s[de, :D_edge_orientation] = primal_tri_orient
       end
     end
@@ -1311,10 +1311,10 @@ end
 function precompute_volumes_3d!(sd::HasDeltaSet3D, p::Type{point_type}) where point_type
   precompute_volumes_2d!(sd, p)
   for tet in tetrahedra(sd)
-    sd[tet, :vol] = volume(3,sd,tet,CayleyMengerDet())
+    sd[tet, :vol] = volume(Val(3),sd,tet,CayleyMengerDet())
   end
   for tet in parts(sd, :DualTet)
-    sd[tet, :dual_vol] = dual_volume(3,sd,tet,CayleyMengerDet())
+    sd[tet, :dual_vol] = dual_volume(Val(3),sd,tet,CayleyMengerDet())
   end
 end
 

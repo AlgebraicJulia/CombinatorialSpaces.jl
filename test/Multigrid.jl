@@ -2,6 +2,7 @@ module TestMultigrid
 using Krylov, CombinatorialSpaces, LinearAlgebra, Test
 using Random
 using SparseArrays
+using JET
 using CombinatorialSpaces.CombMeshes: tri_345
 
 using CombinatorialSpaces.Multigrid: UnarySubdivision, unary_subdivision, unary_subdivision_map, subdivision
@@ -168,5 +169,19 @@ relative_residual_one_iteration = norm(L*u_one_iteration-b)/norm(b)
 # Test that no iterations of `cg` are performed by checking that the residual
 # is higher than when one iteration is performed.
 @test relative_residual_one_iteration < relative_residual_zero_iterations
+
+# JET optimization analysis: no type instabilities in GalerkinMode MultigridData
+# (except geometric_center which is a pre-existing known limitation)
+#------------------------------------------------------------------------
+
+@testset "JET: GalerkinMode MultigridData type stability" begin
+  s_jet = triangulated_grid(1, 1, 1/4, sqrt(3)/2 * 1/4, Point3d, false)
+  fast_laplace_beltrami_jet(sd) =
+    -1 * dec_inv_hodge_star(0,sd) * dec_dual_derivative(1,sd) *
+         dec_hodge_star(1,sd) * dec_differential(0,sd)
+  @test_opt ignored_modules=(AnyFrameModule(Base), AnyFrameModule(Core),
+                              AnyFrameModule(:Catlab), AnyFrameModule(:StaticArrays)) function_filter=@nospecialize(f)->f!==geometric_center MultigridData(s_jet, BinarySubdivision(), 4,
+      fast_laplace_beltrami_jet, 3; mode=GalerkinMode())
+end
 
 end

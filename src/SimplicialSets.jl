@@ -806,6 +806,26 @@ orient!(s::AbstractDeltaSet3D) = orient!(s, Val(3))
 # of Stokes' rule, the 2 integrals cancel. If it is not the case that these
 # subscripts are of opposite parity already, we amend matters by flipping the
 # orientation flag of one of them.
+
+"""    _orient_cofaces(::Val{N}, j::Int, s, face::Int) where N
+
+Return the cofaces of `face` at position `j` in the `n`-th boundary map of `s`.
+
+This `@generated` helper unrolls the `j` dimension of `orient!`'s inner loop at
+compile time. Because `N` is a type variable (known at specialization), the body
+is expanded into a chain of `j == jj ? coface(Val(N), Val(jj), s, face) : …`
+expressions, where each `jj` literal gives a fully statically-dispatched coface
+call. This eliminates the runtime `Val(j)` dispatch that would otherwise arise
+from the `for j in 0:n` loop in `orient!`.
+"""
+@generated function _orient_cofaces(::Val{N}, j::Int, s, face::Int) where N
+  expr = :(coface(Val($N), Val($N), s, face))
+  for jj in N-1:-1:0
+    expr = :(j == $jj ? coface(Val($N), Val($jj), s, face) : $expr)
+  end
+  return expr
+end
+
 """    function orient!(s::HasDeltaSet, ::Val{n}) where n
 
 Consistently orient simplices in the same connected component, if possible.
@@ -837,7 +857,7 @@ function orient!(s::HasDeltaSet, ::Val{n}) where n
         face = ∂(n, i, s, x)
         for j in 0:n
           same_parity = iseven(i+j)
-          for y in coface(n, j, s, face)
+          for y in _orient_cofaces(Val(n), j, s, face)
             y == x && continue
             oy = ors[y]
             if oy == 0
