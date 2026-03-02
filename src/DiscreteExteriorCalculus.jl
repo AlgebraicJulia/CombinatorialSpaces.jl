@@ -34,34 +34,27 @@ export DualSimplex, DualV, DualE, DualTri, DualTet, DualChain, DualForm,
 import Base: ndims
 import Base: *
 import LinearAlgebra: mul!
-import StaticArrays: deleteat
 
 using GeometryBasics: Point2, Point3, Point2d, Point3d
 using LinearAlgebra: Diagonal, dot, norm, cross, pinv, normalize
 using SparseArrays
-using StaticArrays: @SVector, SVector, SMatrix, MVector, MMatrix, StaticVector
+using StaticArrays: @SVector, SVector, SMatrix, MVector, MMatrix
 using Statistics: mean
 
 # TODO: This is not consistent with other definitions and should be removed
 const Point2D = SVector{2,Float64}
 const Point3D = SVector{3,Float64}
 
-using ACSets.DenseACSets: attrtype_type
 using Catlab, Catlab.CategoricalAlgebra.CSets
-using Catlab.BasicSets
-using Catlab.BasicSets.FinSets
-using Catlab.CategoricalAlgebra.FunctorialDataMigrations: DeltaMigration, migrate
+import Catlab.CategoricalAlgebra.FinSets: deleteat
 import Catlab.CategoricalAlgebra.CSets: ∧
 import Catlab.Theories: Δ
 
 using ..ArrayUtils, ..SimplicialSets
 using ..SimplicialSets: CayleyMengerDet, operator_nz, ∂_nz, d_nz,
-  cayley_menger, negate, numeric_sign
+  cayley_menger, negate, numeric_sign, attrtype_type
 
 import ..SimplicialSets: ∂, d, volume
-
-# This non-mutating version of deleteat returns a new (static) vector.
-deleteat(vec::Vector, i) = deleteat!(copy(vec), i)
 
 abstract type DiscreteFlat end
 struct DPPFlat <: DiscreteFlat end
@@ -283,28 +276,29 @@ complex. The dual edges are oriented relative to the primal edges they subdivide
 """
 function make_dual_simplices_1d!(s::HasDeltaSet1D, ::Simplex{n}) where n
   # Make dual vertices and edges.
-  s[:vertex_center] = vcenters = add_parts!(s, :DualV, nv(s))
-  s[:edge_center] = ecenters = add_parts!(s, :DualV, ne(s))
+  vcenters = add_parts!(s, :DualV, nv(s))
+  @inbounds for (v, vc) in zip(1:nv(s), vcenters); s[v, :vertex_center] = vc; end
+  ecenters = add_parts!(s, :DualV, ne(s))
+  @inbounds for (e, ec) in zip(1:ne(s), ecenters); s[e, :edge_center] = ec; end
   D_edges = map((0,1)) do i
-    add_parts!(s, :DualE, ne(s);
-               D_∂v0 = ecenters, D_∂v1 = view(vcenters, ∂(1,i,s)))
+    de_range = add_parts!(s, :DualE, ne(s))
+    ∂1_i = ∂(1,i,s)
+    @inbounds for (de, ev, vv) in zip(de_range, ecenters, view(vcenters, ∂1_i))
+      s[de, :D_∂v0] = ev
+      s[de, :D_∂v1] = vv
+    end
+    de_range
   end
 
   # Orient elementary dual edges.
   if has_subpart(s, :edge_orientation)
-    # If orientations are not set, then set them here.
-    if any(isnothing, s[:edge_orientation])
-      # 1-simplices only need to be orientable if the delta set is 1D.
-      # (The 1-simplices in a 2D delta set need not represent a valid 1-Manifold.)
-      if n == 1
-        orient!(s, Val(1)) || error("The 1-simplices of the given 1D delta set are non-orientable.")
-      else
-        s[findall(isnothing, s[:edge_orientation]), :edge_orientation] = zero(attrtype_type(s, :Orientation))
-      end
-    end
     edge_orient = s[:edge_orientation]
-    s[D_edges[1], :D_edge_orientation] = negate.(edge_orient)
-    s[D_edges[2], :D_edge_orientation] = edge_orient
+    @inbounds for (de, eo) in zip(D_edges[1], edge_orient)
+      s[de, :D_edge_orientation] = negate(eo)
+    end
+    @inbounds for (de, eo) in zip(D_edges[2], edge_orient)
+      s[de, :D_edge_orientation] = eo
+    end
   end
 
   D_edges
@@ -359,9 +353,9 @@ Supports different methods of subdivision through the choice of geometric
 center, as defined by [`geometric_center`](@ref). In particular, barycentric
 subdivision and circumcentric subdivision are supported.
 """
-function subdivide_duals!(sd::EmbeddedDeltaDualComplex1D{_o, _l, point_type} where {_o, _l}, alg) where point_type
-  subdivide_duals_1d!(sd, point_type, alg)
-  precompute_volumes_1d!(sd, point_type)
+function subdivide_duals!(sd::EmbeddedDeltaDualComplex1D{o, l, pt}, alg) where {o, l, pt}
+  subdivide_duals_1d!(sd, pt, alg)
+  precompute_volumes_1d!(sd, pt)
 end
 
 # TODO: Replace the individual accesses with vector accesses
@@ -530,60 +524,69 @@ function make_dual_simplices_2d!(s::HasDeltaSet2D, ::Simplex{n}) where n
   ∂2 = (∂(2,0,s), ∂(2,1,s), ∂(2,2,s))
   # Make dual vertices and edges.
   D_edges01 = make_dual_simplices_1d!(s)
-  s[:tri_center] = tri_centers = add_parts!(s, :DualV, ntriangles(s))
+  tri_centers = add_parts!(s, :DualV, ntriangles(s))
+  @inbounds for (t, tc) in zip(1:ntriangles(s), tri_centers); s[t, :tri_center] = tc; end
   D_edges12 = map((0,1,2)) do e
-    add_parts!(s, :DualE, ntriangles(s);
-               D_∂v0=tri_centers, D_∂v1=edge_center(s, ∂2[e+1]))
+    de_range = add_parts!(s, :DualE, ntriangles(s))
+    ec_vals = edge_center(s, ∂2[e+1])
+    @inbounds for (de, tc, ec) in zip(de_range, tri_centers, ec_vals)
+      s[de, :D_∂v0] = tc
+      s[de, :D_∂v1] = ec
+    end
+    de_range
   end
   tri_verts = SVector(s[∂2[2], :∂v1], s[∂2[3], :∂v0], s[∂2[2], :∂v0])
   D_edges02 = map(tri_verts) do vs
-    add_parts!(s, :DualE, ntriangles(s);
-               D_∂v0=tri_centers, D_∂v1=vertex_center(s, vs))
+    de_range = add_parts!(s, :DualE, ntriangles(s))
+    vc_vals = vertex_center(s, vs)
+    @inbounds for (de, tc, vc) in zip(de_range, tri_centers, vc_vals)
+      s[de, :D_∂v0] = tc
+      s[de, :D_∂v1] = vc
+    end
+    de_range
   end
 
   # Make dual triangles.
   # Counterclockwise order in drawing with vertices 0, 1, 2 from left to right.
   D_triangle_schemas = ((0,1,1),(0,2,1),(1,2,0),(1,0,1),(2,0,0),(2,1,0))
   D_triangles = map(D_triangle_schemas) do (v,e,ev)
-    add_parts!(s, :DualTri, ntriangles(s);
-               D_∂e0=D_edges12[e+1], D_∂e1=D_edges02[v+1],
-               D_∂e2=view(D_edges01[ev+1], ∂2[e+1]))
+    dt_range = add_parts!(s, :DualTri, ntriangles(s))
+    de0s = D_edges12[e+1]
+    de1s = D_edges02[v+1]
+    de2s = view(D_edges01[ev+1], ∂2[e+1])
+    @inbounds for (dt, e0, e1, e2) in zip(dt_range, de0s, de1s, de2s)
+      s[dt, :D_∂e0] = e0
+      s[dt, :D_∂e1] = e1
+      s[dt, :D_∂e2] = e2
+    end
+    dt_range
   end
 
   if has_subpart(s, :tri_orientation)
     tri_orient_buf = s[:tri_orientation]
-    # If orientations are not set, then set them here.
-    if any(isnothing, tri_orient_buf)
-      # 2-simplices only need to be orientable if the delta set is 2D.
-      # (The 2-simplices in a 3D delta set need not represent a valid 2-Manifold.)
-      if n == 2
-        orient!(s, Val(2)) || error("The 2-simplices of the given 2D delta set are non-orientable.")
-      else
-        orient_zero = zero(attrtype_type(s, :Orientation))
-        @inbounds for i in eachindex(tri_orient_buf)
-          if isnothing(tri_orient_buf[i])
-            s[i, :tri_orientation] = orient_zero
-          end
-        end
-      end
-      tri_orient_buf = s[:tri_orientation]
-    end
     # Orient elementary dual triangles.
     rev_tri_orient = negate.(tri_orient_buf)
     for (i, D_tris) in enumerate(D_triangles)
-      s[D_tris, :D_tri_orientation] = isodd(i) ? rev_tri_orient : tri_orient_buf
+      orient = isodd(i) ? rev_tri_orient : tri_orient_buf
+      @inbounds for (dt, ot) in zip(D_tris, orient)
+        s[dt, :D_tri_orientation] = ot
+      end
     end
 
     # Orient elementary dual edges.
     for e in (0,1,2)
-      s[D_edges12[e+1], :D_edge_orientation] = relative_sign.(
-        s[∂2[e+1], :edge_orientation],
-        isodd(e) ? rev_tri_orient : tri_orient_buf)
+      edge_signs = relative_sign.(s[∂2[e+1], :edge_orientation],
+                                  isodd(e) ? rev_tri_orient : tri_orient_buf)
+      @inbounds for (de, os) in zip(D_edges12[e+1], edge_signs)
+        s[de, :D_edge_orientation] = os
+      end
     end
     # Remaining dual edges are oriented arbitrarily.
     orient_one = one(attrtype_type(s, :Orientation))
     for D_edges in D_edges02
-        s[D_edges, :D_edge_orientation] = orient_one
+      @inbounds for de in D_edges
+        s[de, :D_edge_orientation] = orient_one
+      end
     end
   end
 
@@ -914,9 +917,9 @@ function ∧(::Val{1}, ::Val{1}, s::HasDeltaSet2D, α, β, x::Int)
   form / 2
 end
 
-function subdivide_duals!(sd::EmbeddedDeltaDualComplex2D{_o, _l, point_type} where {_o, _l}, alg) where point_type
-  subdivide_duals_2d!(sd, point_type, alg)
-  precompute_volumes_2d!(sd, point_type)
+function subdivide_duals!(sd::EmbeddedDeltaDualComplex2D{o, l, pt}, alg) where {o, l, pt}
+  subdivide_duals_2d!(sd, pt, alg)
+  precompute_volumes_2d!(sd, pt)
 end
 
 # TODO: Replace the individual accesses with vector accesses
@@ -1152,7 +1155,15 @@ complex.
 """
 function make_dual_simplices_3d!(s::HasDeltaSet3D, ::Simplex{n}) where n
   make_dual_simplices_2d!(s)
-  s[:tet_center] = add_parts!(s, :DualV, ntetrahedra(s))
+  tet_centers = add_parts!(s, :DualV, ntetrahedra(s))
+  @inbounds for (t, tc) in zip(1:ntetrahedra(s), tet_centers); s[t, :tet_center] = tc; end
+  # Record how many dual edges/triangles exist before glue_sorted_dual_tetrahedron!
+  # adds new ones. The new ones are initialized below before orientation loops so
+  # that no garbage Bool values remain for the "remaining" dual simplices (those
+  # connecting vertex_center or edge_center to a tet_center) that are not covered
+  # by the elementary-dual orientation loops.
+  n_de_before = nparts(s, :DualE)
+  n_dt_before = nparts(s, :DualTri)
   for tet in tetrahedra(s)
     tvs = tetrahedron_vertices(s,tet)
     tes = tetrahedron_edges(s,tet)
@@ -1182,14 +1193,17 @@ function make_dual_simplices_3d!(s::HasDeltaSet3D, ::Simplex{n}) where n
   end
 
   if has_subpart(s, :tet_orientation)
-    if any(isnothing, s[:tet_orientation])
-      # Primal 3-simplices only need to be orientable if the delta set is 3D.
-      if n == 3
-        orient!(s, Val(3)) || error("The 3-simplices of the given 3D delta set are non-orientable.")
-      else
-        # This line would be called if the complex is 4D.
-        s[findall(isnothing, s[:tet_orientation]), :tet_orientation] = zero(attrtype_type(s, :Orientation))
-      end
+    # Initialize all dual edges and dual triangles added by
+    # glue_sorted_dual_tetrahedron! to the default orientation.  The specific
+    # loops below override the ones that have a proper derived orientation; the
+    # remaining ones (vertex_center→tet_center, edge_center→tet_center) keep
+    # this default.
+    one_orient = one(attrtype_type(s, :Orientation))
+    @inbounds for de in (n_de_before+1):nparts(s,:DualE)
+      s[de, :D_edge_orientation] = one_orient
+    end
+    @inbounds for dt in (n_dt_before+1):nparts(s,:DualTri)
+      s[dt, :D_tri_orientation] = one_orient
     end
 
     # Orient elementary dual tetrahedra.
@@ -1199,30 +1213,28 @@ function make_dual_simplices_3d!(s::HasDeltaSet3D, ::Simplex{n}) where n
       tet_orient = s[tet, :tet_orientation]
       rev_tet_orient = negate(tet_orient)
       D_tets = (24*(tet-1)+1):(24*tet)
-      s[D_tets, :D_tet_orientation] = repeat([tet_orient, rev_tet_orient], 12)
+      @inbounds for (dt, ot) in zip(D_tets, Iterators.cycle((tet_orient, rev_tet_orient)))
+        s[dt, :D_tet_orientation] = ot
+      end
     end
 
-    # Orient elementary dual triangles.
+    # Orient elementary dual triangles (overrides the default for new D_tris).
     for e in edges(s)
       # TODO: Perhaps multiply by tet_orientation.
       primal_edge_orient = s[e, :edge_orientation]
-      d_ts = elementary_duals(1,s,e)
-      s[d_ts, :D_tri_orientation] = primal_edge_orient
+      @inbounds for dt in elementary_duals(Val(1),s,e)
+        s[dt, :D_tri_orientation] = primal_edge_orient
+      end
     end
 
-    # Orient elementary dual edges.
+    # Orient elementary dual edges (overrides the default for new D_edges).
     for t in triangles(s)
       # TODO: Perhaps multiply by tet_orientation.
       primal_tri_orient = s[t, :tri_orientation]
-      d_es = elementary_duals(2,s,t)
-      s[d_es, :D_edge_orientation] = primal_tri_orient
+      @inbounds for de in elementary_duals(Val(2),s,t)
+        s[de, :D_edge_orientation] = primal_tri_orient
+      end
     end
-
-    # Remaining dual edges and dual triangles are oriented arbitrarily.
-    s[findall(isnothing, s[:D_tri_orientation]), :D_tri_orientation] = one(attrtype_type(s, :Orientation))
-    # These will be dual edges from vertex_center to tc, and from
-    # edge_center to tc.
-    s[findall(isnothing, s[:D_edge_orientation]), :D_edge_orientation] = one(attrtype_type(s, :Orientation))
   end
 
   return parts(s, :DualTet)
@@ -1282,9 +1294,9 @@ hodge_diag(::Val{3}, s::AbstractDeltaDualComplex3D, tet::Int) =
 #function ♯_mat(s::AbstractDeltaDualComplex3D, DS::DiscreteSharp)
 
 # TODO: subdivide_duals! may also be simplified via multiple dispatch.
-function subdivide_duals!(sd::EmbeddedDeltaDualComplex3D{_o, _l, point_type} where {_o, _l}, alg) where point_type
-  subdivide_duals_3d!(sd, point_type, alg)
-  precompute_volumes_3d!(sd, point_type)
+function subdivide_duals!(sd::EmbeddedDeltaDualComplex3D{o, l, pt}, alg) where {o, l, pt}
+  subdivide_duals_3d!(sd, pt, alg)
+  precompute_volumes_3d!(sd, pt)
 end
 
 function subdivide_duals_3d!(sd::HasDeltaSet3D, ::Type{point_type}, alg) where point_type
@@ -1299,10 +1311,10 @@ end
 function precompute_volumes_3d!(sd::HasDeltaSet3D, p::Type{point_type}) where point_type
   precompute_volumes_2d!(sd, p)
   for tet in tetrahedra(sd)
-    sd[tet, :vol] = volume(3,sd,tet,CayleyMengerDet())
+    sd[tet, :vol] = volume(Val(3),sd,tet,CayleyMengerDet())
   end
   for tet in parts(sd, :DualTet)
-    sd[tet, :dual_vol] = dual_volume(3,sd,tet,CayleyMengerDet())
+    sd[tet, :dual_vol] = dual_volume(Val(3),sd,tet,CayleyMengerDet())
   end
 end
 
@@ -1596,6 +1608,10 @@ s = EmbeddedDeltaSet2D{Bool,SVector{2,Float64}}()
 dualize(s)::EmbeddedDeltaDualComplex2D{Bool,Float64,SVector{2,Float64}}
 """
 dualize(d::HasDeltaSet) = dual_type(d)(d)
+# Type-stable specializations for embedded types — avoid the Dict-based dual_type lookup.
+dualize(d::EmbeddedDeltaSet1D{o, pt}) where {o, pt} = EmbeddedDeltaDualComplex1D{o, eltype(pt), pt}(d)
+dualize(d::EmbeddedDeltaSet2D{o, pt}) where {o, pt} = EmbeddedDeltaDualComplex2D{o, eltype(pt), pt}(d)
+dualize(d::EmbeddedDeltaSet3D{o, pt}) where {o, pt} = EmbeddedDeltaDualComplex3D{o, eltype(pt), pt}(d)
 function dualize(d::HasDeltaSet,center::SimplexCenter)
   dd = dualize(d)
   subdivide_duals!(dd,center)

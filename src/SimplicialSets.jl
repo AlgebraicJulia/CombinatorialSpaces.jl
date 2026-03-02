@@ -37,20 +37,22 @@ export Simplex, V, E, Tri, Tet, SimplexChain, VChain, EChain, TriChain, TetChain
   glue_sorted_tet_cube!, is_manifold_like, nonboundaries,
   star, St, closed_star, St̄, link, Lk, simplex_vertices, dimension,
   DeltaSet, OrientedDeltaSet, EmbeddedDeltaSet,
-  boundary_inds, interior
+  boundary_inds, interior,
+  attrtype_type
 
 using LinearAlgebra: det
 using SparseArrays
 using StaticArrays: @SVector, SVector, SMatrix
 using StatsBase: counts
 
-using ACSets.DenseACSets: attrtype_type
 using Catlab, Catlab.CategoricalAlgebra, Catlab.Graphs
 import Catlab.Graphs: src, tgt, nv, ne, vertices, edges, has_vertex, has_edge,
   add_vertex!, add_vertices!, add_edge!, add_edges!
+import Catlab.Theories: attrtype_num
 using ..ArrayUtils
 
-const 𝒞 = SkelFinSet()
+attrtype_type(::Type{<:StructACSet{S,Ts}}, n::Symbol) where {S,Ts} = Ts.parameters[attrtype_num(S,n)]
+attrtype_type(s::StructACSet, n::Symbol) = attrtype_type(typeof(s), n)
 
 """ Abstract type for C-sets that contain a delta set of some dimension.
 
@@ -181,6 +183,8 @@ orientation(::Val{1}, s::HasDeltaSet1D, args...) =
   s[args..., :edge_orientation]
 set_orientation!(::Val{1}, s::HasDeltaSet1D, e, orientation) =
   (s[e, :edge_orientation] = orientation)
+set_orientation!(::Val{1}, s::HasDeltaSet1D, es::AbstractVector, ors::AbstractVector) =
+  (@inbounds for (e, o) in zip(es, ors); s[e, :edge_orientation] = o; end)
 
 function ∂_nz(::Val{1}, s::HasDeltaSet1D, e::Int)
   (edge_vertices(s, e), sign(1,s,e) * @SVector([1,-1]))
@@ -384,6 +388,8 @@ orientation(::Val{2}, s::HasDeltaSet2D, args...) =
   s[args..., :tri_orientation]
 set_orientation!(::Val{2}, s::HasDeltaSet2D, t, orientation) =
   (s[t, :tri_orientation] = orientation)
+set_orientation!(::Val{2}, s::HasDeltaSet2D, ts::AbstractVector, ors::AbstractVector) =
+  (@inbounds for (t, o) in zip(ts, ors); s[t, :tri_orientation] = o; end)
 
 function ∂_nz(::Val{2}, s::HasDeltaSet2D, t::Int)
   edges = triangle_edges(s,t)
@@ -575,6 +581,8 @@ orientation(::Val{3}, s::HasDeltaSet3D, args...) =
   s[args..., :tet_orientation]
 set_orientation!(::Val{3}, s::HasDeltaSet3D, t, orientation) =
   (s[t, :tet_orientation] = orientation)
+set_orientation!(::Val{3}, s::HasDeltaSet3D, ts::AbstractVector, ors::AbstractVector) =
+  (@inbounds for (t, o) in zip(ts, ors); s[t, :tet_orientation] = o; end)
 
 function ∂_nz(::Val{3}, s::HasDeltaSet3D, tet::Int)
   tris = tetrahedron_triangles(s, tet)
@@ -798,6 +806,26 @@ orient!(s::AbstractDeltaSet3D) = orient!(s, Val(3))
 # of Stokes' rule, the 2 integrals cancel. If it is not the case that these
 # subscripts are of opposite parity already, we amend matters by flipping the
 # orientation flag of one of them.
+
+"""    _orient_cofaces(::Val{N}, j::Int, s, face::Int) where N
+
+Return the cofaces of `face` at position `j` in the `n`-th boundary map of `s`.
+
+This `@generated` helper unrolls the `j` dimension of `orient!`'s inner loop at
+compile time. Because `N` is a type variable (known at specialization), the body
+is expanded into a chain of `j == jj ? coface(Val(N), Val(jj), s, face) : …`
+expressions, where each `jj` literal gives a fully statically-dispatched coface
+call. This eliminates the runtime `Val(j)` dispatch that would otherwise arise
+from the `for j in 0:n` loop in `orient!`.
+"""
+@generated function _orient_cofaces(::Val{N}, j::Int, s, face::Int) where N
+  expr = :(coface(Val($N), Val($N), s, face))
+  for jj in N-1:-1:0
+    expr = :(j == $jj ? coface(Val($N), Val($jj), s, face) : $expr)
+  end
+  return expr
+end
+
 """    function orient!(s::HasDeltaSet, ::Val{n}) where n
 
 Consistently orient simplices in the same connected component, if possible.
@@ -829,7 +857,7 @@ function orient!(s::HasDeltaSet, ::Val{n}) where n
         face = ∂(n, i, s, x)
         for j in 0:n
           same_parity = iseven(i+j)
-          for y in coface(n, j, s, face)
+          for y in _orient_cofaces(Val(n), j, s, face)
             y == x && continue
             oy = ors[y]
             if oy == 0
@@ -847,7 +875,7 @@ function orient!(s::HasDeltaSet, ::Val{n}) where n
   # Map from sentinel types to attr types.
   seed_o = one(attrtype_type(s, :Orientation))
   attr_ors = [val == 1 ? seed_o : negate(seed_o) for val in ors]
-  set_orientation!(n, s, simplices(n, s), attr_ors)
+  set_orientation!(Val(n), s, simplices(n, s), attr_ors)
   return true
 end
 
@@ -865,9 +893,8 @@ See also [`connected_components_representatives`](@ref).
 """
 function connected_components(s::HasDeltaSet, ::Val{n}) where n
   ndom, ncodom = nsimplices(n, s), nsimplices(n-1, s)
-  face_maps = [ FinFunction(x -> ∂(n,i,s,x), FinSet(ndom), FinSet(ncodom))
-                for i in 0:n ]
-  π = only(coequalizer[𝒞](face_maps))
+  face_maps = SVector{n+1}(FinFunction(x -> ∂(n,i,s,x), ndom, ncodom) for i in 0:n)
+  π = only(coequalizer(face_maps))
 end
 
 """    function connected_components_representatives(s::HasDeltaSet, ::Val{n}) where n

@@ -123,7 +123,7 @@ function EmbeddedDeltaSet2D(m::Union{GeometryBasics.Mesh, GeometryBasics.MetaMes
     tri = ind_map[convert.(Int64, tri)]
     glue_sorted_triangle!(s, tri...)
   end
-  # Properly orient the delta set
+  # Properly orient the delta set (sets all orientation attributes).
   orient!(s)
   s
 end

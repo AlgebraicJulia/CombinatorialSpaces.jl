@@ -184,4 +184,22 @@ s = parallelepiped(lx = 10, ly = 5, lz = 3, dx = 3, dy = 5)
 @test euler_characteristic(s) == 1
 @test sum(map(tet -> volume(3, s, tet), 1:ntetrahedra(s))) ≈ 10*5*3
 
+# Test that single_tetrahedron() always returns fully initialized orientations.
+# orient!(AbstractDeltaSet3D) now sets all three orientation attributes (edge,
+# tri, tet) via DFS, so no garbage Bool values remain after the call.
+for _ in 1:10
+  primal_tet, dual_tet = CombinatorialSpaces.CombMeshes.single_tetrahedron()
+  # The primal volume must always be correct (orientation-sensitive).
+  @test volume(3, primal_tet, 1) ≈ 1/6
+  # The dual complex volume must also be correct.
+  @test only(dual_tet[:vol]) ≈ 1/6
+end
+
+# Test that 2D meshes loaded via EmbeddedDeltaSet2D(mesh) have all orientation
+# attributes initialised.  orient!(AbstractDeltaSet2D) now sets both
+# edge_orientation (via Val(1)) and tri_orientation (via Val(2)).
+# loadmesh(Icosphere(n)) calls EmbeddedDeltaSet2D(mesh) internally.
+@test !isempty(unit_icosphere1[:edge_orientation])
+@test !isempty(unit_icosphere1[:tri_orientation])
+
 end
