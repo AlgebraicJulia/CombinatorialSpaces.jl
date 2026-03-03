@@ -286,8 +286,13 @@ function make_dual_simplices_1d!(s::HasDeltaSet1D, ::Simplex{n}) where n
   s[:vertex_center] = vcenters = add_parts!(s, :DualV, nv(s))
   s[:edge_center] = ecenters = add_parts!(s, :DualV, ne(s))
   D_edges = map((0,1)) do i
-    add_parts!(s, :DualE, ne(s);
-               D_∂v0 = ecenters, D_∂v1 = view(vcenters, ∂(1,i,s)))
+    de_range = add_parts!(s, :DualE, ne(s))
+    ∂1_i = ∂(1,i,s)
+    @inbounds for (de, ev, vv) in zip(de_range, ecenters, view(vcenters, ∂1_i))
+      s[de, :D_∂v0] = ev
+      s[de, :D_∂v1] = vv
+    end
+    de_range
   end
 
   # Orient elementary dual edges.
@@ -303,8 +308,12 @@ function make_dual_simplices_1d!(s::HasDeltaSet1D, ::Simplex{n}) where n
       end
     end
     edge_orient = s[:edge_orientation]
-    s[D_edges[1], :D_edge_orientation] = negate.(edge_orient)
-    s[D_edges[2], :D_edge_orientation] = edge_orient
+    @inbounds for (de, eo) in zip(D_edges[1], edge_orient)
+      s[de, :D_edge_orientation] = negate(eo)
+    end
+    @inbounds for (de, eo) in zip(D_edges[2], edge_orient)
+      s[de, :D_edge_orientation] = eo
+    end
   end
 
   D_edges
@@ -532,22 +541,39 @@ function make_dual_simplices_2d!(s::HasDeltaSet2D, ::Simplex{n}) where n
   D_edges01 = make_dual_simplices_1d!(s)
   s[:tri_center] = tri_centers = add_parts!(s, :DualV, ntriangles(s))
   D_edges12 = map((0,1,2)) do e
-    add_parts!(s, :DualE, ntriangles(s);
-               D_∂v0=tri_centers, D_∂v1=edge_center(s, ∂2[e+1]))
+    de_range = add_parts!(s, :DualE, ntriangles(s))
+    ec_vals = edge_center(s, ∂2[e+1])
+    @inbounds for (de, tc, ec) in zip(de_range, tri_centers, ec_vals)
+      s[de, :D_∂v0] = tc
+      s[de, :D_∂v1] = ec
+    end
+    de_range
   end
   tri_verts = SVector(s[∂2[2], :∂v1], s[∂2[3], :∂v0], s[∂2[2], :∂v0])
   D_edges02 = map(tri_verts) do vs
-    add_parts!(s, :DualE, ntriangles(s);
-               D_∂v0=tri_centers, D_∂v1=vertex_center(s, vs))
+    de_range = add_parts!(s, :DualE, ntriangles(s))
+    vc_vals = vertex_center(s, vs)
+    @inbounds for (de, tc, vc) in zip(de_range, tri_centers, vc_vals)
+      s[de, :D_∂v0] = tc
+      s[de, :D_∂v1] = vc
+    end
+    de_range
   end
 
   # Make dual triangles.
   # Counterclockwise order in drawing with vertices 0, 1, 2 from left to right.
   D_triangle_schemas = ((0,1,1),(0,2,1),(1,2,0),(1,0,1),(2,0,0),(2,1,0))
   D_triangles = map(D_triangle_schemas) do (v,e,ev)
-    add_parts!(s, :DualTri, ntriangles(s);
-               D_∂e0=D_edges12[e+1], D_∂e1=D_edges02[v+1],
-               D_∂e2=view(D_edges01[ev+1], ∂2[e+1]))
+    dt_range = add_parts!(s, :DualTri, ntriangles(s))
+    de0s = D_edges12[e+1]
+    de1s = D_edges02[v+1]
+    de2s = view(D_edges01[ev+1], ∂2[e+1])
+    @inbounds for (dt, e0, e1, e2) in zip(dt_range, de0s, de1s, de2s)
+      s[dt, :D_∂e0] = e0
+      s[dt, :D_∂e1] = e1
+      s[dt, :D_∂e2] = e2
+    end
+    dt_range
   end
 
   if has_subpart(s, :tri_orientation)
@@ -571,19 +597,26 @@ function make_dual_simplices_2d!(s::HasDeltaSet2D, ::Simplex{n}) where n
     # Orient elementary dual triangles.
     rev_tri_orient = negate.(tri_orient_buf)
     for (i, D_tris) in enumerate(D_triangles)
-      s[D_tris, :D_tri_orientation] = isodd(i) ? rev_tri_orient : tri_orient_buf
+      orient = isodd(i) ? rev_tri_orient : tri_orient_buf
+      @inbounds for (dt, ot) in zip(D_tris, orient)
+        s[dt, :D_tri_orientation] = ot
+      end
     end
 
     # Orient elementary dual edges.
     for e in (0,1,2)
-      s[D_edges12[e+1], :D_edge_orientation] = relative_sign.(
-        s[∂2[e+1], :edge_orientation],
-        isodd(e) ? rev_tri_orient : tri_orient_buf)
+      edge_signs = relative_sign.(s[∂2[e+1], :edge_orientation],
+                                  isodd(e) ? rev_tri_orient : tri_orient_buf)
+      @inbounds for (de, os) in zip(D_edges12[e+1], edge_signs)
+        s[de, :D_edge_orientation] = os
+      end
     end
     # Remaining dual edges are oriented arbitrarily.
     orient_one = one(attrtype_type(s, :Orientation))
     for D_edges in D_edges02
-        s[D_edges, :D_edge_orientation] = orient_one
+      @inbounds for de in D_edges
+        s[de, :D_edge_orientation] = orient_one
+      end
     end
   end
 
@@ -1153,6 +1186,8 @@ complex.
 function make_dual_simplices_3d!(s::HasDeltaSet3D, ::Simplex{n}) where n
   make_dual_simplices_2d!(s)
   s[:tet_center] = add_parts!(s, :DualV, ntetrahedra(s))
+  n_de_before = nparts(s, :DualE)
+  n_dt_before = nparts(s, :DualTri)
   for tet in tetrahedra(s)
     tvs = tetrahedron_vertices(s,tet)
     tes = tetrahedron_edges(s,tet)
@@ -1192,6 +1227,19 @@ function make_dual_simplices_3d!(s::HasDeltaSet3D, ::Simplex{n}) where n
       end
     end
 
+    # Initialize all dual edges and dual triangles added by
+    # glue_sorted_dual_tetrahedron! to the default orientation. The specific
+    # loops below override the ones that have a proper derived orientation; the
+    # remaining ones (vertex_center→tet_center, edge_center→tet_center) keep
+    # this default.
+    one_orient = one(attrtype_type(s, :Orientation))
+    @inbounds for de in (n_de_before+1):nparts(s, :DualE)
+      s[de, :D_edge_orientation] = one_orient
+    end
+    @inbounds for dt in (n_dt_before+1):nparts(s, :DualTri)
+      s[dt, :D_tri_orientation] = one_orient
+    end
+
     # Orient elementary dual tetrahedra.
     # Exploit the fact that triangles are added in the order of
     # D_tetrahedron_schemas.
@@ -1199,30 +1247,28 @@ function make_dual_simplices_3d!(s::HasDeltaSet3D, ::Simplex{n}) where n
       tet_orient = s[tet, :tet_orientation]
       rev_tet_orient = negate(tet_orient)
       D_tets = (24*(tet-1)+1):(24*tet)
-      s[D_tets, :D_tet_orientation] = repeat([tet_orient, rev_tet_orient], 12)
+      @inbounds for (dt, ot) in zip(D_tets, Iterators.cycle((tet_orient, rev_tet_orient)))
+        s[dt, :D_tet_orientation] = ot
+      end
     end
 
     # Orient elementary dual triangles.
     for e in edges(s)
       # TODO: Perhaps multiply by tet_orientation.
       primal_edge_orient = s[e, :edge_orientation]
-      d_ts = elementary_duals(1,s,e)
-      s[d_ts, :D_tri_orientation] = primal_edge_orient
+      @inbounds for dt in elementary_duals(Val(1),s,e)
+        s[dt, :D_tri_orientation] = primal_edge_orient
+      end
     end
 
     # Orient elementary dual edges.
     for t in triangles(s)
       # TODO: Perhaps multiply by tet_orientation.
       primal_tri_orient = s[t, :tri_orientation]
-      d_es = elementary_duals(2,s,t)
-      s[d_es, :D_edge_orientation] = primal_tri_orient
+      @inbounds for de in elementary_duals(Val(2),s,t)
+        s[de, :D_edge_orientation] = primal_tri_orient
+      end
     end
-
-    # Remaining dual edges and dual triangles are oriented arbitrarily.
-    s[findall(isnothing, s[:D_tri_orientation]), :D_tri_orientation] = one(attrtype_type(s, :Orientation))
-    # These will be dual edges from vertex_center to tc, and from
-    # edge_center to tc.
-    s[findall(isnothing, s[:D_edge_orientation]), :D_edge_orientation] = one(attrtype_type(s, :Orientation))
   end
 
   return parts(s, :DualTet)
