@@ -117,6 +117,13 @@ function geometric_center(points, ::Circumcenter)
   mapreduce(*, +, barycentric_coords, points)
 end
 
+function geometric_center(points::StaticVector{N}, ::Circumcenter) where N
+  CM = cayley_menger(points...)
+  inv_CM = inv(CM)
+  barycentric_coords = SVector(ntuple(i -> inv_CM[1, i+1], Val(N)))
+  mapreduce(*, +, barycentric_coords, points)
+end
+
 """ Incenter, or center of inscribed circle, of a simplex.
 """
 struct Incenter <: SimplexCenter end
@@ -1278,9 +1285,16 @@ end
 function subdivide_duals_3d!(sd::HasDeltaSet3D, ::Type{point_type}, alg) where point_type
   # TODO: Double-check what gets called by subdivide_duals_2d!.
   subdivide_duals_2d!(sd, point_type, alg)
-  for tet in tetrahedra(sd)
-    sd[tetrahedron_center(sd,tet), :dual_point] = geometric_center(
-      point(sd, tetrahedron_vertices(sd, tet)), alg)
+
+  point_arr = MVector{4, point_type}(undef)
+
+  @inbounds for tet in tetrahedra(sd)
+    p1, p2, p3, p4 = tetrahedron_vertices(sd, tet)
+    point_arr[1] = sd[p1, :point]
+    point_arr[2] = sd[p2, :point]
+    point_arr[3] = sd[p3, :point]
+    point_arr[4] = sd[p4, :point]
+    sd[tetrahedron_center(sd,tet), :dual_point] = geometric_center(point_arr, alg)
   end
 end
 
