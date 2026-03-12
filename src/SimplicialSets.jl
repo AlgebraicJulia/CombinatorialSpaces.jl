@@ -1067,7 +1067,7 @@ function boundary_inds(::Type{Val{0}}, s::HasDeltaSet2D)
 end
 
 function boundary_inds(::Type{Val{1}}, s::HasDeltaSet2D)
-  collect(findall(x -> x != 0, boundary(Val{2},s) * fill(1,ntriangles(s))))
+  Base.collect(findall(x -> x != 0, boundary(Val{2},s) * fill(1,ntriangles(s))))
 end
 
 function boundary_inds(::Type{Val{2}}, s::HasDeltaSet2D)
