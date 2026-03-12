@@ -108,6 +108,11 @@ explained by
 [Westdendorp](https://westy31.home.xs4all.nl/Circumsphere/ncircumsphere.htm).
 This method of calculation is also used in the package
 [AlphaShapes.jl](https://github.com/harveydevereux/AlphaShapes.jl).
+
+When the point collection is a [`StaticVector`](@ref) of length 2, 3, or 4,
+optimized methods are used instead: the edge circumcenter is the midpoint; the
+triangle and tetrahedron circumcenters are found by solving a Gram-matrix
+linear system (2×2 or 3×3), which avoids the larger Cayley-Menger inversion.
 """
 struct Circumcenter <: SimplexCenter end
 
@@ -122,6 +127,54 @@ function geometric_center(points::StaticVector{N}, ::Circumcenter) where N
   inv_CM = inv(CM)
   barycentric_coords = SVector(ntuple(i -> inv_CM[1, i+1], Val(N)))
   mapreduce(*, +, barycentric_coords, points)
+end
+
+# Optimized: circumcenter of an edge is its midpoint.
+function geometric_center(points::StaticVector{2}, ::Circumcenter)
+  (points[1] + points[2]) / 2
+end
+
+# Optimized: circumcenter of a triangle via closed-form 2×2 Cramer's rule.
+#
+# Let a = p1 - p0, b = p2 - p0. The circumcenter x = p0 + α·a + β·b satisfies
+#   [a·a  a·b] [α]   [(a·a)/2]
+#   [a·b  b·b] [β] = [(b·b)/2]
+# Solved directly using Cramer's rule:
+#   α = (b·b)(a·a - a·b) / (2 D),  β = (a·a)(b·b - a·b) / (2 D)
+# where D = (a·a)(b·b) - (a·b)².
+function geometric_center(points::StaticVector{3}, ::Circumcenter)
+  p0, p1, p2 = points[1], points[2], points[3]
+  a = p1 - p0
+  b = p2 - p0
+  aa = dot(a, a)
+  ab = dot(a, b)
+  bb = dot(b, b)
+  D = aa * bb - ab * ab
+  α = bb * (aa - ab) / (2 * D)
+  β = aa * (bb - ab) / (2 * D)
+  p0 + α * a + β * b
+end
+
+# Optimized: circumcenter of a tetrahedron via 3×3 Gram-matrix linear system.
+#
+# Let a = p1 - p0, b = p2 - p0, c = p3 - p0. The circumcenter
+# x = p0 + α·a + β·b + γ·c satisfies G·[α; β; γ] = [(a·a)/2; (b·b)/2; (c·c)/2]
+# where G is the Gram matrix of (a, b, c). StaticArrays solves this 3×3 system
+# with zero heap allocation.
+function geometric_center(points::StaticVector{4}, ::Circumcenter)
+  p0, p1, p2, p3 = points[1], points[2], points[3], points[4]
+  a = p1 - p0
+  b = p2 - p0
+  c = p3 - p0
+  aa, ab, ac = dot(a, a), dot(a, b), dot(a, c)
+  bb, bc     = dot(b, b), dot(b, c)
+  cc         = dot(c, c)
+  G   = SMatrix{3,3}(aa, ab, ac,
+                     ab, bb, bc,
+                     ac, bc, cc)
+  rhs = SVector(aa / 2, bb / 2, cc / 2)
+  coords = G \ rhs
+  p0 + coords[1] * a + coords[2] * b + coords[3] * c
 end
 
 """ Incenter, or center of inscribed circle, of a simplex.
