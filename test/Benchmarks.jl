@@ -5,6 +5,7 @@ using Catlab.Graphics
 using CombinatorialSpaces
 using LinearAlgebra
 using BenchmarkTools
+using Printf
 using Random
 
 @info "Beginning DEC Operator Benchmarks"
@@ -127,7 +128,7 @@ end
 
 dec_op_results = run(dec_op_suite, verbose = true, seconds = 1)
 
-for op in sort(collect(keys(dec_op_results)))
+for op in sort(Base.collect(keys(dec_op_results)))
     test = median(dec_op_results[op])
 
     println("Operator: $op")
@@ -177,6 +178,109 @@ for center in sort(Base.collect(keys(dual_mesh_results)))
         println("$k, [$t s, $m GB]")
     end
     println("----------------------------------------------------------------")
+end
+
+# ── Circumcenter performance: before/after comparison on Icosphere(8) ────────
+#
+# The "before" (old) implementation uses the generic Cayley-Menger matrix
+# inversion for every simplex center computation.  The "after" (new)
+# implementation uses closed-form formulas derived from the Gram matrix:
+#   • edge        → midpoint (trivial)
+#   • triangle    → 2×2 Cramer's rule  (avoids 4×4 Cayley-Menger inversion)
+#   • tetrahedron → 3×3 Gram-matrix \  (avoids 5×5 Cayley-Menger inversion)
+# ─────────────────────────────────────────────────────────────────────────────
+
+using StaticArrays: SVector, StaticVector, MVector, SMatrix
+using CombinatorialSpaces.SimplicialSets: cayley_menger
+
+# Reference implementation identical to the pre-optimization code.
+function geometric_center_cayley_menger(points::StaticVector{N}, ::Circumcenter) where N
+    CM = cayley_menger(points...)
+    inv_CM = inv(CM)
+    barycentric_coords = SVector(ntuple(i -> inv_CM[1, i+1], Val(N)))
+    mapreduce(*, +, barycentric_coords, points)
+end
+
+@info "Building Icosphere(8) primal mesh for circumcenter benchmark"
+primal_ico8 = loadmesh(Icosphere(8))
+orient!(primal_ico8)
+@info "  nv=$(nv(primal_ico8))  ne=$(ne(primal_ico8))  ntri=$(ntriangles(primal_ico8))"
+
+# Build a dual complex and pre-populate primal points so we can collect
+# representative triangle vertex triples for the micro-benchmark.
+let _sd = EmbeddedDeltaDualComplex2D{Bool,Float64,Point3d}(primal_ico8)
+    subdivide_duals!(_sd, Barycenter())
+    global tri_pts_ico8 = map(triangles(_sd)) do t
+        p1, p2, p3 = triangle_vertices(_sd, t)
+        MVector{3,Point3d}(_sd[p1,:point], _sd[p2,:point], _sd[p3,:point])
+    end
+end
+@info "  Collected $(length(tri_pts_ico8)) triangle point triples"
+
+# --- micro-benchmark: geometric_center per triangle ---
+circumcenter_suite = BenchmarkGroup()
+
+circumcenter_suite["new (Gram-matrix)"]["triangle"] = @benchmarkable begin
+    for pts in $tri_pts_ico8
+        geometric_center(pts, Circumcenter())
+    end
+end seconds=5 evals=3
+
+circumcenter_suite["old (Cayley-Menger)"]["triangle"] = @benchmarkable begin
+    for pts in $tri_pts_ico8
+        geometric_center_cayley_menger(pts, Circumcenter())
+    end
+end seconds=5 evals=3
+
+# --- macro-benchmark: full subdivide_duals! on Icosphere(8) ---
+function dualize_ico8(primal, center)
+    sd = EmbeddedDeltaDualComplex2D{Bool,Float64,Point3d}(primal)
+    subdivide_duals!(sd, center)
+    sd
+end
+
+circumcenter_suite["new (Gram-matrix)"]["subdivide_duals! Icosphere(8)"] =
+    @benchmarkable dualize_ico8($primal_ico8, Circumcenter()) seconds=10 evals=1
+
+circumcenter_suite["old (Cayley-Menger)"]["subdivide_duals! Icosphere(8)"] =
+    @benchmarkable begin
+        sd = EmbeddedDeltaDualComplex2D{Bool,Float64,Point3d}($primal_ico8)
+        # Temporarily rebind geometric_center to the old Cayley-Menger path by
+        # running it manually inside the loop (mirrors subdivide_duals_2d! logic).
+        for v in vertices(sd)
+            sd[v, :dual_point] = sd[v, :point]
+        end
+        pt_arr = MVector{2,Point3d}(undef)
+        for e in edges(sd)
+            p1, p2 = edge_vertices(sd, e)
+            pt_arr[1] = sd[p1,:point]; pt_arr[2] = sd[p2,:point]
+            sd[sd[e,:edge_center],:dual_point] =
+                geometric_center_cayley_menger(SVector{2,Point3d}(pt_arr), Circumcenter())
+        end
+        pt_arr3 = MVector{3,Point3d}(undef)
+        for t in triangles(sd)
+            p1,p2,p3 = triangle_vertices(sd, t)
+            pt_arr3[1]=sd[p1,:point]; pt_arr3[2]=sd[p2,:point]; pt_arr3[3]=sd[p3,:point]
+            sd[sd[t,:tri_center],:dual_point] =
+                geometric_center_cayley_menger(SVector{3,Point3d}(pt_arr3), Circumcenter())
+        end
+        sd
+    end seconds=10 evals=1
+
+@info "Running Circumcenter before/after benchmarks on Icosphere(8)"
+cc_results = run(circumcenter_suite, verbose=true)
+
+println("\n════════════════════════════════════════════════════════════════")
+println("  Circumcenter performance: before vs after  [Icosphere(8)]")
+println("════════════════════════════════════════════════════════════════")
+for variant in ["triangle", "subdivide_duals! Icosphere(8)"]
+    t_new = median(cc_results["new (Gram-matrix)"][variant])
+    t_old = median(cc_results["old (Cayley-Menger)"][variant])
+    ratio = t_old.time / t_new.time
+    println("Benchmark : $variant")
+    println("  NEW  time=$(BenchmarkTools.prettytime(t_new.time))  mem=$(BenchmarkTools.prettymemory(t_new.memory))")
+    println("  OLD  time=$(BenchmarkTools.prettytime(t_old.time))  mem=$(BenchmarkTools.prettymemory(t_old.memory))")
+    @printf("  Speed-up : %.2fx\n\n", ratio)
 end
 
 end
