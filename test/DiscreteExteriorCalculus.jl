@@ -1121,5 +1121,46 @@ mesh_vols = s[:vol]
 # Constant interpolation
 @test all(interp * ones(ntetrahedra(s)) .≈ 1)
 
+# Optimized geometric_center overloads for Circumcenter
+# These tests verify that the specialized StaticVector{2/3/4} methods give
+# the same results as the generic (Cayley-Menger) fallback.
+let CC = Circumcenter()
+  # Edge (StaticVector{2}): circumcenter is the midpoint.
+  pts2_2d = @SVector [Point2d(0.0, 0.0), Point2d(2.0, 0.0)]
+  @test geometric_center(pts2_2d, CC) ≈ Point2d(1.0, 0.0)
+  pts2_3d = @SVector [Point3d(0,0,0), Point3d(0,0,4)]
+  @test geometric_center(pts2_3d, CC) ≈ Point3d(0, 0, 2)
+
+  # Triangle (StaticVector{3}): 2D right triangle, circumcenter = midpoint of hypotenuse.
+  pts3_2d = @SVector [Point2d(0.0, 0.0), Point2d(1.0, 0.0), Point2d(0.0, 1.0)]
+  @test geometric_center(pts3_2d, CC) ≈ Point2d(0.5, 0.5)
+
+  # Triangle in ℝ³: 3-4-5 right triangle lying in the xy-plane.
+  pts3_3d = @SVector [Point3d(0,0,0), Point3d(4,0,0), Point3d(0,3,0)]
+  cc3 = geometric_center(pts3_3d, CC)
+  @test cc3 ≈ Point3d(2.0, 1.5, 0.0)
+
+  # Equilateral triangle in ℝ²: circumcenter == centroid.
+  eq_pts = @SVector [Point2d(0,0), Point2d(1,0), Point2d(0.5, sqrt(3)/2)]
+  @test geometric_center(eq_pts, CC) ≈ sum(eq_pts) / 3
+
+  # Tetrahedron (StaticVector{4}): regular tetrahedron centred at origin.
+  pts4 = @SVector [Point3d(1,1,1), Point3d(1,-1,-1),
+                   Point3d(-1,1,-1), Point3d(-1,-1,1)]
+  cc4 = geometric_center(pts4, CC)
+  @test cc4 ≈ sum(pts4) / 4  # regular tet: circumcenter == centroid
+
+  # Consistency check: optimized and generic methods agree for both triangle
+  # and tetrahedron inputs.
+  pts3_generic = [Point3d(0,0,0), Point3d(4,0,0), Point3d(0,3,0)]
+  @test geometric_center(SVector{3}(pts3_generic), CC) ≈
+        geometric_center(pts3_generic, CC)
+
+  pts4_generic = [Point3d(1,1,1), Point3d(1,-1,-1),
+                  Point3d(-1,1,-1), Point3d(-1,-1,1)]
+  @test geometric_center(SVector{4}(pts4_generic), CC) ≈
+        geometric_center(pts4_generic, CC)
+end
+
 
 end
