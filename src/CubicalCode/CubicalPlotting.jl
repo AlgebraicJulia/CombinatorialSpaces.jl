@@ -1,7 +1,7 @@
 # TODO: Fix plotting to work with multiple dimensions
 
 
-function GeometryBasics.Mesh(s::EmbeddedCubicalComplex2D)
+function GeometryBasics.Mesh(s::HasCubicalComplex2D)
   ps = points(s)
 
   qs = QuadFace{Int}[]
@@ -10,7 +10,7 @@ function GeometryBasics.Mesh(s::EmbeddedCubicalComplex2D)
       push!(qs, map(v -> coord_to_vert(s, v...), quad_vertices(x, y)))
     end
   end
-  
+
   GeometryBasics.Mesh(ps, qs)
 end
 

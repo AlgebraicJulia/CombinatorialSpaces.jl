@@ -1,4 +1,4 @@
-export CubicalComplex, EmbeddedCubicalComplex2D
+export CubicalComplex, EmbeddedCubicalComplex2D, UniformCubicalComplex2D
 
 using StaticArrays: @SVector, SVector
 using GeometryBasics: Point2d, Point3d, QuadFace
@@ -17,8 +17,10 @@ using Makie
 import Makie: convert_arguments
 
 include("CubicalCode/CubicalMesh.jl")
+# include("CubicalCode/UniformMesh.jl")
 include("CubicalCode/CubicalPlotting.jl")
 include("CubicalCode/CubicalMatrixDEC.jl")
 include("CubicalCode/CubicalKernelDEC.jl")
+# include("CubicalCode/UniformKernelDEC.jl")
 include("CubicalCode/CubicalPeriodic.jl")
 include("CubicalCode/WENO.jl")
