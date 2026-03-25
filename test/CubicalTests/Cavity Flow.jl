@@ -6,8 +6,33 @@ include("../../src/CubicalCode/UniformMesh.jl")
 include("../../src/CubicalCode/UniformMatrixDEC.jl")
 include("../../src/CubicalCode/UniformPlotting.jl")
 
+# edge_len(s, X_ALIGN) # CFL Condition
+testcase = "RE100"
+
+if testcase == "RE10"
+  Δt = 5e-4
+  tₑ = 2.0
+  Re = 10.0
+  _nx = _ny = 129
+elseif testcase == "RE100"
+  Δt = 5e-4
+  tₑ = 5.0
+  Re = 100.0
+  _nx = _ny = 129
+elseif testcase == "RE1000"
+  Δt = 5e-4
+  tₑ = 5.0
+  Re = 1_000.0
+  _nx = _ny = 129
+elseif testcase == "RE10000"
+  Δt = 1e-4
+  tₑ = 5.0
+  Re = 10_000.0
+  _nx = _ny = 257
+end
+
 lx = ly = 1.0;
-s = UniformCubicalComplex2D(129, 129, lx, ly);
+s = UniformCubicalComplex2D(_nx, _ny, lx, ly);
 
 # DEC Operators
 Δ0 = laplacian(Val(0), s);
@@ -27,8 +52,6 @@ inv_hdg_1 = inv_hodge_star(Val(1), s);
 
 δ1 = codifferential(Val(1), s);
 
-Δt = 1e-4 # edge_len(s, X_ALIGN) # CFL Condition
-Re = 10_000.0
 μ = 1 / Re
 
 # Boundary edges
@@ -100,7 +123,6 @@ function generate_F(u_star)
     return src
 end
 
-tₑ = 5.0
 u_star_0 = zeros(ne(s))
 
 function runsim(tₑ, Δt, u_star_0; save_every = 50)
@@ -206,7 +228,7 @@ function create_mp4(filename, Us, Ps; frames = length(Us), jump = 1, framerate =
     end
 end
 
-create_mp4("imgs/CF/simulation_Re=$(Re).mp4", jump = 500, Us, Ps)
+create_mp4("imgs/CF/simulation_Re=$(Re).mp4", Us, Ps)
 
 # # Debugging
 
