@@ -2,12 +2,14 @@ using Test
 using CairoMakie
 using LinearAlgebra
 
-include("../../src/CubicalComplexes.jl")
+include("../../src/CubicalCode/UniformMesh.jl")
+include("../../src/CubicalCode/UniformMatrixDEC.jl")
+include("../../src/CubicalCode/UniformPlotting.jl")
 
 lx = ly = 2π;
-s = uniform_grid(lx, ly, 81, 81);
+s = UniformCubicalComplex2D(201, 201, lx, ly);
 
-function form_taylor_vortices(s::HasCubicalComplex, G::Real, a::Real, centers)
+function form_taylor_vortices(s::UniformCubicalComplex2D, G::Real, a::Real, centers)
   u = zeros(nv(s))
 
   function taylor_vortex(pnt::Point3d, cntr::Point3d)
@@ -24,7 +26,7 @@ end
 
 ω = form_taylor_vortices(s, 1.0, 0.3, [Point3d(lx / 2 - 0.4, ly / 2, 0.0), Point3d(lx / 2 + 0.4, ly / 2, 0.0)])
 
-save("imgs/Vortices.png", plot_zeroform(s, ω))
+save("imgs/NS/Vortices.png", plot_zeroform(s, ω))
 
 # DEC Operators 
 Δ0 = laplacian(Val(0), s);
@@ -51,32 +53,29 @@ u_star_0 = d0 * ψ
 
 ω_test = δ1 * u_star_0
 
-save("imgs/RoundTrip_Vortices.png", plot_zeroform(s, ω_test))
+save("imgs/NS/RoundTrip_Vortices.png", plot_zeroform(s, ω_test))
 
 Δt = 1e-3
-μ = 0
+μ = 1e-3
 
 rhs_U_mat = (-1 / Δt) * I + μ * d0 * inv_hdg_0 * dual_d1 * hdg_1
 rhs_Pd_mat = inv_hdg_1 * dual_d0
 
-Wv(v) = spdiagm(v)
+Wv(v) = 0.5 * spdiagm(v)
 
 vΔ1 = -μ * d0 * inv_hdg_0 * d_beta
-adv_u_star = 0.5 * abs.(d0) * inv_hdg_0 * dual_d1 * hdg_1
-adv_v = 0.5 * abs.(d0) * inv_hdg_0 * d_beta
+adv_u_star = abs.(d0) * inv_hdg_0 * dual_d1 * hdg_1
+adv_v = abs.(d0) * inv_hdg_0 * d_beta
 
-X = init_tensor_d(Val(0), s)
-Y = init_tensor_d(Val(0), s)
+X = zeros(nquads(s))
+Y = zeros(nquads(s))
 
-v_ten = init_tensor(Val(1), s)
+v = zeros(ne(s))
 
-# TODO: Increase performance of this step (mainly in sharp)
 function generate_F(u_star)
     u = hdg_1 * u_star
-    sharp_dd!(X, Y, s, tensorfy(s, u))
-    flat_dp!(v_ten, s, X, Y)
-
-    v = detensorfy(Val(1), s, v_ten)
+    sharp_dd!(X, Y, s, u)
+    flat_dp!(v, s, X, Y)
 
     # Diffusion and advection
     return (-1 / Δt) * u_star + vΔ1 * v + Wv(v) * (adv_u_star * u_star + adv_v * v)
@@ -91,43 +90,47 @@ f_rhs = factorize(rhs)
 
 U = zeros(ne(s) + nquads(s))
 
-tₑ = 8.0
+# TODO: Why is the end time so long, Mohamed paper sees behavior at t=5
+tₑ = 5.0
 steps = ceil(Int64, tₑ / Δt)
-Us = [u_star_0]
+Us = []
 
 u_star = deepcopy(u_star_0)
 
 F₂ = zeros(nquads(s))
-for step in 1:steps
+for (step, time) in enumerate(range(0, tₑ; step = Δt))
     F = vcat(generate_F(u_star), F₂)
     U .= f_rhs \ F
     u_star .= U[1:ne(s)]
 
-    if step % 50 == 0
-        println("Loading simulation results: $(step / steps * 100)%")
+    if (step - 1) % 50 == 0
+        println("Loading simulation results at time $time: $(time / tₑ * 100)%")
         push!(Us, deepcopy(u_star))
     end
 end
 
-ω_end = δ1 * u_star
+ω_end = δ1 * Us[end]
 
-fig = Figure();
-ax = CairoMakie.Axis(fig[1, 1]) 
-msh = CairoMakie.mesh!(ax, s, color=ω_end, colormap=:jet)
-Colorbar(fig[1, 2], msh)
-save("imgs/FinalVortices.png", fig)
+fig = plot_zeroform(s, ω_end) 
+save("imgs/NS/FinalVortices.png", fig)
 
-ωs = map(u -> δ1 * u, Us)
+fig = plot_oneform(s, hdg_1 * Us[end])
+save("imgs/NS/FinalVelocity.png", fig)
 
-function create_gif(solution, file_name)
-  frames = length(solution)
-  fig = Figure()
-  ax = CairoMakie.Axis(fig[1,1])
-  msh = CairoMakie.mesh!(ax, s, color=first(solution), colormap=:jet, colorrange=extrema(first(solution)))
-  Colorbar(fig[1,2], msh)
-  CairoMakie.record(fig, file_name, 1:frames; framerate = 15) do t
-    msh.color = solution[t]
-  end
-end
+fig = plot_xy_oneform(s, hdg_1 * Us[end])
+save("imgs/NS/FinalVelocityXY.png", fig)
 
-create_gif(ωs, "imgs/TaylorVortices.mp4")
+# ωs = map(u -> δ1 * u, Us)
+
+# function create_gif(solution, file_name)
+#   frames = length(solution)
+#   fig = Figure()
+#   ax = CairoMakie.Axis(fig[1,1])
+#   msh = CairoMakie.mesh!(ax, s, color=first(solution), colormap=:jet, colorrange=extrema(first(solution)))
+#   Colorbar(fig[1,2], msh)
+#   CairoMakie.record(fig, file_name, 1:frames; framerate = 15) do t
+#     msh.color = solution[t]
+#   end
+# end
+
+# create_gif(ωs, "imgs/NS/TaylorVortices.mp4")
