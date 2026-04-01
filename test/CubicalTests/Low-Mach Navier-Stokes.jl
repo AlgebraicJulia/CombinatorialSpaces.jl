@@ -1,6 +1,7 @@
 using Test
 using CairoMakie
 using LinearAlgebra
+using Printf
 
 include("../../src/CubicalCode/UniformMesh.jl")
 include("../../src/CubicalCode/UniformMatrixDEC.jl")
@@ -31,6 +32,8 @@ left_cnt = Point3d(lx_ / 2 - 0.4, ly_ / 2, 0.0); right_cnt = Point3d(lx_ / 2 + 0
 save("imgs/LMNS/Vortices.png", plot_zeroform(s, ω))
 
 # DEC Operators
+boundary_idxs = findall(x -> x != 0, dual_d0 * ones(nquads(s)));
+
 Δ0 = laplacian(Val(0), s);
 dΔ1 = dual_laplacian(Val(1), s);
 
@@ -69,19 +72,15 @@ function momentum_continuity(U_star, rho_star, p)
 
   # Compute velocity u from momentum U and density rho
   u = wedge_product_dd(Val(0), Val(1), s, 1 ./ rho, U)
-  
-  # Interpolate u to primal edges
-  X = zeros(nquads(s)); Y = zeros(nquads(s))
-  v = zeros(ne(s))
 
-  sharp_dd!(X, Y, s, u)
-  flat_dp!(v, s, X, Y) # TODO: Can we get rid of the need for v?
+  # Interpolate u to primal edges
+  v = interpolate_dp(Val(1), s, u)
 
   # U ∧ δu
   div_term = wedge_product_dd(Val(1), Val(0), s, U, dual_δ1 * u)
 
   # L(u, U)
-  L_term = dual_d0 * hdg_2 * wedge_product(Val(1), Val(1), s, v, inv_hdg_1 * U) + 
+  L_term = dual_d0 * hdg_2 * wedge_product(Val(1), Val(1), s, v, inv_hdg_1 * U) +
     hdg_1 * wedge_product(Val(1), Val(0), s, v, inv_hdg_0 * dual_d1 * U)
 
   # 1/2 * ρ * d||u||^2
@@ -94,12 +93,12 @@ function momentum_continuity(U_star, rho_star, p)
   # μΔu
   lap_term = μ * dΔ1 * u
 
-  println("Extrema of terms: ")
-  println("  Div: $(minimum(div_term)) to $(maximum(div_term))")
-  println("  L: $(minimum(L_term)) to $(maximum(L_term))")
-  println("  Energy: $(minimum(energy)) to $(maximum(energy))")
-  println("  Diff P: $(minimum(diff_p)) to $(maximum(diff_p))")
-  println("  Laplacian: $(minimum(lap_term)) to $(maximum(lap_term))")
+  # println("Extrema of terms: ")
+  # println("  Div: $(minimum(div_term)) to $(maximum(div_term))")
+  # println("  L: $(minimum(L_term)) to $(maximum(L_term))")
+  # println("  Energy: $(minimum(energy)) to $(maximum(energy))")
+  # println("  Diff P: $(minimum(diff_p)) to $(maximum(diff_p))")
+  # println("  Laplacian: $(minimum(lap_term)) to $(maximum(lap_term))")
 
   return -inv_hdg_1 * (-div_term - L_term + energy - diff_p + lap_term)
 end
@@ -133,24 +132,31 @@ function run_compressible_ns(U_star_0, rho_star_0, tₑ, Δt, p; saveat=500)
     set_periodic!(U_star, Val(1), s, ALL)
     set_periodic!(rho_star, Val(2), s, ALL)
 
+    # Update momentum to half step
+    # Use that to update density to half step (and also full step)
+    # Use both to update momentum to full step
+
     U_star_half .= U_star .+ 0.5 * Δt * momentum_continuity(U_star, rho_star, p)
+    set_periodic!(U_star_half, Val(1), s, ALL)
 
     rho_star_full .= rho_star + Δt * d1 * U_star_half # Mass changes by momentum flux
+    set_periodic!(rho_star_full, Val(2), s, ALL)
+
     rho_star_half .= 0.5 .* (rho_star .+ rho_star_full)
 
     U_star .= U_star .+ Δt * momentum_continuity(U_star_half, rho_star_half, p)
     rho_star .= rho_star_full
 
-    if any(isnan.(U_star))
+    if any(isnan, U_star)
       println("Warning, NAN result in U at step: $(step)")
       break
-    elseif any(isinf.(U_star))
+    elseif any(isinf, U_star)
       println("Warning, INF result in U at step: $(step)")
       break
-    elseif any(isnan.(rho_star))
+    elseif any(isnan, rho_star)
       println("Warning, NAN result in rho_star at step: $(step)")
       break
-    elseif any(isinf.(rho_star))
+    elseif any(isinf, rho_star)
       println("Warning, INF result in rho_star at step: $(step)")
       break
     end
@@ -167,13 +173,13 @@ function run_compressible_ns(U_star_0, rho_star_0, tₑ, Δt, p; saveat=500)
   return Us, rhos
 end
 
-Re = Inf # 1000.0
+Re = Inf
 κ = 280 * 300 # R (Dry gas constant) * T = 300K, from P = ρRVT
 p = (κ, 1 / Re) # κ, μ
 rho_star_0 = inv_hdg_2 * ones(nquads(s))
 U_star_0 = deepcopy(u_star_0)
 
-Us, rhos = run_compressible_ns(U_star_0, rho_star_0, 1e-3, 1e-4, p; saveat=25);
+Us, rhos = run_compressible_ns(U_star_0, rho_star_0, 1, 1e-4, p; saveat=100);
 
 time = 5; # length(Us)
 ω = inv_hdg_0 * dual_d1 * Us[time];
@@ -186,28 +192,31 @@ save("imgs/LMNS/FinalDensity.png", fig)
 
 function create_mp4(filename, Us, rhos; frames = length(Us), framerate = 15)
 
-    fig = Figure()
-    ax1 = Axis(fig[1, 1], title = "Density Field (p)")
-    ax2 = Axis(fig[2, 1], title = "Vorticity Field")
+  fig = Figure(size=(1000, 1000))
+  ax1 = Axis(fig[1, 1], title = "Density Field (p)")
+  ax2 = Axis(fig[2, 1], title = "Vorticity Field")
 
-    dps = interior(Val(2), dual_points(s), s)
-    xs = map(a -> a[1], dps)
-    ys = map(a -> a[2], dps)
+  dps = interior(Val(2), dual_points(s), s)
+  xs = map(a -> a[1], dps)
+  ys = map(a -> a[2], dps)
 
-    step = Observable(1)
+  step = Observable(1)
 
-    rho = @lift(interior(Val(2), rhos[$step], s))
-    rot = @lift(interior(Val(0), inv_hdg_0 * dual_d1 * Us[$step], s))
+  rho = @lift(interior(Val(2), rhos[$step], s))
+  rot = @lift(interior(Val(0), inv_hdg_0 * dual_d1 * Us[$step], s))
 
-    scatter1 = scatter!(ax1, xs, ys, color = rho, colormap=Reverse(:oslo))
-    scatter2 = mesh!(ax2, s, color = rot, colormap=:viridis, colorrange=(-5, 12))
+  scatter1 = heatmap!(ax1, xs, ys, rho, colormap=Reverse(:oslo))
+  scatter2 = mesh!(ax2, s, color = rot, colormap=:viridis, colorrange=(-5, 12))
 
-    Colorbar(fig[1, 2], scatter1)
-    Colorbar(fig[2, 2], scatter2)
+  Colorbar(fig[1, 2], scatter1, tickformat = ticks -> [@sprintf("%.1f", t) for t in ticks])
+  Colorbar(fig[2, 2], scatter2)
 
-    CairoMakie.record(fig, filename, 1:frames; framerate = framerate) do i
-        step[] = i
-    end
+  colsize!(fig.layout, 1, Aspect(1, 1.0))
+  resize_to_layout!(fig)
+
+  CairoMakie.record(fig, filename, 1:frames; framerate = framerate) do i
+    step[] = i
+  end
 end
 
 create_mp4("imgs/LMNS/simulation.mp4", Us, rhos; framerate = 15)

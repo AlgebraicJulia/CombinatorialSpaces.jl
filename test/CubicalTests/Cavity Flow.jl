@@ -7,21 +7,21 @@ include("../../src/CubicalCode/UniformMatrixDEC.jl")
 include("../../src/CubicalCode/UniformPlotting.jl")
 
 # edge_len(s, X_ALIGN) # CFL Condition
-testcase = "RE100"
+testcase = "RE1000"
 
 if testcase == "RE10"
-  Δt = 5e-4
-  tₑ = 2.0
+  Δt = 5e-3
+  tₑ = 1.0
   Re = 10.0
   _nx = _ny = 129
 elseif testcase == "RE100"
-  Δt = 5e-4
+  Δt = 5e-3
   tₑ = 5.0
   Re = 100.0
   _nx = _ny = 129
 elseif testcase == "RE1000"
-  Δt = 5e-4
-  tₑ = 5.0
+  Δt = 5e-3
+  tₑ = 25.0
   Re = 1_000.0
   _nx = _ny = 129
 elseif testcase == "RE10000"
@@ -91,7 +91,7 @@ end
 
 rhs_P_mat = generate_rhs_P_mat()
 
-fix_p_mat = sparse([1], [1], [1.0], 1, ne(s) + nquads(s))
+fix_p_mat = sparse([1], [ne(s) + 1], [1.0], 1, ne(s) + nquads(s))
 # Generate matrix
 rhs = vcat(hcat(rhs_U_mat, rhs_P_mat), fix_p_mat)
 f_rhs = factorize(rhs)
@@ -170,8 +170,13 @@ tmp = Ps[time];
 fig = plot_twoform(s, tmp)
 save("imgs/CF/FinalPressure_Re=$(Re).png", fig)
 
-fig = plot_zeroform(s, inv_hdg_0 * dual_d1 * Us[time]) # Log scale for better visualization
+vort = inv_hdg_0 * dual_d1 * Us[time];
+fig = plot_zeroform(s, vort) # Log scale for better visualization
 save("imgs/CF/FinalVortices_Re=$(Re).png", fig)
+
+ψ = Δ0 \ vort;
+fig = plot_zeroform(s, ψ)
+save("imgs/CF/FinalStreamfunction_Re=$(Re).png", fig)
 
 # Plot divergence of velocity field to check incompressibility
 divergence = d1 * inv_hdg_1 * Us[time];
@@ -196,7 +201,9 @@ end
 fig = plot_twoform(s, get_magnitude(Us[time]))
 save("imgs/CF/FinalVelocityMagnitude_Re=$(Re).png", fig)
 
-function create_mp4(filename, Us, Ps; frames = length(Us), jump = 1, framerate = 15)
+function create_mp4(filename, Us, Ps; frames::Int = length(Us), framerate::Int = 15, records::Int = 50)
+
+    jump = max(1, Int(floor(frames / records)))
 
     fig = Figure()
     ax = Axis(fig[1, 1], title = "Velocity Field (u)")
@@ -217,10 +224,10 @@ function create_mp4(filename, Us, Ps; frames = length(Us), jump = 1, framerate =
     p = @lift(Ps[$step])
     mag = @lift(sqrt.($X.^2 + $Y.^2))
 
-    scatter1 = scatter!(ax, xs, ys, color = X, colormap=:jet, colorrange=(-1, 1))
-    scatter2 = scatter!(ax2, xs, ys, color = Y, colormap=:jet, colorrange=(-1, 1))
-    scatter3 = scatter!(ax3, xs, ys, color = p, colormap=:jet)
-    scatter4 = scatter!(ax4, xs, ys, color = mag, colormap=:jet)
+    heat1 = heatmap!(ax, xs, ys, X, colormap=:jet, colorrange=(-1, 1))
+    heat2 = heatmap!(ax2, xs, ys, Y, colormap=:jet, colorrange=(-1, 1))
+    heat3 = heatmap!(ax3, xs, ys, p, colormap=:jet)
+    heat4 = heatmap!(ax4, xs, ys, mag, colormap=:jet)
 
     CairoMakie.record(fig, filename, 1:jump:frames; framerate = framerate) do i
         step[] = i

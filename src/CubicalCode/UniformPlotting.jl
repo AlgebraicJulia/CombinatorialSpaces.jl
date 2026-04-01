@@ -89,7 +89,13 @@ end
 function plot_twoform(s::UniformCubicalComplex2D, f)
   fig = Figure();
   ax = CairoMakie.Axis(fig[1, 1])
-  msh = CairoMakie.scatter!(ax, interior(Val(2), dual_points(s), s), color=interior(Val(2), f, s), colormap=:jet)
+
+  dps = dual_points(s)
+  interdps = interior(Val(2), dps, s)
+  x = map(a -> a[1], interdps)
+  y = map(a -> a[2], interdps)
+
+  msh = CairoMakie.heatmap!(ax, x, y, interior(Val(2), f, s), colormap=:jet)
   Colorbar(fig[1, 2], msh)
   fig
 end

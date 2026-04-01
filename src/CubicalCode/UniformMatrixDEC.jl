@@ -85,7 +85,7 @@ function wedge_product(::Val{i}, ::Val{j}, s::UniformCubicalComplex2D, f, g) whe
   else
     error("Invalid wedge product: forms of degree $i and $j cannot be wedged together in 2D")
   end
-    
+
   return wedge_product!(res, Val(i), Val(j), s, f, g)
 end
 
@@ -205,7 +205,7 @@ end
 
 # Create a matrix that maps values on dual points to primal points by taking the average of the adjacent dual points for each primal point
 # TODO: Write a test for this function to make sure it's doing what we expect, especially at the boundaries
-function interpolate_dp(s::UniformCubicalComplex2D)
+function interpolate_dp(::Val{0}, s::UniformCubicalComplex2D)
   I, J = Int64[], Int64[]
   V = Float64[]
 
@@ -217,6 +217,15 @@ function interpolate_dp(s::UniformCubicalComplex2D)
   end
 
   return sparse(I, J, V)
+end
+
+function interpolate_dp(::Val{1}, s::UniformCubicalComplex2D, u::AbstractVector)
+  X = zeros(nquads(s)); Y = zeros(nquads(s))
+  v = zeros(ne(s))
+
+  sharp_dd!(X, Y, s, u)
+  flat_dp!(v, s, X, Y)
+  return v
 end
 
 
