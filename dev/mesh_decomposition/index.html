@@ -287,29 +287,29 @@ diag = finsetdiagram(quads)</code></pre><div class="c-set">
 <span class="c-set-summary">Catlab.CategoricalAlgebra.Cats.FreeDiagrams.FreeGraphs.FreeGraph{Catlab.BasicSets.FinSets.FinSet, Catlab.BasicSets.FinFunctions.FinFunction} {V:5, E:4, Ob:0, Hom:0}</span>
 <table>
   <thead>
-    <tr class = "header headerLastRow">
-      <th class = "rowLabel" style = "font-weight: bold; text-align: right;">V</th>
-      <th style = "text-align: right;">ob</th>
+    <tr class = "columnLabelRow">
+      <th class = "stubheadLabel" style = "font-weight: bold; text-align: right;">V</th>
+      <th style = "font-weight: bold; text-align: right;">ob</th>
     </tr>
   </thead>
   <tbody>
-    <tr>
+    <tr class = "dataRow">
       <td class = "rowLabel" style = "font-weight: bold; text-align: right;">1</td>
       <td style = "text-align: right;">FinSet(49)</td>
     </tr>
-    <tr>
+    <tr class = "dataRow">
       <td class = "rowLabel" style = "font-weight: bold; text-align: right;">2</td>
       <td style = "text-align: right;">FinSet(25)</td>
     </tr>
-    <tr>
+    <tr class = "dataRow">
       <td class = "rowLabel" style = "font-weight: bold; text-align: right;">3</td>
       <td style = "text-align: right;">FinSet(19)</td>
     </tr>
-    <tr>
+    <tr class = "dataRow">
       <td class = "rowLabel" style = "font-weight: bold; text-align: right;">4</td>
       <td style = "text-align: right;">FinSet(19)</td>
     </tr>
-    <tr>
+    <tr class = "dataRow">
       <td class = "rowLabel" style = "font-weight: bold; text-align: right;">5</td>
       <td style = "text-align: right;">FinSet(16)</td>
     </tr>
@@ -317,33 +317,33 @@ diag = finsetdiagram(quads)</code></pre><div class="c-set">
 </table>
 <table>
   <thead>
-    <tr class = "header headerLastRow">
-      <th class = "rowLabel" style = "font-weight: bold; text-align: right;">E</th>
-      <th style = "text-align: right;">src</th>
-      <th style = "text-align: right;">tgt</th>
-      <th style = "text-align: right;">hom</th>
+    <tr class = "columnLabelRow">
+      <th class = "stubheadLabel" style = "font-weight: bold; text-align: right;">E</th>
+      <th style = "font-weight: bold; text-align: right;">src</th>
+      <th style = "font-weight: bold; text-align: right;">tgt</th>
+      <th style = "font-weight: bold; text-align: right;">hom</th>
     </tr>
   </thead>
   <tbody>
-    <tr>
+    <tr class = "dataRow">
       <td class = "rowLabel" style = "font-weight: bold; text-align: right;">1</td>
       <td style = "text-align: right;">2</td>
       <td style = "text-align: right;">1</td>
       <td style = "text-align: right;">FinFunction([1, 2, 3, 4, 5, 8, 9, 10, 11, 12, 15, 16, 17, 18, 19, 22, 23, 24, 25, 26, 29, 30, 31, 32, 33], FinSet(49))</td>
     </tr>
-    <tr>
+    <tr class = "dataRow">
       <td class = "rowLabel" style = "font-weight: bold; text-align: right;">2</td>
       <td style = "text-align: right;">3</td>
       <td style = "text-align: right;">1</td>
       <td style = "text-align: right;">FinFunction([4, 5, 6, 7, 11, 12, 13, 14, 18, 19, 20, 21, 25, 26, 27, 28, 33, 34, 35], FinSet(49))</td>
     </tr>
-    <tr>
+    <tr class = "dataRow">
       <td class = "rowLabel" style = "font-weight: bold; text-align: right;">3</td>
       <td style = "text-align: right;">4</td>
       <td style = "text-align: right;">1</td>
       <td style = "text-align: right;">FinFunction([22, 23, 24, 25, 29, 30, 31, 32, 33, 36, 37, 38, 39, 40, 43, 44, 45, 46, 47], FinSet(49))</td>
     </tr>
-    <tr>
+    <tr class = "dataRow">
       <td class = "rowLabel" style = "font-weight: bold; text-align: right;">4</td>
       <td style = "text-align: right;">5</td>
       <td style = "text-align: right;">1</td>
@@ -430,4 +430,4 @@ function resolve(K::NerveCover, dim=2)
     S =&gt; K[S...]
   end |&gt; Dict
 end</code></pre><pre><code class="language- hljs">K = NerveCover(quads, 𝒞)
-K[1,2]</code></pre><pre><code class="language- hljs">resolve(K)</code></pre><pre><code class="language- hljs">resolve(K, 3)</code></pre></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../mg_benchmarks/">« Multigrid Benchmarks</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.17.0 on <span class="colophon-date" title="Thursday 12 March 2026 02:13">Thursday 12 March 2026</span>. Using Julia version 1.12.5.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
+K[1,2]</code></pre><pre><code class="language- hljs">resolve(K)</code></pre><pre><code class="language- hljs">resolve(K, 3)</code></pre></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../mg_benchmarks/">« Multigrid Benchmarks</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.17.0 on <span class="colophon-date" title="Wednesday 1 April 2026 15:36">Wednesday 1 April 2026</span>. Using Julia version 1.12.5.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
