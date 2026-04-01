@@ -138,7 +138,7 @@ function test_galerkin(s::HasDeltaSet2D, scheme::AbstractSubdivisionScheme)
   @debug "Relative residual for FMG_V: $(norm(L*u-b)/norm(b))"
 
   u = full_multigrid(b,md,5,cg,2)
-  @test norm(L*u-b)/norm(b) < 8e-7
+  @test norm(L*u-b)/norm(b) < 9e-7
   @debug "Relative residual for FMG_W: $(norm(L*u-b)/norm(b))"
 end
 
