@@ -220,8 +220,9 @@ The free vector space sheaf over the diagram can be constructed by composing the
 import Catlab.Sheaves: pullback_matrix, pushforward_matrix, FMatPullback, FMatPushforward
 using Catlab.FreeDiagrams: fmap
 
-# Apply FMatPushforward to the diagram via fmap.
-# Note: fmap on FreeGraph in Catlab 0.17.5 has a bug (iterates edges(res)
+# Apply pushforward_matrix to the diagram via fmap, mapping objects by length
+# and morphisms by pushforward_matrix.
+# Note: fmap on FreeGraph has a bug in Catlab ≤0.17.5 (iterates edges(res)
 # instead of edges(d)), so we use a corrected version here.
 function fmap_correct(d::FreeGraph, o, h, O::Type, H::Type)
   res = FreeGraph{O,H}()
