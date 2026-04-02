@@ -222,8 +222,7 @@ using Catlab.FreeDiagrams: fmap
 
 # Apply pushforward_matrix to the diagram via fmap, mapping objects by length
 # and morphisms by pushforward_matrix.
-# Note: fmap on FreeGraph has a bug in Catlab ≤0.17.5 (iterates edges(res)
-# instead of edges(d)), so we use a corrected version here.
+# Note: This local version of fmap will be included in the next release of Catlab.
 function fmap_correct(d::FreeGraph, o, h, O::Type, H::Type)
   res = FreeGraph{O,H}()
   add_vertices!(res, nv(d); ob=o.(d[:ob]))
