@@ -211,9 +211,15 @@ function interpolate_dp(::Val{0}, s::UniformCubicalComplex2D)
 
   for v in vertices(s)
     x, y = vert_to_coord(s, v)
-    q1, q2, q3, q4 = vert_quads(s, x, y)
 
-    ### TODO: Fill me in!
+    adjacent_quads = vert_quads(s, x, y)
+    valid_quads = filter(q -> 1 <= q <= nquads(s), adjacent_quads)
+    n = length(valid_quads)
+    for q in valid_quads
+      push!(I, v)
+      push!(J, q)
+      push!(V, 1 / n)
+    end
   end
 
   return sparse(I, J, V)
