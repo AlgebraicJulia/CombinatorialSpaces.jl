@@ -217,11 +217,22 @@ diag = finsetdiagram(quads)
 The free vector space sheaf over the diagram can be constructed by composing the diagram with the free vector space functor and the appropriate pushforward or pullback operations. This creates a diagram in Vect representing the sheaf of vector spaces over the mesh decomposition. This is just the vertex component; similar constructions can be done for edges and faces.
 
 ```@example mesh_decomposition
-using Catlab.Sheaves: FVect
-import Catlab.Sheaves: pullback_matrix, FMatPullback, FMatPushforward
-import Catlab.CategoricalAlgebra.Matrices: MatrixDom
-MatrixDom(n::Int64) = MatrixDom{Matrix}(n)
-Vdiag = force(compose(FinDomFunctor(diag), FMatPushforward))
+import Catlab.Sheaves: pullback_matrix, pushforward_matrix, FMatPullback, FMatPushforward
+using Catlab.FreeDiagrams: fmap
+
+# Apply pushforward_matrix to the diagram via fmap, mapping objects by length
+# and morphisms by pushforward_matrix.
+# Note: This local version of fmap will be included in the next release of Catlab.
+function fmap_correct(d::FreeGraph, o, h, O::Type, H::Type)
+  res = FreeGraph{O,H}()
+  add_vertices!(res, nv(d); ob=o.(d[:ob]))
+  for e in edges(d)
+    add_edge!(res, src(d, e), tgt(d, e); hom=h(d[e, :hom]))
+  end
+  res
+end
+
+Vdiag = fmap_correct(diag, length, pushforward_matrix, Int, AbstractMatrix)
 ```
 
 ```@example mesh_decomposition
@@ -279,7 +290,7 @@ Base.show(io::IO, K::NerveCover) = begin
   end
 end
 
-import Catlab.CategoricalAlgebra.CSets: SubACSetComponentwise
+import Catlab.CategoricalAlgebra.Pointwise.SubCSets: SubACSetComponentwise
 
 function Base.show(io::IO, U::SubACSetComponentwise{X}) where X <: HasDeltaSet
   print(io, "Subdelta-set")
