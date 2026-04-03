@@ -1,13 +1,16 @@
 using Test
 using CairoMakie
 using LinearAlgebra
+using Random
+using CSV
+using DataFrames
 
 include("../../src/CubicalCode/UniformMesh.jl")
 include("../../src/CubicalCode/UniformMatrixDEC.jl")
 include("../../src/CubicalCode/UniformPlotting.jl")
 
 # edge_len(s, X_ALIGN) # CFL Condition
-testcase = "RE1000"
+testcase = "RE10000"
 
 if testcase == "RE10"
   Δt = 5e-3
@@ -25,7 +28,7 @@ elseif testcase == "RE1000"
   Re = 1_000.0
   _nx = _ny = 129
 elseif testcase == "RE10000"
-  Δt = 1e-4
+  Δt = 1e-3
   tₑ = 5.0
   Re = 10_000.0
   _nx = _ny = 257
@@ -193,8 +196,6 @@ save("test/CubicalTests/imgs/Turbulent Plots/Sim$(sim)/InitialVelocityXY_Re=$(Re
 fig = plot_zeroform(s, ψ)
 save("test/CubicalTests/imgs/Turbulent Plots/Sim$(sim)/InitialStreamFunction_Re=$(Re).png", fig)
 
-u_star_0 = zeros(ne(s))
-
 function runsim(tₑ, Δt, u_star_0; save_every = 50)
     u_star = deepcopy(u_star_0)
 
@@ -220,6 +221,20 @@ function runsim(tₑ, Δt, u_star_0; save_every = 50)
             push!(Us, deepcopy(hdg_1 * u_star))
             push!(Ps, deepcopy(U[ne(s)+1:end]))
         end
+
+        # Saving intermediate plots at 10% completion intervals
+        completion = time / tₑ * 100
+        if completion % 10 == 0
+            println("Creating plot at percent completion: $completion%")
+            # Plotting velocity field magnitude
+            fig = plot_twoform(s, get_magnitude(hdg_1 * u_star))
+            save("test/CubicalTests/imgs/Turbulent Plots/Sim$(sim)/VelocityMagnitude_Re=$(Re)_compl=$completion%.png", fig)
+            # Plotting stream function
+            ψ = find_stream(u_star)
+            fig = plot_zeroform(s, ψ)
+            save("test/CubicalTests/imgs/Turbulent Plots/Sim$(sim)/StreamFunction_Re=$(Re)_compl=$completion%.png", fig)
+        end
+
     end
 
     return Us, Ps
