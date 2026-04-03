@@ -123,6 +123,76 @@ function generate_F(u_star)
     return src
 end
 
+# Functions for turbulent moving lid analysis
+function generate_perturbation()
+    u = zeros(ne(s))
+    uten = tensorfy(s, deepcopy(u))
+    fh, fv = uten
+
+    # Applying perturbation u formula to fh entries
+    (xh, yh) = size(fh)
+    for i in 1:xh
+        for j in 1:yh
+            fh[i, j] = 2 * π * 10^-5 * cos(2 * π * (j - 1) / (yh - 1)) * sin(2 * π * (i - 1) / (xh - 1))
+        end
+    end
+
+    # Applying perturbation v formula to fv entries
+    (xv, yv) = size(fv)
+    for i in 1:xv
+        for j in 1:yv
+            fv[i, j] = -2 * π * 10^-5 * cos(2 * π * (i - 1) / (xv - 1)) * sin(2 * π * (j - 1) / (yv - 1))
+        end
+    end
+
+    u_star_0 = detensorfy(Val(1), s, uten)
+
+    return u_star_0
+end
+
+function random_perturbation()
+    Random.seed!(1234)
+    u_star_0 = 1e-5 * randn(ne(s))
+    u_star_0[boundary_idxs] .= 0.0
+    return u_star_0
+end
+
+function get_magnitude(U)
+    X = zeros(nquads(s))
+    Y = zeros(nquads(s))
+    sharp_dd!(X, Y, s, U)
+    return sqrt.(X.^2 + Y.^2)
+end
+
+function find_stream(u_star)
+    ω = inv_hdg_0 * dual_d1 * hdg_1 * u_star
+    ψ = Δ0 \ ω
+    ψ = ψ .- minimum(ψ)
+    return ψ
+end
+
+function new_u_star(string)
+    df = CSV.read(string, DataFrame);
+    u_last = df[:, end];
+    u_last = -inv_hdg_1 * u_last;
+    return u_last
+end
+
+# Simulation number
+sim = 3;
+
+# Creating initial conditions based on previous simulation results for turbulent moving lid analysis
+u_star_0 = new_u_star("test/CubicalTests/Flow Data/Sim$(sim-1)/FinalVelocity_Sim2_Re=$(Re).csv");
+
+# Creating initial plots of velocity magnitude, velocity field, and stream function
+fig = plot_twoform(s, get_magnitude(u_star_0))
+save("test/CubicalTests/imgs/Turbulent Plots/Sim$(sim)/InitialVelocityMagnitude_Re=$(Re).png", fig)
+fig = plot_xy_oneform(s, u_star_0)
+save("test/CubicalTests/imgs/Turbulent Plots/Sim$(sim)/InitialVelocityXY_Re=$(Re).png", fig)
+ψ = find_stream(u_star_0)
+fig = plot_zeroform(s, ψ)
+save("test/CubicalTests/imgs/Turbulent Plots/Sim$(sim)/InitialStreamFunction_Re=$(Re).png", fig)
+
 u_star_0 = zeros(ne(s))
 
 function runsim(tₑ, Δt, u_star_0; save_every = 50)
@@ -159,6 +229,28 @@ Us, Ps = runsim(tₑ, Δt, u_star_0; save_every = 10);
 
 time = length(Us)
 
+# Saving vector and pressure data in CSV format
+# Saving all of the Us vectors into a CSV file for later analysis
+M = hcat(Us...);
+df = DataFrame(M, :auto)
+rename!(df, ["U$(i)" for i in 1:ncol(df)])
+CSV.write("test/CubicalTests/Flow Data/Sim$(sim)/Velocity_Sim$(sim)_Re=$(Re).csv", df)
+
+# Saving all of the Ps vectors into a CSV file for later analysis
+M = hcat(Ps...);
+df = DataFrame(M, :auto)
+rename!(df, ["P$(i)" for i in 1:ncol(df)])
+CSV.write("test/CubicalTests/Flow Data/Sim$(sim)/Pressure_Sim$(sim)_Re=$(Re).csv", df)
+
+# Creating vectors for Us[end] and Ps[end] to save into CSV
+Us_final = Us[end];
+Ps_final = Ps[end];
+
+CSV.write("test/CubicalTests/Flow Data/Sim$(sim)/FinalVelocity_Sim$(sim)_Re=$(Re).csv", DataFrame(U = Us_final))
+CSV.write("test/CubicalTests/Flow Data/Sim$(sim)/FinalPressure_Sim$(sim)_Re=$(Re).csv", DataFrame(P = Ps_final))
+
+
+
 fig = plot_oneform(s, Us[time], lengthscale = 0.01, normalize = false)
 save("imgs/CF/FinalVelocity_Re=$(Re).png", fig)
 
@@ -189,13 +281,6 @@ function interpolate_velocity(V, U, s)
     sharp_dd!(X, Y, s, Us[time])
     flat_dp!(V, s, X, Y)
     return V
-end
-
-function get_magnitude(U)
-    X = zeros(nquads(s))
-    Y = zeros(nquads(s))
-    sharp_dd!(X, Y, s, Us[time])
-    return sqrt.(X.^2 + Y.^2)
 end
 
 fig = plot_twoform(s, get_magnitude(Us[time]))
