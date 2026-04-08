@@ -246,53 +246,72 @@ function binary_subdivision_2D(s)
   return sd
 end
 
-# TODO: Optimize this!
 function binary_subdivision_3D(s)
   sd = binary_subdivision_2D(s)
 
-  # Unfolded tetrahedron, 1-4 are the original vertices
-  # 4 -- 6 -- 3 -- 6 -- 4
-  #  \  / \ /  \ /  \ /
-  #   9-- 8 -- 5 -- 7
-  #    \ / \  /  \ /
-  #    1 -- 10 -- 2
-  #     \   /\   /
-  #       9 -- 7
-  #       \   /
-  #         4
+  nv_orig = nv(s)
 
-  # 10 and 6 which are opposite points of the octahedron, are midpoints of 1-2 and 3-4
-  # Knowing the midpoint idx, look back by nv to find the edge idx
+  # Build edge lookup: (min_v, max_v) → edge index in sd
+  edge_lookup = Dict{Tuple{Int,Int}, Int}()
+  for e in edges(sd)
+    v0, v1 = sd[e, :∂v0], sd[e, :∂v1]
+    edge_lookup[minmax(v0, v1)] = e
+  end
 
-  # Outermost tetrahedra
-  for tet in tetrahedra(s)
-    tet_vs = tetrahedron_vertices(s, tet)
-    tet_edges = tetrahedron_edges(s, tet)
-    tet_tris = tetrahedron_triangles(s, tet)
+  # Build triangle lookup: sorted (v0, v1, v2) → tri index in sd
+  tri_lookup = Dict{NTuple{3,Int}, Int}()
+  for t in triangles(sd)
+    vs = sort(SVector(triangle_vertices(sd, t)...))
+    tri_lookup[(vs[1], vs[2], vs[3])] = t
+  end
 
-    for (v, face) in zip(tet_vs, tet_tris)
-      tri_edges = triangle_edges(s, face)
-      mids = setdiff(tet_edges, tri_edges) .+ nv(s)
-      glue_sorted_tetrahedron!(sd, v, mids...)
+  find_or_add_edge!(va, vb) =
+    get!(edge_lookup, minmax(va, vb)) do
+      add_part!(sd, :E; ∂v0=max(va,vb), ∂v1=min(va,vb))
     end
 
-    # Inner tetrahedra
-    base_edge = last(tet_edges)
-    base_mid = base_edge + nv(s) # 10
-    v0 = s[base_edge, :∂v0]
-    v1 = s[base_edge, :∂v1]
-
-    t0 = only(tet_tris[tet_vs .== v0])
-    t1 = only(tet_tris[tet_vs .== v1])
-
-    opp_edge = only(intersect(triangle_edges(s, t0), triangle_edges(s, t1)))
-    opp_mid = opp_edge + nv(s) # 6
-
-    for t in tet_tris
-      mid_face = 4 * t - 3 # Middle face of original triangle from binary subdivision
-      glue_sorted_tetrahedron!(sd, union(base_mid, opp_mid, triangle_vertices(sd, mid_face)...)...)
+  function find_or_add_tri!(va, vb, vc)
+    vs = sort(SVector(va, vb, vc))
+    get!(tri_lookup, (vs[1], vs[2], vs[3])) do
+      e0 = find_or_add_edge!(vs[2], vs[3])
+      e1 = find_or_add_edge!(vs[1], vs[3])
+      e2 = find_or_add_edge!(vs[1], vs[2])
+      add_part!(sd, :Tri; ∂e0=e0, ∂e1=e1, ∂e2=e2)
     end
   end
+
+  function add_tet!(va, vb, vc, vd)
+    vs = sort(SVector(va, vb, vc, vd))
+    t0 = find_or_add_tri!(vs[2], vs[3], vs[4])
+    t1 = find_or_add_tri!(vs[1], vs[3], vs[4])
+    t2 = find_or_add_tri!(vs[1], vs[2], vs[4])
+    t3 = find_or_add_tri!(vs[1], vs[2], vs[3])
+    add_tetrahedron!(sd, t0, t1, t2, t3)
+  end
+
+  # Edge-to-vertex mapping for tetrahedron_edges:
+  # e₀: v₂-v₃, e₁: v₁-v₃, e₂: v₁-v₂, e₃: v₀-v₃, e₄: v₀-v₂, e₅: v₀-v₁
+  # Opposite edge pairs: e₀↔e₅, e₁↔e₄, e₂↔e₃
+  for tet in tetrahedra(s)
+    v0, v1, v2, v3 = tetrahedron_vertices(s, tet)
+    tet_edges = tetrahedron_edges(s, tet)
+
+    # Midpoint vertices: m[i] = midpoint of tet_edges[i]
+    m = tet_edges .+ nv_orig
+
+    # 4 outer tetrahedra (one per original vertex)
+    add_tet!(v0, m[4], m[5], m[6])
+    add_tet!(v1, m[2], m[3], m[6])
+    add_tet!(v2, m[1], m[3], m[5])
+    add_tet!(v3, m[1], m[2], m[4])
+
+    # 4 inner tetrahedra (octahedral subdivision with diagonal m[1]-m[6])
+    add_tet!(m[1], m[6], m[4], m[5])
+    add_tet!(m[1], m[6], m[2], m[4])
+    add_tet!(m[1], m[6], m[3], m[5])
+    add_tet!(m[1], m[6], m[2], m[3])
+  end
+
   return sd
 end
 
