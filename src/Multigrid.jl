@@ -254,41 +254,17 @@ function binary_subdivision_3D(s)
   # After the 2D subdivision, some inner midpoint-to-midpoint edges may have
   # non-sorted vertex assignments (∂v1 > ∂v0). Since glue_sorted_tetrahedron!
   # uses get_edge! which only looks up edges in one direction (∂v1=src, ∂v0=tgt
-  # with src<tgt for sorted), we must normalize all edges to sorted order.
-  # We also need to update triangle boundary assignments to maintain the
-  # simplicial identities after swapping.
+  # with src<tgt for sorted), we must normalize all edges to sorted order
+  # and then rebuild the triangle boundary assignments.
   for e in edges(sd)
     v0, v1 = sd[e, :∂v0], sd[e, :∂v1]
     if v1 > v0
-      # Swap to sorted order: ∂v1=min, ∂v0=max
       sd[e, :∂v0] = v1
       sd[e, :∂v1] = v0
-      # For each triangle that uses this edge, we need to update its
-      # boundary edge assignments to reflect the swap. The simplicial
-      # identities relate vertex faces of edges to edges of triangles.
-      # When we swap an edge's vertices, a triangle that had this edge
-      # as ∂eX may need it reassigned to a different ∂eY position.
-      #
-      # Actually, for the triangle [v₀,v₁,v₂] with v₀<v₁<v₂:
-      #   ∂e0 = edge(v₁,v₂): connects the two larger vertices
-      #   ∂e1 = edge(v₀,v₂): connects min and max
-      #   ∂e2 = edge(v₀,v₁): connects the two smaller vertices
-      # The simplicial identities are:
-      #   ∂e2⋅∂v0 == ∂e0⋅∂v0 (both give the middle vertex v₁)
-      #   ∂e2⋅∂v1 == ∂e1⋅∂v1 (both give the smallest vertex v₀)
-      #   ∂e1⋅∂v0 == ∂e0⋅∂v1 (both give the largest vertex v₂)
-      #
-      # After swapping edge e's direction, the ∂v0 and ∂v1 of e swap.
-      # For each triangle referencing e, if e was at position ∂eX,
-      # the identity that uses ∂eX⋅∂v0 now gets a different vertex.
-      # We need to find the correct position for e in each triangle.
-      #
-      # Rather than fixing individual triangles, we'll reconstruct
-      # the triangle boundaries after normalizing all edges.
     end
   end
 
-  # Rebuild triangle boundary assignments based on vertex membership
+  # Rebuild triangle boundary assignments based on vertex membership.
   # For each triangle, find its three vertices from its edges, sort them,
   # and reassign ∂e0, ∂e1, ∂e2 according to the sorted convention.
   for t in triangles(sd)
@@ -301,13 +277,18 @@ function binary_subdivision_3D(s)
     end
     vs = sort(collect(verts))
     if length(vs) != 3
-      continue # degenerate, skip
+      # A well-formed triangle has exactly 3 distinct vertices from its 3 edges.
+      # Fewer indicates edges share vertices incorrectly (degenerate triangle).
+      continue
     end
     v0, v1, v2 = vs
-    # Find edges by their sorted vertices (∂v1=min, ∂v0=max after normalization)
-    e_v1v2 = only(e for e in es if minmax(sd[e,:∂v0], sd[e,:∂v1]) == (v1, v2))
-    e_v0v2 = only(e for e in es if minmax(sd[e,:∂v0], sd[e,:∂v1]) == (v0, v2))
-    e_v0v1 = only(e for e in es if minmax(sd[e,:∂v0], sd[e,:∂v1]) == (v0, v1))
+    # Compute sorted vertex pairs for each edge once, then match to positions.
+    edge_verts = SVector{3}(minmax(sd[es[1],:∂v0], sd[es[1],:∂v1]),
+                            minmax(sd[es[2],:∂v0], sd[es[2],:∂v1]),
+                            minmax(sd[es[3],:∂v0], sd[es[3],:∂v1]))
+    e_v1v2 = es[findfirst(==(minmax(v1, v2)), edge_verts)]
+    e_v0v2 = es[findfirst(==(minmax(v0, v2)), edge_verts)]
+    e_v0v1 = es[findfirst(==(minmax(v0, v1)), edge_verts)]
     sd[t, :∂e0] = e_v1v2
     sd[t, :∂e1] = e_v0v2
     sd[t, :∂e2] = e_v0v1
