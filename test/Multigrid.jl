@@ -47,6 +47,15 @@ binary_3d_counts(s) =
    4*ntriangles(s) + 8*ntetrahedra(s),
    8*ntetrahedra(s))
 
+function expected_parts_3d(s, levels)
+  for _ in 1:levels
+    sd = binary_subdivision(s)
+    @test (nv(sd), ne(sd), ntriangles(sd), ntetrahedra(sd)) == binary_3d_counts(s)
+    @test orient!(sd)
+    s = sd
+  end
+end
+
 # Single tetrahedron
 s3 = EmbeddedDeltaSet3D{Bool,Point3d}()
 add_vertices!(s3, 4, point=[Point3d(1,1,1), Point3d(1,-1,-1),
@@ -56,12 +65,7 @@ s3[:edge_orientation] = true
 s3[:tri_orientation] = true
 s3[:tet_orientation] = true
 
-for _ in 1:3
-  sd3 = binary_subdivision(s3)
-  @test (nv(sd3), ne(sd3), ntriangles(sd3), ntetrahedra(sd3)) == binary_3d_counts(s3)
-  @test orient!(sd3)
-  s3 = sd3
-end
+expected_parts_3d(s3, 3)
 
 # Two tetrahedra sharing a face
 s3 = EmbeddedDeltaSet3D{Bool,Point3d}()
@@ -73,12 +77,7 @@ s3[:edge_orientation] = true
 s3[:tri_orientation] = true
 s3[:tet_orientation] = true
 
-for _ in 1:2
-  sd3 = binary_subdivision(s3)
-  @test (nv(sd3), ne(sd3), ntriangles(sd3), ntetrahedra(sd3)) == binary_3d_counts(s3)
-  @test orient!(sd3)
-  s3 = sd3
-end
+expected_parts_3d(s3, 2)
 
 # Subdivision integration
 #------------------------

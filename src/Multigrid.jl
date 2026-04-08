@@ -251,42 +251,66 @@ function binary_subdivision_3D(s)
 
   nv_orig = nv(s)
 
-  # Build edge lookup: (min_v, max_v) → edge index in sd
-  edge_lookup = Dict{Tuple{Int,Int}, Int}()
+  # After the 2D subdivision, some inner midpoint-to-midpoint edges may have
+  # non-sorted vertex assignments (∂v1 > ∂v0). Since glue_sorted_tetrahedron!
+  # uses get_edge! which only looks up edges in one direction (∂v1=src, ∂v0=tgt
+  # with src<tgt for sorted), we must normalize all edges to sorted order.
+  # We also need to update triangle boundary assignments to maintain the
+  # simplicial identities after swapping.
   for e in edges(sd)
     v0, v1 = sd[e, :∂v0], sd[e, :∂v1]
-    edge_lookup[minmax(v0, v1)] = e
+    if v1 > v0
+      # Swap to sorted order: ∂v1=min, ∂v0=max
+      sd[e, :∂v0] = v1
+      sd[e, :∂v1] = v0
+      # For each triangle that uses this edge, we need to update its
+      # boundary edge assignments to reflect the swap. The simplicial
+      # identities relate vertex faces of edges to edges of triangles.
+      # When we swap an edge's vertices, a triangle that had this edge
+      # as ∂eX may need it reassigned to a different ∂eY position.
+      #
+      # Actually, for the triangle [v₀,v₁,v₂] with v₀<v₁<v₂:
+      #   ∂e0 = edge(v₁,v₂): connects the two larger vertices
+      #   ∂e1 = edge(v₀,v₂): connects min and max
+      #   ∂e2 = edge(v₀,v₁): connects the two smaller vertices
+      # The simplicial identities are:
+      #   ∂e2⋅∂v0 == ∂e0⋅∂v0 (both give the middle vertex v₁)
+      #   ∂e2⋅∂v1 == ∂e1⋅∂v1 (both give the smallest vertex v₀)
+      #   ∂e1⋅∂v0 == ∂e0⋅∂v1 (both give the largest vertex v₂)
+      #
+      # After swapping edge e's direction, the ∂v0 and ∂v1 of e swap.
+      # For each triangle referencing e, if e was at position ∂eX,
+      # the identity that uses ∂eX⋅∂v0 now gets a different vertex.
+      # We need to find the correct position for e in each triangle.
+      #
+      # Rather than fixing individual triangles, we'll reconstruct
+      # the triangle boundaries after normalizing all edges.
+    end
   end
 
-  # Build triangle lookup: sorted (v0, v1, v2) → tri index in sd
-  tri_lookup = Dict{NTuple{3,Int}, Int}()
+  # Rebuild triangle boundary assignments based on vertex membership
+  # For each triangle, find its three vertices from its edges, sort them,
+  # and reassign ∂e0, ∂e1, ∂e2 according to the sorted convention.
   for t in triangles(sd)
-    vs = sort(SVector(triangle_vertices(sd, t)...))
-    tri_lookup[(vs[1], vs[2], vs[3])] = t
-  end
-
-  find_or_add_edge!(va, vb) =
-    get!(edge_lookup, minmax(va, vb)) do
-      add_part!(sd, :E; ∂v0=max(va,vb), ∂v1=min(va,vb))
+    es = triangle_edges(sd, t)
+    # Collect all vertices from the three edges
+    verts = Set{Int}()
+    for e in es
+      push!(verts, sd[e, :∂v0])
+      push!(verts, sd[e, :∂v1])
     end
-
-  function find_or_add_tri!(va, vb, vc)
-    vs = sort(SVector(va, vb, vc))
-    get!(tri_lookup, (vs[1], vs[2], vs[3])) do
-      e0 = find_or_add_edge!(vs[2], vs[3])
-      e1 = find_or_add_edge!(vs[1], vs[3])
-      e2 = find_or_add_edge!(vs[1], vs[2])
-      add_part!(sd, :Tri; ∂e0=e0, ∂e1=e1, ∂e2=e2)
+    vs = sort(collect(verts))
+    if length(vs) != 3
+      continue # degenerate, skip
     end
-  end
-
-  function add_tet!(va, vb, vc, vd)
-    vs = sort(SVector(va, vb, vc, vd))
-    t0 = find_or_add_tri!(vs[2], vs[3], vs[4])
-    t1 = find_or_add_tri!(vs[1], vs[3], vs[4])
-    t2 = find_or_add_tri!(vs[1], vs[2], vs[4])
-    t3 = find_or_add_tri!(vs[1], vs[2], vs[3])
-    add_tetrahedron!(sd, t0, t1, t2, t3)
+    v0, v1, v2 = vs
+    # Find edges by their sorted vertices (∂v1=min, ∂v0=max after normalization)
+    e_v1v2 = only(e for e in es if minmax(sd[e,:∂v0], sd[e,:∂v1]) == (v1, v2))
+    e_v0v2 = only(e for e in es if minmax(sd[e,:∂v0], sd[e,:∂v1]) == (v0, v2))
+    e_v0v1 = only(e for e in es if minmax(sd[e,:∂v0], sd[e,:∂v1]) == (v0, v1))
+    sd[t, :∂e0] = e_v1v2
+    sd[t, :∂e1] = e_v0v2
+    sd[t, :∂e2] = e_v0v1
   end
 
   # Edge-to-vertex mapping for tetrahedron_edges:
@@ -299,17 +323,21 @@ function binary_subdivision_3D(s)
     # Midpoint vertices: m[i] = midpoint of tet_edges[i]
     m = tet_edges .+ nv_orig
 
-    # 4 outer tetrahedra (one per original vertex)
-    add_tet!(v0, m[4], m[5], m[6])
-    add_tet!(v1, m[2], m[3], m[6])
-    add_tet!(v2, m[1], m[3], m[5])
-    add_tet!(v3, m[1], m[2], m[4])
+    # 4 outer tetrahedra (one per original vertex, opposite face's midpoints)
+    glue_sorted_tetrahedron!(sd, v0, m[4], m[5], m[6])
+    glue_sorted_tetrahedron!(sd, v1, m[2], m[3], m[6])
+    glue_sorted_tetrahedron!(sd, v2, m[1], m[3], m[5])
+    glue_sorted_tetrahedron!(sd, v3, m[1], m[2], m[4])
 
     # 4 inner tetrahedra (octahedral subdivision with diagonal m[1]-m[6])
-    add_tet!(m[1], m[6], m[4], m[5])
-    add_tet!(m[1], m[6], m[2], m[4])
-    add_tet!(m[1], m[6], m[3], m[5])
-    add_tet!(m[1], m[6], m[2], m[3])
+    # m[1]=mid(v2-v3), m[6]=mid(v0-v1) are opposite edges
+    # Equator: m[2]=mid(v1-v3), m[3]=mid(v1-v2), m[4]=mid(v0-v3), m[5]=mid(v0-v2)
+    # Adjacent equator pairs sharing an original vertex:
+    #   m[2]-m[3] (v1), m[3]-m[5] (v2), m[5]-m[4] (v0), m[4]-m[2] (v3)
+    glue_sorted_tetrahedron!(sd, m[1], m[6], m[2], m[3])
+    glue_sorted_tetrahedron!(sd, m[1], m[6], m[3], m[5])
+    glue_sorted_tetrahedron!(sd, m[1], m[6], m[5], m[4])
+    glue_sorted_tetrahedron!(sd, m[1], m[6], m[4], m[2])
   end
 
   return sd
