@@ -1,7 +1,7 @@
 module Multigrid
 
 using CombinatorialSpaces
-using LinearAlgebra: I
+using LinearAlgebra: I, Diagonal
 using Krylov, Catlab, SparseArrays, StaticArrays
 using ..SimplicialSets
 import Catlab: dom, codom
@@ -100,12 +100,12 @@ end
 
 MultigridData(g,r,p,s) = MultigridData{typeof(g),typeof(r)}(g,r,p,s)
 
-MGData(series::PrimalGeometricMapSeries, op::Function, s::Int, ::UnarySubdivision) =
-  MultigridData(series, op, fill(s,length(series.meshes)), 1.0)
-MGData(series::PrimalGeometricMapSeries, op::Function, s::Int, ::BinarySubdivision) =
-  MultigridData(series, op, fill(s,length(series.meshes)), 1.0/4.0)
-MGData(series::PrimalGeometricMapSeries, op::Function, s::Int, ::CubicSubdivision) =
-  MultigridData(series, op, fill(s,length(series.meshes)), 1.0/9.0)
+# This function definition is kept for backwards compatibility.
+MGData(series::PrimalGeometricMapSeries, op::Function, s::Int, ::T) where T <: AbstractSubdivisionScheme =
+  MultigridData(series, op, fill(s,length(series.meshes)))
+
+MGData(series::PrimalGeometricMapSeries, op::Function, s::Int) =
+  MultigridData(series, op, fill(s,length(series.meshes)))
 
 """    MultigridData(g,r,p,s::Int)
 
@@ -153,10 +153,40 @@ function PrimalGeometricMapSeries(s::HasDeltaSet, subdivider::Function, levels::
   PrimalGeometricMapSeries{typeof(first(dual_meshes)), typeof(first(matrices))}(dual_meshes, matrices)
 end
 
-function MultigridData(series::PrimalGeometricMapSeries, op::Function, s::AbstractVector, rs_factor::Number)
+function normalize_restrictions(ps::Vector{T}) where T <: Diagonal
+  rs = map(ps) do p
+    pt = transpose(p)
+    pt ./ sum(pt, dims=2)
+  end
+end
+
+# XXX: Row-normalizing a sparse matrix is non-trivial.
+#https://discourse.julialang.org/t/scaling-a-sparse-matrix-row-wise-and-column-wise-too-slow/115956/8
+function row_normalize!(M)
+  row_sums = sum(M, dims=2)
+  rows = rowvals(M)
+  vals = nonzeros(M)
+  n = size(M, 2)
+  for j in 1:n
+    for i in nzrange(M, j)
+      row = rows[i]
+      vals[i] /= row_sums[row]
+    end
+  end
+  M
+end
+
+function normalize_restrictions(ps::Vector{T}) where T <: AbstractMatrix
+  rs = map(ps) do p
+    pt = copy(transpose(p))
+    row_normalize!(pt)
+  end
+end
+
+function MultigridData(series::PrimalGeometricMapSeries, op::Function, s::AbstractVector)
   ops = op.(meshes(series))
   ps = transpose.(matrices(series))
-  rs = transpose.(ps) .* rs_factor
+  rs = normalize_restrictions(ps)
   MultigridData(ops, rs, ps, s)
 end
 
@@ -394,10 +424,17 @@ repeated_subdivisions(k, ss, subdivider) =
 # - This could use Galerkin conditions to construct As from As[1]
 # - Add maxcycles and tolerances
 """
-Solve `Ax=b` on `s` with initial guess `u` using , for `cycles` V-cycles, performing `steps` steps of the
+Solve `Ax=b` on `s` with initial guess `u` using , for `cycles` V-cycles, performing `md.steps` steps of the
 conjugate gradient method on each mesh and going through
 `cycles` total V-cycles. Everything is just matrices and vectors
 at this point.
+
+Warning:
+Quoting from the Krylov.jl documentation:
+> itmax: the maximum number of iterations. If itmax=0, the default number of iterations is set to 2n;
+
+, where n is the length of the solution vector.
+We diverge from this behavior and perform no iterations when the corresponding element of `md.steps` is `0`.
 
 `alg` is a Krylov.jl method, probably either the default `cg` or
 `gmres`.
@@ -432,8 +469,9 @@ function full_multigrid(b, md::MultigridData, cycles, alg=cg, μ=1)
 end
 
 function _multigrid_μ_cycle(u, b, md::MultigridData, alg=cg, μ=1)
-  A,r,p,s = car(md)
-  u = alg(A,b,u,itmax=s)[1]
+  A,r,p,steps = car(md)
+  # Manually perform 0 steps, unlike the 2n step default of Krylov.jl.
+  u = steps == 0 ? u : alg(A,b,u,itmax=steps)[1]
   length(md) == 1 && return u
   r_f = b - A*u
   r_c = r * r_f
@@ -442,7 +480,8 @@ function _multigrid_μ_cycle(u, b, md::MultigridData, alg=cg, μ=1)
     z = _multigrid_μ_cycle(z, r_c, cdr(md), alg, μ-1)
   end
   u += p * z
-  u = alg(A, b, u, itmax=s)[1]
+  # Manually perform 0 steps, unlike the 2n step default of Krylov.jl.
+  u = steps == 0 ? u : alg(A, b, u, itmax=steps)[1]
 end
 
 end

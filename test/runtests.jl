@@ -14,9 +14,9 @@ end
   include("DiscreteExteriorCalculus.jl")
   include("Operators.jl")
 end
- 
+
 @testset "Meshes" begin
-  include("Meshes.jl")
+  include("CombMeshes.jl")
   include("MeshInterop.jl")
   include("MeshGraphics.jl")
 end

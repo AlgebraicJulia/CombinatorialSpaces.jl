@@ -7,6 +7,7 @@ using Test
 magnitude = (sqrt ∘ (x -> foldl(+, x*x)))
 unit_radius = 1
 euler_characteristic(p) = nv(p) - ne(p) + nparts(p, :Tri)
+euler_characteristic(p::HasDeltaSet3D) = nv(p) - ne(p) + nparts(p, :Tri) - nparts(p, :Tet)
 
 # Unit Icospheres are of the proper dimensions, are spheres, and have the right
 # Euler characteristic.
@@ -136,6 +137,19 @@ s = triangulated_grid(lx, 2, 1, 0.99, Point2{Float64}, true)
 test_trigrid_size(s, lx, 2, 1, 0.99)
 @test maximum(getindex.(s[:point], 1)) == lx
 
+@test triangulated_grid(10, 10, 1, 1, Point3d) == triangulated_grid(10, 10; nx=10, ny=10)
+@test triangulated_grid(10, 10, 1, 1, Point3d, false) == triangulated_grid(10, 10; nx=10, ny=10, compress = false)
+@test triangulated_grid(10, 10, 1, 1, Point2d) == triangulated_grid(10, 10; nx=10, ny=10, point_type = Point2d)
+@test triangulated_grid(10, 10, 1, 1, Point3d) == triangulated_grid(10, 10; dx=1, dy=1, point_type = Point3d)
+@test triangulated_grid(10, 10, 1, 1, Point3d) == triangulated_grid(10, 10; nx=10, dy=1, point_type = Point3d)
+
+nx = 15; ny = 20
+@test ntriangles(triangulated_grid(10, 10; nx = nx, ny = ny)) == 2*nx*ny
+@test ntriangles(triangulated_grid(1, 5; nx = nx, ny = ny)) == 2*nx*ny
+
+@test_throws AssertionError triangulated_grid(-10, -10; nx = nx, ny = ny)
+@test_throws AssertionError triangulated_grid(10, 10; nx = -nx, ny = -ny)
+@test_throws AssertionError triangulated_grid(10, 10; dx = -1, dy = -1)
 
 # Tests for the SphericalMeshes
 ρ = 6371+90
@@ -154,5 +168,20 @@ magnitude = (sqrt ∘ (x -> foldl(+, x*x)))
 @test nv(◀▶) == 6
 @test ne(◀▶) == 12
 @test length(triangles(◀▶)) == 8
+
+# Testing the Parallelepiped
+
+s = parallelepiped()
+@test orient!(s)
+# Max 1-norm is 3 for unit cube
+@test maximum(map(p -> sum(p), s[:point])) == 3
+@test euler_characteristic(s) == 1
+@test sum(map(tet -> volume(3, s, tet), 1:ntetrahedra(s))) ≈ 1
+
+s = parallelepiped(lx = 10, ly = 5, lz = 3, dx = 3, dy = 5)
+@test orient!(s)
+@test maximum(map(p -> sum(p), s[:point])) == (10+5+3) + (3+5)
+@test euler_characteristic(s) == 1
+@test sum(map(tet -> volume(3, s, tet), 1:ntetrahedra(s))) ≈ 10*5*3
 
 end
