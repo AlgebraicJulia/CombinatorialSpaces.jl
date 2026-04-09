@@ -37,6 +37,10 @@ wireframe(dual)
 ## API docs
 
 ```@autodocs
-Modules = [ Meshes, MeshInterop, MeshOptimization ]
+Modules = [
+  CombinatorialSpaces.CombMeshes,
+  CombinatorialSpaces.MeshInterop,
+  CombinatorialSpaces.MeshOptimization
+]
 Private = false
 ```
