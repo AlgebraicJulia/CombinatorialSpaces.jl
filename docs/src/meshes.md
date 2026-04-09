@@ -1,10 +1,5 @@
 # Meshes
 
-```@example cat
-using JSServe # hide
-Page(exportable=true, offline=true) # hide
-```
-
 The two-dimensional embedded delta sets ([`EmbeddedDeltaSet2D`](@ref)) in
 CombinatorialSpaces can be converted to and from mesh objects (`Mesh`) in
 [Meshes.jl](https://github.com/JuliaGeometry/Meshes.jl). This is useful for
@@ -18,12 +13,11 @@ into an embedded delta set, and render it as a 3D mesh using CairoMakie.
 
 ```@example cat
 using FileIO, CairoMakie, CombinatorialSpaces
-set_theme!(resolution=(800, 400))
-catmesh = FileIO.load(File{format"OBJ"}(download(
-  "https://github.com/JuliaPlots/Makie.jl/raw/master/assets/cat.obj")))
+set_theme!(size=(800, 400))
+catmesh = FileIO.load(assetpath("cat.obj"))
 
 catmesh_dset = EmbeddedDeltaSet2D(catmesh)
-mesh(catmesh_dset, shading=false)
+mesh(catmesh_dset, shading=NoShading)
 ```
 
 Alternatively, the embedded delta set can be visualized as a wireframe:
@@ -43,6 +37,10 @@ wireframe(dual)
 ## API docs
 
 ```@autodocs
-Modules = [ Meshes, MeshInterop, MeshOptimization ]
+Modules = [
+  CombinatorialSpaces.CombMeshes,
+  CombinatorialSpaces.MeshInterop,
+  CombinatorialSpaces.MeshOptimization
+]
 Private = false
 ```
