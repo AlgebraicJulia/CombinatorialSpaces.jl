@@ -1,17 +1,17 @@
 ```@meta
-draft=false
+Draft = false
 ```
 # Subdivision of Meshes
 
 To use the multigrid solvers or conduct a convergence analysis,
 you need to construct a sequence of meshes of finer resolution.
 The easiest way to get such a sequence is to take a coarse mesh
-and recuresively subdivide each triangle until you reach a desired
+and recursively subdivide each triangle until you reach a desired
 resolution. This resolution could be determined by measuring the length
 of the edges, or the area of the triangles.
 
 This page will show you how to construct these sequences.
-And demonstrate what the difrerent options look like.
+And demonstrate what the different options look like.
 
 ```@example subdivision
 using CombinatorialSpaces
@@ -140,15 +140,15 @@ add_vertices!(s, 3, point=[Point3d(0,0,0), Point3d(1,0,0), Point3d(0.5,0.866,0)]
 glue_sorted_triangle!(s, 1,2,3)
 series = PrimalGeometricMapSeries(s, scheme, level)
 
-function Makie.wireframe(s::PrimalGeometricMapSeries)
+function wireframe_series(s::PrimalGeometricMapSeries)
   levels = length(s.meshes)
   f = Figure()
   ax = CairoMakie.Axis(f[1,1]; title="Geometric Subdivisions", aspect=1.25)
-  map(enumerate(s.meshes)) do (i, v)
+  for (i, v) in enumerate(s.meshes)
     wireframe!(ax, v, linewidth=2i, color=colors[mod((levels - i), length(colors))+1])
   end
   f
 end
-wireframe(series)
+wireframe_series(series)
 ```
-The `PrimalGeometricSeries` type actually contains dual complexes. But it is defined by subdividing the primal mesh.
+The `PrimalGeometricMapSeries` type actually contains dual complexes. But it is defined by subdividing the primal mesh.

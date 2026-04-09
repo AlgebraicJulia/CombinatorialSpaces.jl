@@ -1,7 +1,7 @@
 # Multigrid API
 
 When using Decapodes to solve PDEs that use inverse Laplacians,
-you can use Multigrid to do solve those linear systems.
+you can use Multigrid to solve those linear systems.
 
 ## API docs
 
