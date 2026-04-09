@@ -9,6 +9,8 @@ include("../../src/CubicalCode/UniformMesh.jl")
 include("../../src/CubicalCode/UniformMatrixDEC.jl")
 include("../../src/CubicalCode/UniformPlotting.jl")
 
+# Have both pwd() and status at CombinatorialSpaces_aj.jl
+
 # edge_len(s, X_ALIGN) # CFL Condition
 testcase = "RE10000"
 
@@ -182,19 +184,19 @@ function new_u_star(string)
 end
 
 # Simulation number
-sim = 3;
+sim = 8;
 
 # Creating initial conditions based on previous simulation results for turbulent moving lid analysis
-u_star_0 = new_u_star("test/CubicalTests/Flow Data/Sim$(sim-1)/FinalVelocity_Sim2_Re=$(Re).csv");
+u_star_0 = new_u_star("test/CubicalTests/Flow Data/Sim$(sim-1)/FinalVelocity_Sim$(sim-1)_Re=$(Re).csv");
 
 # Creating initial plots of velocity magnitude, velocity field, and stream function
 fig = plot_twoform(s, get_magnitude(u_star_0))
-save("test/CubicalTests/imgs/Turbulent Plots/Sim$(sim)/InitialVelocityMagnitude_Re=$(Re).png", fig)
+save("test/CubicalTests/imgs/Turbulent Plots/Sim$(sim)/InitialVelocityMagnitude_Re=$(Re).png", fig);
 fig = plot_xy_oneform(s, u_star_0)
-save("test/CubicalTests/imgs/Turbulent Plots/Sim$(sim)/InitialVelocityXY_Re=$(Re).png", fig)
+save("test/CubicalTests/imgs/Turbulent Plots/Sim$(sim)/InitialVelocityXY_Re=$(Re).png", fig);
 ψ = find_stream(u_star_0)
 fig = plot_zeroform(s, ψ)
-save("test/CubicalTests/imgs/Turbulent Plots/Sim$(sim)/InitialStreamFunction_Re=$(Re).png", fig)
+save("test/CubicalTests/imgs/Turbulent Plots/Sim$(sim)/InitialStreamFunction_Re=$(Re).png", fig);
 
 function runsim(tₑ, Δt, u_star_0; save_every = 50)
     u_star = deepcopy(u_star_0)
@@ -249,21 +251,77 @@ time = length(Us)
 M = hcat(Us...);
 df = DataFrame(M, :auto)
 rename!(df, ["U$(i)" for i in 1:ncol(df)])
-CSV.write("test/CubicalTests/Flow Data/Sim$(sim)/Velocity_Sim$(sim)_Re=$(Re).csv", df)
+CSV.write("test/CubicalTests/Flow Data/Sim$(sim)/Velocity_Sim$(sim)_Re=$(Re).csv", df);
 
 # Saving all of the Ps vectors into a CSV file for later analysis
 M = hcat(Ps...);
 df = DataFrame(M, :auto)
 rename!(df, ["P$(i)" for i in 1:ncol(df)])
-CSV.write("test/CubicalTests/Flow Data/Sim$(sim)/Pressure_Sim$(sim)_Re=$(Re).csv", df)
+CSV.write("test/CubicalTests/Flow Data/Sim$(sim)/Pressure_Sim$(sim)_Re=$(Re).csv", df);
 
 # Creating vectors for Us[end] and Ps[end] to save into CSV
 Us_final = Us[end];
 Ps_final = Ps[end];
 
-CSV.write("test/CubicalTests/Flow Data/Sim$(sim)/FinalVelocity_Sim$(sim)_Re=$(Re).csv", DataFrame(U = Us_final))
-CSV.write("test/CubicalTests/Flow Data/Sim$(sim)/FinalPressure_Sim$(sim)_Re=$(Re).csv", DataFrame(P = Ps_final))
+CSV.write("test/CubicalTests/Flow Data/Sim$(sim)/FinalVelocity_Sim$(sim)_Re=$(Re).csv", DataFrame(U = Us_final));
+CSV.write("test/CubicalTests/Flow Data/Sim$(sim)/FinalPressure_Sim$(sim)_Re=$(Re).csv", DataFrame(P = Ps_final));
 
+# Gathering velocity field and pressure data from CSV files for creating gifs in create_mp4 function
+# Creating initial arrays that will hold the velocity field and pressure data from CSV files for all time steps
+U_array = Vector{Float64}[];
+P_array = Vector{Float64}[];
+
+# Creating for loop that will horizontally concatenate the velocity field and pressure data from CSV files for all time steps into the initial arrays
+for i in 1:8
+    U_df = CSV.read("test/CubicalTests/Flow Data/Sim$(i)/Velocity_Sim$(i)_Re=$(Re).csv", DataFrame)
+    P_df = CSV.read("test/CubicalTests/Flow Data/Sim$(i)/Pressure_Sim$(i)_Re=$(Re).csv", DataFrame)
+
+    # Convert data frame columns to column vectors and push into arrays
+    for j in 1:ncol(U_df)
+        U_vec = U_df[:, j]
+        push!(U_array, U_vec)
+    end
+
+    for j in 1:ncol(P_df)
+        P_vec = P_df[:, j]
+        push!(P_array, P_vec)
+    end
+end
+size(U_array[1])
+size(P_array)
+
+dummyU = deepcopy(U_array);
+dummyP = deepcopy(P_array);
+
+# for loop that deletes every 502nd element starting from the 503rd elements of the velocity and pressure field arrays
+for j in 503:502:4016
+    deleteat!(U_array, j)
+    deleteat!(P_array, j)
+end
+
+# Creating dummy U and V arrays that contain 1:40:4009 elements of the field arrays
+dummyU = U_array[1:10:4009];
+dummyP = P_array[1:10:4009];
+
+create_mp4("test/CubicalTests/imgs/Turbulent Plots/Incompressible_MovingLid_Re=$(Re).mp4", dummyU, dummyP; records = 180)
+
+size(dummyU)
+size(dummyP)
+
+# Creating test to show that the 502nd element is not the same as the 503rd element in the velocity and pressure field arrays, which shows that the 502nd element was successfully deleted
+@test U_array[502] != U_array[503]
+@test P_array[502] != P_array[503]
+
+norm(U_array[502] - U_array[503]) > 1e-6
+size(U_array[1])
+size(P_array[1])
+nv(s)
+
+# Checking/testing that the number of columns of U_array and P_array is equal to 4009
+length(U_array) == length(P_array) == 4009
+# Checking that the number of rows of U_array is equal to number of edges, and P_array is equal to number of quads
+length(U_array[1]) == ne(s)
+length(P_array[1]) == nquads(s)
 
 
 fig = plot_oneform(s, Us[time], lengthscale = 0.01, normalize = false)
@@ -334,6 +392,8 @@ function create_mp4(filename, Us, Ps; frames::Int = length(Us), framerate::Int =
         notify(X); notify(Y)
     end
 end
+
+
 
 create_mp4("imgs/CF/simulation_Re=$(Re).mp4", Us, Ps)
 
