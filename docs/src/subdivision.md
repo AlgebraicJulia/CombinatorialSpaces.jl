@@ -89,12 +89,13 @@ glue_sorted_triangle!(s, 1,2,3)
 t = binary_subdivision(s)
 u = binary_subdivision(t)
 v = binary_subdivision(u)
+w = binary_subdivision(v)
 f = Figure()
-ax = CairoMakie.Axis(f[1,1]; title="Binary Subdivision", aspect=1.25)
-wireframe!(ax, v, linewidth=2, color=Teal)
-wireframe!(ax, u, linewidth=4, color=Green)
-wireframe!(ax, t, linewidth=6, color=Orange)
-wireframe!(ax, s, linewidth=8, color=Blue)
+ax = CairoMakie.Axis(f[1,1]; title="4 Levels of Binary Subdivision", aspect=1.25)
+wireframe!(ax, w, linewidth=2, color=Teal)
+wireframe!(ax, v, linewidth=4, color=Green)
+wireframe!(ax, u, linewidth=6, color=Orange)
+wireframe!(ax, t, linewidth=8, color=Blue)
 f
 ```
 
