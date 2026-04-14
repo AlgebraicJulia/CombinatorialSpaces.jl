@@ -672,7 +672,6 @@ function midpoint_method_advection!(C, dZ, k, dual_div, wdd)
   C
 end
 
-b_tris = boundary_inds(Val{2}, sd)
 b_tets = boundary_inds(Val{3}, sd)
 
 k = 1
