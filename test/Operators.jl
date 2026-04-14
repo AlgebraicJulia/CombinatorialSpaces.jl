@@ -570,36 +570,29 @@ wdd = dec_wedge_product_dd(Tuple{0,1}, sd)
 is2 = inv_hodge_star(Val{2}, sd, DiagonalHodge()) # From Dual 1-forms to Primal 2-forms.
 d2 = d(2,sd)
 wpd = dec_wedge_product_pd(Tuple{2,1}, sd)
-s2 = ⋆(Val{2}, sd, DiagonalHodge())
-is2 = inv_hodge_star(Val{2}, sd, DiagonalHodge()) # From Dual 1-forms to Primal 2-forms.
 s3 = ⋆(Val{3}, sd, DiagonalHodge())
-# TODO: Upstream sign currying.
-s3.diag .*= sign(3,sd)
 is3 = inv_hodge_star(Val{3}, sd, DiagonalHodge()) # From Dual 0-forms to Primal 3-forms.
-is3.diag .*= sign(3,sd)
 
 dual_div = s3 * d2 * is2
 
 μ = Point3D(1,1,6)
 nrml = MvNormal(μ, I(3))
-# This is a dual 0-form. It has units of (signed) mass density [M L^⁻³].
-# Taking the inverse hodge star would multiply by the sign of the tetrahedron, and multiply by the volume,
-# which would give a Primal 3-form of the mass stored in each tetrahedron.
-C = map(sign(3,sd), sd[sd[:tet_center], :dual_point]) do sgn,p
-  norm(p - μ) ≤ 3.0 ? sgn * 15.8e2 * pdf(nrml,p) : 0.0
+# This is a dual 0-form (mass density [M L^⁻³]).
+C = map(sd[sd[:tet_center], :dual_point]) do p
+  norm(p - μ) ≤ 3.0 ? 15.8e2 * pdf(nrml,p) : 0.0
 end
 
 # This is a dual 1-form, which encodes a constant gradient pointing "up".
-dZ = dd0 * (sign(3,sd) .* map(x -> x[3], sd[sd[:tet_center], :dual_point]))
+dZ = dd0 * map(x -> x[3], sd[sd[:tet_center], :dual_point])
 
 # This is a primal 2-form, encoding (signed) unit areas parallel to the z=0 plane.
 dXdY = map(triangles(sd)) do tri
-  e1, e2, _ = triangle_edges(sd,tri)
-  e1_vec, e2_vec = as_vec(sd,e1), as_vec(sd,e2)
-  (cross(e1_vec, e2_vec) * sign(2,sd,tri))[3] / 2
+  _, e2, e3 = triangle_edges(sd,tri)
+  e3_vec, e2_vec = as_vec(sd,e3), as_vec(sd,e2)
+  (cross(e3_vec, e2_vec) * sign(2,sd,tri))[3] / 2
   # Note that normalizing is the same as dividing by 2*sd[tri, :area],
   # so the above is equivalent to:
-  #n = normalize(cross(e1_vec, e2_vec) * sign(2,sd,tri))
+  #n = normalize(cross(e3_vec, e2_vec) * sign(2,sd,tri))
   #sd[tri, :area] * n[3] # i.e. n ⋅ SVector{3,Float64}(0,0,1)
 end
 
@@ -657,7 +650,7 @@ julia> histogram((is2*dZ - dXdY).^2, nbins=20)
 
 # Demonstrate advection in 3D using the midpoint method.
 function advection_3D_timestep!(dtC, C, dZ, k, dual_div, wdd)
-  dtC .= dual_div * (k * wdd(C, dZ))
+  dtC .= -dual_div * (k * wdd(C, dZ))
 end
 
 function midpoint_method_advection!(C, dZ, k, dual_div, wdd)
@@ -674,11 +667,14 @@ function midpoint_method_advection!(C, dZ, k, dual_div, wdd)
   C
 end
 
+b_tris = boundary_inds(Val{2}, sd)
+b_tets = boundary_inds(Val{3}, sd)
+
 k = 1
 C[b_tets] .= 0.0
 C_adv = midpoint_method_advection!(copy(C), dZ, k, dual_div, wdd)
 
-# In 1 second, the center of mass move should move by approximately k.
+# In 1 second, the center of mass should move by approximately k in the +z direction.
 function center_of_mass(D)
   mass = is3 * D
   sum(mass .* (sd[sd[:tet_center], :dual_point])) / sum(mass)
@@ -687,20 +683,12 @@ displacement(C,D) = center_of_mass(D) - center_of_mass(C)
 abs_error(C,D,k) = norm(displacement(C,D) - SVector{3,Float64}(0,0,k))
 rel_error(C,D,k) = abs_error(C,D,k) / norm(k)
 
-displacement(C,C_adv)
-abs_error(C,C_adv,k)
-rel_error(C,C_adv,k)
+@test rel_error(C, C_adv, 1) < 0.5
 
-b_tris = boundary_inds(Val{2}, sd)
-b_tets = boundary_inds(Val{3}, sd)
-
-s2sd = sign(2,sd)
-# TODO: Upstream the rest of this Lie derivative.
-# -1^(k(n-k)) star(star(a) wedge X)
-# where a = d(C) = Dual 1-Form, n=3, and k=1.
-# s3(is2(a) wedge_primal2_dual1 X)
+# Lie derivative formulation: ∂_t C = -L_v C = -i_v(dC) = -(-1)^(k(n-k)) ⋆(⋆(dC) ∧ v♭)
+# For k=1, n=3: (-1)^(1*2) = 1, so ∂_t C = -⋆(⋆(dC) ∧ v♭) = -s3(is2(dC) ∧ dZ)
 function lie_3D_timestep!(dtC, C, dZ, k, s3, wpd, is2, dd0)
-  dtC .= k * s3 * wpd(is2 * dd0 * C, dZ)
+  dtC .= -k * s3 * wpd(is2 * dd0 * C, dZ)
 end
 
 function midpoint_method_lie!(C, dZ, k, s3, wpd, is2, dd0)
@@ -721,9 +709,7 @@ C[b_tets] .= 0.0
 k = 1e-3
 C_lie = midpoint_method_lie!(copy(C), dZ, k, s3, wpd, is2, dd0)
 
-displacement(C,C_lie)
-abs_error(C,C_lie,k)
-rel_error(C,C_lie,k)
+@test rel_error(C, C_lie, k) < 0.5
 
 end
 

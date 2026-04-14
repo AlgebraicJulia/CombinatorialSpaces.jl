@@ -448,12 +448,14 @@ end
 
 function dec_wedge_product_pd(::Type{Tuple{2,1}}, sd::HasDeltaSet3D)
   wm = whitney_mat(Tuple{2}, sd)
-  (f, g) -> wm * (f .* g)
+  sgns = sign(3, sd)
+  (f, g) -> sgns .* (wm * (f .* g))
 end
 
 function dec_wedge_product_dp(::Type{Tuple{1,2}}, sd::HasDeltaSet3D)
   wm = whitney_mat(Tuple{2}, sd)
-  (f, g) -> wm * (f .* g)
+  sgns = sign(3, sd)
+  (f, g) -> sgns .* (wm * (f .* g))
 end
 
 # Boundary and Co-boundary
