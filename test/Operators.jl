@@ -685,20 +685,22 @@ rel_error(C,D,k) = abs_error(C,D,k) / norm(k)
 
 @test rel_error(C, C_adv, 1) < 0.5
 
-# Lie derivative formulation: ∂_t C = -L_v C = -i_v(dC) = -(-1)^(k(n-k)) ⋆(⋆(dC) ∧ v♭)
-# For k=1, n=3: (-1)^(1*2) = 1, so ∂_t C = -⋆(⋆(dC) ∧ v♭) = -s3(is2(dC) ∧ dZ)
-function lie_3D_timestep!(dtC, C, dZ, k, s3, wpd, is2, dd0)
-  dtC .= -k * s3 * wpd(is2 * dd0 * C, dZ)
+# Lie derivative on a dual 0-form: L_v C = ∇·(Cv) - C(∇·v)
+# i.e. ∂_t C = -L_v C = -∇·(Cv) + C(∇·v)
+# The first term is the advection (divergence form), and the second is a correction.
+div_v = dual_div * dZ  # ∇·v as a dual 0-form
+function lie_3D_timestep!(dtC, C, dZ, k, dual_div, wdd, div_v)
+  dtC .= k * (-(dual_div * wdd(C, dZ)) .+ C .* div_v)
 end
 
-function midpoint_method_lie!(C, dZ, k, s3, wpd, is2, dd0)
+function midpoint_method_lie!(C, dZ, k, dual_div, wdd, div_v)
   dt = 1e-5
   dtC = zeros(length(C))
   dC = zeros(length(C))
   for _ in 1:1e5
-    lie_3D_timestep!(dC, C, dZ, k, s3, wpd, is2, dd0)
+    lie_3D_timestep!(dC, C, dZ, k, dual_div, wdd, div_v)
     dC[b_tets] .= 0.0
-    lie_3D_timestep!(dtC, C .+ (dt/2 * dC), dZ, k, s3, wpd, is2, dd0)
+    lie_3D_timestep!(dtC, C .+ (dt/2 * dC), dZ, k, dual_div, wdd, div_v)
     C .+= dt * dtC
     C[b_tets] .= 0.0
   end
@@ -706,8 +708,8 @@ function midpoint_method_lie!(C, dZ, k, s3, wpd, is2, dd0)
 end
 
 C[b_tets] .= 0.0
-k = 1e-3
-C_lie = midpoint_method_lie!(copy(C), dZ, k, s3, wpd, is2, dd0)
+k = 1
+C_lie = midpoint_method_lie!(copy(C), dZ, k, dual_div, wdd, div_v)
 
 @test rel_error(C, C_lie, k) < 0.5
 
