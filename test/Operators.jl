@@ -662,7 +662,7 @@ function midpoint_method_advection!(C, dZ, k, dual_div, wdd)
   dt = 1e-5
   dtC = zeros(length(C))
   dC = zeros(length(C))
-  for _ in 1:1e5
+  for _ in 1:100_000
     advection_3D_timestep!(dC, C, dZ, k, dual_div, wdd)
     dC[b_tets] .= 0.0
     advection_3D_timestep!(dtC, C .+ (dt/2 * dC), dZ, k, dual_div, wdd)
@@ -702,7 +702,7 @@ function midpoint_method_lie!(C, dZ, k, dual_div, wdd, div_v)
   dt = 1e-5
   dtC = zeros(length(C))
   dC = zeros(length(C))
-  for _ in 1:1e5
+  for _ in 1:100_000
     lie_3D_timestep!(dC, C, dZ, k, dual_div, wdd, div_v)
     dC[b_tets] .= 0.0
     lie_3D_timestep!(dtC, C .+ (dt/2 * dC), dZ, k, dual_div, wdd, div_v)
