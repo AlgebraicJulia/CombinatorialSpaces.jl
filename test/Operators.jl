@@ -602,6 +602,11 @@ end
 @test all(abs.(dd1*dZ) .< 1e-14)
 # Test that dXdY is closed.
 @test all(abs.(d2*dXdY) .< 1e-15)
+
+# Test the PD 2-1 wedge product: dXdY ∧ dZ should approximate tet volumes
+# (since dXdY encodes unit z-areas and dZ encodes unit z-gradient).
+wpd_result = wpd(dXdY, dZ)
+@test length(wpd_result) == ntetrahedra(sd)
 #=
 julia> histogram((is2*dZ - dXdY), nbins=20)
                   ┌                                        ┐ 
