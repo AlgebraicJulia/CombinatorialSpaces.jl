@@ -115,6 +115,19 @@ eqs_b = optimize_mesh!(s_b,
 @test abs(eqs_d[end] - eqs_b[end]) / eqs_d[begin] < 0.1
 end
 
+let # Test that logarithmic cooling with BoltzmannAcceptance improves the mesh.
+# Logarithmic cooling (c / log(1+k)) decays very slowly, providing thorough
+# exploration of the solution space before settling.
+Random.seed!(42)
+s = triangulated_grid(40,20,5,5,Point2d);
+eqs = optimize_mesh!(s,
+  SimulatedAnnealing(ϵ=1e-2, epochs=100, hold_boundaries=false,
+    acceptance=BoltzmannAcceptance(),
+    cooling_schedule=(e,ep)->logarithmic_cooling_schedule(e,ep)))
+@test length(eqs) == 100
+@test eqs[end] < eqs[begin]
+end
+
 #############################
 # Plots for debugging tests #
 #############################
