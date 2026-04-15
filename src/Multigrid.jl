@@ -536,12 +536,12 @@ function subdivision(s::EmbeddedDeltaSet3D, ::BinarySubdivision)
     end
     v0, v1, v2 = vs
     # Compute sorted vertex pairs for each edge once, then match.
-    ev = ((minmax(sd[es[1],:∂v0], sd[es[1],:∂v1]),
-           minmax(sd[es[2],:∂v0], sd[es[2],:∂v1]),
-           minmax(sd[es[3],:∂v0], sd[es[3],:∂v1])))
-    e_v1v2 = es[findfirst(==(minmax(v1, v2)), ev)]
-    e_v0v2 = es[findfirst(==(minmax(v0, v2)), ev)]
-    e_v0v1 = es[findfirst(==(minmax(v0, v1)), ev)]
+    edge_verts = ((minmax(sd[es[1],:∂v0], sd[es[1],:∂v1]),
+                   minmax(sd[es[2],:∂v0], sd[es[2],:∂v1]),
+                   minmax(sd[es[3],:∂v0], sd[es[3],:∂v1])))
+    e_v1v2 = es[findfirst(==(minmax(v1, v2)), edge_verts)]
+    e_v0v2 = es[findfirst(==(minmax(v0, v2)), edge_verts)]
+    e_v0v1 = es[findfirst(==(minmax(v0, v1)), edge_verts)]
     sd[t, :∂e0] = e_v1v2
     sd[t, :∂e1] = e_v0v2
     sd[t, :∂e2] = e_v0v1
