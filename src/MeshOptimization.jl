@@ -10,7 +10,8 @@ using SparseArrays
 using StaticArrays: SVector
 
 export optimize_mesh!, AbstractMeshOptimizer, SimulatedAnnealing, equilaterality,
-       AbstractAcceptance, DirectAcceptance, BoltzmannAcceptance, should_accept
+       AbstractAcceptance, DirectAcceptance, BoltzmannAcceptance, should_accept,
+       linear_cooling_schedule, exponential_cooling_schedule
 
 # Given a 2D simplicial set, return the edge lengths per triangle.
 function edge_lengths(s)
@@ -143,7 +144,26 @@ end
 
 optimize_mesh!(s::HasDeltaSet2D) = optimize_mesh!(s, SimulatedAnnealing())
 
+"""    linear_cooling_schedule(epochs, epoch)
+
+Linearly interpolate the temperature from `0.05` to `0.001` over all epochs.
+
+This schedule is appropriate for [`DirectAcceptance`](@ref), where the
+temperature directly serves as the acceptance probability.
+"""
 linear_cooling_schedule(epochs, epoch) = range(0.05, .001; length=epochs)[epoch]
+
+"""    exponential_cooling_schedule(epochs, epoch; T_init=1e-6, T_final=1e-10)
+
+Geometrically decay the temperature from `T_init` to `T_final` over all epochs.
+
+This schedule is appropriate for [`BoltzmannAcceptance`](@ref), where the
+temperature must be on the same order of magnitude as the typical per-vertex
+cost difference for the acceptance probability to be discriminating.
+"""
+function exponential_cooling_schedule(epochs, epoch; T_init=1e-6, T_final=1e-10)
+  T_init * (T_final/T_init)^((epoch-1)/(epochs-1))
+end
 
 # Extract the point attribute of the ACSet.
 function optimize_mesh!(s::EmbeddedDeltaSet2D{_o, point_type} where _o, alg::SimulatedAnnealing) where point_type
