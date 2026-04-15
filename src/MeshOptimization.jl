@@ -11,7 +11,7 @@ using StaticArrays: SVector
 
 export optimize_mesh!, AbstractMeshOptimizer, SimulatedAnnealing, equilaterality,
        AbstractAcceptance, DirectAcceptance, BoltzmannAcceptance, should_accept,
-       linear_cooling_schedule, exponential_cooling_schedule
+       linear_cooling_schedule, exponential_cooling_schedule, logarithmic_cooling_schedule
 
 # Given a 2D simplicial set, return the edge lengths per triangle.
 function edge_lengths(s)
@@ -164,6 +164,20 @@ cost difference for the acceptance probability to be discriminating.
 function exponential_cooling_schedule(epochs, epoch; T_init=1e-6, T_final=1e-10)
   T_init * (T_final/T_init)^((epoch-1)/(epochs-1))
 end
+
+"""    logarithmic_cooling_schedule(epochs, epoch; c=1e-6)
+
+Decay the temperature as `c / log(1 + epoch)` (Geman & Geman, 1984).
+
+Logarithmic cooling is the slowest standard schedule and provides a
+theoretical guarantee of convergence to the global optimum. The constant
+`c` should be chosen on the same order of magnitude as the typical
+per-vertex cost difference so that the Boltzmann acceptance probability
+is discriminating.
+
+This schedule is appropriate for [`BoltzmannAcceptance`](@ref).
+"""
+logarithmic_cooling_schedule(epochs, epoch; c=1e-6) = c / log(1 + epoch)
 
 # Extract the point attribute of the ACSet.
 function optimize_mesh!(s::EmbeddedDeltaSet2D{_o, point_type} where _o, alg::SimulatedAnnealing) where point_type
