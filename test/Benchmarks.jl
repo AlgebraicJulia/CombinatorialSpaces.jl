@@ -127,7 +127,7 @@ end
 
 dec_op_results = run(dec_op_suite, verbose = true, seconds = 1)
 
-for op in sort(collect(keys(dec_op_results)))
+for op in sort(Base.collect(keys(dec_op_results)))
     test = median(dec_op_results[op])
 
     println("Operator: $op")

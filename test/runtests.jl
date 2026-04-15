@@ -29,12 +29,12 @@ end
   include("Restrictions.jl")
 end
 
-@testset "Multigrid" begin
-  include("Multigrid.jl")
-end
-
 @testset "Mesh Optimization" begin
   include("MeshOptimization.jl")
+end
+
+@testset "Multigrid" begin
+  include("Multigrid.jl")
 end
 
 end
