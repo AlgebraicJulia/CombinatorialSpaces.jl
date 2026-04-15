@@ -79,6 +79,34 @@ eqs = optimize_mesh!(s,
 @test 0 < mean(diff(diff(eqs)))
 end
 
+let # Test that BoltzmannAcceptance can be toggled via multiple dispatch.
+# BoltzmannAcceptance uses exp(-(new_cost - orig_cost) / temperature), so the
+# magnitude of the cost increase and the current temperature both influence
+# the acceptance of a worse solution.
+s = triangulated_grid(40,20,5,5,Point2d);
+eqs = optimize_mesh!(s,
+  SimulatedAnnealing(ϵ=1e-2, epochs=100, hold_boundaries=false,
+    acceptance=BoltzmannAcceptance()))
+# BoltzmannAcceptance still runs and returns cost values per epoch.
+@test length(eqs) == 100
+end
+
+let # Test that DirectAcceptance outperforms BoltzmannAcceptance on the default
+# cooling schedule, since the temperature-independent acceptance avoids
+# accepting nearly every small cost increase.
+Random.seed!(42)
+s_d = triangulated_grid(40,20,5,5,Point3d);
+eqs_d = optimize_mesh!(s_d,
+  SimulatedAnnealing(ϵ=1e-2, epochs=200, jitter3D=true,
+    acceptance=DirectAcceptance()))
+Random.seed!(42)
+s_b = triangulated_grid(40,20,5,5,Point3d);
+eqs_b = optimize_mesh!(s_b,
+  SimulatedAnnealing(ϵ=1e-2, epochs=200, jitter3D=true,
+    acceptance=BoltzmannAcceptance()))
+@test eqs_d[end] < eqs_b[end]
+end
+
 #############################
 # Plots for debugging tests #
 #############################

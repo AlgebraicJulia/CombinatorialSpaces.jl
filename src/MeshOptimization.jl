@@ -9,7 +9,8 @@ using Random
 using SparseArrays
 using StaticArrays: SVector
 
-export optimize_mesh!, AbstractMeshOptimizer, SimulatedAnnealing, equilaterality
+export optimize_mesh!, AbstractMeshOptimizer, SimulatedAnnealing, equilaterality,
+       AbstractAcceptance, DirectAcceptance, BoltzmannAcceptance, should_accept
 
 # Given a 2D simplicial set, return the edge lengths per triangle.
 function edge_lengths(s)
@@ -51,6 +52,51 @@ end
 
 abstract type AbstractMeshOptimizer end
 
+"""    abstract type AbstractAcceptance
+
+Abstract type for acceptance probability strategies in simulated annealing.
+
+See also: [`DirectAcceptance`](@ref), [`BoltzmannAcceptance`](@ref).
+"""
+abstract type AbstractAcceptance end
+
+"""    struct DirectAcceptance <: AbstractAcceptance
+
+Acceptance probability is drawn directly from the cooling schedule, independent
+of the magnitude of error change.
+
+A worse solution is accepted when `rand() < temperature`.
+
+See also: [`BoltzmannAcceptance`](@ref).
+"""
+struct DirectAcceptance <: AbstractAcceptance end
+
+"""    struct BoltzmannAcceptance <: AbstractAcceptance
+
+Standard Boltzmann acceptance probability from simulated annealing.
+
+A worse solution is accepted when `rand() < exp(-(new_cost - old_cost) / temperature)`,
+so the magnitude of the cost increase and the current temperature both influence
+the likelihood of accepting a worse solution.
+
+See also: [`DirectAcceptance`](@ref).
+"""
+struct BoltzmannAcceptance <: AbstractAcceptance end
+
+"""    should_accept(::DirectAcceptance, orig_cost, new_cost, temperature)
+
+Accept with probability equal to the temperature, ignoring cost difference.
+"""
+should_accept(::DirectAcceptance, orig_cost, new_cost, temperature) =
+  rand() < temperature
+
+"""    should_accept(::BoltzmannAcceptance, orig_cost, new_cost, temperature)
+
+Accept with Boltzmann probability `exp(-(new_cost - orig_cost) / temperature)`.
+"""
+should_accept(::BoltzmannAcceptance, orig_cost, new_cost, temperature) =
+  rand() < exp(-(new_cost - orig_cost) / temperature)
+
 """ struct SimulatedAnnealing
 
 The simulated annealing algorithm's parameters for mesh optimization.
@@ -77,19 +123,22 @@ The simulated annealing algorithm's parameters for mesh optimization.
 
 `cooling_schedule`: The cooling schedule to be used when annealing. (Defaults to `linear_cooling_schedule`.)
 
-See also: [`optimize_mesh!`](@ref).
+`acceptance`: The acceptance probability strategy to use when annealing. (Defaults to `DirectAcceptance()`.)
+
+See also: [`optimize_mesh!`](@ref), [`DirectAcceptance`](@ref), [`BoltzmannAcceptance`](@ref).
 """
 @with_kw struct SimulatedAnnealing
-  ϵ::AbstractFloat           = 1e-3
-  epochs::Integer            = 100
-  debug_epochs::Integer      = 10
-  hold_boundaries::Bool      = true
-  anneal::Bool               = true
-  jitter3D::Bool             = false
-  spherical::Bool            = false
-  radius::AbstractFloat      = 1.0
-  cost::Function             = equilaterality
-  cooling_schedule::Function = linear_cooling_schedule
+  ϵ::AbstractFloat                    = 1e-3
+  epochs::Integer                     = 100
+  debug_epochs::Integer               = 10
+  hold_boundaries::Bool               = true
+  anneal::Bool                        = true
+  jitter3D::Bool                      = false
+  spherical::Bool                     = false
+  radius::AbstractFloat               = 1.0
+  cost::Function                      = equilaterality
+  cooling_schedule::Function          = linear_cooling_schedule
+  acceptance::AbstractAcceptance      = DirectAcceptance()
 end
 
 optimize_mesh!(s::HasDeltaSet2D) = optimize_mesh!(s, SimulatedAnnealing())
@@ -112,21 +161,25 @@ function optimize_mesh!(s::EmbeddedDeltaSet2D{_o, point_type} where _o, alg::Sim
 end
 
 # TODO: Support the 3D analog directly on tetrahedra, or indirectly using the equilaterality of triangles.
-# TODO: Explore the effect of exp(-(temp_eq-orig_eq) / temperature)
 # TODO: The default cost function is computed over the entire mesh twice;
 # if the cost function is known to be local, this could be ameliorated.
 """    function optimize_mesh!(s::HasDeltaSet2D, alg::SimulatedAnnealing, noise_generator::Function)
 
 Optimize the given mesh using a simulated annealing algorithm.
 
-Note that the selection probability is directly calculated (without exp), and does not depend on the magnitude of error improvement.
+The acceptance probability strategy is determined by `alg.acceptance` via
+multiple dispatch on [`should_accept`](@ref). Use [`DirectAcceptance`](@ref)
+for a temperature-only acceptance probability, or [`BoltzmannAcceptance`](@ref)
+for the standard Boltzmann acceptance that accounts for the magnitude of error
+change.
 
-See also: [`SimulatedAnnealing`](@ref).
+See also: [`SimulatedAnnealing`](@ref), [`DirectAcceptance`](@ref), [`BoltzmannAcceptance`](@ref).
 """
 function optimize_mesh!(s::HasDeltaSet2D, alg::SimulatedAnnealing, noise_generator::Function)
   @unpack_SimulatedAnnealing alg
   int = interior(Val(0), s)
   map(1:epochs) do epoch
+    temperature = cooling_schedule(epochs, epoch)
     # TODO: You could vectorize (with a MVN) instead of iterating over points.
     for v in (hold_boundaries ? int : vertices(s))
       original = s[v, :point]
@@ -139,7 +192,7 @@ function optimize_mesh!(s::HasDeltaSet2D, alg::SimulatedAnnealing, noise_generat
       s[v, :point] = jittered
       temp_eq = cost(s)
       # Accept this change, or undo it.
-      jump_anyway = anneal && (rand() < cooling_schedule(epochs, epoch))
+      jump_anyway = anneal && should_accept(acceptance, orig_eq, temp_eq, temperature)
       if temp_eq < orig_eq || jump_anyway
         s[v, :point] = jittered
       else
