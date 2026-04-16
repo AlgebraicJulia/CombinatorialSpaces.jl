@@ -226,7 +226,8 @@ function optimize_mesh!(s::HasDeltaSet2D, alg::SimulatedAnnealing, noise_generat
       s[v, :point] = jittered
       temp_eq = cost(s)
       # Accept this change, or undo it.
-      jump_anyway = anneal && temp_eq >= orig_eq && should_accept(acceptance, orig_eq, temp_eq, temperature)
+      
+      jump_anyway = anneal && should_accept(acceptance, orig_eq, temp_eq, temperature)
       if temp_eq < orig_eq || jump_anyway
         s[v, :point] = jittered
       else
