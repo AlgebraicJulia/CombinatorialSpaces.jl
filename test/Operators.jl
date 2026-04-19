@@ -567,11 +567,11 @@ subdivide_duals!(sd, Barycenter());
 dd0 = dual_derivative(0,sd)
 dd1 = dual_derivative(1,sd)
 wdd = dec_wedge_product_dd(Val(0), Val(1), sd)
-is2 = inv_hodge_star(Val{2}, sd, DiagonalHodge()) # From Dual 1-forms to Primal 2-forms.
+is2 = inv_hodge_star(Val(2), sd, DiagonalHodge()) # From Dual 1-forms to Primal 2-forms.
 d2 = d(2,sd)
 wpd = dec_wedge_product_pd(Val(2), Val(1), sd)
-s3 = ⋆(Val{3}, sd, DiagonalHodge())
-is3 = inv_hodge_star(Val{3}, sd, DiagonalHodge()) # From Dual 0-forms to Primal 3-forms.
+s3 = ⋆(Val(3), sd, DiagonalHodge())
+is3 = inv_hodge_star(Val(3), sd, DiagonalHodge()) # From Dual 0-forms to Primal 3-forms.
 
 dual_div = s3 * d2 * is2
 
