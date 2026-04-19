@@ -13,85 +13,85 @@ import CombinatorialSpaces: cache_wedge,
 # Wedge Product
 #--------------
 
-function cache_wedge(::Type{Tuple{m,n}}, sd::EmbeddedDeltaDualComplex1D{Bool, float_type, _p}, ::Type{Val{:CUDA}}, arr_cons=CuArray, cast_float=nothing) where {float_type,_p,m,n}
+function cache_wedge(::Val{m}, ::Val{n}, sd::EmbeddedDeltaDualComplex1D{Bool, float_type, _p}, ::Val{:CUDA}, arr_cons=CuArray, cast_float=nothing) where {float_type,_p,m,n}
   cache_wedge(m, n, sd, float_type, arr_cons, cast_float)
 end
-function cache_wedge(::Type{Tuple{m,n}}, sd::EmbeddedDeltaDualComplex2D{Bool, float_type, _p}, ::Type{Val{:CUDA}}, arr_cons=CuArray, cast_float=nothing) where {float_type,_p,m,n}
+function cache_wedge(::Val{m}, ::Val{n}, sd::EmbeddedDeltaDualComplex2D{Bool, float_type, _p}, ::Val{:CUDA}, arr_cons=CuArray, cast_float=nothing) where {float_type,_p,m,n}
   cache_wedge(m, n, sd, float_type, arr_cons, cast_float)
 end
 
 # Boundary and Co-boundary
 #-------------------------
 
-"""    dec_boundary(n::Int, sd::HasDeltaSet, ::Type{Val{:CUDA}})
+"""    dec_boundary(n::Int, sd::HasDeltaSet, ::Val{:CUDA})
 
 Compute a boundary matrix as a sparse CUDA matrix.
 """
-dec_boundary(n::Int, sd::HasDeltaSet, ::Type{Val{:CUDA}}) =
+dec_boundary(n::Int, sd::HasDeltaSet, ::Val{:CUDA}) =
   CuSparseMatrixCSC(dec_boundary(n, sd))
 
-dec_boundary(n::Int, sd::EmbeddedDeltaDualComplex1D{Bool, float_type, _p} where _p, ::Type{Val{:CUDA}}) where float_type =
+dec_boundary(n::Int, sd::EmbeddedDeltaDualComplex1D{Bool, float_type, _p} where _p, ::Val{:CUDA}) where float_type =
   CuSparseMatrixCSC{float_type}(dec_boundary(n, sd))
-dec_boundary(n::Int, sd::EmbeddedDeltaDualComplex2D{Bool, float_type, _p} where _p, ::Type{Val{:CUDA}}) where float_type =
+dec_boundary(n::Int, sd::EmbeddedDeltaDualComplex2D{Bool, float_type, _p} where _p, ::Val{:CUDA}) where float_type =
   CuSparseMatrixCSC{float_type}(dec_boundary(n, sd))
 
-"""    dec_dual_derivative(n::Int, sd::EmbeddedDeltaDualComplex1D, ::Type{Val{:CUDA}})
+"""    dec_dual_derivative(n::Int, sd::EmbeddedDeltaDualComplex1D, ::Val{:CUDA})
 
 Compute a dual derivative matrix as a sparse CUDA matrix.
 """
-dec_dual_derivative(n::Int, sd::HasDeltaSet, ::Type{Val{:CUDA}}) =
+dec_dual_derivative(n::Int, sd::HasDeltaSet, ::Val{:CUDA}) =
   CuSparseMatrixCSC(dec_dual_derivative(n, sd))
 
-dec_dual_derivative(n::Int, sd::EmbeddedDeltaDualComplex1D{Bool, float_type, _p} where _p, ::Type{Val{:CUDA}}) where float_type =
+dec_dual_derivative(n::Int, sd::EmbeddedDeltaDualComplex1D{Bool, float_type, _p} where _p, ::Val{:CUDA}) where float_type =
   CuSparseMatrixCSC{float_type}(dec_dual_derivative(n, sd))
-dec_dual_derivative(n::Int, sd::EmbeddedDeltaDualComplex2D{Bool, float_type, _p} where _p, ::Type{Val{:CUDA}}) where float_type =
+dec_dual_derivative(n::Int, sd::EmbeddedDeltaDualComplex2D{Bool, float_type, _p} where _p, ::Val{:CUDA}) where float_type =
   CuSparseMatrixCSC{float_type}(dec_dual_derivative(n, sd))
 
 
-"""    dec_differential(n::Int, sd::HasDeltaSet, ::Type{Val{:CUDA}})
+"""    dec_differential(n::Int, sd::HasDeltaSet, ::Val{:CUDA})
 
 Compute an exterior derivative matrix as a sparse CUDA matrix.
 """
-dec_differential(n::Int, sd::HasDeltaSet, ::Type{Val{:CUDA}}) =
+dec_differential(n::Int, sd::HasDeltaSet, ::Val{:CUDA}) =
   CuSparseMatrixCSC(dec_differential(n, sd))
 
-dec_differential(n::Int, sd::EmbeddedDeltaDualComplex1D{Bool, float_type, _p} where _p, ::Type{Val{:CUDA}}) where float_type =
+dec_differential(n::Int, sd::EmbeddedDeltaDualComplex1D{Bool, float_type, _p} where _p, ::Val{:CUDA}) where float_type =
   CuSparseMatrixCSC{float_type}(dec_differential(n, sd))
-dec_differential(n::Int, sd::EmbeddedDeltaDualComplex2D{Bool, float_type, _p} where _p, ::Type{Val{:CUDA}}) where float_type =
+dec_differential(n::Int, sd::EmbeddedDeltaDualComplex2D{Bool, float_type, _p} where _p, ::Val{:CUDA}) where float_type =
   CuSparseMatrixCSC{float_type}(dec_differential(n, sd))
 
 # Hodge Star
 #-----------
 
-"""    dec_hodge_star(n::Int, sd::HasDeltaSet, h::DiscreteHodge, ::Type{Val{:CUDA}})
+"""    dec_hodge_star(n::Int, sd::HasDeltaSet, h::DiscreteHodge, ::Val{:CUDA})
 
 Compute a Hodge star as a diagonal or generic sparse CUDA matrix.
 """
-dec_hodge_star(n::Int, sd::HasDeltaSet, h::DiscreteHodge, ::Type{Val{:CUDA}}) = 
-  dec_hodge_star(Val{n}, sd, h, Val{:CUDA})
+dec_hodge_star(n::Int, sd::HasDeltaSet, h::DiscreteHodge, ::Val{:CUDA}) = 
+  dec_hodge_star(Val(n), sd, h, Val(:CUDA))
 
-dec_hodge_star(::Type{Val{n}}, sd::HasDeltaSet, h::DiscreteHodge, ::Type{Val{:CUDA}}) where n =
-  CuArray(dec_hodge_star(Val{n}, sd, h))
+dec_hodge_star(::Val{n}, sd::HasDeltaSet, h::DiscreteHodge, ::Val{:CUDA}) where n =
+  CuArray(dec_hodge_star(Val(n), sd, h))
 
-dec_hodge_star(::Type{Val{1}}, sd::EmbeddedDeltaDualComplex2D, h::GeometricHodge, ::Type{Val{:CUDA}}) =
-  CuSparseMatrixCSC(dec_hodge_star(Val{1}, sd, h))
+dec_hodge_star(::Val{1}, sd::EmbeddedDeltaDualComplex2D, h::GeometricHodge, ::Val{:CUDA}) =
+  CuSparseMatrixCSC(dec_hodge_star(Val(1), sd, h))
 
-"""    dec_inv_hodge_star(n::Int, sd::HasDeltaSet, h::DiscreteHodge, ::Type{Val{:CUDA}})
+"""    dec_inv_hodge_star(n::Int, sd::HasDeltaSet, h::DiscreteHodge, ::Val{:CUDA})
 
 Compute an inverse Hodge star matrix as a diagonal CUDA matrix.
 """
-dec_inv_hodge_star(n::Int, sd::HasDeltaSet, h::DiscreteHodge, ::Type{Val{:CUDA}}) =
-  dec_inv_hodge_star(Val{n}, sd, h, Val{:CUDA})
+dec_inv_hodge_star(n::Int, sd::HasDeltaSet, h::DiscreteHodge, ::Val{:CUDA}) =
+  dec_inv_hodge_star(Val(n), sd, h, Val(:CUDA))
 
-dec_inv_hodge_star(::Type{Val{n}}, sd::HasDeltaSet, h::DiscreteHodge, ::Type{Val{:CUDA}}) where n =
-  CuArray(dec_inv_hodge_star(Val{n}, sd, h))
+dec_inv_hodge_star(::Val{n}, sd::HasDeltaSet, h::DiscreteHodge, ::Val{:CUDA}) where n =
+  CuArray(dec_inv_hodge_star(Val(n), sd, h))
 
-"""    function dec_inv_hodge_star(::Type{Val{1}}, sd::EmbeddedDeltaDualComplex2D, ::GeometricHodge, ::Type{Val{:CUDA}})
+"""    function dec_inv_hodge_star(::Val{1}, sd::EmbeddedDeltaDualComplex2D, ::GeometricHodge, ::Val{:CUDA})
 
 Return a function that computes the inverse geometric Hodge star of a primal 1-form via a GMRES solver.
 """
-function dec_inv_hodge_star(::Type{Val{1}}, sd::EmbeddedDeltaDualComplex2D, ::GeometricHodge, ::Type{Val{:CUDA}})
-  hdg = -1 * dec_hodge_star(1, sd, GeometricHodge(), Val{:CUDA})
+function dec_inv_hodge_star(::Val{1}, sd::EmbeddedDeltaDualComplex2D, ::GeometricHodge, ::Val{:CUDA})
+  hdg = -1 * dec_hodge_star(1, sd, GeometricHodge(), Val(:CUDA))
   x -> Krylov.gmres(hdg, x, atol = 1e-14)[1]
 end
 
