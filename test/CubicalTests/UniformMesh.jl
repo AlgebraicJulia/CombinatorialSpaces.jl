@@ -26,10 +26,10 @@ include("../../src/CubicalCode/UniformMesh.jl")
   @test nquads(s) == 25
 
   # Test edge source and target
-  @test src_x(s, 1, 1) == 1
-  @test tgt_x(s, 1, 1) == 2
-  @test src_y(s, 1, 1) == 1
-  @test tgt_y(s, 1, 1) == 7
+  @test src(s, 1, 1, X_ALIGN) == 1
+  @test tgt(s, 1, 1, X_ALIGN) == 2
+  @test src(s, 1, 1, Y_ALIGN) == 1
+  @test tgt(s, 1, 1, Y_ALIGN) == 7
 
   # Test quad vertices
   @test coord_to_quad(s, 1, 1) == 1
@@ -115,10 +115,10 @@ end
   @test nquads(s) == 49
 
   # Test edge source and target
-  @test src_x(s, 1, 1) == 1
-  @test tgt_x(s, 1, 1) == 2
-  @test src_y(s, 1, 1) == 1
-  @test tgt_y(s, 1, 1) == 9
+  @test src(s, 1, 1, X_ALIGN) == 1
+  @test tgt(s, 1, 1, X_ALIGN) == 2
+  @test src(s, 1, 1, Y_ALIGN) == 1
+  @test tgt(s, 1, 1, Y_ALIGN) == 9
 
   # Test quad vertices
   @test coord_to_quad(s, 1, 1) == 1

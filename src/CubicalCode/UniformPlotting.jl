@@ -47,7 +47,7 @@ function plot_oneform(s::UniformCubicalComplex2D, alpha; lengthscale = 1, normal
 
   X = zeros(nquads(s)); Y = zeros(nquads(s))
 
-  sharp_dd!(X, Y, s, alpha)
+  X, Y = sharp_dd(X, Y, s, alpha)
 
   X = interior(Val(2), X, s)
   Y = interior(Val(2), Y, s)
@@ -67,20 +67,18 @@ function plot_xy_oneform(s::UniformCubicalComplex2D, alpha)
   x = map(a -> a[1], interdps)
   y = map(a -> a[2], interdps)
 
-  X = zeros(nquads(s)); Y = zeros(nquads(s))
-
-  sharp_dd!(X, Y, s, alpha)
+  X, Y = sharp_dd(s, alpha)
 
   X = interior(Val(2), X, s)
   Y = interior(Val(2), Y, s)
 
   fig = Figure();
   axX = CairoMakie.Axis(fig[1,1]; title = "X Component", xlabel = "x", ylabel = "y")
-  msh = CairoMakie.scatter!(axX, interdps, color=X, colormap=:jet)
+  msh = CairoMakie.heatmap!(axX, x, y, X, colormap=:jet)
   Colorbar(fig[1, 2], msh)
 
   axY = CairoMakie.Axis(fig[2,1]; title = "Y Component", xlabel = "x", ylabel = "y")
-  msh = CairoMakie.scatter!(axY, interdps, color=Y, colormap=:jet)
+  msh = CairoMakie.heatmap!(axY, x, y, Y, colormap=:jet)
   Colorbar(fig[2, 2], msh)
 
   fig
