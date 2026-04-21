@@ -17,7 +17,7 @@ using ..Multigrid: AbstractGeometricMapSeries, AbstractSubdivisionScheme, Binary
 using ACSets
 using Base.Iterators
 using KernelAbstractions
-using LinearAlgebra: cross, dot, Diagonal, factorize, norm
+using LinearAlgebra: cross, dot, Diagonal, factorize, norm, normalize!
 using SparseArrays: sparse, spzeros, SparseMatrixCSC
 using StaticArrays: SVector, MVector
 using Krylov: cg
@@ -30,7 +30,7 @@ export dec_wedge_product, cache_wedge, dec_c_wedge_product, dec_c_wedge_product!
   dec_hodge_star, dec_inv_hodge_star,
   dec_wedge_product_pd, dec_wedge_product_dp, ∧,
   interior_product_dd, ℒ_dd,
-  dec_wedge_product_dd,
+  dec_wedge_product_dd, whitney_mat,
   Δᵈ, dec_Δ⁻¹,
   avg₀₁, avg_01, avg₀₁_mat, avg_01_mat,
   d0_p0_interpolation, p0_d0_interpolation
@@ -290,7 +290,7 @@ end
 
 # Return a matrix that can be multiplied to a dual 0-form, before being
 # elementwise-multiplied by a dual 1-form, encoding the wedge product.
-function wedge_dd_01_mat(sd::HasDeltaSet)
+function wedge_dd_01_mat(sd::HasDeltaSet2D)
   m = spzeros(ne(sd), ntriangles(sd))
   for e in edges(sd)
     des = elementary_duals(1,sd,e)
@@ -299,6 +299,24 @@ function wedge_dd_01_mat(sd::HasDeltaSet)
     ws = sd[des, :dual_length] ./ sum(sd[des, :dual_length])
     for (w,t) in zip(ws,tris)
       m[e,t] = w
+    end
+  end
+  m
+end
+
+# TODO: Instead of copying-and-pasting,
+# use higher-level helper functions/ arithmetic with degree of complex.
+# Return a matrix that can be multiplied to a dual 0-form, before being
+# elementwise-multiplied by a dual 1-form, encoding the wedge product.
+function wedge_dd_01_mat(sd::HasDeltaSet3D)
+  m = spzeros(ntriangles(sd), ntetrahedra(sd))
+  for tri in triangles(sd)
+    des = elementary_duals(2,sd,tri)
+    dvs = sd[des, :D_∂v0]
+    tets = only.(incident(sd, dvs, :tet_center))
+    ws = sd[des, :dual_length] ./ sum(sd[des, :dual_length])
+    for (w,tet) in zip(ws,tets)
+      m[tri,tet] = w
     end
   end
   m
@@ -422,6 +440,34 @@ weddge (without explicitly dividing by 2.)
 ∧(s::HasDeltaSet, α::DualForm{1}, β::SimplexForm{1}) =
   dec_wedge_product_dp(Val(1), Val(1), s)(α, β)
 
+# TODO: This could more strongly rely on simplicial identities, instead of relying
+# on the order of subsimplices from make_dual_simplices_3d!.
+
+# Given (volumetric) data assigned to the faces of a tetrahedron,
+# take a weighted combination according to the usual Whitney scheme.
+function whitney_mat(::Val{2}, sd::AbstractDeltaDualComplex3D)
+  I_vec = repeat(tetrahedra(sd), inner=4)
+  J_vec = map(x -> tetrahedron_triangles(sd, x), tetrahedra(sd))
+  V_vec = map(tetrahedra(sd)) do tet
+    # The scheme in make_dual_simplices_3d! explains the reshape.
+    subs = subsimplices(3, sd, tet)
+    d_vols = sum(eachrow(reshape(sd[subs, :dual_vol], (6,4))))
+    normalize!(d_vols, 1)
+  end
+  sparse(I_vec, reduce(vcat, J_vec), reduce(vcat, V_vec))
+end
+
+function dec_wedge_product_pd(::Val{2}, ::Val{1}, sd::HasDeltaSet3D)
+  wm = whitney_mat(Val(2), sd)
+  sgns = sign(3, sd)
+  (f, g) -> sgns .* (wm * (f .* g))
+end
+
+function dec_wedge_product_dp(::Val{1}, ::Val{2}, sd::HasDeltaSet3D)
+  wm = whitney_mat(Val(2), sd)
+  sgns = sign(3, sd)
+  (f, g) -> sgns .* (wm * (f .* g))
+end
 
 # Boundary and Co-boundary
 #-------------------------
