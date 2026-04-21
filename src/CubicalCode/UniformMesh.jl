@@ -17,8 +17,6 @@ struct UniformCubicalComplex2D{FT <: AbstractFloat} <: AbstractCubicalComplex2D
   nx::Int
   ny::Int
 
-  points::AbstractVector{Point3{FT}}
-
   dx::FT
   dy::FT
 
@@ -79,14 +77,14 @@ bottom_edges(s::AbstractCubicalComplex2D) = coord_to_edge.(Ref(s), 1:nxe(s), Ref
 left_edges(s::AbstractCubicalComplex2D) = coord_to_edge.(Ref(s), Ref(1), 1:nye(s), Ref(Y_ALIGN))
 right_edges(s::AbstractCubicalComplex2D) = coord_to_edge.(Ref(s), Ref(nx(s)), 1:nye(s), Ref(Y_ALIGN))
 
+boundary_edges(s::AbstractCubicalComplex2D) = vcat(bottom_edges(s), top_edges(s), left_edges(s), right_edges(s))
+
 coord_to_vert(s::AbstractCubicalComplex2D, x::Int, y::Int) = x + (y - 1) * nx(s)
 function coord_to_edge(s::AbstractCubicalComplex2D, x::Int, y::Int, align::Align)
   if align == X_ALIGN
     return x + (y - 1) * nxe(s)
-  elseif align == Y_ALIGN
+  else # align == Y_ALIGN
     return x + (y - 1) * nx(s) + nxedges(s)
-  else
-    throw(ArgumentError("Invalid edge alignment: $align"))
   end
 end
 coord_to_quad(s::AbstractCubicalComplex2D, x::Int, y::Int) = (y - 1) * nxquads(s) + x
@@ -125,19 +123,35 @@ function edge_to_coord(s::AbstractCubicalComplex2D, e::Int)
   end
 end
 
+function dual_edge_to_coord(s::AbstractCubicalComplex2D, e::Int)
+  x, y, align = edge_to_coord(s, e)
+  if align == X_ALIGN
+    return x, y, Y_ALIGN
+  else # align == Y_ALIGN
+    return x, y, X_ALIGN
+  end
+end
+
 function quad_to_coord(s::AbstractCubicalComplex2D, q::Int)
   y = div(q - 1, nxquads(s)) + 1
   x = q - (y - 1) * nxquads(s)
   return x, y
 end
 
-point(s::AbstractCubicalComplex2D, v::Int) = s.points[v]
-point(s::AbstractCubicalComplex2D, x::Int, y::Int) = s.points[coord_to_vert(s, x, y)]
+function point(s::UniformCubicalComplex2D, x::Int, y::Int)
+  px = (x - 1) * dx(s) - hx(s) * dx(s)
+  py = (y - 1) * dy(s) - hy(s) * dy(s)
+  return Point3(px, py, 0.0)
+end
+point(s::UniformCubicalComplex2D, v::Int) = point(s, vert_to_coord(s, v)...)
 
 # Returns the point corresponding to the given real coordinate, where the real coordinate (1, 1) corresponds to the first real point (halo_x + 1, halo_y + 1)
 real_point(s::AbstractCubicalComplex2D, x::Int, y::Int) = point(s, x + hx(s), y + hy(s))
 
-points(s::AbstractCubicalComplex2D) = s.points
+# TODO: Make this a generator that yields points one at a time instead of creating an array of all points at once
+function points(s::AbstractCubicalComplex2D)
+  return map(v -> point(s, v), vertices(s))
+end
 
 function Base.zeros(::Val{k}, s::AbstractCubicalComplex2D, FT::DataType = Float64) where k
   if k == 0
@@ -171,14 +185,7 @@ function UniformCubicalComplex2D(nxr::Int, nyr::Int, lx::FT, ly::FT; halo_x::Int
   dx = spacing(lx, nxr)
   dy = spacing(ly, nyr)
 
-  ps = Point3{FT}[]
-  for y in -halo_y:nyr+halo_y-1
-    for x in -halo_x:nxr+halo_x-1
-      push!(ps, Point3(x * dx, y * dy, 0.0))
-    end
-  end
-
-  UniformCubicalComplex2D{FT}(nxr, nyr, ps, dx, dy, halo_x, halo_y)
+  UniformCubicalComplex2D{FT}(nxr, nyr, dx, dy, halo_x, halo_y)
 end
 
 # Basic show method for uniform mesh
@@ -199,10 +206,8 @@ end
 function tgt(s::AbstractCubicalComplex2D, x::Int, y::Int, align::Align)
   if align == X_ALIGN
     return coord_to_vert(s, x + 1, y)
-  elseif align == Y_ALIGN
+  else # align == Y_ALIGN
     return coord_to_vert(s, x, y + 1)
-  else
-    throw(ArgumentError("Invalid edge alignment: $align"))
   end
 end
 function tgt(s::AbstractCubicalComplex2D, e::Int)
@@ -213,10 +218,8 @@ end
 function edge_len(s::UniformCubicalComplex2D, align::Align)
   if align == X_ALIGN
     return dx(s)
-  elseif align == Y_ALIGN
+  else # align == Y_ALIGN
     return dy(s)
-  else
-    throw(ArgumentError("Invalid edge alignment: $align"))
   end
 end
 
@@ -264,10 +267,8 @@ real_dual_point(s::AbstractCubicalComplex2D, x::Int, y::Int) = dual_point(s, x +
 function dual_edge(s::AbstractCubicalComplex2D, x::Int, y::Int, align::Align)
   if align == X_ALIGN
     return coord_to_edge(s, x, y, Y_ALIGN)
-  elseif align == Y_ALIGN
+  else # align == Y_ALIGN
     return coord_to_edge(s, x, y, X_ALIGN)
-  else
-    throw(ArgumentError("Invalid edge alignment: $align"))
   end
 end
 
@@ -280,14 +281,12 @@ function dual_edge_len(s::AbstractCubicalComplex2D, x::Int, y::Int, align::Align
     else
       return dy(s)
     end
-  elseif align == Y_ALIGN
+  else # align == Y_ALIGN
     if x == 1 || x == nx(s)
       return 0.5 * dx(s)
     else
       return dx(s)
     end
-  else
-    throw(ArgumentError("Invalid edge alignment: $align"))
   end
 end
 
@@ -323,9 +322,9 @@ is_right_edge(s::AbstractCubicalComplex2D, x::Int, y::Int, align::Align) = align
 is_bottom_edge(s::AbstractCubicalComplex2D, x::Int, y::Int, align::Align) = align == X_ALIGN && y == 1
 is_top_edge(s::AbstractCubicalComplex2D, x::Int, y::Int, align::Align) = align == X_ALIGN && y == ny(s)
 function is_boundary_edge(s::AbstractCubicalComplex2D, x::Int, y::Int, align::Align)
-  return is_left_edge(s, x, y, align) || 
-    is_right_edge(s, x, y, align) || 
-    is_bottom_edge(s, x, y, align) || 
+  return is_left_edge(s, x, y, align) ||
+    is_right_edge(s, x, y, align) ||
+    is_bottom_edge(s, x, y, align) ||
     is_top_edge(s, x, y, align)
 end
 
@@ -335,12 +334,10 @@ function edge_quads(s::AbstractCubicalComplex2D, x::Int, y::Int, align::Align)
     q1 = coord_to_quad(s, x, y - 1)
     q2 = coord_to_quad(s, x, y)
     return q1, q2
-  elseif align == Y_ALIGN
+  else # align == Y_ALIGN
     q1 = coord_to_quad(s, x - 1, y)
     q2 = coord_to_quad(s, x, y)
     return q1, q2
-  else
-    throw(ArgumentError("Invalid edge alignment: $align"))
   end
 end
 

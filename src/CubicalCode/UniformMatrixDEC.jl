@@ -49,6 +49,14 @@ end
 dual_derivative(::Val{0}, s::UniformCubicalComplex2D) = transpose(exterior_derivative(Val(1), s))
 dual_derivative(::Val{1}, s::UniformCubicalComplex2D) = -transpose(exterior_derivative(Val(0), s))
 
+function no_flux_dual_derivative(::Val{0}, s::UniformCubicalComplex2D)
+  dd0 = dual_derivative(Val(0), s)
+  dd0[boundary_edges(s), :] .= 0.0 # Enforce no-flux boundary condition on density
+  return dd0
+end
+
+dual_derivative_beta(::Val{1}, s::UniformCubicalComplex2D) = 0.5 * abs.(dual_derivative(Val(1), s)) * spdiagm(dual_derivative(Val(0), s) * ones(nquads(s)))
+
 hodge_star(::Val{0}, s::UniformCubicalComplex2D) = spdiagm(map(dq -> dual_quad_area(s, dq), vertices(s)))
 function hodge_star(::Val{1}, s::UniformCubicalComplex2D)
   e_lens = map(e -> edge_len(s, e), edges(s))
@@ -74,135 +82,6 @@ dual_laplacian(::Val{0}, s::UniformCubicalComplex2D) = dual_codifferential(Val(1
 dual_laplacian(::Val{1}, s::UniformCubicalComplex2D) = dual_codifferential(Val(2), s) * dual_derivative(Val(1), s) + dual_derivative(Val(0), s) * dual_codifferential(Val(1), s)
 dual_laplacian(::Val{2}, s::UniformCubicalComplex2D) = dual_derivative(Val(1), s) * dual_codifferential(Val(2), s)
 
-function wedge_product(::Val{i}, ::Val{j}, s::UniformCubicalComplex2D, f, g) where {i, j}
-  k = i + j
-  if k == 0
-    res = zeros(nv(s))
-  elseif k == 1
-    res = zeros(ne(s))
-  elseif k == 2
-    res = zeros(nquads(s))
-  else
-    error("Invalid wedge product: forms of degree $i and $j cannot be wedged together in 2D")
-  end
-
-  return wedge_product!(res, Val(i), Val(j), s, f, g)
-end
-
-# TODO: Convert these to kernel functions for high-performance
-function wedge_product!(res, ::Val{0}, ::Val{0}, s::UniformCubicalComplex2D, f, g)
-  for v in vertices(s)
-    res[v] = f[v] * g[v]
-  end
-  return res
-end
-
-function wedge_product!(res, ::Val{0}, ::Val{1}, s::UniformCubicalComplex2D, f, a)
-  for e in edges(s)
-    x, y, align = edge_to_coord(s, e)
-    v1 = src(s, x, y, align)
-    v0 = tgt(s, x, y, align)
-    res[e] = 0.5 * (f[v0] + f[v1]) * a[e]
-  end
-  return res
-end
-
-wedge_product!(res, ::Val{1}, ::Val{0}, s::UniformCubicalComplex2D, a, f) = wedge_product!(res, Val(0), Val(1), s, f, a)
-
-function wedge_product!(res, ::Val{1}, ::Val{1}, s::UniformCubicalComplex2D, a, b)
-  for q in quads(s)
-    x, y = quad_to_coord(s, q)
-    es = quad_edges(s, x, y) # Order is (x-, y-, x+, y+)
-    res[q] = 0.25 * (a[es[1]] + a[es[3]]) * (b[es[2]] + b[es[4]]) - 0.25 * (a[es[2]] + a[es[4]]) * (b[es[1]] + b[es[3]])
-  end
-  return res
-end
-
-function wedge_product_dd(::Val{i}, ::Val{j}, s::UniformCubicalComplex2D, f, g) where {i, j}
-  k = i + j
-  if k == 0
-    res = zeros(nv(s))
-  elseif k == 1
-    res = zeros(ne(s))
-  elseif k == 2
-    res = zeros(nquads(s))
-  else
-    error("Invalid wedge product: forms of degree $i and $j cannot be wedged together in 2D")
-  end
-
-  return wedge_product_dd!(res, Val(i), Val(j), s, f, g)
-end
-
-# TODO: Make sure this is handling boundary cases correctly
-function wedge_product_dd!(res, ::Val{0}, ::Val{1}, s::UniformCubicalComplex2D, f, a)
-  for e in edges(s)
-    x, y, align = edge_to_coord(s, e)
-    dv1, dv2 = edge_quads(s, x, y, align)
-
-    ae = a[e]
-
-    if is_left_edge(s, x, y, align)
-      tmp = f[dv2] * ae
-    elseif is_right_edge(s, x, y, align)
-      tmp = f[dv1] * ae
-    elseif is_top_edge(s, x, y, align)
-      tmp = f[dv1] * ae
-    elseif is_bottom_edge(s, x, y, align)
-      tmp = f[dv2] * ae
-    else
-      tmp = 0.5 * (f[dv1] + f[dv2]) * ae
-    end
-
-    res[e] = tmp
-  end
-  return res
-end
-
-wedge_product_dd!(res, ::Val{1}, ::Val{0}, s::UniformCubicalComplex2D, a, f) = wedge_product_dd!(res, Val(0), Val(1), s, f, a)
-
-function sharp_dd!(X, Y, s::UniformCubicalComplex2D, a)
-  for dv in quads(s)
-    x, y = quad_to_coord(s, dv)
-    e1, e2, e3, e4 = quad_edges(s, x, y) # Order is (x-, y-, x+, y+)
-
-    le1 = dual_edge_len(s, e1)
-    le2 = dual_edge_len(s, e2)
-    le3 = dual_edge_len(s, e3)
-    le4 = dual_edge_len(s, e4)
-
-    # Remember that for an X-aligned primal edge, we have a Y-aligned dual edge
-    X[dv] = -(a[e2]/le2 + a[e4]/le4) / 2
-    Y[dv] = (a[e1]/le1 + a[e3]/le3) / 2
-  end
-  return X, Y
-end
-
-# Given a vector field on the dual points, return a one-form on the primal edges
-# Edge cases arise when primal edge is on the boundary of the grid, in which case we just take the value of the vector field at the single adjacent dual point
-function flat_dp!(res, s::UniformCubicalComplex2D, X, Y)
-  for e in edges(s)
-    x, y, align = edge_to_coord(s, e)
-    if align == X_ALIGN
-      if y == 1
-        res[e] = X[coord_to_quad(s,x,y)] * edge_len(s, X_ALIGN)
-      elseif y == ny(s)
-        res[e] = X[coord_to_quad(s,x,y-1)] * edge_len(s, X_ALIGN)
-      else
-        res[e] = 0.5 * (X[coord_to_quad(s,x,y)] + X[coord_to_quad(s,x,y-1)]) * edge_len(s, X_ALIGN)
-      end
-    else
-      if x == 1
-        res[e] = Y[coord_to_quad(s,x,y)] * edge_len(s, Y_ALIGN)
-      elseif x == nx(s)
-        res[e] = Y[coord_to_quad(s,x-1,y)] * edge_len(s, Y_ALIGN)
-      else
-        res[e] = 0.5 * (Y[coord_to_quad(s,x,y)] + Y[coord_to_quad(s,x-1,y)]) * edge_len(s, Y_ALIGN)
-      end
-    end
-  end
-  return res
-end
-
 # Create a matrix that maps values on dual points to primal points by taking the average of the adjacent dual points for each primal point
 # TODO: Write a test for this function to make sure it's doing what we expect, especially at the boundaries
 function interpolate_dp(::Val{0}, s::UniformCubicalComplex2D)
@@ -225,125 +104,32 @@ function interpolate_dp(::Val{0}, s::UniformCubicalComplex2D)
   return sparse(I, J, V)
 end
 
-function interpolate_dp(::Val{1}, s::UniformCubicalComplex2D, u::AbstractVector)
-  X = zeros(nquads(s)); Y = zeros(nquads(s))
-  v = zeros(ne(s))
+# @enum GridSide EASTWEST NORTHSOUTH ALL
 
-  sharp_dd!(X, Y, s, u)
-  flat_dp!(v, s, X, Y)
-  return v
-end
+# # TODO: Improve this function to handle non-constant halo values
+# # This function sets the halo values of a field defined on a grid with halo to the given value, by realigning the field
+# function set_halo!(f::AbstractVector, ::Val{0}, s::UniformCubicalComplex2D, value::AbstractFloat, side::GridSide)
+#   nx_, ny_ = nx(s), ny(s)
+#   hx_, hy_ = hx(s), hy(s)
 
-
-@enum GridSide EASTWEST NORTHSOUTH ALL
-
-# TODO: Improve this function to handle non-constant halo values
-# This function sets the halo values of a field defined on a grid with halo to the given value, by realigning the field
-function set_halo!(f::AbstractVector, ::Val{0}, s::UniformCubicalComplex2D, value::AbstractFloat, side::GridSide)
-  nx_, ny_ = nx(s), ny(s)
-  hx_, hy_ = hx(s), hy(s)
-
-  if side == EASTWEST || side == ALL
-    for i in 1:hx_, j in 1:ny_
-      f[coord_to_vert(s,i,j)] = value
-    end
-    for i in nx_-hx_+1:nx_, j in 1:ny_
-      f[coord_to_vert(s,i,j)] = value
-    end
-  end
-  if side == NORTHSOUTH || side == ALL
-    for i in 1:nx_, j in 1:hy_
-      f[coord_to_vert(s,i,j)] = value
-    end
-    for i in 1:nx_, j in ny_-hy_+1:ny_
-      f[coord_to_vert(s,i,j)] = value
-    end
-  end
-  return f
-end
-
-# This function sets the halo values depending on the interior values, by realigning the field and then setting the halo values to match the corresponding interior values on the opposite side of the grid
-function set_periodic!(f::AbstractVector, ::Val{0}, s::UniformCubicalComplex2D, side::GridSide)
-  nx_, ny_ = nx(s), ny(s)
-  hx_, hy_ = hx(s), hy(s)
-
-  if side == EASTWEST || side == ALL
-    for i in 1:hx_, j in 1:ny_ # Set the left halo to match the right interior
-      f[coord_to_vert(s,i,j)] = f[coord_to_vert(s,nx_-2hx_+i,j)]
-    end
-    for i in nx_-hx_+1:nx_, j in 1:ny_ # Set the right halo to match the left interior
-      f[coord_to_vert(s,i,j)] = f[coord_to_vert(s,2hx_+i-nx_,j)]
-    end
-  end
-  if side == NORTHSOUTH || side == ALL
-    for i in 1:nx_, j in 1:hy_ # Set the bottom halo to match the top interior
-      f[coord_to_vert(s,i,j)] = f[coord_to_vert(s,i,ny_-2hy_+j)]
-    end
-    for i in 1:nx_, j in ny_-hy_+1:ny_ # Set the top halo to match the bottom interior
-      f[coord_to_vert(s,i,j)] = f[coord_to_vert(s,i,2hy_+j-ny_)]
-    end
-  end
-  return f
-end
-
-function set_periodic!(f::AbstractVector, ::Val{1}, s::UniformCubicalComplex2D, side::GridSide)
-  nx_, ny_ = nxe(s), nye(s)
-  nxv_, nyv_ = nx(s), ny(s)
-  hx_, hy_ = hx(s), hy(s)
-
-  if side == EASTWEST || side == ALL
-    for i in 1:hx_, j in 1:nyv_ # Set the left x-edges to match the right interior
-      f[coord_to_edge(s,i,j,X_ALIGN)] = f[coord_to_edge(s,nx_-2hx_+i,j,X_ALIGN)]
-    end
-    for i in nx_-hx_+1:nx_, j in 1:nyv_ # Set the right x-edges to match the left interior
-      f[coord_to_edge(s,i,j,X_ALIGN)] = f[coord_to_edge(s,2hx_+i-nx_,j,X_ALIGN)]
-    end
-    for i in 1:hx_, j in 1:ny_ # Set the left y-edges to match the right interior
-      f[coord_to_edge(s,i,j,Y_ALIGN)] = f[coord_to_edge(s,nxv_-2hx_+i,j,Y_ALIGN)]
-    end
-    for i in nxv_-hx_+1:nxv_, j in 1:ny_ # Set the right y-edges to match the left interior
-      f[coord_to_edge(s,i,j,Y_ALIGN)] = f[coord_to_edge(s,2hx_+i-nxv_,j,Y_ALIGN)]
-    end
-  end
-  if side == NORTHSOUTH || side == ALL
-    for i in 1:nx_, j in 1:hy_ # Set the bottom x-edges to match the top interior
-      f[coord_to_edge(s,i,j,X_ALIGN)] = f[coord_to_edge(s,i,nyv_-2hy_+j,X_ALIGN)]
-    end
-    for i in 1:nx_, j in nyv_-hy_+1:nyv_ # Set the top x-edges to match the bottom interior
-      f[coord_to_edge(s,i,j,X_ALIGN)] = f[coord_to_edge(s,i,2hy_+j-nyv_,X_ALIGN)]
-    end
-    for i in 1:nxv_, j in 1:hy_ # Set bottom y-edges to match the top interior
-      f[coord_to_edge(s,i,j,Y_ALIGN)] = f[coord_to_edge(s,i,ny_-2hy_+j,Y_ALIGN)]
-    end
-    for i in 1:nxv_, j in ny_-hy_+1:ny_ # Set top y-edges to match the bottom interior
-      f[coord_to_edge(s,i,j,Y_ALIGN)] = f[coord_to_edge(s,i,2hy_+j-ny_,Y_ALIGN)]
-    end
-  end
-  return f
-end
-
-function set_periodic!(f::AbstractVector, ::Val{2}, s::UniformCubicalComplex2D, side::GridSide)
-  nx_, ny_ = nxquads(s), nyquads(s)
-  hx_, hy_ = hx(s), hy(s)
-
-  if side == EASTWEST || side == ALL
-    for i in 1:hx_, j in 1:ny_ # Set the left halo to match the right interior
-      f[coord_to_quad(s,i,j)] = f[coord_to_quad(s,nx_-2hx_+i,j)]
-    end
-    for i in nx_-hx_+1:nx_, j in 1:ny_ # Set the right halo to match the left interior
-      f[coord_to_quad(s,i,j)] = f[coord_to_quad(s,2hx_+i-nx_,j)]
-    end
-  end
-  if side == NORTHSOUTH || side == ALL
-    for i in 1:nx_, j in 1:hy_ # Set the bottom halo to match the top interior
-      f[coord_to_quad(s,i,j)] = f[coord_to_quad(s,i,ny_-2hy_+j)]
-    end
-    for i in 1:nx_, j in ny_-hy_+1:ny_ # Set the top halo to match the bottom interior
-      f[coord_to_quad(s,i,j)] = f[coord_to_quad(s,i,2hy_+j-ny_)]
-    end
-  end
-  return f
-end
+#   if side == EASTWEST || side == ALL
+#     for i in 1:hx_, j in 1:ny_
+#       f[coord_to_vert(s,i,j)] = value
+#     end
+#     for i in nx_-hx_+1:nx_, j in 1:ny_
+#       f[coord_to_vert(s,i,j)] = value
+#     end
+#   end
+#   if side == NORTHSOUTH || side == ALL
+#     for i in 1:nx_, j in 1:hy_
+#       f[coord_to_vert(s,i,j)] = value
+#     end
+#     for i in 1:nx_, j in ny_-hy_+1:ny_
+#       f[coord_to_vert(s,i,j)] = value
+#     end
+#   end
+#   return f
+# end
 
 # This functions gets the interior values of a field defined on a grid with halo, by realigning the field and then taking the appropriate view
 function interior(::Val{0}, f::AbstractVector, s::UniformCubicalComplex2D)
@@ -368,4 +154,56 @@ function interior(::Val{2}, f::AbstractVector, s::UniformCubicalComplex2D)
   real_x_range = (hx(s) + 1):(nxquads(s) - hx(s))
   real_y_range = (hy(s) + 1):(nyquads(s) - hy(s))
   return reshape(tmp[real_x_range, real_y_range], nquadsr(s))
+end
+
+# Smoothing for dual 0-forms (which live on quads/faces).
+# Each quad is averaged with its face-adjacent neighbors (sharing an edge),
+# weighted by the inverse distance between quad centers.
+function smoothing_dual0(s::UniformCubicalComplex2D, c_smooth)
+  n = nquads(s)
+  c = c_smooth / 2
+  inv_dx = 1 / dx(s)
+  inv_dy = 1 / dy(s)
+  nqx = nxquads(s)
+  nqy = nyquads(s)
+
+  # Pre-allocate COO arrays (at most 5 entries per quad: self + 4 neighbors)
+  max_nnz = 5 * n
+  I = Vector{Int}(undef, max_nnz)
+  J = Vector{Int}(undef, max_nnz)
+  V = Vector{Float64}(undef, max_nnz)
+  idx = 0
+
+  for q in quads(s)
+    x, y = quad_to_coord(s, q)
+
+    # Collect neighbor weights
+    has_left  = x > 1
+    has_right = x < nqx
+    has_down  = y > 1
+    has_up    = y < nqy
+
+    tot_w = (has_left + has_right) * inv_dx + (has_down + has_up) * inv_dy
+
+    if tot_w > 0
+      scale = c / tot_w
+      if has_left
+        idx += 1; I[idx] = q; J[idx] = coord_to_quad(s, x - 1, y); V[idx] = scale * inv_dx
+      end
+      if has_right
+        idx += 1; I[idx] = q; J[idx] = coord_to_quad(s, x + 1, y); V[idx] = scale * inv_dx
+      end
+      if has_down
+        idx += 1; I[idx] = q; J[idx] = coord_to_quad(s, x, y - 1); V[idx] = scale * inv_dy
+      end
+      if has_up
+        idx += 1; I[idx] = q; J[idx] = coord_to_quad(s, x, y + 1); V[idx] = scale * inv_dy
+      end
+    end
+
+    # Diagonal
+    idx += 1; I[idx] = q; J[idx] = q; V[idx] = 1 - c
+  end
+
+  return sparse(view(I, 1:idx), view(J, 1:idx), view(V, 1:idx), n, n)
 end

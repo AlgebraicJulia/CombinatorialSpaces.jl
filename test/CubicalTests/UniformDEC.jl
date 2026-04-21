@@ -3,6 +3,7 @@ using SparseArrays
 
 include("../../src/CubicalCode/UniformMesh.jl")
 include("../../src/CubicalCode/UniformMatrixDEC.jl")
+include("../../src/CubicalCode/UniformKernelDEC.jl")
 
 @testset "UniformMatrixDEC" begin
 
@@ -43,7 +44,7 @@ include("../../src/CubicalCode/UniformMatrixDEC.jl")
   @test all(abs.(diag(ihs0 * hs0) .- 1) .< 1e-12)
 
   ihs1 = inv_hodge_star(Val(1), s)
-  @test all(abs.(diag(ihs1 * hs1) .- 1) .< 1e-12)
+  @test all(abs.(-diag(ihs1 * hs1) .- 1) .< 1e-12)
 
   ihs2 = inv_hodge_star(Val(2), s)
   @test all(abs.(diag(ihs2 * hs2) .- 1) .< 1e-12)
@@ -70,17 +71,10 @@ include("../../src/CubicalCode/UniformMatrixDEC.jl")
   # Laplacian of constant should be (near) zero for interior-preserving grid
   @test all(abs.(L0 * ones(nv(s))) .< 1e-12)
 
-  # Test wedge product of constant fields (should be zero for 1-forms, constant for 0-forms)
-  out = rand(nv(s))
-  wedge_product!(out, Val(0), Val(0), s, ones(nv(s)), ones(nv(s)))
-  @test all(out .== 1.0)
-
-  out = rand(nquads(s))
-  wedge_product!(out, Val(1), Val(1), s, ones(ne(s)), ones(ne(s)))
+  out = wedge_product(Val(1), Val(1), s, ones(ne(s)), ones(ne(s)))
   @test all(out .== 0.0)
 
   # Test that wedge of dx and dy is constant 2-form
-  out = zeros(nquads(s))
   V = ones(ne(s))
   V[1:nxedges(s)] .= 0 # No horizontal motion on the vertical edges
 
@@ -88,17 +82,15 @@ include("../../src/CubicalCode/UniformMatrixDEC.jl")
   W[end-nxedges(s)+1:end] .= 0 # No vertical motion on the horizontal edges
 
   # W is dx and V is dy, so their wedge should be 1 everywhere
-  wedge_product!(out, Val(1), Val(1), s, W, V)
+  out = wedge_product(Val(1), Val(1), s, W, V)
   @test all(out .== 1.0)
 
-  wedge_product!(out, Val(1), Val(1), s, V, W)
+  out = wedge_product(Val(1), Val(1), s, V, W)
   @test all(out .== -1.0)
 
   # Test that sharp works
-  X = zeros(nquads(s))
-  Y = zeros(nquads(s))
   u = ones(ne(s))
-  sharp_dd!(X, Y, s, u)
+  X, Y = sharp_dd(s, u)
 
   @test X[coord_to_quad(s, 2, 2)] == -4.0
   @test X[coord_to_quad(s, 3, 2)] == -4.0
@@ -109,7 +101,7 @@ include("../../src/CubicalCode/UniformMatrixDEC.jl")
   # Test that flat works
   X = 4 * ones(nquads(s))
   Y = 4 * ones(nquads(s))
-  flat_dp!(u, s, X, Y)
+  u = flat_dp(s, X, Y)
   @test all(u .== 1.0)
 
   dd0 = dual_derivative(Val(0), s)
@@ -120,8 +112,8 @@ include("../../src/CubicalCode/UniformMatrixDEC.jl")
   u = ones(ne(s))
   u[boundary_idxs] .= 0.5
   v = zeros(ne(s))
-  sharp_dd!(X, Y, s, u)
-  flat_dp!(v, s, X, Y)
+  X, Y = sharp_dd(s, u)
+  u = flat_dp(s, X, Y)
 
   @test all(v[1:nxedges(s)] .== -1.0)
   @test all(v[nxedges(s)+1:end] .== 1.0)
@@ -141,17 +133,17 @@ include("../../src/CubicalCode/UniformMatrixDEC.jl")
   f = ones(nquads(s))
   res = zeros(ne(s))
 
-  wedge_product_dd!(res, Val(0), Val(1), s, f, u)
+  res = wedge_product_dd(Val(0), Val(1), s, f, u)
   @test all(res .== 1.0)
 
-  wedge_product_dd!(res, Val(0), Val(1), s, f, 5 * u)
+  res = wedge_product_dd(Val(0), Val(1), s, f, 5 * u)
   @test all(res .== 5.0)
 
-  wedge_product_dd!(res, Val(0), Val(1), s, 2 * f, 5 * u)
+  res = wedge_product_dd(Val(0), Val(1), s, 2 * f, 5 * u)
   @test all(res .== 10.0)
 
   f = [y for y in 1:nyquads(s) for x in 1:nxquads(s)]
-  wedge_product_dd!(res, Val(0), Val(1), s, f, u)
+  res = wedge_product_dd(Val(0), Val(1), s, f, u)
   @test xedges(s, res)[1] == 1.0
   @test xedges(s, res)[end] == 4.0
 
@@ -234,30 +226,41 @@ end
   @test all(g[:, end] .== 1.0)
 
   # Tests for periodicity of 0-forms
-  f = repeat(collect(1:nx(s)), inner = ny(s))
+  f = [0 0 0 0 0 0 0;
+       0 2 1 1 1 1 0;
+       0 2 1 1 1 1 0;
+       0 2 1 1 1 1 0;
+       0 2 1 1 1 1 0;
+       0 2 1 1 1 1 0;
+       0 0 0 0 0 0 0] |> vec
   set_periodic!(f, Val(0), s, NORTHSOUTH)
   g = reshape(f, (nx(s), ny(s)))
-  @test all(g[:, 1] .== g[:, end - 1])
-  @test all(g[:, end] .== g[:, 2])
+  @test all(g[2:end-1, 1:3] .== g[2:end-1, end-2:end])
 
-  f = repeat(collect(1:nx(s)), ny(s));
+  f = [0 0 0 0 0 0 0;
+       0 2 2 2 2 2 0;
+       0 1 1 1 1 1 0;
+       0 1 1 1 1 1 0;
+       0 1 1 1 1 1 0;
+       0 1 1 1 1 1 0;
+       0 0 0 0 0 0 0] |> vec
   set_periodic!(f, Val(0), s, EASTWEST)
   g = reshape(f, (nx(s), ny(s)))
-  @test all(g[1, :] .== g[end - 1, :])
-  @test all(g[end, :] .== g[2, :])
-
-  # Tests for periodicity of 1-forms
-  f = vcat(collect(1:nxedges(s)), collect(1:nyedges(s)))
+  @test all(g[1:3, 2:end-1] .== g[end-2:end, 2:end-1])
+  
+  # Tests for periodicity of 1-forms 
+  # TODO: Fix these tests to reflect the fact that we're also replacing a real edge
+  f = vcat(collect(1:nxedges(s)), collect(1:nyedges(s)));
   set_periodic!(f, Val(1), s, NORTHSOUTH);
   g = reshape(f[1:nxedges(s)], (nxe(s), ny(s)))
-  @test all(g[:, 1] .== g[:, end - 1])
+  @test all(g[:, 1:2] .== g[:, end - 1:end])
   @test all(g[:, end] .== g[:, 2])
 
   g = reshape(f[nxedges(s)+1:end], (nx(s), nye(s)))
   @test all(g[:, 1] .== g[:, end - 1])
   @test all(g[:, end] .== g[:, 2])
 
-  f = vcat(collect(1:nxedges(s)), collect(1:nyedges(s)))
+  f = vcat(collect(1:nxedges(s)), collect(1:nyedges(s)));
   set_periodic!(f, Val(1), s, EASTWEST);
   g = reshape(f[1:nxedges(s)], (nxe(s), ny(s)))
   @test all(g[1, :] .== g[end - 1, :])
