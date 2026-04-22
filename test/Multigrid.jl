@@ -81,6 +81,15 @@ s3[:tet_orientation] = true
 
 test_expected_parts_3d(s3, 2)
 
+# Munkres pp. 5: "Invariance under subdivisions"
+# Subdivision preserves volume (and the subdivided Omega has consistent orientation).
+s3_dual = EmbeddedDeltaDualComplex3D{Bool,Float64,Point3d}(s3)
+subdivide_duals!(s3_dual, Barycenter())
+s3_div = binary_subdivision(s3)
+s3_div_dual = EmbeddedDeltaDualComplex3D{Bool,Float64,Point3d}(s3)
+subdivide_duals!(s3_div_dual, Barycenter())
+@test isapprox(sum(s3_dual[:vol]), sum(s3_div_dual[:vol]))
+
 # Subdivision integration
 #------------------------
 
