@@ -31,8 +31,7 @@ colors = [Blue, Orange, Green, Beige, Teal, Purple]
 
 ## Binary Subdivision
 
-This subdivision takes each edge and replaces it with two edges by subdividing at the midpoint.
-The resulting mesh looks like the Tri-Force from the Legend of Zelda video games.
+This subdivision takes each edge and replaces it with two edges by subdividing at the midpoint. This is also sometimes called medial subdivision.
 
 ```@example subdivision
 s = EmbeddedDeltaSet2D{Float64, Point3d}()
