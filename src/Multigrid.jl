@@ -41,6 +41,9 @@ MeshTopology(s::EmbeddedDeltaSet1D) =
 MeshTopology(s::EmbeddedDeltaSet2D) =
   MeshTopology(nv(s), ne(s), ntriangles(s), s[:∂v0], s[:∂v1], s[:∂e0], s[:∂e1], s[:∂e2])
 
+MeshTopology(s::EmbeddedDeltaSet3D) =
+  MeshTopology(nv(s), ne(s), ntriangles(s), s[:∂v0], s[:∂v1], s[:∂e0], s[:∂e1], s[:∂e2])
+
 """
     topo_to_mesh(::Type{S}, topo::MeshTopology, points) -> S
 
@@ -453,6 +456,124 @@ end
 
 subdivision(s::EmbeddedDeltaSet2D, ::UnarySubdivision) = copy(s)
 subdivision(s::EmbeddedDeltaSet2D) = subdivision(s, BinarySubdivision())
+
+"""
+    subdivision(s::EmbeddedDeltaSet3D, ::BinarySubdivision) -> EmbeddedDeltaSet3D
+
+Binary subdivision of a 3D simplicial complex.  Each tetrahedron is split
+into 8 sub-tetrahedra via edge-midpoint insertion:
+
+- 4 "outer" tetrahedra, each sharing one original vertex with three
+  adjacent edge-midpoints.
+- 4 "inner" tetrahedra that subdivide the remaining octahedral region
+  along the diagonal connecting midpoints of a pair of opposite edges
+  (e₀ and e₅).
+
+Edge-to-vertex mapping for `tetrahedron_edges`:
+
+    e₀: v₂-v₃,  e₁: v₁-v₃,  e₂: v₁-v₂,  e₃: v₀-v₃,  e₄: v₀-v₂,  e₅: v₀-v₁
+
+Opposite edge pairs: e₀↔e₅, e₁↔e₄, e₂↔e₃.
+
+The counts after one subdivision level are:
+
+    V′ = V + E,  E′ = 2E + 3T + Tet,  T′ = 4T + 8·Tet,  Tet′ = 8·Tet
+
+The 2-skeleton (vertices, edges, triangles) is obtained by running the 2D
+binary subdivision on the triangulated surface, then normalising edge
+orientations to sorted order and rebuilding triangle ∂e assignments so that
+`glue_sorted_tetrahedron!` can correctly reuse existing simplices.
+"""
+function subdivision(s::EmbeddedDeltaSet3D, ::BinarySubdivision)
+  # Build the 2-skeleton via the 2D binary subdivision path.
+  topo = MeshTopology(s)
+  points = propagate_points(BinarySubdivision(), topo, s[:point])
+  topo2 = refine(BinarySubdivision(), topo)
+
+  sd = typeof(s)()
+  add_vertices!(sd, topo2.nv)
+  sd[1:topo2.nv, :point] = points
+  add_parts!(sd, :E, topo2.ne)
+  sd[1:topo2.ne, :∂v0] = topo2.∂v0
+  sd[1:topo2.ne, :∂v1] = topo2.∂v1
+  if topo2.ntri > 0
+    add_parts!(sd, :Tri, topo2.ntri)
+    sd[1:topo2.ntri, :∂e0] = topo2.∂e0
+    sd[1:topo2.ntri, :∂e1] = topo2.∂e1
+    sd[1:topo2.ntri, :∂e2] = topo2.∂e2
+  end
+
+  nv_orig = nv(s)
+
+  # After the 2D subdivision, some inner midpoint-to-midpoint edges may have
+  # non-sorted vertex assignments (∂v1 > ∂v0). Since glue_sorted_tetrahedron!
+  # uses get_edge! which only looks up edges in one direction (∂v1=src, ∂v0=tgt
+  # with src<tgt for sorted), we must normalize all edges to sorted order
+  # and then rebuild the triangle boundary assignments.
+  for e in edges(sd)
+    v0, v1 = sd[e, :∂v0], sd[e, :∂v1]
+    if v1 > v0
+      sd[e, :∂v0] = v1
+      sd[e, :∂v1] = v0
+    end
+  end
+
+  # Rebuild triangle boundary assignments based on vertex membership.
+  # For each triangle, find its three vertices from its edges, sort them,
+  # and reassign ∂e0, ∂e1, ∂e2 according to the sorted convention.
+  for t in triangles(sd)
+    es = triangle_edges(sd, t)
+    verts = Set{Int}()
+    for e in es
+      push!(verts, sd[e, :∂v0])
+      push!(verts, sd[e, :∂v1])
+    end
+    vs = sort(collect(verts))
+    if length(vs) != 3
+      # A well-formed triangle has exactly 3 distinct vertices from its
+      # 3 edges.  Fewer indicates a degenerate triangle.
+      continue
+    end
+    v0, v1, v2 = vs
+    # Compute sorted vertex pairs for each edge once, then match.
+    edge_verts = ((minmax(sd[es[1],:∂v0], sd[es[1],:∂v1]),
+                   minmax(sd[es[2],:∂v0], sd[es[2],:∂v1]),
+                   minmax(sd[es[3],:∂v0], sd[es[3],:∂v1])))
+    e_v1v2 = es[findfirst(==(minmax(v1, v2)), edge_verts)]
+    e_v0v2 = es[findfirst(==(minmax(v0, v2)), edge_verts)]
+    e_v0v1 = es[findfirst(==(minmax(v0, v1)), edge_verts)]
+    sd[t, :∂e0] = e_v1v2
+    sd[t, :∂e1] = e_v0v2
+    sd[t, :∂e2] = e_v0v1
+  end
+
+  # Add 8 sub-tetrahedra per original tetrahedron.
+  for tet in tetrahedra(s)
+    v0, v1, v2, v3 = tetrahedron_vertices(s, tet)
+    tet_edges = tetrahedron_edges(s, tet)
+
+    # Midpoint vertices: m[i] = midpoint of tet_edges[i]
+    m = tet_edges .+ nv_orig
+
+    # 4 outer tetrahedra (one per original vertex, opposite face's midpoints)
+    glue_sorted_tetrahedron!(sd, v0, m[4], m[5], m[6])
+    glue_sorted_tetrahedron!(sd, v1, m[2], m[3], m[6])
+    glue_sorted_tetrahedron!(sd, v2, m[1], m[3], m[5])
+    glue_sorted_tetrahedron!(sd, v3, m[1], m[2], m[4])
+
+    # 4 inner tetrahedra (octahedral subdivision with diagonal m[1]-m[6])
+    # m[1]=mid(v2-v3), m[6]=mid(v0-v1) are opposite edges
+    # Equator: m[2]=mid(v1-v3), m[3]=mid(v1-v2), m[4]=mid(v0-v3), m[5]=mid(v0-v2)
+    # Adjacent equator pairs sharing an original vertex:
+    #   m[2]-m[3] (v1), m[3]-m[5] (v2), m[5]-m[4] (v0), m[4]-m[2] (v3)
+    glue_sorted_tetrahedron!(sd, m[1], m[6], m[2], m[3])
+    glue_sorted_tetrahedron!(sd, m[1], m[6], m[3], m[5])
+    glue_sorted_tetrahedron!(sd, m[1], m[6], m[5], m[4])
+    glue_sorted_tetrahedron!(sd, m[1], m[6], m[4], m[2])
+  end
+
+  sd
+end
 
 """
     subdivision_map(s, scheme) -> PrimalGeometricMap
