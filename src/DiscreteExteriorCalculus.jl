@@ -1775,8 +1775,7 @@ end
 
 function inv_hodge_star(::Val{1}, s::AbstractDeltaDualComplex2D,
                         ::GeometricHodge)
-  hodge = Matrix(⋆(Val(1), s, GeometricHodge()))
-  factorize(-1 * hodge) \ Matrix{eltype(hodge)}(I, size(hodge)...)
+  factorize(-1 * Matrix(⋆(Val(1), s, GeometricHodge()))) \ I
 end
 function inv_hodge_star(::Val{1}, s::AbstractDeltaDualComplex2D,
                         form::AbstractVector, ::GeometricHodge)
