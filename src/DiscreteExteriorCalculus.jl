@@ -37,7 +37,7 @@ import LinearAlgebra: mul!
 import StaticArrays: deleteat
 
 using GeometryBasics: Point2, Point3, Point2d, Point3d
-using LinearAlgebra: Diagonal, dot, norm, cross, pinv, normalize
+using LinearAlgebra: Diagonal, I, dot, norm, cross, pinv, normalize, factorize
 using SparseArrays
 using StaticArrays: @SVector, SVector, SMatrix, MVector, MMatrix, StaticVector
 using Statistics: mean
@@ -1775,11 +1775,12 @@ end
 
 function inv_hodge_star(::Val{1}, s::AbstractDeltaDualComplex2D,
                         ::GeometricHodge)
-  -1 * inv(Matrix(⋆(Val(1), s, GeometricHodge())))
+  hodge = Matrix(⋆(Val(1), s, GeometricHodge()))
+  factorize(-1 * hodge) \ Matrix{eltype(hodge)}(I, size(hodge)...)
 end
 function inv_hodge_star(::Val{1}, s::AbstractDeltaDualComplex2D,
                         form::AbstractVector, ::GeometricHodge)
-  -1 * (Matrix(⋆(Val(1), s, GeometricHodge())) \ form)
+  factorize(-1 * Matrix(⋆(Val(1), s, GeometricHodge()))) \ form
 end
 
 inv_hodge_star(::Val{0}, s::AbstractDeltaDualComplex2D, ::GeometricHodge) =

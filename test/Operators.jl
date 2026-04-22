@@ -220,6 +220,17 @@ end
         end
     end
 
+    hodge_1 = dec_hodge_star(1, tg, GeometricHodge())
+    rhs = dec_dual_derivative(0, tg) * map(p -> 2 * p[1], tg[tg[:tri_center], :dual_point])
+    fast_sol = dec_inv_hodge_star(1, tg, GeometricHodge())(rhs)
+    old_sol = inv_hodge_star(1, tg, rhs, GeometricHodge())
+    dense_hodge_1 = Matrix(hodge_1)
+
+    @test rank(dense_hodge_1) == size(dense_hodge_1, 1)
+    @test cond(dense_hodge_1) < 3
+    @test norm((-dense_hodge_1) * fast_sol - rhs) / norm(rhs) < 1e-12
+    @test norm((-dense_hodge_1) * old_sol - rhs) / norm(rhs) < 1e-12
+
 end
 
 @testset "Wedge Product" begin
