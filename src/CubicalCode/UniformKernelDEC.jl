@@ -172,6 +172,39 @@ function flat_dp(s::UniformCubicalComplex2D, X, Y)
   return res
 end
 
+# Flat, convert dual vector field to dual 1-form
+@kernel function kernel_flat_dd(res, s, X, Y)
+  idx = @index(Global)
+  x, y, align = edge_to_coord(s, idx)
+
+  if align == X_ALIGN
+    if y == 1
+      res[idx] = Y[coord_to_quad(s, x, y)] * dual_edge_len(s, idx)
+    elseif y == ny(s)
+      res[idx] = Y[coord_to_quad(s, x, y - 1)] * dual_edge_len(s, idx)
+    else
+      res[idx] = 0.5 * (Y[coord_to_quad(s, x, y)] + Y[coord_to_quad(s, x, y - 1)]) * dual_edge_len(s, idx)
+    end
+  else
+    if x == 1
+      res[idx] = -X[coord_to_quad(s, x, y)] * dual_edge_len(s, idx)
+    elseif x == nx(s)
+      res[idx] = -X[coord_to_quad(s, x - 1, y)] * dual_edge_len(s, idx)
+    else
+      res[idx] = -0.5 * (X[coord_to_quad(s, x, y)] + X[coord_to_quad(s, x - 1, y)]) * dual_edge_len(s, idx)
+    end
+  end
+end
+
+function flat_dd(s::UniformCubicalComplex2D, X, Y)
+  backend = get_backend(X)
+  res = KernelAbstractions.zeros(backend, Float64, ne(s))
+  kernel = kernel_flat_dd(backend)
+
+  kernel(res, s, X, Y; ndrange = size(res))
+  return res
+end
+
 # TODO: Why is there scalar indexing in this function? Can we remove it to make it more efficient on the GPU?
 function interpolate_dp(::Val{1}, s::UniformCubicalComplex2D, a)
   backend = get_backend(a)
