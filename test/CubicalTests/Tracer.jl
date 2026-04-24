@@ -6,7 +6,7 @@ using SparseArrays
 using StaticArrays
 using CUDA
 using CUDA.CUSPARSE
-# using OrdinaryDiffEq
+using OrdinaryDiffEqSSPRK
 
 CUDA.allowscalar(false)
 
@@ -23,8 +23,12 @@ include("../../src/CubicalCode/UniformDEC.jl")
 ### Grid Setup      ###
 #######################
 
+const default_n = 257
+const nx_env = get(ENV, "CS_TRACER_N", string(default_n))
+const nx_ = parse(Int, nx_env)
+const ny_ = nx_
+
 const lx_ = ly_ = 1.0
-const nx_ = ny_ = 513 # 129, 257, 513 for higher resolution tests (requires more memory and time)
 const s = UniformCubicalComplex2D(nx_, ny_, lx_, ly_, halo_x = 4, halo_y = 4)
 
 const kappa   = 1e-5
@@ -68,7 +72,8 @@ const dΔ0 = to_device(cpu_dΔ0);
 println("DEC operators constructed.")
 println("Loading simulation files...")
 
-simname = "Diagonal" # "Diagonal", "Stretch", "Rotate", "CircularVortex", "ReversedVortex"
+simname = get(ENV, "CS_TRACER_SIM", "Diagonal") # "Diagonal", "Stretch", "Rotate", "CircularVortex", "ReversedVortex"
+println("Tracer configuration: sim=$(simname), n=$(nx_)x$(ny_)")
 include("Tracer_Files/Adv_Tests.jl")
 
 ###############################
@@ -120,72 +125,58 @@ function run_tracer(
     dt::Float64,
     kappa::Float64;
     saveat::Int = 100,
+    mass_every::Int = saveat,
 )
-    phi_star      = deepcopy(phi_star_0)
-    phi_star_1    = similar(phi_star)
-    phi_star_2    = similar(phi_star)
-    phi_star_full = similar(phi_star)
-
     steps = ceil(Int64, te / dt)
+    save_every = max(1, saveat)
+    mass_every = max(1, mass_every)
 
-    phis = [Array(hdg_2 * phi_star_0)]
-    m₀   = sum(phis[1])
+    u0 = deepcopy(phi_star_0)
+    m₀ = sum(hdg_2 * u0)
 
-    error_encountered = false
+    function rhs!(dphi_star, phi_star, p, t)
+        set_periodic!(phi_star, Val(2), s, ALL)
 
-    for step in 1:steps
-
-        t = step * dt
-
-        # Stage 1
         X = generate_X(s, t, te)
         Y = generate_Y(s, t, te)
         u = flat_dd(s, X, Y)
         v = flat_dp(s, X, Y)
 
-        phi_star_1    .= phi_star .+ dt .* tracer_continuity(u, v, phi_star, kappa)
-        set_periodic!(phi_star_1, Val(2), s, ALL)
-
-        # Stage 2
-        X = generate_X(s, t + 0.25 * dt, te)
-        Y = generate_Y(s, t + 0.25 * dt, te)
-        u = flat_dd(s, X, Y)
-        v = flat_dp(s, X, Y)
-
-        phi_star_2    .= 0.75 .* phi_star .+ 0.25 .* phi_star_1 .+
-                         0.25 .* dt .* tracer_continuity(u, v, phi_star_1, kappa)
-        set_periodic!(phi_star_2, Val(2), s, ALL)
-
-        # Stage 3
-        X = generate_X(s, t + (2/3) * dt, te)
-        Y = generate_Y(s, t + (2/3) * dt, te)
-        u = flat_dd(s, X, Y)
-        v = flat_dp(s, X, Y)
-
-        phi_star_full .= (1/3) .* phi_star .+ (2/3) .* phi_star_2 .+
-                         (2/3) .* dt .* tracer_continuity(u, v, phi_star_2, kappa)
-        set_periodic!(phi_star_full, Val(2), s, ALL)
-
-        phi_star .= phi_star_full
-
-        if any(isnan, phi_star)
-            println("Warning: NaN detected at step $step")
-            error_encountered = true
-        elseif any(isinf, phi_star)
-            println("Warning: Inf detected at step $step")
-            error_encountered = true
-        end
-
-        if step % saveat == 0 || step == steps || error_encountered
-            snap = hdg_2 * phi_star
-            push!(phis, Array(snap))
-            m = sum(snap)
-            println(@sprintf("Step %6d/%d | Relative mass: %.4f%%", step, steps, 100 * m / m₀))
-            flush(stdout)
-        end
-
-        error_encountered && break
+        dphi_star .= tracer_continuity(u, v, phi_star, kappa)
+        return nothing
     end
+
+    mass_condition(u, t, integrator) = integrator.iter > 0 && (integrator.iter % mass_every == 0)
+
+    function mass_affect!(integrator)
+        snap = hdg_2 * integrator.u
+        m = sum(snap)
+        println(@sprintf("Step %6d/%d | Relative mass: %.4f%%", integrator.iter, steps, 100 * m / m₀))
+        flush(stdout)
+        return nothing
+    end
+
+    callbacks = CallbackSet(
+        DiscreteCallback(mass_condition, mass_affect!; save_positions = (false, false))
+    )
+
+    prob = ODEProblem(rhs!, u0, (0.0, te))
+    sol = solve(
+        prob,
+        SSPRK33();
+        dt = dt,
+        adaptive = false,
+        saveat = dt * save_every,
+        save_start = true,
+        save_end = true,
+        callback = callbacks,
+    )
+
+    phis = [Array(hdg_2 * u) for u in sol.u]
+
+    final_step = Int(round(sol.t[end] / dt))
+    final_mass = sum(hdg_2 * sol.u[end])
+    println(@sprintf("Final step %6d/%d | Relative mass: %.4f%%", final_step, steps, 100 * final_mass / m₀))
 
     return phis
 end
