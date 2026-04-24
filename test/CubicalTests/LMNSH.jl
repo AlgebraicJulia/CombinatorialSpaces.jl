@@ -6,20 +6,24 @@ using LinearAlgebra
 using Printf
 using SparseArrays
 using JLD2
+using ComponentArrays
 using Distributions
+using OrdinaryDiffEqSSPRK
+using DiffEqCallbacks
 
-include("../../src/CubicalCode/UniformMesh.jl")
-include("../../src/CubicalCode/UniformMatrixDEC.jl")
-include("../../src/CubicalCode/UniformKernelDEC.jl")
-include("../../src/CubicalCode/UniformPlotting.jl")
+include("../../src/CubicalCode/UniformDEC.jl")
 
 CUDA.allowscalar(false)
 
 const USE_CUDA = CUDA.functional()
 println("CUDA is functional: $USE_CUDA")
 
-to_device(arr::AbstractVector) = USE_CUDA ? CuVector{Float64}(arr) : arr
-to_device(mat::AbstractMatrix) = USE_CUDA ? CuSparseMatrixCSC{Float64}(mat) : SparseMatrixCSC{Float64}(mat)
+# Toggle this to start from latest checkpoint instead of initial conditions.
+const RESUME_FROM_CHECKPOINT = false
+
+to_device(arr::AbstractVector{FT}) where FT <: AbstractFloat = USE_CUDA ? CuVector{FT}(arr) : arr
+to_device(arr::AbstractVector{T}) where T = USE_CUDA ? CuVector{T}(arr) : arr
+to_device(mat::AbstractMatrix{FT}) where FT <: AbstractFloat = USE_CUDA ? CuSparseMatrixCSC{FT}(mat) : SparseMatrixCSC{FT}(mat)
 
 #################################
 ### Simulation Initialization ###
@@ -27,8 +31,8 @@ to_device(mat::AbstractMatrix) = USE_CUDA ? CuSparseMatrixCSC{Float64}(mat) : Sp
 
 include(joinpath(@__DIR__, "LMNS_Helpers", "Physics.jl"))
 
-# simfile = "Kelvin-Helmholtz_Sim.jl"
-simfile = "Thermal_Bubble_Sim.jl"
+simfile = "Kelvin-Helmholtz_Sim.jl"
+# simfile = "Thermal_Bubble_Sim.jl"
 
 # Test case parameters for lid-driven cavity flow at different Reynolds numbers
 include(joinpath(@__DIR__, "Sim_Files", simfile))
@@ -95,7 +99,11 @@ include(joinpath(@__DIR__, "LMNS_Helpers", "Physics_Plotting.jl"))
 println("Setting up physical operators...")
 
 # TODO: Precompute some matrix products to speed up the loop
-function momentum_continuity(U_star::AbstractVector{Float64}, rho_star::AbstractVector{Float64}, Theta_star::AbstractVector{Float64}, p::Dict{Symbol, Float64}, use_gravity=false)
+function momentum_continuity(state::ComponentVector{Float64}, p::NamedTuple, use_gravity::Bool=false)
+  U_star = state.U_star
+  rho_star = state.rho_star
+  Theta_star = state.Theta_star
+
   U = hdg_1 * U_star
   rho = hdg_2 * rho_star
   Theta = hdg_2 * Theta_star
@@ -139,7 +147,11 @@ function momentum_continuity(U_star::AbstractVector{Float64}, rho_star::Abstract
   return -inv_hdg_1 * (-div_term - L_term + energy - diff_p + lap_term)
 end
 
-function potential_temperature_continuity(U_star::AbstractVector{Float64}, rho_star::AbstractVector{Float64}, Theta_star::AbstractVector{Float64}, p::Dict{Symbol, Float64})
+function potential_temperature_continuity(state::ComponentVector{Float64}, p::NamedTuple)
+  U_star = state.U_star
+  rho_star = state.rho_star
+  Theta_star = state.Theta_star
+
   U = hdg_1 * U_star
   rho = hdg_2 * rho_star
   Theta = hdg_2 * Theta_star
@@ -167,243 +179,237 @@ function potential_temperature_continuity(U_star::AbstractVector{Float64}, rho_s
   return inv_hdg_2 * (-temperature_creation - temperature_advection + temperature_diffusion)
 end
 
-# function run_compressible_ns(U_star_0::AbstractVector{Float64}, rho_star_0::AbstractVector{Float64}, Theta_star_0::AbstractVector{Float64}, te::Float64, dt::Float64, p::Dict{Symbol, Float64}; saveat::Int=500, checkpoint_at::Int=10_000, start_step::Int=1, use_gravity::Bool=false)
+function latest_checkpoint_path(checkpoint_dir::AbstractString)
+  isdir(checkpoint_dir) || return nothing
 
-#   U_star = deepcopy(U_star_0)
-#   rho_star = deepcopy(rho_star_0)
-#   Theta_star = deepcopy(Theta_star_0)
+  re = r"^checkpoint_step_(\d+)\.jld2$"
+  latest_step = -1
+  latest_file = nothing
 
-#   U_star_half = similar(U_star)
-#   Theta_star_half = similar(Theta_star)
+  for file in readdir(checkpoint_dir)
+    m = match(re, file)
+    m === nothing && continue
 
-#   rho_star_half = similar(rho_star)
-#   rho_star_full = similar(rho_star)
-
-#   steps = ceil(Int64, te / dt)
-
-#   Us = [Array(hdg_1 * U_star_0)]
-#   rhos = [Array(hdg_2 * rho_star_0)]
-#   Thetas = [Array(hdg_2 * Theta_star_0)]
-
-#   m₀ = sum(interior(Val(2), Array(rho_star_0), s))
-#   E₀ = sum(interior(Val(2), Array(Theta_star_0), s))
-
-#   error_encounted = false
-
-#   for step in start_step:steps
-
-#     set_periodic!(U_star, Val(1), s, ALL)
-#     set_periodic!(rho_star, Val(2), s, ALL)
-#     set_periodic!(Theta_star, Val(2), s, ALL)
-
-#     U_star_half .= U_star .+ 0.5 * dt * momentum_continuity(U_star, rho_star, Theta_star, p, use_gravity)
-#     Theta_star_half .= Theta_star .+ 0.5 * dt * potential_temperature_continuity(U_star, rho_star, Theta_star, p)
-#     # enforce_bc_U!(U_star_half)
-
-#     set_periodic!(U_star_half, Val(1), s, ALL)
-#     set_periodic!(Theta_star_half, Val(2), s, ALL)
-
-#     rho_star_full .= rho_smoothing * (rho_star + dt * d1 * U_star_half) # Mass changes by momentum flux
-#     set_periodic!(rho_star_full, Val(2), s, ALL)
-
-#     rho_star_half .= 0.5 .* (rho_star .+ rho_star_full)
-
-#     U_star .= U_star .+ dt * momentum_continuity(U_star_half, rho_star_half, Theta_star_half, p, use_gravity)
-#     Theta_star .= Theta_smoothing * (Theta_star .+ dt * potential_temperature_continuity(U_star_half, rho_star_half, Theta_star_half, p))
-#     # enforce_bc_U!(U_star)
-
-#     rho_star .= rho_star_full
-
-#     if any(isnan, U_star)
-#       println("Warning, NAN result in U at step: $(step)")
-#       error_encounted = true
-#     elseif any(isinf, U_star)
-#       println("Warning, INF result in U at step: $(step)")
-#       error_encounted = true
-#     elseif any(isnan, rho_star)
-#       println("Warning, NAN result in rho_star at step: $(step)")
-#       error_encounted = true
-#     elseif any(isinf, rho_star)
-#       println("Warning, INF result in rho_star at step: $(step)")
-#       error_encounted = true
-#     elseif any(isnan, Theta_star)
-#       println("Warning, NAN result in Theta_star at step: $(step)")
-#       error_encounted = true
-#     elseif any(isinf, Theta_star)
-#       println("Warning, INF result in Theta_star at step: $(step)")
-#       error_encounted = true
-#     end
-
-#     if step % saveat == 0 || step == steps || error_encounted
-#       push!(Us, Array(hdg_1 * U_star))
-#       push!(rhos, Array(hdg_2 * rho_star))
-#       push!(Thetas, Array(hdg_2 * Theta_star))
-#       println("Loading simulation results: $((step / steps) * 100)%")
-#       println("Relative mass is : $((sum(interior(Val(2), Array(rho_star), s)) / m₀) * 100)%")
-#       println("Relative energy is : $((sum(interior(Val(2), Array(Theta_star), s)) / E₀) * 100)%")
-#       println("-----")
-
-#       flush(stdout)
-#     end
-
-#     if step % checkpoint_at == 0 || step == steps || error_encounted
-#       # @save joinpath(save_path, "checkpoint_step_$(step).jld2") Us rhos Thetas
-#       println("Checkpoint saved at step: $(step)")
-#       println("Generating plots and mp4 for checkpoint...")
-
-#       fin_U = Us[end]
-#       fin_rho = rhos[end]
-#       fin_Theta = Thetas[end]
-
-#       time = @sprintf("%.6f", step * dt)
-#       file_end = "$(simspec)_t=$(time)"
-
-#       # plot_vorticity(s, fin_U, file_end, time)
-#       plot_density(s, fin_rho, file_end, time)
-#       # plot_velocity_magnitude(s, fin_U, file_end, time)
-#       plot_pressure(s, fin_Theta, file_end, time)
-#       plot_velocity_components(s, fin_U, file_end, time)
-
-#       create_mp4(Us, rhos, Thetas, file_end; records = div(checkpoint_at, saveat))
-
-#       # To prevent memory overflow, we can clear the saved states after checkpointing
-#       Us = [fin_U]
-#       rhos = [fin_rho]
-#       Thetas = [fin_Theta]
-
-#       println("Plots and mp4 generated for checkpoint at step: $(step)")
-#       println("-----")
-#       flush(stdout)
-#     end
-
-#     error_encounted && break
-#   end
-# end
-
-function run_compressible_ns(U_star_0::AbstractVector{Float64}, rho_star_0::AbstractVector{Float64}, Theta_star_0::AbstractVector{Float64}, te::Float64, dt::Float64, p::Dict{Symbol, Float64}; saveat::Int=500, checkpoint_at::Int=10_000, start_step::Int=1, use_gravity::Bool=false)
-
-  U_star = deepcopy(U_star_0)
-  Theta_star = deepcopy(Theta_star_0)
-  rho_star = deepcopy(rho_star_0)
-
-  U_star_1 = similar(U_star)
-  Theta_star_1 = similar(Theta_star)
-  rho_star_1 = similar(rho_star)
-
-  U_star_2 = similar(U_star)
-  Theta_star_2 = similar(Theta_star)
-  rho_star_2 = similar(rho_star)
-
-  U_star_full = similar(U_star)
-  Theta_star_full = similar(Theta_star)
-  rho_star_full = similar(rho_star)
-
-  steps = ceil(Int64, te / dt)
-
-  Us = [Array(hdg_1 * U_star_0)]
-  rhos = [Array(hdg_2 * rho_star_0)]
-  Thetas = [Array(hdg_2 * Theta_star_0)]
-
-  m₀ = sum(interior(Val(2), Array(rho_star_0), s))
-  E₀ = sum(interior(Val(2), Array(Theta_star_0), s))
-
-  error_encounted = false
-
-  for step in start_step:steps
-
-    # set_periodic!(U_star, Val(1), s, ALL)
-    # set_periodic!(rho_star, Val(2), s, ALL)
-    # set_periodic!(Theta_star, Val(2), s, ALL)
-
-
-    U_star_1 .= U_star .+ dt .* momentum_continuity(U_star, rho_star, Theta_star, p, use_gravity)
-    Theta_star_1 .= Theta_star .+ dt .* potential_temperature_continuity(U_star, rho_star, Theta_star, p)
-    rho_star_1 .= rho_star .+ dt .* d1 * U_star_1 # Mass changes by momentum flux
-    enforce_bc_U!(U_star_1)
-
-    U_star_2 .= 0.75 .* U_star .+ 0.25 .* U_star_1 .+ 0.25 .* dt .* momentum_continuity(U_star_1, rho_star_1, Theta_star_1, p, use_gravity)
-    Theta_star_2 .= 0.75 .* Theta_star .+ 0.25 .* Theta_star_1 .+ 0.25 .* dt .* potential_temperature_continuity(U_star_1, rho_star_1, Theta_star_1, p)
-    rho_star_2 .= 0.75 .* rho_star .+ 0.25 .* rho_star_1 .+ 0.25 .* dt .* d1 * U_star_1
-    enforce_bc_U!(U_star_2)
-
-    U_star_full .= (1/3) .* U_star .+ (2/3) .* U_star_2 .+ (2/3) .* dt .* momentum_continuity(U_star_2, rho_star_2, Theta_star_2, p, use_gravity)
-    Theta_star_full .= (1/3) .* Theta_star .+ (2/3) .* Theta_star_2 .+ (2/3) .* dt .* potential_temperature_continuity(U_star_2, rho_star_2, Theta_star_2, p)
-    rho_star_full .= (1/3) .* rho_star .+ (2/3) .* rho_star_2 .+ (2/3) .* dt .* d1 * U_star_2
-    enforce_bc_U!(U_star_full)
-
-    U_star .= U_star_full
-    Theta_star .= Theta_smoothing * Theta_star_full
-    rho_star .= rho_smoothing * rho_star_full
-
-    if any(isnan, U_star)
-      println("Warning, NAN result in U at step: $(step)")
-      error_encounted = true
-    elseif any(isinf, U_star)
-      println("Warning, INF result in U at step: $(step)")
-      error_encounted = true
-    elseif any(isnan, rho_star)
-      println("Warning, NAN result in rho_star at step: $(step)")
-      error_encounted = true
-    elseif any(isinf, rho_star)
-      println("Warning, INF result in rho_star at step: $(step)")
-      error_encounted = true
-    elseif any(isnan, Theta_star)
-      println("Warning, NAN result in Theta_star at step: $(step)")
-      error_encounted = true
-    elseif any(isinf, Theta_star)
-      println("Warning, INF result in Theta_star at step: $(step)")
-      error_encounted = true
+    step = parse(Int, m.captures[1])
+    if step > latest_step
+      latest_step = step
+      latest_file = joinpath(checkpoint_dir, file)
     end
-
-    if step % saveat == 0 || step == steps || error_encounted
-      push!(Us, Array(hdg_1 * U_star))
-      push!(rhos, Array(hdg_2 * rho_star))
-      push!(Thetas, Array(hdg_2 * Theta_star))
-      println("Loading simulation results: $((step / steps) * 100)%")
-      println("Relative mass is : $((sum(interior(Val(2), Array(rho_star), s)) / m₀) * 100)%")
-      println("Relative energy is : $((sum(interior(Val(2), Array(Theta_star), s)) / E₀) * 100)%")
-      println("-----")
-
-      flush(stdout)
-    end
-
-    if step % checkpoint_at == 0 || step == steps || error_encounted
-      @save joinpath(save_path, "checkpoint_step_$(step).jld2") Us rhos Thetas
-      println("Checkpoint saved at step: $(step)")
-      println("Generating plots and mp4 for checkpoint...")
-
-      fin_U = Us[end]
-      fin_rho = rhos[end]
-      fin_Theta = Thetas[end]
-
-      time = @sprintf("%.6f", step * dt)
-      file_end = "$(simspec)_t=$(time)"
-
-      plot_vorticity(s, fin_U, file_end, time)
-      plot_density(s, fin_rho, file_end, time)
-      # plot_velocity_magnitude(s, fin_U, file_end, time)
-      plot_pressure(s, fin_Theta, file_end, time)
-      plot_velocity_components(s, fin_U, file_end, time)
-
-      create_mp4(Us, rhos, Thetas, file_end; records = div(checkpoint_at, saveat))
-
-      # To prevent memory overflow, we can clear the saved states after checkpointing
-      Us = [fin_U]
-      rhos = [fin_rho]
-      Thetas = [fin_Theta]
-
-      println("Plots and mp4 generated for checkpoint at step: $(step)")
-      println("-----")
-      flush(stdout)
-    end
-
-    error_encounted && break
   end
+
+  return latest_file
 end
 
+function split_flat_state(state_flat::AbstractVector, nU::Int, nrho::Int, nTheta::Int)
+  U_star = state_flat[1:nU]
+  rho_star = state_flat[(nU + 1):(nU + nrho)]
+  Theta_star = state_flat[(nU + nrho + 1):(nU + nrho + nTheta)]
+  return U_star, rho_star, Theta_star
+end
+
+function extract_state_triplet(state_like, nU::Int, nrho::Int, nTheta::Int)
+  if hasproperty(state_like, :U_star) && hasproperty(state_like, :rho_star) && hasproperty(state_like, :Theta_star)
+    return state_like.U_star, state_like.rho_star, state_like.Theta_star
+  end
+  return split_flat_state(Array(state_like), nU, nrho, nTheta)
+end
+
+# TODO: Check this function for correctness
+function load_checkpoint_state(checkpoint_path::AbstractString, nU::Int, nrho::Int, nTheta::Int)
+  data = JLD2.load(checkpoint_path)
+
+  checkpoint_t = Float64(data["checkpoint_t"])
+  checkpoint_step = Int(data["checkpoint_step"])
+  checkpoint_state = data["checkpoint_state"]
+
+  if checkpoint_state isa AbstractVector && !isempty(checkpoint_state)
+    U_star, rho_star, Theta_star = extract_state_triplet(checkpoint_state[end], nU, nrho, nTheta)
+  elseif hasproperty(checkpoint_state, :u)
+    checkpoint_u = checkpoint_state.u[end]
+    U_star, rho_star, Theta_star = extract_state_triplet(checkpoint_u, nU, nrho, nTheta)
+  else
+    U_star, rho_star, Theta_star = extract_state_triplet(checkpoint_state, nU, nrho, nTheta)
+  end
+
+  return (
+    state = ComponentArray(
+      U_star = to_device(U_star),
+      rho_star = to_device(rho_star),
+      Theta_star = to_device(Theta_star),
+    ),
+    checkpoint_t = checkpoint_t,
+    checkpoint_step = checkpoint_step,
+  )
+end
+
+function initialize_state(U_star_0::AbstractVector{Float64}, rho_star_0::AbstractVector{Float64}, Theta_star_0::AbstractVector{Float64}; resume::Bool=false, checkpoint_dir::AbstractString=save_path)
+  nU = length(U_star_0)
+  nrho = length(rho_star_0)
+  nTheta = length(Theta_star_0)
+
+  if resume
+    checkpoint_path = latest_checkpoint_path(checkpoint_dir)
+    if checkpoint_path !== nothing
+      loaded = load_checkpoint_state(checkpoint_path, nU, nrho, nTheta)
+      start_step = loaded.checkpoint_step + 1
+      start_time = loaded.checkpoint_t
+      println("Resuming from checkpoint $(checkpoint_path)")
+      println("Resuming from t=$(start_time), step=$(start_step)")
+      return loaded.state, start_time, start_step
+    end
+    println("No checkpoint found in $(checkpoint_dir); starting from initial condition.")
+  end
+
+  state = ComponentArray(
+    U_star = deepcopy(U_star_0),
+    rho_star = deepcopy(rho_star_0),
+    Theta_star = deepcopy(Theta_star_0),
+  )
+
+  return state, 0.0, 1
+end
+
+# TODO: Type stability for this function
+function run_compressible_ns(u0::ComponentVector{Float64}, te::Float64, dt::Float64, p; saveat::Int=500, checkpoint_at::Int=10_000, start_step::Int=1, start_time::Float64=0.0, use_gravity::Bool=false)
+  
+  m₀ = sum(interior(Val(2), Array(u0.rho_star), s))
+  E₀ = sum(interior(Val(2), Array(u0.Theta_star), s))
+
+  function rhs!(du, u, p_rhs, t)
+    du.U_star .= momentum_continuity(u, p_rhs, use_gravity)
+    du.Theta_star .= potential_temperature_continuity(u, p_rhs)
+    du.rho_star .= d1 * u.U_star
+
+    set_periodic!(du.U_star, Val(1), s, ALL)
+    set_periodic!(du.Theta_star, Val(2), s, ALL)
+    set_periodic!(du.rho_star, Val(2), s, ALL)
+
+    return nothing
+  end
+
+  function regularized_state(u)
+    return (
+      U = Array(hdg_1 * u.U_star),
+      rho = Array(hdg_2 * u.rho_star),
+      Theta = Array(hdg_2 * u.Theta_star),
+    )
+  end
+
+  regular_save_values = SavedValues(
+    Float64,
+    NamedTuple{(:U, :rho, :Theta), Tuple{Vector{Float64}, Vector{Float64}, Vector{Float64}}},
+  )
+
+  regular_state_cb = SavingCallback(
+    (u, t, integrator) -> regularized_state(u),
+    regular_save_values;
+    saveat = saveat * dt,
+    save_start = true,
+    save_end = false,
+  )
+
+  step_from_iter(iter) = start_step - 1 + iter
+
+  function save_condition(u, t, integrator)
+    integrator.iter > 0 || return false
+    step = step_from_iter(integrator.iter)
+    return step % saveat == 0
+  end
+
+  function save_affect!(integrator)
+    u = integrator.u
+
+    println("Loading simulation results: $((integrator.t / te) * 100)%")
+    println("Relative mass is : $((sum(interior(Val(2), Array(u.rho_star), s)) / m₀) * 100)%")
+    println("Relative energy is : $((sum(interior(Val(2), Array(u.Theta_star), s)) / E₀) * 100)%")
+    println("-----")
+    flush(stdout)
+
+    return nothing
+  end
+
+  function checkpoint_condition(u, t, integrator)
+    integrator.iter > 0 || return false
+    step = step_from_iter(integrator.iter)
+    return step % checkpoint_at == 0
+  end
+
+  function checkpoint_affect!(integrator)
+    step = step_from_iter(integrator.iter)
+
+    u = integrator.u
+
+    checkpoint_t = integrator.t
+    checkpoint_step = step
+    checkpoint_regular_t = regular_save_values.t
+    checkpoint_regular_state = regular_save_values.saveval
+
+    @save joinpath(save_path, "checkpoint_step_$(step).jld2") checkpoint_t checkpoint_step checkpoint_regular_t checkpoint_regular_state
+
+    println("Checkpoint saved at step: $(step)")
+    println("Generating plots and mp4 for checkpoint...")
+
+    if isempty(checkpoint_regular_state)
+      push!(checkpoint_regular_t, checkpoint_t)
+      push!(checkpoint_regular_state, regularized_state(u))
+    end
+
+    time = @sprintf("%.6f", step * dt)
+    file_end = "$(simspec)_t=$(time)"
+
+    plot_vorticity(s, regular_save_values.saveval[end].U, file_end, time)
+    plot_density(s, regular_save_values.saveval[end].rho, file_end, time)
+    # plot_velocity_magnitude(s, fin_U, file_end, time)
+    plot_pressure(s, regular_save_values.saveval[end].Theta, file_end, time)
+    plot_velocity_components(s, regular_save_values.saveval[end].U, file_end, time)
+
+    create_mp4(regular_save_values, file_end; records = div(checkpoint_at, saveat))
+
+    # Start a fresh interval buffer after checkpoint while keeping continuity at the boundary.
+    empty!(regular_save_values.t)
+    empty!(regular_save_values.saveval)
+    push!(regular_save_values.t, checkpoint_t)
+    push!(regular_save_values.saveval, regularized_state(u))
+
+    println("Plots and mp4 generated for checkpoint at step: $(step)")
+    println("-----")
+    flush(stdout)
+
+    return nothing
+  end
+
+  callbacks = CallbackSet(
+    regular_state_cb,
+    DiscreteCallback(save_condition, save_affect!; save_positions = (false, false)),
+    DiscreteCallback(checkpoint_condition, checkpoint_affect!; save_positions = (false, false)),
+  )
+
+  tspan = (start_time, te)
+  prob = ODEProblem(rhs!, u0, tspan, p)
+  soln = solve(
+    prob,
+    SSPRK33();
+    dt = dt,
+    adaptive = false,
+    save_everystep = false,
+    save_start = false,
+    save_end = false,
+    callback = callbacks,
+    dense = false,
+  )
+
+  return soln
+end
 
 println("Starting simulation...")
 
-run_compressible_ns(to_device(U_star_0), to_device(rho_star_0), to_device(Theta_star_0), te, dt, p; saveat=saveat, checkpoint_at=checkpoint_at, use_gravity=use_gravity);
+initial_state, start_time, start_step = initialize_state(
+  to_device(U_star_0),
+  to_device(rho_star_0),
+  to_device(Theta_star_0);
+  resume = RESUME_FROM_CHECKPOINT,
+)
+
+run_compressible_ns(initial_state, te, dt, p; saveat=saveat, checkpoint_at=checkpoint_at, start_step=start_step, start_time=start_time, use_gravity=use_gravity);
 
 println("Simulation complete.")
