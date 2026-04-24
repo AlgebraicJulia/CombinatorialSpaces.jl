@@ -27,7 +27,8 @@ to_device(mat::AbstractMatrix) = USE_CUDA ? CuSparseMatrixCSC{Float64}(mat) : Sp
 
 include(joinpath(@__DIR__, "LMNS_Helpers", "Physics.jl"))
 
-simfile = "Kelvin-Helmholtz_Sim.jl"
+# simfile = "Kelvin-Helmholtz_Sim.jl"
+simfile = "Thermal_Bubble_Sim.jl"
 
 # Test case parameters for lid-driven cavity flow at different Reynolds numbers
 include(joinpath(@__DIR__, "Sim_Files", simfile))
@@ -310,21 +311,25 @@ function run_compressible_ns(U_star_0::AbstractVector{Float64}, rho_star_0::Abst
 
   for step in start_step:steps
 
-    set_periodic!(U_star, Val(1), s, ALL)
-    set_periodic!(rho_star, Val(2), s, ALL)
-    set_periodic!(Theta_star, Val(2), s, ALL)
+    # set_periodic!(U_star, Val(1), s, ALL)
+    # set_periodic!(rho_star, Val(2), s, ALL)
+    # set_periodic!(Theta_star, Val(2), s, ALL)
+
 
     U_star_1 .= U_star .+ dt .* momentum_continuity(U_star, rho_star, Theta_star, p, use_gravity)
     Theta_star_1 .= Theta_star .+ dt .* potential_temperature_continuity(U_star, rho_star, Theta_star, p)
     rho_star_1 .= rho_star .+ dt .* d1 * U_star_1 # Mass changes by momentum flux
+    enforce_bc_U!(U_star_1)
 
     U_star_2 .= 0.75 .* U_star .+ 0.25 .* U_star_1 .+ 0.25 .* dt .* momentum_continuity(U_star_1, rho_star_1, Theta_star_1, p, use_gravity)
     Theta_star_2 .= 0.75 .* Theta_star .+ 0.25 .* Theta_star_1 .+ 0.25 .* dt .* potential_temperature_continuity(U_star_1, rho_star_1, Theta_star_1, p)
     rho_star_2 .= 0.75 .* rho_star .+ 0.25 .* rho_star_1 .+ 0.25 .* dt .* d1 * U_star_1
+    enforce_bc_U!(U_star_2)
 
     U_star_full .= (1/3) .* U_star .+ (2/3) .* U_star_2 .+ (2/3) .* dt .* momentum_continuity(U_star_2, rho_star_2, Theta_star_2, p, use_gravity)
     Theta_star_full .= (1/3) .* Theta_star .+ (2/3) .* Theta_star_2 .+ (2/3) .* dt .* potential_temperature_continuity(U_star_2, rho_star_2, Theta_star_2, p)
     rho_star_full .= (1/3) .* rho_star .+ (2/3) .* rho_star_2 .+ (2/3) .* dt .* d1 * U_star_2
+    enforce_bc_U!(U_star_full)
 
     U_star .= U_star_full
     Theta_star .= Theta_smoothing * Theta_star_full

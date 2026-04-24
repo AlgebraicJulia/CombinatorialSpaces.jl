@@ -1,0 +1,6 @@
+include("UniformMesh.jl")
+include("UniformMatrixDEC.jl")
+include("UniformKernelDEC.jl")
+include("UniformPlotting.jl")
+include("WENO.jl")
+include("UniformUpwinding.jl")

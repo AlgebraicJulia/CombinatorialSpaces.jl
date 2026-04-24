@@ -235,7 +235,7 @@ yedges(s::AbstractCubicalComplex2D, arr::AbstractVector) = arr[nxedges(s)+1:end]
 
 # Get the index of the vertices of a quad
 # The vertices are ordered counterclockwise starting from the lower left vertex
-quad_vertices(s::AbstractCubicalComplex2D, x::Int, y::Int) = begin
+function quad_vertices(s::AbstractCubicalComplex2D, x::Int, y::Int)
   v1 = coord_to_vert(s, x, y)
   v2 = coord_to_vert(s, x + 1, y)
   v3 = coord_to_vert(s, x + 1, y + 1)
@@ -244,12 +244,22 @@ quad_vertices(s::AbstractCubicalComplex2D, x::Int, y::Int) = begin
 end
 
 # The edges of a quad are ordered counterclockwise starting from the bottom edge
-quad_edges(s::AbstractCubicalComplex2D, x::Int, y::Int) = begin
+function quad_edges(s::AbstractCubicalComplex2D, x::Int, y::Int)
   e1 = coord_to_edge(s, x, y, X_ALIGN)
   e2 = coord_to_edge(s, x + 1, y, Y_ALIGN)
   e3 = coord_to_edge(s, x, y + 1, X_ALIGN)
   e4 = coord_to_edge(s, x, y, Y_ALIGN)
   return (e1, e2, e3, e4)
+end
+
+# Given a quad, gives the edge offset by the given amount in the given direction
+# An offset of zero will give either the left or bottom edge, depending on the direction
+function quad_edge_offset(s::AbstractCubicalComplex2D, x::Int, y::Int, align::Align, offset::Int)
+  if align == X_ALIGN
+    return coord_to_edge(s, x, y + offset, X_ALIGN)
+  else # align == Y_ALIGN
+    return coord_to_edge(s, x + offset, y, Y_ALIGN)
+  end
 end
 
 quad_area(s::AbstractCubicalComplex2D) = dx(s) * dy(s)
