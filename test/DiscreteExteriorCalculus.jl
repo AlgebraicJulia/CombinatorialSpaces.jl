@@ -14,6 +14,7 @@ using LinearAlgebra: Diagonal, mul!, norm, dot, cross, diag
 using SparseArrays
 using StaticArrays
 using Statistics: mean, median
+using Unitful: unit, ustrip, @u_str
 
 # 1D dual complex
 #################
@@ -78,6 +79,26 @@ for primal_s in [explicit_s, implicit_s]
   @test ∧(s, VForm([1,1,0]), EForm([2.5, 5.0])) ≈ EForm([2.5, 2.5])
   vform, eform = VForm([1.5, 2, 2.5]), EForm([13, 7])
   @test ∧(s, vform, eform) ≈ ∧(s, eform, vform)
+end
+
+@testset "Unitful density 0-form hodge star in 1D" begin
+  # Unitful support for the upstream dispatch-based 1D 0-Hodge path.
+  unitful_primal_s = EmbeddedDeltaSet1D{Bool,Point2d}()
+  add_vertices!(unitful_primal_s, 3, point=[Point2d(1,0), Point2d(0,0), Point2d(0,2)])
+  add_edges!(unitful_primal_s, [1,2], [2,3], edge_orientation=true)
+  unitful_s = EmbeddedDeltaDualComplex1D{Bool,Float64,Point2d}(unitful_primal_s)
+  subdivide_duals!(unitful_s, Barycenter())
+
+  density_vform = VForm([2.0, 4.0, 6.0] .* u"kg/m")
+  @test ⋆(0, unitful_s) ≈ Diagonal([0.5, 1.5, 1.0])
+  @test ⋆(Val(0), unitful_s) ≈ Diagonal([0.5, 1.5, 1.0])
+  star_0_unitful = ⋆(0, unitful_s, u"m")
+  @test ⋆(Val(0), unitful_s, u"m") == Diagonal([0.5, 1.5, 1.0] .* u"m")
+  @test star_0_unitful == Diagonal([0.5, 1.5, 1.0] .* u"m")
+  dual_1_form = ⋆(unitful_s, density_vform, u"m")
+  @test dual_1_form == DualForm{1}([1.0, 6.0, 6.0] .* u"kg")
+  @test all(unit.(dual_1_form) .== unit(1.0u"kg"))
+  @test ustrip.(u"kg", dual_1_form) ≈ [1.0, 6.0, 6.0]
 end
 
 # Path graph on 5 vertices with regular lengths.

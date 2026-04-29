@@ -41,6 +41,7 @@ using LinearAlgebra: Diagonal, dot, norm, cross, pinv, normalize
 using SparseArrays
 using StaticArrays: @SVector, SVector, SMatrix, MVector, MMatrix, StaticVector
 using Statistics: mean
+using Unitful: Units, dimension, @u_str
 
 # TODO: This is not consistent with other definitions and should be removed
 const Point2D = SVector{2,Float64}
@@ -1633,6 +1634,8 @@ fancy_acset_schema(d::HasDeltaSet) = Presentation(acset_schema(d))
 """
 ⋆(s::HasDeltaSet, x::SimplexForm{n}; kw...) where n =
   DualForm{ndims(s)-n}(⋆(Val(n), s, x.data; kw...))
+⋆(s::HasDeltaSet, x::SimplexForm{n}, unit::Units; kw...) where n =
+  DualForm{ndims(s)-n}(⋆(Val(n), s, x.data, unit; kw...))
 @inline ⋆(n::Int, s::HasDeltaSet, args...; kw...) =
   ⋆(Val(n), s, args...; kw...)
 @inline ⋆(::Val{n}, s::HasDeltaSet;
@@ -1736,6 +1739,18 @@ end
   ⋆(Val(n), s, DiagonalHodge())
 ⋆(::Val{n}, s::AbstractDeltaDualComplex1D, form::AbstractVector, ::GeometricHodge) where n =
   ⋆(Val(n), s, form, DiagonalHodge())
+
+@inline function ⋆(::Val{0}, s::AbstractDeltaDualComplex1D, unit::Units;
+                   hodge::DiscreteHodge=GeometricHodge())
+  hdg = ⋆(Val(0), s, hodge)
+  Diagonal(hdg.diag .* unit)
+end
+
+@inline function ⋆(::Val{0}, s::AbstractDeltaDualComplex1D,
+                   form::AbstractVector, unit::Units;
+                   hodge::DiscreteHodge=GeometricHodge())
+  ⋆(Val(0), s, unit; hodge) * form
+end
 
 """ Alias for the Hodge star operator [`⋆`](@ref).
 """

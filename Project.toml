@@ -25,6 +25,7 @@ StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
 Statistics = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
 StatsBase = "2913bbd2-ae8a-5f71-8c99-4fb6c76f3a91"
 TetGen = "c5d3f3f7-f850-59f6-8a2e-ffc6dc1317ea"
+Unitful = "1986cc42-f94f-5a68-af5c-568840ba703d"
 
 [weakdeps]
 CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
@@ -63,6 +64,7 @@ StaticArrays = "0.12, 1.0"
 Statistics = "1"
 StatsBase = "0.34"
 TetGen = "2"
+Unitful = "1"
 julia = "1.10"
 
 [extras]
