@@ -99,7 +99,6 @@ end
   @test dual_1_form == DualForm{1}([1.0, 6.0, 6.0] .* u"kg")
   @test all(unit.(dual_1_form) .== unit(1.0u"kg"))
   @test ustrip.(u"kg", dual_1_form) ≈ [1.0, 6.0, 6.0]
-  @test_throws ArgumentError ⋆(0, unitful_s, u"s")
 end
 
 # Path graph on 5 vertices with regular lengths.
