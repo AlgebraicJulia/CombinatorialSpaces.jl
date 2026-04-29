@@ -82,7 +82,7 @@ for primal_s in [explicit_s, implicit_s]
 end
 
 @testset "Unitful density 0-form hodge star in 1D" begin
-  # Unitful support for the upstream 1D 0-Hodge unit keyword path.
+  # Unitful support for the upstream dispatch-based 1D 0-Hodge path.
   unitful_primal_s = EmbeddedDeltaSet1D{Bool,Point2d}()
   add_vertices!(unitful_primal_s, 3, point=[Point2d(1,0), Point2d(0,0), Point2d(0,2)])
   add_edges!(unitful_primal_s, [1,2], [2,3], edge_orientation=true)

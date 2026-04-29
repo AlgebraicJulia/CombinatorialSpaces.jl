@@ -1745,7 +1745,7 @@ end
   dimension(unit) == dimension(u"m") ||
     throw(ArgumentError("0-Hodge star units on 1D dual complexes must have dimensions of length."))
   hdg = ⋆(Val(0), s, hodge)
-  @assert hdg isa Diagonal "Unit annotation is currently supported for diagonal 0-Hodge stars on 1D dual complexes."
+  @assert hdg isa Diagonal "Unitful units are currently supported for diagonal 0-Hodge stars on 1D dual complexes."
   Diagonal(hdg.diag .* unit)
 end
 
