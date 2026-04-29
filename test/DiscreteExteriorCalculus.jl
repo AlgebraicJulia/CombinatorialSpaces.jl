@@ -90,11 +90,10 @@ end
   subdivide_duals!(unitful_s, Barycenter())
 
   unitful_density_vform = VForm([2.0, 4.0, 6.0] .* u"kg/m")
-  star_0 = ⋆(0, unitful_s)
-  # In this test, units are manually attached to the already-instantiated
-  # diagonal Hodge star to demonstrate expected unit propagation behavior.
-  star_0_unitful = Diagonal(diag(star_0) .* u"m")
-  dual_1_form = DualForm{1}(star_0_unitful * unitful_density_vform)
+  @test ⋆(0, unitful_s) ≈ Diagonal([0.5, 1.5, 1.0])
+  star_0_unitful = ⋆(0, unitful_s; unit=u"m")
+  @test star_0_unitful == Diagonal([0.5, 1.5, 1.0] .* u"m")
+  dual_1_form = ⋆(unitful_s, unitful_density_vform; unit=u"m")
   @test dual_1_form == DualForm{1}([1.0, 6.0, 6.0] .* u"kg")
   @test all(unit.(dual_1_form) .== unit(1.0u"kg"))
   @test ustrip.(u"kg", dual_1_form) ≈ [1.0, 6.0, 6.0]

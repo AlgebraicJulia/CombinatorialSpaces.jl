@@ -1737,6 +1737,17 @@ end
 ⋆(::Val{n}, s::AbstractDeltaDualComplex1D, form::AbstractVector, ::GeometricHodge) where n =
   ⋆(Val(n), s, form, DiagonalHodge())
 
+@inline function ⋆(::Val{0}, s::AbstractDeltaDualComplex1D;
+                   hodge::DiscreteHodge=GeometricHodge(), unit=nothing)
+  hdg = ⋆(Val(0), s, hodge)
+  unit === nothing ? hdg : Diagonal(hdg.diag .* unit)
+end
+
+@inline function ⋆(::Val{0}, s::AbstractDeltaDualComplex1D, form::AbstractVector;
+                   hodge::DiscreteHodge=GeometricHodge(), unit=nothing)
+  ⋆(Val(0), s; hodge, unit) * form
+end
+
 """ Alias for the Hodge star operator [`⋆`](@ref).
 """
 const hodge_star = ⋆
