@@ -91,6 +91,7 @@ end
 
   unitful_density_vform = VForm([2.0, 4.0, 6.0] .* u"kg/m")
   @test ⋆(0, unitful_s) ≈ Diagonal([0.5, 1.5, 1.0])
+  @test ⋆(Val(0), unitful_s) ≈ Diagonal([0.5, 1.5, 1.0])
   star_0_unitful = ⋆(0, unitful_s; unit=u"m")
   @test star_0_unitful == Diagonal([0.5, 1.5, 1.0] .* u"m")
   dual_1_form = ⋆(unitful_s, unitful_density_vform; unit=u"m")
