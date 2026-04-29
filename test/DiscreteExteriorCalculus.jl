@@ -81,22 +81,24 @@ for primal_s in [explicit_s, implicit_s]
   @test ∧(s, vform, eform) ≈ ∧(s, eform, vform)
 end
 
-# Unitful support: manually assign units to a diagonal Hodge star in test code.
-unitful_primal_s = EmbeddedDeltaSet1D{Bool,Point2d}()
-add_vertices!(unitful_primal_s, 3, point=[Point2d(1,0), Point2d(0,0), Point2d(0,2)])
-add_edges!(unitful_primal_s, [1,2], [2,3], edge_orientation=true)
-unitful_s = EmbeddedDeltaDualComplex1D{Bool,Float64,Point2d}(unitful_primal_s)
-subdivide_duals!(unitful_s, Barycenter())
+@testset "Unitful density 0-form hodge star in 1D" begin
+  # Unitful support: manually assign units to a diagonal Hodge star in test code.
+  unitful_primal_s = EmbeddedDeltaSet1D{Bool,Point2d}()
+  add_vertices!(unitful_primal_s, 3, point=[Point2d(1,0), Point2d(0,0), Point2d(0,2)])
+  add_edges!(unitful_primal_s, [1,2], [2,3], edge_orientation=true)
+  unitful_s = EmbeddedDeltaDualComplex1D{Bool,Float64,Point2d}(unitful_primal_s)
+  subdivide_duals!(unitful_s, Barycenter())
 
-unitful_density_vform = VForm([2.0, 4.0, 6.0] .* u"kg/m")
-star_0 = ⋆(0, unitful_s)
-# In this test, units are manually attached to the already-instantiated
-# diagonal Hodge star to demonstrate expected unit propagation behavior.
-star_0_unitful = Diagonal(diag(star_0) .* u"m")
-dual_1_form = DualForm{1}(star_0_unitful * unitful_density_vform)
-@test dual_1_form == DualForm{1}([1.0, 6.0, 6.0] .* u"kg")
-@test all(unit.(dual_1_form) .== unit(1.0u"kg"))
-@test ustrip.(u"kg", dual_1_form) ≈ [1.0, 6.0, 6.0]
+  unitful_density_vform = VForm([2.0, 4.0, 6.0] .* u"kg/m")
+  star_0 = ⋆(0, unitful_s)
+  # In this test, units are manually attached to the already-instantiated
+  # diagonal Hodge star to demonstrate expected unit propagation behavior.
+  star_0_unitful = Diagonal(diag(star_0) .* u"m")
+  dual_1_form = DualForm{1}(star_0_unitful * unitful_density_vform)
+  @test dual_1_form == DualForm{1}([1.0, 6.0, 6.0] .* u"kg")
+  @test all(unit.(dual_1_form) .== unit(1.0u"kg"))
+  @test ustrip.(u"kg", dual_1_form) ≈ [1.0, 6.0, 6.0]
+end
 
 # Path graph on 5 vertices with regular lengths.
 #
