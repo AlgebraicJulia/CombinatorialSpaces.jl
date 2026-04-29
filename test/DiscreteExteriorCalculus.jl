@@ -14,6 +14,7 @@ using LinearAlgebra: Diagonal, mul!, norm, dot, cross, diag
 using SparseArrays
 using StaticArrays
 using Statistics: mean, median
+using Unitful: unit, ustrip, @u_str
 
 # 1D dual complex
 #################
@@ -79,6 +80,21 @@ for primal_s in [explicit_s, implicit_s]
   vform, eform = VForm([1.5, 2, 2.5]), EForm([13, 7])
   @test ∧(s, vform, eform) ≈ ∧(s, eform, vform)
 end
+
+# Unitful support: manually assign units to a diagonal Hodge star in test code.
+unitful_primal_s = EmbeddedDeltaSet1D{Bool,Point2d}()
+add_vertices!(unitful_primal_s, 3, point=[Point2d(1,0), Point2d(0,0), Point2d(0,2)])
+add_edges!(unitful_primal_s, [1,2], [2,3], edge_orientation=true)
+unitful_s = EmbeddedDeltaDualComplex1D{Bool,Float64,Point2d}(unitful_primal_s)
+subdivide_duals!(unitful_s, Barycenter())
+
+density_0_form = VForm([2.0, 4.0, 6.0] .* u"kg/m")
+star_0 = ⋆(0, unitful_s)
+star_0_unitful = Diagonal(diag(star_0) .* u"m")
+dual_1_form = DualForm{1}(star_0_unitful * density_0_form)
+@test dual_1_form == DualForm{1}([1.0, 6.0, 6.0] .* u"kg")
+@test all(unit.(dual_1_form) .== unit(1.0u"kg"))
+@test ustrip.(u"kg", dual_1_form) ≈ [1.0, 6.0, 6.0]
 
 # Path graph on 5 vertices with regular lengths.
 #
