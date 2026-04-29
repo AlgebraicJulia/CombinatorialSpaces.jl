@@ -88,10 +88,12 @@ add_edges!(unitful_primal_s, [1,2], [2,3], edge_orientation=true)
 unitful_s = EmbeddedDeltaDualComplex1D{Bool,Float64,Point2d}(unitful_primal_s)
 subdivide_duals!(unitful_s, Barycenter())
 
-density_0_form = VForm([2.0, 4.0, 6.0] .* u"kg/m")
+unitful_density_vform = VForm([2.0, 4.0, 6.0] .* u"kg/m")
 star_0 = ⋆(0, unitful_s)
+# In this test, units are manually attached to the already-instantiated
+# diagonal Hodge star to demonstrate expected unit propagation behavior.
 star_0_unitful = Diagonal(diag(star_0) .* u"m")
-dual_1_form = DualForm{1}(star_0_unitful * density_0_form)
+dual_1_form = DualForm{1}(star_0_unitful * unitful_density_vform)
 @test dual_1_form == DualForm{1}([1.0, 6.0, 6.0] .* u"kg")
 @test all(unit.(dual_1_form) .== unit(1.0u"kg"))
 @test ustrip.(u"kg", dual_1_form) ≈ [1.0, 6.0, 6.0]
