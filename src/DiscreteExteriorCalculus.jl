@@ -1746,7 +1746,7 @@ end
     throw(ArgumentError("0-Hodge star units on 1D dual complexes must have dimensions of length."))
   hdg = ⋆(Val(0), s, hodge)
   hdg isa Diagonal ||
-    throw(ArgumentError("Unitful units are currently supported only for diagonal 0-Hodge stars on 1D dual complexes."))
+    throw(ArgumentError("Units are currently supported only for diagonal 0-Hodge stars on 1D dual complexes."))
   Diagonal(hdg.diag .* unit)
 end
 
