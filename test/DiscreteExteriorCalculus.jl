@@ -92,13 +92,14 @@ end
   unitful_density_vform = VForm([2.0, 4.0, 6.0] .* u"kg/m")
   @test ⋆(0, unitful_s) ≈ Diagonal([0.5, 1.5, 1.0])
   @test ⋆(Val(0), unitful_s) ≈ Diagonal([0.5, 1.5, 1.0])
-  star_0_unitful = ⋆(0, unitful_s; unit=u"m")
-  @test ⋆(Val(0), unitful_s; unit=u"m") == Diagonal([0.5, 1.5, 1.0] .* u"m")
+  star_0_unitful = ⋆(0, unitful_s, u"m")
+  @test ⋆(Val(0), unitful_s, u"m") == Diagonal([0.5, 1.5, 1.0] .* u"m")
   @test star_0_unitful == Diagonal([0.5, 1.5, 1.0] .* u"m")
-  dual_1_form = ⋆(unitful_s, unitful_density_vform; unit=u"m")
+  dual_1_form = ⋆(unitful_s, unitful_density_vform, u"m")
   @test dual_1_form == DualForm{1}([1.0, 6.0, 6.0] .* u"kg")
   @test all(unit.(dual_1_form) .== unit(1.0u"kg"))
   @test ustrip.(u"kg", dual_1_form) ≈ [1.0, 6.0, 6.0]
+  @test_throws ArgumentError ⋆(0, unitful_s, u"s")
 end
 
 # Path graph on 5 vertices with regular lengths.
