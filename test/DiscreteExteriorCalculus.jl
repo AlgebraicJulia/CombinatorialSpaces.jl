@@ -82,7 +82,7 @@ for primal_s in [explicit_s, implicit_s]
 end
 
 @testset "Unitful density 0-form hodge star in 1D" begin
-  # Unitful support: manually assign units to a diagonal Hodge star in test code.
+  # Unitful support for the upstream 1D 0-Hodge unit keyword path.
   unitful_primal_s = EmbeddedDeltaSet1D{Bool,Point2d}()
   add_vertices!(unitful_primal_s, 3, point=[Point2d(1,0), Point2d(0,0), Point2d(0,2)])
   add_edges!(unitful_primal_s, [1,2], [2,3], edge_orientation=true)
@@ -93,6 +93,7 @@ end
   @test ⋆(0, unitful_s) ≈ Diagonal([0.5, 1.5, 1.0])
   @test ⋆(Val(0), unitful_s) ≈ Diagonal([0.5, 1.5, 1.0])
   star_0_unitful = ⋆(0, unitful_s; unit=u"m")
+  @test ⋆(Val(0), unitful_s; unit=u"m") == Diagonal([0.5, 1.5, 1.0] .* u"m")
   @test star_0_unitful == Diagonal([0.5, 1.5, 1.0] .* u"m")
   dual_1_form = ⋆(unitful_s, unitful_density_vform; unit=u"m")
   @test dual_1_form == DualForm{1}([1.0, 6.0, 6.0] .* u"kg")
