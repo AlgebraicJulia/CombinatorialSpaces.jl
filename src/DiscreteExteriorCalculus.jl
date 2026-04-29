@@ -1742,11 +1742,7 @@ end
 
 @inline function ⋆(::Val{0}, s::AbstractDeltaDualComplex1D, unit::Units;
                    hodge::DiscreteHodge=GeometricHodge())
-  dimension(unit) == dimension(u"m") ||
-    throw(ArgumentError("0-Hodge star units on 1D dual complexes must have dimensions of length."))
   hdg = ⋆(Val(0), s, hodge)
-  hdg isa Diagonal ||
-    throw(ArgumentError("Units are currently supported only for diagonal 0-Hodge stars on 1D dual complexes."))
   Diagonal(hdg.diag .* unit)
 end
 
