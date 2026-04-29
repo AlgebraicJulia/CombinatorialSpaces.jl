@@ -1740,11 +1740,17 @@ end
 @inline function ⋆(::Val{0}, s::AbstractDeltaDualComplex1D;
                    hodge::DiscreteHodge=GeometricHodge(), unit=nothing)
   hdg = ⋆(Val(0), s, hodge)
-  unit === nothing ? hdg : Diagonal(hdg.diag .* unit)
+  if unit === nothing
+    return hdg
+  end
+  @assert hdg isa Diagonal "Unit annotation is currently supported for diagonal 0-Hodge stars on 1D dual complexes."
+  Diagonal(hdg.diag .* unit)
 end
 
 @inline function ⋆(::Val{0}, s::AbstractDeltaDualComplex1D, form::AbstractVector;
                    hodge::DiscreteHodge=GeometricHodge(), unit=nothing)
+  # The `unit` keyword scales/annotates the 0-Hodge operator prior to applying
+  # it to `form`.
   ⋆(Val(0), s; hodge, unit) * form
 end
 
