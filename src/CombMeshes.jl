@@ -1,17 +1,17 @@
-module Meshes
+module CombMeshes
 
 using Artifacts
-using Catlab, Catlab.CategoricalAlgebra
-using CombinatorialSpaces, CombinatorialSpaces.SimplicialSets
+using Catlab
+using CombinatorialSpaces
 using FileIO
+using GeometryBasics: Mesh, MetaMesh, Point, Point2d, Point3d, QuadFace
 using JSON
-using GeometryBasics: Point2, Point3
 using LinearAlgebra: diagm
+using TetGen
 
-export loadmesh, Icosphere, Rectangle_30x10, Torus_30x10, Point_Map, triangulated_grid, makeSphere
-
-Point2D = Point2{Float64}
-Point3D = Point3{Float64}
+export loadmesh, Icosphere, Rectangle_30x10, Torus_30x10, Point_Map,
+       triangulated_grid, makeSphere, mirrored_mesh, parallelepiped,
+       tetgen_readme_mesh
 
 abstract type AbstractMeshKey end
 
@@ -41,7 +41,7 @@ end
 Load in a rectangular mesh.
 """
 function loadmesh(s::Rectangle_30x10)
-  parse_json_acset(EmbeddedDeltaSet2D{Bool, Point3{Float64}},
+  parse_json_acset(EmbeddedDeltaSet2D{Bool, Point3d},
     read(joinpath(artifact"Rectangle_30x10", "Rectangle_30x10.json"), String))
 end
 
@@ -50,7 +50,7 @@ end
 Load in a toroidal mesh.
 """
 function loadmesh(s::Torus_30x10)
-  parse_json_acset(EmbeddedDeltaDualComplex2D{Bool, Float64, Point3{Float64}},
+  parse_json_acset(EmbeddedDeltaDualComplex2D{Bool, Float64, Point3d},
     read(joinpath(artifact"Torus_30x10", "Torus_30x10.json"), String))
 end
 
@@ -69,64 +69,119 @@ loadmesh_icosphere_helper(obj_file_name) = EmbeddedDeltaSet2D(
 
 
 # This function was once the gridmeshes.jl file from Decapodes.jl.
-"""    function triangulated_grid(max_x, max_y, dx, dy, point_type)
+"""    function triangulated_grid(lx, ly, dx, dy, point_type, compress=true)
 
-Return a grid of (near) equilateral triangles.
+Triangulate the rectangle [0,lx] x [0,ly] by approximately equilateral
+triangles of width `dx` and height `dy`.
 
-Note that dx will be slightly less than what is given, since points are
-compressed to lie within max_x.
+If `compress` is true (default), then enforce that all rows of points are less than `lx`,
+otherwise, keep `dx` as is.
 """
-function triangulated_grid(max_x, max_y, dx, dy, point_type)
-
+function triangulated_grid(lx, ly, dx, dy, point_type, compress=true)
   s = EmbeddedDeltaSet2D{Bool, point_type}()
 
-  # Place equally-spaced points in a max_x by max_y rectangle.
-  coords = point_type == Point3D ? map(x -> point_type(x..., 0), Iterators.product(0:dx:max_x, 0:dy:max_y)) : map(x -> point_type(x...), Iterators.product(0:dx:max_x, 0:dy:max_y))
-  # Perturb every other row right by half a dx.
-  coords[:, 2:2:end] = map(coords[:, 2:2:end]) do row
-    if point_type == Point3D
-      row .+ [dx/2, 0, 0]
-    else
-      row .+ [dx/2, 0]
+  scale = lx/(lx+dx/2)
+  shift = dx/2
+
+  nx = length(0:dx:lx)
+  ny = length(0:dy:ly)
+  add_vertices!(s, nx * ny)
+
+  for (y_idx, raw_y) in enumerate(0:dy:ly)
+    for (x_idx, raw_x) in enumerate(0:dx:lx)
+      x_coord = raw_x + shift * iseven(y_idx)
+      if compress
+        x_coord *= scale
+      end
+
+      i = x_idx + nx * (y_idx - 1)
+      s[i, :point] = if point_type <: Point3
+        point_type(x_coord, raw_y, 0)
+      else
+        point_type(x_coord, raw_y)
+      end
+
     end
   end
-  # The perturbation moved the right-most points past max_x, so compress along x.
-  map!(coords, coords) do coord
-    if point_type == Point3D
-      diagm([max_x/(max_x+dx/2), 1, 1]) * coord
-    else
-      diagm([max_x/(max_x+dx/2), 1]) * coord
+
+  for y in 1:ny-1, x in 1:nx-1
+      i = x + nx * (y - 1)
+      if iseven(y)
+        glue_triangle!(s, i, i+nx, i+nx+1)
+        glue_triangle!(s, i, i+1, i+nx+1)
+      else
+        glue_triangle!(s, i, i+1, i+nx)
+        glue_triangle!(s, i+1, i+nx, i+nx+1)
     end
-  end
-
-  add_vertices!(s, length(coords), point = vec(coords))
-
-  nx = length(0:dx:max_x)
-
-  # Matrix that stores indices of points.
-  idcs = reshape(eachindex(coords), size(coords))
-  # Only grab vertices that will be the bottom-left corner of a subdivided square.
-  idcs = idcs[begin:end-1, begin:end-1]
-  
-  # Subdivide every other row along the opposite diagonal.
-  for i in idcs[:, begin+1:2:end]
-    glue_sorted_triangle!(s, i, i+nx, i+nx+1)
-    glue_sorted_triangle!(s, i, i+1, i+nx+1)
-  end
-  for i in idcs[:, begin:2:end]
-    glue_sorted_triangle!(s, i, i+1, i+nx)
-    glue_sorted_triangle!(s, i+1, i+nx, i+nx+1)
   end
 
   # Orient and return.
-  s[:edge_orientation]=true
+  s[:edge_orientation] = false
+
+  nxtri = 2 * (nx - 1)
+  nytri = ny - 1
+
+  for y in 1:nytri
+    tri_orient = !iseven(y)
+    for x in 1:2:nxtri
+      i = x + nxtri * (y - 1)
+      s[i, :tri_orientation] = tri_orient
+      s[i + 1, :tri_orientation] = !tri_orient
+    end
+  end
+
+  s
+end
+
+"""    triangulated_grid(lx::Real, ly::Real, nx::Int, ny::Int; point_type::DataType = Point3d, compress::Bool=true)
+
+Generate a rectangle [0,lx] x [0,ly] with `nx+1` by `ny+1` vertices. This results in a mesh containing `2*nx*ny` triangles.
+Setting the `dx` or `dy` keywords will override the respective `nx` or `ny` keywords.
+"""
+function triangulated_grid(lx::Real, ly::Real; nx::Int = 10, ny::Int = 10, dx::Real = 0, dy::Real = 0, point_type::DataType = Point3d, compress::Bool = true)
+  @assert lx > 0 && ly > 0
+  @assert nx > 0 && ny > 0
+  @assert dx >= 0 && dy >= 0
+
+  arg_dx = dx != 0 ? dx : lx / nx
+  arg_dy = dy != 0 ? dy : ly / ny
+
+  triangulated_grid(lx, ly, arg_dx, arg_dy, point_type, compress)
+end
+
+"""    function mirrored_mesh()
+
+Return a mesh with triangles mirrored around a central axis.
+"""
+function mirrored_mesh(lx, ly)
+  s = EmbeddedDeltaSet2D{Bool, Point{3, Float64}}();
+  lx, ly = 40.0, 20.0
+  xs = range(0, lx; length = 3)
+  ys = range(0, ly; length = 3)
+
+  add_vertices!(s, 9)
+  i = 1
+  for y in ys
+    for x in xs
+      s[i, :point] = Point3([x, y, 0.0])
+      i += 1
+    end
+  end
+  glue_sorted_triangle!(s, 1, 2, 4)
+  glue_sorted_triangle!(s, 2, 4, 5)
+  glue_sorted_triangle!(s, 2, 5, 6)
+  glue_sorted_triangle!(s, 2, 3, 6)
+  glue_sorted_triangle!(s, 4, 5, 7)
+  glue_sorted_triangle!(s, 5, 7, 8)
+  glue_sorted_triangle!(s, 5, 8, 9)
+  glue_sorted_triangle!(s, 5, 6, 9)
   orient!(s)
+  s[:edge_orientation] = false
   s
 end
 
 # This function was once the sphericalmeshes.jl file from Decapodes.jl.
-"""
-    makeSphere(minLat, maxLat, dLat, minLong, maxLong, dLong, radius)
+"""    makeSphere(minLat, maxLat, dLat, minLong, maxLong, dLong, radius)
 
 Construct a spherical mesh (inclusively) bounded by the given latitudes and
 longitudes, discretized at dLat and dLong intervals, at the given radius from
@@ -194,7 +249,7 @@ function makeSphere(minLat, maxLat, dLat, minLong, maxLong, dLong, radius)
   if (minLat == maxLat && dLat == 0)
     dLat = 1 # User wants a just one parallel. a:0:a is not valid julia.
   end
-  s = EmbeddedDeltaSet2D{Bool, Point3D}()
+  s = EmbeddedDeltaSet2D{Bool, Point3d}()
   # Neither pole counts as a Meridian.
   connect_north_pole = false
   connect_south_pole = false
@@ -223,7 +278,7 @@ function makeSphere(minLat, maxLat, dLat, minLong, maxLong, dLong, radius)
     vertex_offset = nv(s)+1
     add_vertices!(s, num_meridians,
                   point=map(minLong:dLong:maxLong) do ϕ
-                    Point3D(sph2car(ρ,ϕ,θ)...)
+                    Point3d(sph2car(ρ,ϕ,θ)...)
                   end)
     # Connect this parallel.
     if (connect_long)
@@ -259,7 +314,7 @@ function makeSphere(minLat, maxLat, dLat, minLong, maxLong, dLong, radius)
   north_pole_idx = 0
   if (connect_north_pole)
     ϕ, θ = 0, 0
-    add_vertex!(s, point=Point3D(sph2car(ρ,ϕ,θ)...))
+    add_vertex!(s, point=Point3d(sph2car(ρ,ϕ,θ)...))
     north_pole_idx = nv(s)
     foreach(1:num_meridians-1, 2:num_meridians) do i,j
       glue_sorted_triangle!(s, north_pole_idx, i, j)
@@ -272,7 +327,7 @@ function makeSphere(minLat, maxLat, dLat, minLong, maxLong, dLong, radius)
   if (connect_south_pole)
     south_parallel_start = num_meridians*(num_parallels-1)+1
     ϕ, θ = 0, 180
-    add_vertex!(s, point=Point3D(sph2car(ρ,ϕ,θ)...))
+    add_vertex!(s, point=Point3d(sph2car(ρ,ϕ,θ)...))
     south_pole_idx = nv(s)
     foreach(south_parallel_start:south_parallel_start+num_meridians-2,
             south_parallel_start+1:south_parallel_start+num_meridians-1) do i,j
@@ -292,11 +347,11 @@ Return the primal and dual mesh of a triangle with edge lengths 3,4,5 and with t
 See also: [`tri_345_false`](@ref)
 """
 function tri_345()
-  primal_s = EmbeddedDeltaSet2D{Bool,Point3D}()
-  add_vertices!(primal_s, 3, point=[Point3D(0,0,0), Point3D(3,0,0), Point3D(3,4,0)])
+  primal_s = EmbeddedDeltaSet2D{Bool,Point3d}()
+  add_vertices!(primal_s, 3, point=[Point3d(0,0,0), Point3d(3,0,0), Point3d(3,4,0)])
   glue_triangle!(primal_s, 1, 2, 3, tri_orientation=true)
   primal_s[:edge_orientation] = true
-  s = EmbeddedDeltaDualComplex2D{Bool,Float64,Point3D}(primal_s)
+  s = EmbeddedDeltaDualComplex2D{Bool,Float64,Point3d}(primal_s)
   subdivide_duals!(s, Barycenter())
   (primal_s, s)
 end
@@ -307,11 +362,11 @@ Return the primal and dual mesh of a triangle with edge lengths 3,4,5 and with f
 See also: [`tri_345`](@ref)
 """
 function tri_345_false()
-  primal_s = EmbeddedDeltaSet2D{Bool,Point3D}()
-  add_vertices!(primal_s, 3, point=[Point3D(0,0,0), Point3D(3,0,0), Point3D(3,4,0)])
+  primal_s = EmbeddedDeltaSet2D{Bool,Point3d}()
+  add_vertices!(primal_s, 3, point=[Point3d(0,0,0), Point3d(3,0,0), Point3d(3,4,0)])
   glue_triangle!(primal_s, 1, 2, 3, tri_orientation=false)
   primal_s[:edge_orientation] = true
-  s = EmbeddedDeltaDualComplex2D{Bool,Float64,Point3D}(primal_s)
+  s = EmbeddedDeltaDualComplex2D{Bool,Float64,Point3d}(primal_s)
   subdivide_duals!(s, Barycenter())
   (primal_s, s)
 end
@@ -322,11 +377,11 @@ Return the primal and dual mesh of a grid of 3-4-5 triangles.
 See also: [`tri_345`](@ref)
 """
 function grid_345()
-  primal_s = EmbeddedDeltaSet2D{Bool,Point3D}()
+  primal_s = EmbeddedDeltaSet2D{Bool,Point3d}()
   add_vertices!(primal_s, 9,
-    point=[Point3D(0,+4,0), Point3D(3,+4,0), Point3D(6,+4,0),
-          Point3D(0, 0,0), Point3D(3, 0,0), Point3D(6, 0,0),
-          Point3D(0,-4,0), Point3D(3,-4,0), Point3D(6,-4,0)])
+    point=[Point3d(0,+4,0), Point3d(3,+4,0), Point3d(6,+4,0),
+          Point3d(0, 0,0), Point3d(3, 0,0), Point3d(6, 0,0),
+          Point3d(0,-4,0), Point3d(3,-4,0), Point3d(6,-4,0)])
   glue_sorted_triangle!(primal_s, 1, 2, 4)
   glue_sorted_triangle!(primal_s, 5, 2, 4)
   glue_sorted_triangle!(primal_s, 5, 2, 3)
@@ -336,7 +391,9 @@ function grid_345()
   glue_sorted_triangle!(primal_s, 5, 6, 8)
   glue_sorted_triangle!(primal_s, 9, 6, 8)
   primal_s[:edge_orientation] = true
-  s = EmbeddedDeltaDualComplex2D{Bool,Float64,Point3D}(primal_s)
+  orient!(primal_s)
+  primal_s[:tri_orientation] = .!(primal_s[:tri_orientation]) # Flips orientation to ccw
+  s = EmbeddedDeltaDualComplex2D{Bool,Float64,Point3d}(primal_s)
   subdivide_duals!(s, Barycenter())
   (primal_s, s)
 end
@@ -346,12 +403,12 @@ end
 Return the primal and dual mesh of a right scalene triangle with unit hypotenuse.
 """
 function right_scalene_unit_hypot()
-  primal_s = EmbeddedDeltaSet2D{Bool,Point2D}()
+  primal_s = EmbeddedDeltaSet2D{Bool,Point2d}()
   add_vertices!(primal_s, 3,
-    point=[Point2D(0,0), Point2D(1/√2,0), Point2D(1/√2,1/√2)])
+    point=[Point2d(0,0), Point2d(1/√2,0), Point2d(1/√2,1/√2)])
   glue_sorted_triangle!(primal_s, 1, 2, 3)
   primal_s[:edge_orientation] = true
-  s = EmbeddedDeltaDualComplex2D{Bool,Float64,Point2D}(primal_s)
+  s = EmbeddedDeltaDualComplex2D{Bool,Float64,Point2d}(primal_s)
   subdivide_duals!(s, Barycenter())
   (primal_s, s)
 end
@@ -361,14 +418,68 @@ end
 Return the primal and dual mesh of a single tetrahedron with points at the origin and Euclidean basis vectors.
 """
 function single_tetrahedron()
-  pnts = Point3D[
+  pnts = Point3d[
     (0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0)]
-  primal_s = EmbeddedDeltaSet3D{Bool, Point3D}()
+  primal_s = EmbeddedDeltaSet3D{Bool, Point3d}()
   add_vertices!(primal_s, 4, point=pnts)
   glue_sorted_tetrahedron!(primal_s, 1:4...)
-  s = EmbeddedDeltaDualComplex3D{Bool, Float64, Point3D}(primal_s)
+  s = EmbeddedDeltaDualComplex3D{Bool, Float64, Point3d}(primal_s)
   subdivide_duals!(s, Barycenter())
   (primal_s, s)
+end
+
+"""	function parallelepiped(;lx::Real = 1.0, ly::Real = 1.0, lz::Real = 1.0, dx::Real = 0.0, dy::Real = 0.0, point_type = Point3d, tetcmd::String = "vpq1.414a0.1")
+
+Uses TetGen to generate turn a specificed parallelepiped to a tetrahedralized mesh. `lx`, `ly`, and `lz` kwargs control the side lengths in the respective dimensions and `dx` and `dy` kwargs will translate the top face relative to the bottom face.
+
+Default TetGen command is "pQq1.414a0.1" and user desired cmds can be passed through the `tetcmd` kwarg.
+"""
+function parallelepiped(;lx::Real = 1.0, ly::Real = 1.0, lz::Real = 1.0, dx::Real = 0.0, dy::Real = 0.0, point_type = Point3d, tetcmd::String = "pQq1.414a0.1")
+	points = point_type[
+    (0.0, 0.0, 0.0), (dx, dy, lz), (0.0, ly, 0.0), (dx, ly+dy, lz),
+    (lx, 0.0, 0.0), (lx+dx, dy, lz), (lx, ly, 0.0), (lx+dx, ly+dy, lz)]
+
+  faces = QuadFace{Cint}[
+    [1,2,4,3], [5,6,8,7], [1,2,6,5],
+    [3,4,8,7], [1,3,7,5], [2,4,8,6]]
+
+  tet_mesh = tetrahedralize(Mesh(points, faces), tetcmd)
+
+  s = EmbeddedDeltaSet3D(tet_mesh)
+
+  orient!(s)
+  s[:edge_orientation] = false
+  s[:tri_orientation] = false
+
+  return s
+end
+
+"""    function tetgen_readme_mesh()
+
+Create the mesh from the TetGen.jl/README.md as a delta set.
+
+https://github.com/JuliaGeometry/TetGen.jl/blob/ea73adce3ea4dfa6062eb84b1eff05f3fcab60a5/README.md
+"""
+function tetgen_readme_mesh()
+  points = Point{3, Float64}[
+    (0.0, 0.0, 0.0), (2.0, 0.0, 0.0),
+    (2.0, 2.0, 0.0), (0.0, 2.0, 0.0),
+    (0.0, 0.0, 12.0), (2.0, 0.0, 12.0),
+    (2.0, 2.0, 12.0), (0.0, 2.0, 12.0)]
+  facets = QuadFace{Cint}[
+    1:4, 5:8,
+    [1,5,6,2],
+    [2,6,7,3],
+    [3, 7, 8, 4],
+    [4, 8, 5, 1]]
+  markers = Cint[-1, -2, 0, 0, 0, 0]
+  msh = MetaMesh(points, facets; markers)
+  tet_msh = tetrahedralize(msh, "Qvpq1.414a0.1")
+  s = EmbeddedDeltaSet3D(tet_msh)
+  orient!(s)
+  s[:edge_orientation] = false
+  s[:tri_orientation] = false
+  s
 end
 
 end

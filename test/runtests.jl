@@ -24,13 +24,25 @@ end
 end
 
 @testset "Meshes" begin
-  include("Meshes.jl")
+  include("CombMeshes.jl")
   include("MeshInterop.jl")
   include("MeshGraphics.jl")
 end
 
 @testset "Alternate Backends" begin
   include("Backends.jl")
+end
+
+@testset "Restrictions" begin
+  include("Restrictions.jl")
+end
+
+@testset "Mesh Optimization" begin
+  include("MeshOptimization.jl")
+end
+
+@testset "Multigrid" begin
+  include("Multigrid.jl")
 end
 
 end

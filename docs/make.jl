@@ -5,7 +5,8 @@ makedocs(
   sitename = "CombinatorialSpaces.jl",
   format = Documenter.HTML(
     size_threshold_ignore = [
-      "meshes.md"
+      "meshes.md",
+      "mesh_decomposition.md"
     ]
   ),
   modules = [CombinatorialSpaces],
@@ -15,8 +16,13 @@ makedocs(
     "simplicial_sets.md",
     "discrete_exterior_calculus.md",
     "combinatorial_maps.md",
+    "grid_laplace.md",
     "meshes.md",
-    "euler.md"
+    "euler.md",
+    "subdivision.md",
+    "multigrid.md",
+    "mg_benchmarks.md",
+    "mesh_decomposition.md"
   ]
 )
 

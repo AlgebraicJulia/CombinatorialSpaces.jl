@@ -3,8 +3,8 @@ using Test
 
 using SparseArrays, StaticArrays
 
-using Catlab.CategoricalAlgebra.CSets
-using CombinatorialSpaces.SimplicialSets
+using Catlab
+using CombinatorialSpaces
 
 """ Check that the semi-simplicial identities hold in dimension `n`.
 """
@@ -12,9 +12,6 @@ function is_semi_simplicial(s::HasDeltaSet, n::Int)
   all(∂(n-1, i, s, ∂(n, j, s)) == ∂(n-1, j-1, s, ∂(n, i, s))
       for i in 0:n for j in (i+1):n)
 end
-
-const Point2D = SVector{2,Float64}
-const Point3D = SVector{3,Float64}
 
 # 1D simplicial sets
 ####################
@@ -78,20 +75,14 @@ s = OrientedDeltaSet1D{Bool}()
 add_vertices!(s, 10)
 add_edges!(s, 1:4, 2:5)
 add_edges!(s, 6:9, 7:10)
-@test orient_component!(s, 1, true)
-@test orientation(s, E(1:4)) == trues(4)
-@test orient_component!(s, 8, true)
-@test orientation(s, E(1:8)) == trues(8)
-
-s[:edge_orientation] = rand(Bool, 8)
 @test orient!(s)
 @test orientation(s, E(1:8)) == trues(8)
 
 # 1D embedded simplicial sets
 #----------------------------
 
-s = EmbeddedDeltaSet1D{Bool,Point2D}()
-add_vertices!(s, 2, point=[Point2D(-1, 0), Point2D(+1, 0)])
+s = EmbeddedDeltaSet1D{Bool,Point2d}()
+add_vertices!(s, 2, point=[Point2d(-1, 0), Point2d(+1, 0)])
 add_edge!(s, 1, 2, edge_orientation=true)
 @test volume(1, s, 1) ≈ 2
 @test volume(s, E(1)) ≈ 2
@@ -131,7 +122,7 @@ s = OrientedDeltaSet2D{Bool}()
 add_vertices!(s, 3)
 add_sorted_edges!(s, [1,2,3], [2,3,1], edge_orientation=[true,true,false])
 glue_triangle!(s, 1, 2, 3)
-@test orient_component!(s, 1, true)
+@test orient!(s)
 @test orientation(s, Tri(1)) == true
 @test ∂(2, s, 1) == [1,1,1]
 @test d(1, s, [45,3,34]) == [82]
@@ -157,8 +148,8 @@ s[:edge_orientation] = true
 #----------------------------
 
 # Standard 2-simplex in ℝ³.
-s = EmbeddedDeltaSet2D{Bool,Point3D}()
-add_vertices!(s, 3, point=[Point3D(1,0,0), Point3D(0,1,0), Point3D(0,0,1)])
+s = EmbeddedDeltaSet2D{Bool,Point3d}()
+add_vertices!(s, 3, point=[Point3d(1,0,0), Point3d(0,1,0), Point3d(0,0,1)])
 glue_triangle!(s, 1, 2, 3, tri_orientation=true)
 @test volume(s, Tri(1)) ≈ sqrt(3)/2
 
@@ -250,7 +241,7 @@ add_vertices!(s, 4)
 glue_tetrahedron!(s, 1, 2, 3, 4)
 s[:edge_orientation] = [true, false, true, false, true, false]
 s[:tri_orientation] = [true, false, true, false]
-@test orient_component!(s, 1, true)
+@test orient!(s)
 @test orientation(s, Tet(1)) == true
 @test ∂(3, s, 1) == [1,1,1,1]
 @test ∂(2, s, 1) == [1,-1,-1,0,0,0]
@@ -294,9 +285,9 @@ s[:tri_orientation] = false
 #----------------------------
 
 # Regular tetrahedron with edge length 2√2 in ℝ³.
-s = EmbeddedDeltaSet3D{Bool,Point3D}()
-add_vertices!(s, 4, point=[Point3D(1,1,1), Point3D(1,-1,-1),
-  Point3D(-1,1,-1), Point3D(-1,-1,1)])
+s = EmbeddedDeltaSet3D{Bool,Point3d}()
+add_vertices!(s, 4, point=[Point3d(1,1,1), Point3d(1,-1,-1),
+  Point3d(-1,1,-1), Point3d(-1,-1,1)])
 glue_tetrahedron!(s, 1, 2, 3, 4)
 orient!(s)
 equilateral_triangle_area(len) = √3/4*len^2
@@ -305,10 +296,10 @@ regular_tetrahedron_volume(len) = len^3/(6√2)
 @test volume(s, Tet(1)) ≈ regular_tetrahedron_volume(2√2)
 
 # Six tetrahedra of equal volume forming a cube with edge length 2.
-s = EmbeddedDeltaSet3D{Bool,Point3D}()
+s = EmbeddedDeltaSet3D{Bool,Point3d}()
 add_vertices!(s, 8, point=[
-  Point3D(-1,1,1), Point3D(1,1,1), Point3D(1,-1,1), Point3D(-1,-1,1),
-  Point3D(-1,1,-1), Point3D(1,1,-1), Point3D(1,-1,-1), Point3D(-1,-1,-1)])
+  Point3d(-1,1,1), Point3d(1,1,1), Point3d(1,-1,1), Point3d(-1,-1,1),
+  Point3d(-1,1,-1), Point3d(1,1,-1), Point3d(1,-1,-1), Point3d(-1,-1,-1)])
 glue_sorted_tetrahedron!(s, 1, 2, 4, 8)
 glue_sorted_tetrahedron!(s, 2, 3, 4, 8)
 glue_sorted_tetrahedron!(s, 1, 2, 5, 8)
@@ -343,10 +334,10 @@ added_triangle = add_triangle!(s, 1,2,3, tri_orientation=true)
 # Six tetrahedra of equal volume forming a cube with edge length 1.
 # The connectivity is that of Blessent's 2009 thesis "Integration of 3D
 # Geologicial and Numerical Models Based on Tetrahedral Meshes...", Figure 3.2.
-s = EmbeddedDeltaSet3D{Bool,Point3D}()
+s = EmbeddedDeltaSet3D{Bool,Point3d}()
 add_vertices!(s, 8, point=[
-  Point3D(0,1,0), Point3D(0,0,0), Point3D(1,1,0), Point3D(1,0,0),
-  Point3D(0,1,1), Point3D(0,0,1), Point3D(1,1,1), Point3D(1,0,1)])
+  Point3d(0,1,0), Point3d(0,0,0), Point3d(1,1,0), Point3d(1,0,0),
+  Point3d(0,1,1), Point3d(0,0,1), Point3d(1,1,1), Point3d(1,0,1)])
 # See Table 3.1 "Mesh connectivity".
 glue_sorted_tetrahedron!(s, 3, 5, 4, 2)
 glue_sorted_tetrahedron!(s, 7, 6, 8, 4)
@@ -376,15 +367,15 @@ end
 @test d(2, s) * d(1, s) * edges(s) == zeros(ntetrahedra(s))
 
 # Five tetrahedra example from Letniowski 1992, as given by Blessent Table 3.3b.
-s = EmbeddedDeltaSet3D{Bool,Point3D}()
+s = EmbeddedDeltaSet3D{Bool,Point3d}()
 add_vertices!(s, 6, point=[
   # See Table 3.3a "Nodal coordinates"
-  Point3D(-2, -2,   0.5),
-  Point3D( 0, -2,   0.1),
-  Point3D(-2,  0,   0.1),
-  Point3D( 0,  0.1, 0),
-  Point3D(-2, -2,  -0.25),
-  Point3D(-2, -2,   1.5)])
+  Point3d(-2, -2,   0.5),
+  Point3d( 0, -2,   0.1),
+  Point3d(-2,  0,   0.1),
+  Point3d( 0,  0.1, 0),
+  Point3d(-2, -2,  -0.25),
+  Point3d(-2, -2,   1.5)])
 # See Table 3.3b "Connectivity list for Letniowski's example"
 glue_sorted_tetrahedron!(s, 1, 2, 4, 6)
 glue_sorted_tetrahedron!(s, 1, 3, 4, 6)
@@ -407,13 +398,13 @@ end
 @test d(2, s) * d(1, s) * edges(s) == zeros(ntetrahedra(s))
 
 # Stacked tetrahedralized cubes each of volume 8.
-s = EmbeddedDeltaSet3D{Bool,Point3D}()
+s = EmbeddedDeltaSet3D{Bool,Point3d}()
 add_vertices!(s, 8, point=[
-  Point3D(-1,1,1), Point3D(1,1,1), Point3D(1,-1,1), Point3D(-1,-1,1),
-  Point3D(-1,1,-1), Point3D(1,1,-1), Point3D(1,-1,-1), Point3D(-1,-1,-1)])
+  Point3d(-1,1,1), Point3d(1,1,1), Point3d(1,-1,1), Point3d(-1,-1,1),
+  Point3d(-1,1,-1), Point3d(1,1,-1), Point3d(1,-1,-1), Point3d(-1,-1,-1)])
 glue_sorted_tet_cube!(s, 1:8...)
 add_vertices!(s, 4, point=[
-  Point3D(-1,1,-3), Point3D(1,1,-3), Point3D(1,-1,-3), Point3D(-1,-1,-3)])
+  Point3d(-1,1,-3), Point3d(1,1,-3), Point3d(1,-1,-3), Point3d(-1,-1,-3)])
 glue_sorted_tet_cube!(s, 5:12...)
 for t in tetrahedra(s)
   @test volume(s, Tet(t)) ≈ 8/6
@@ -422,10 +413,10 @@ end
 
 # Six tetrahedra of equal volume forming a cube with edge length 1.
 # The connectivity is that of Blessent's 2009 thesis, Figure 3.2.
-s = EmbeddedDeltaSet3D{Bool,Point3D}()
+s = EmbeddedDeltaSet3D{Bool,Point3d}()
 add_vertices!(s, 8, point=[
-  Point3D(0,1,0), Point3D(0,0,0), Point3D(1,1,0), Point3D(1,0,0),
-  Point3D(0,1,1), Point3D(0,0,1), Point3D(1,1,1), Point3D(1,0,1)])
+  Point3d(0,1,0), Point3d(0,0,0), Point3d(1,1,0), Point3d(1,0,0),
+  Point3d(0,1,1), Point3d(0,0,1), Point3d(1,1,1), Point3d(1,0,1)])
 # See Table 3.1 "Mesh connectivity".
 glue_sorted_tetrahedron!(s, 3, 5, 4, 2)
 glue_sorted_tetrahedron!(s, 7, 6, 8, 4)
@@ -455,15 +446,15 @@ end
 @test d(2, s) * d(1, s) * edges(s) == zeros(ntetrahedra(s))
 
 # Five tetrahedra example from Letniowski 1992, as given by Blessent Table 3.3b.
-s = EmbeddedDeltaSet3D{Bool,Point3D}()
+s = EmbeddedDeltaSet3D{Bool,Point3d}()
 add_vertices!(s, 6, point=[
   # See Table 3.3a "Nodal coordinates"
-  Point3D(-2, -2,   0.5),
-  Point3D( 0, -2,   0.1),
-  Point3D(-2,  0,   0.1),
-  Point3D( 0,  0.1, 0),
-  Point3D(-2, -2,  -0.25),
-  Point3D(-2, -2,   1.5)])
+  Point3d(-2, -2,   0.5),
+  Point3d( 0, -2,   0.1),
+  Point3d(-2,  0,   0.1),
+  Point3d( 0,  0.1, 0),
+  Point3d(-2, -2,  -0.25),
+  Point3d(-2, -2,   1.5)])
 # See Table 3.3b "Connectivity list for Letniowski's example"
 glue_sorted_tetrahedron!(s, 1, 2, 4, 6)
 glue_sorted_tetrahedron!(s, 1, 3, 4, 6)
@@ -490,10 +481,10 @@ end
 
 std_simplex_volume(n::Int) = sqrt(n+1) / factorial(n)
 
-p1, p2 = Point2D(1,0), Point2D(0,1)
+p1, p2 = Point2d(1,0), Point2d(0,1)
 @test volume([p1, p2]) ≈ std_simplex_volume(1)
 
-p1, p2, p3 = Point3D(1,0,0), Point3D(0,1,0), Point3D(0,0,1)
+p1, p2, p3 = Point3d(1,0,0), Point3d(0,1,0), Point3d(0,0,1)
 @test volume([p1, p2, p3]) ≈ std_simplex_volume(2)
 
 p1, p2, p3, p4 = SVector(1,0,0,0), SVector(0,1,0,0), SVector(0,0,1,0), SVector(0,0,0,1)
@@ -548,12 +539,76 @@ glue_sorted_tetrahedron!(s, 6,7, 5,1)
 # bfg=[267], efg=[567]
 @test link(s,1)[3] == [1, 11]
 
-# "The link of the vertex f is the cone: abcdea * g
+# "The link of the vertex f is the cone: abcdea * g."
 Lkf = link(s,6)
 es = union(∂(0, s, Tri(Lkf[3])), ∂(1, s, Tri(Lkf[3])), ∂(2, s, Tri(Lkf[3])))
 vs = union(∂(0, s, E(es)), ∂(1, s, E(es)))
 @test Set(es) == Set(Lkf[2])
 @test Set(vs) == Set(Lkf[1])
 @test Set(Lkf[1]) == Set([1,2,3,4,5,7])
+
+# 1D simplicial set tests, which are not given in Munkres:
+VE(vs, es) = [V(vs), es == :∅ ? E[] : E(es)]
+s = path_graph(DeltaSet1D, 8)
+@test St(s, 1) == VE([1],     [1])
+@test St̄(s, 1) == VE([1,2],   [1])
+@test Lk(s, 1) == VE([2],     :∅)
+# Observe that the neighborhood around 2 is not isomorphic to that around 1.
+@test St(s, 2) == VE([2],     [1,2])
+@test St̄(s, 2) == VE([2,3,1], [1,2])
+@test Lk(s, 2) == VE([3,1],   :∅)
+
+s = cycle_graph(DeltaSet1D, 8)
+@test St(s, 1) == VE([1],     [8,1])
+@test St̄(s, 1) == VE([1,2,8], [8,1])
+@test Lk(s, 1) == VE([2,8],   :∅)
+# Observe that the neighborhood around 2 is isomorphic to that around 1.
+@test St(s, 2) == VE([2],     [1,2])
+@test St̄(s, 2) == VE([2,3,1], [1,2])
+@test Lk(s, 2) == VE([3,1],   :∅)
+
+# Test boundary indices accessors.
+##################################
+# Line:
+s = path_graph(DeltaSet1D, 8)
+bvs, bes = boundary_inds(Val(0), s), boundary_inds(Val(1), s)
+@test issetequal(bvs, [1,8])
+@test issetequal(bes, [1,7])
+
+# Circle:
+s = cycle_graph(DeltaSet1D, 8)
+bvs, bes = boundary_inds(Val(0), s), boundary_inds(Val(1), s)
+@test issetequal(bvs, [])
+@test issetequal(bes, [])
+
+# Disconnected Lines:
+s = path_graph(DeltaSet1D, 8)
+const 𝒞 = ACSetCategory(CSetCat(DeltaSet1D()))
+s = apex(coproduct[𝒞](s,s))
+bvs, bes = boundary_inds(Val(0), s), boundary_inds(Val(1), s)
+@test issetequal(bvs, [1,8,9,16])
+@test issetequal(bes, [1,7,8,14])
+
+# Test REPL IO
+##############
+
+function show_to_string(s)
+  buf = IOBuffer()
+  show(buf, MIME(Symbol("text/plain")), s)
+  String(take!(buf))
+end
+
+@test show_to_string(path_graph(DeltaSet1D, 32)) ==
+  "1D Delta Set with 32 vertices and 31 edges."
+
+@test show_to_string(triangulated_grid(64,64,8,8,Point2d)) ==
+  "2D Delta Set with 81 vertices, 208 edges, and 128 triangles."
+
+s = CombinatorialSpaces.CombMeshes.single_tetrahedron()[1]
+s[:edge_orientation] = false; s[:tri_orientation] = false; orient!(s);
+
+const 𝒟 = ACSetCategory(EmbeddedDeltaSet3D{Bool, Point3d}())
+@test show_to_string(apex(coproduct[𝒟]([s for _ in 1:32]...))) ==
+  "3D Delta Set with 128 vertices, 192 edges, 128 triangles, and 32 tetrahedra."
 
 end

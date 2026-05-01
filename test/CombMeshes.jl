@@ -7,6 +7,7 @@ using Test
 magnitude = (sqrt ∘ (x -> foldl(+, x*x)))
 unit_radius = 1
 euler_characteristic(p) = nv(p) - ne(p) + nparts(p, :Tri)
+euler_characteristic(p::HasDeltaSet3D) = nv(p) - ne(p) + nparts(p, :Tri) - nparts(p, :Tet)
 
 # Unit Icospheres are of the proper dimensions, are spheres, and have the right
 # Euler characteristic.
@@ -94,6 +95,62 @@ thermo_icosphere5 = loadmesh(Icosphere(5, thermosphere_radius))
 @test ρ == thermosphere_radius
 @test euler_characteristic(thermo_icosphere5) == 2
 
+# Testing the Triangulated Grid
+function test_trigrid_size(s, max_x, max_y, dx, dy)
+  nx = length(0:dx:max_x)
+  ny = length(0:dy:max_y)
+
+  @test nparts(s, :V) == nx * ny
+  @test nparts(s, :Tri) == 2 * (nx - 1) * (ny - 1)
+end
+
+s = triangulated_grid(1, 1, 1, 1, Point2{Float64}, false)
+test_trigrid_size(s, 1, 1, 1, 1)
+@test s[:point] == [[0.0, 0.0], [1.0, 0.0], [0.5, 1.0], [1.5, 1.0]]
+@test s[:tri_orientation] == [true, false]
+@test orient!(s)
+
+s = triangulated_grid(1, 1, 1, 1, Point2{Float64}, true)
+test_trigrid_size(s, 1, 1, 1, 1)
+@test s[:point] == [[0.0, 0.0], [2/3, 0.0], [1/3, 1.0], [1.0, 1.0]]
+@test s[:tri_orientation] == [true, false]
+@test orient!(s)
+
+s = triangulated_grid(2, 2, 1, 1, Point2{Float64}, false)
+test_trigrid_size(s, 2, 2, 1, 1)
+@test s[:point] == [[0.0, 0.0], [1.0, 0.0], [2.0, 0.0],
+                    [0.5, 1.0], [1.5, 1.0], [2.5, 1.0],
+                    [0.0, 2.0], [1.0, 2.0], [2.0, 2.0]]
+@test s[:tri_orientation] == [true, false, true, false, false, true, false, true]
+@test orient!(s)
+
+s = triangulated_grid(1, 1, 0.49, 0.78, Point2{Float64}, false)
+test_trigrid_size(s, 1, 1, 0.49, 0.78)
+@test orient!(s)
+
+s = triangulated_grid(1.6, 3.76, 0.49, 0.78, Point2{Float64}, true)
+test_trigrid_size(s, 1.6, 3.76, 0.49, 0.78)
+@test orient!(s)
+
+lx = 25
+s = triangulated_grid(lx, 2, 1, 0.99, Point2{Float64}, true)
+test_trigrid_size(s, lx, 2, 1, 0.99)
+@test maximum(getindex.(s[:point], 1)) == lx
+
+@test triangulated_grid(10, 10, 1, 1, Point3d) == triangulated_grid(10, 10; nx=10, ny=10)
+@test triangulated_grid(10, 10, 1, 1, Point3d, false) == triangulated_grid(10, 10; nx=10, ny=10, compress = false)
+@test triangulated_grid(10, 10, 1, 1, Point2d) == triangulated_grid(10, 10; nx=10, ny=10, point_type = Point2d)
+@test triangulated_grid(10, 10, 1, 1, Point3d) == triangulated_grid(10, 10; dx=1, dy=1, point_type = Point3d)
+@test triangulated_grid(10, 10, 1, 1, Point3d) == triangulated_grid(10, 10; nx=10, dy=1, point_type = Point3d)
+
+nx = 15; ny = 20
+@test ntriangles(triangulated_grid(10, 10; nx = nx, ny = ny)) == 2*nx*ny
+@test ntriangles(triangulated_grid(1, 5; nx = nx, ny = ny)) == 2*nx*ny
+
+@test_throws AssertionError triangulated_grid(-10, -10; nx = nx, ny = ny)
+@test_throws AssertionError triangulated_grid(10, 10; nx = -nx, ny = -ny)
+@test_throws AssertionError triangulated_grid(10, 10; dx = -1, dy = -1)
+
 # Tests for the SphericalMeshes
 ρ = 6371+90
 s, npi, spi = makeSphere(0, 180, 5, 0, 360, 5, ρ)
@@ -111,5 +168,20 @@ magnitude = (sqrt ∘ (x -> foldl(+, x*x)))
 @test nv(◀▶) == 6
 @test ne(◀▶) == 12
 @test length(triangles(◀▶)) == 8
+
+# Testing the Parallelepiped
+
+s = parallelepiped()
+@test orient!(s)
+# Max 1-norm is 3 for unit cube
+@test maximum(map(p -> sum(p), s[:point])) == 3
+@test euler_characteristic(s) == 1
+@test sum(map(tet -> volume(3, s, tet), 1:ntetrahedra(s))) ≈ 1
+
+s = parallelepiped(lx = 10, ly = 5, lz = 3, dx = 3, dy = 5)
+@test orient!(s)
+@test maximum(map(p -> sum(p), s[:point])) == (10+5+3) + (3+5)
+@test euler_characteristic(s) == 1
+@test sum(map(tet -> volume(3, s, tet), 1:ntetrahedra(s))) ≈ 10*5*3
 
 end
