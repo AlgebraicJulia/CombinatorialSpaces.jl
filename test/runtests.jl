@@ -1,12 +1,20 @@
 module RunTests
 using Test
 
+@testset "Tries" begin
+  include("Tries.jl")
+end
+
 @testset "CombinatorialMaps" begin
   include("CombinatorialMaps.jl")
 end
 
 @testset "SimplicialSets" begin
   include("SimplicialSets.jl")
+end
+
+@testset "SimplicialComplexes" begin
+  include("SimplicialComplexes.jl")
 end
 
 @testset "ExteriorCalculus" begin

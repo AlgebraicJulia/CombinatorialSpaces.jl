@@ -8,19 +8,23 @@ const Point3D = Point3{Float64}
 
 export Point2, Point3, Point2d, Point3d, Point2D, Point3D
 
+include("Tries.jl")
 include("ArrayUtils.jl")
 include("CombinatorialMaps.jl")
 include("ExteriorCalculus.jl")
 include("SimplicialSets.jl")
 include("DiscreteExteriorCalculus.jl")
 include("MeshInterop.jl")
+include("SimplicialComplexes.jl")
 include("CombMeshes.jl")
 include("Restrictions.jl")
 include("Multigrid.jl")
 include("FastDEC.jl")
 include("MeshOptimization.jl")
 
+@reexport using .Tries
 @reexport using .SimplicialSets
+@reexport using .SimplicialComplexes
 @reexport using .DiscreteExteriorCalculus
 @reexport using .MeshInterop
 @reexport using .CombMeshes
