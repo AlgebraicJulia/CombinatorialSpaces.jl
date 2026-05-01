@@ -5,13 +5,17 @@ using SparseArrays
 using LinearAlgebra
 using Catlab
 using CombinatorialSpaces
-using CombinatorialSpaces.CombMeshes: tri_345, tri_345_false, grid_345, right_scalene_unit_hypot, single_tetrahedron
+using CombinatorialSpaces.CombMeshes: tri_345, tri_345_false, grid_345, right_scalene_unit_hypot, single_tetrahedron, tetgen_readme_mesh, parallelepiped
 using CombinatorialSpaces.SimplicialSets: boundary_inds
 using CombinatorialSpaces.DiscreteExteriorCalculus: eval_constant_primal_form
 using GeometryBasics: Point, QuadFace, MetaMesh
 using Random
+using Distributions
 using StaticArrays: SVector
 using Statistics: mean, var, std
+
+Point2D = Point2{Float64}
+Point3D = Point3{Float64}
 
 Random.seed!(0)
 
@@ -554,4 +558,281 @@ end
   end)[interior_tris])
 end
 
+# 3D Operations
+#--------------
+s = tetgen_readme_mesh();
+sd = EmbeddedDeltaDualComplex3D{Bool, Float64, Point3D}(s);
+subdivide_duals!(sd, Barycenter());
+
+dd0 = dual_derivative(0,sd)
+dd1 = dual_derivative(1,sd)
+wdd = dec_wedge_product_dd(Val(0), Val(1), sd)
+is2 = inv_hodge_star(Val(2), sd, DiagonalHodge()) # From Dual 1-forms to Primal 2-forms.
+d2 = d(2,sd)
+wpd = dec_wedge_product_pd(Val(2), Val(1), sd)
+s3 = ⋆(Val(3), sd, DiagonalHodge())
+is3 = inv_hodge_star(Val(3), sd, DiagonalHodge()) # From Dual 0-forms to Primal 3-forms.
+
+dual_div = s3 * d2 * is2
+
+# Also set up a single-tetrahedron mesh for simple unit tests.
+_, sd1 = single_tetrahedron()
+
+@testset "3D DD 0-1 Wedge Product" begin
+  # Test on the full tetgen mesh.
+  wdd_mat = CombinatorialSpaces.FastDEC.wedge_dd_01_mat(sd)
+
+  # Dimensions: ntriangles × ntetrahedra.
+  @test size(wdd_mat) == (ntriangles(sd), ntetrahedra(sd))
+
+  # Each row (primal triangle) has weights that sum to 1,
+  # since dual lengths are normalized per triangle.
+  row_sums = vec(sum(wdd_mat, dims=2))
+  @test all(isapprox.(row_sums, 1.0, atol=1e-14))
+
+  # All weights are non-negative (they are ratios of dual lengths).
+  @test all(wdd_mat .≥ 0)
+
+  # Wedging a constant dual 0-form with any dual 1-form just scales:
+  # (m * c*ones) .* g = c * (m * ones) .* g = c * g.
+  c = 3.0
+  const_f = fill(c, ntetrahedra(sd))
+  g = randn(ntriangles(sd))
+  @test wdd(const_f, g) ≈ c .* g
+
+  # Commutativity: Λ₀₁(f,g) = Λ₁₀(g,f).
+  wdd10 = dec_wedge_product_dd(Val(1), Val(0), sd)
+  f = randn(ntetrahedra(sd))
+  @test wdd(f, g) ≈ wdd10(g, f)
+
+  # Same tests on single-tetrahedron mesh.
+  wdd1_mat = CombinatorialSpaces.FastDEC.wedge_dd_01_mat(sd1)
+  @test size(wdd1_mat) == (ntriangles(sd1), ntetrahedra(sd1))
+  @test all(isapprox.(vec(sum(wdd1_mat, dims=2)), 1.0, atol=1e-14))
+  @test all(wdd1_mat .≥ 0)
 end
+
+@testset "3D Whitney Matrix" begin
+  wm = whitney_mat(Val(2), sd)
+
+  # Dimensions: ntetrahedra × ntriangles.
+  @test size(wm) == (ntetrahedra(sd), ntriangles(sd))
+
+  # Each row (tet) sums to 1 (normalized L1 weights).
+  row_sums = vec(sum(wm, dims=2))
+  @test all(isapprox.(row_sums, 1.0, atol=1e-14))
+
+  # All weights are non-negative (dual volumes are positive).
+  @test all(wm .≥ 0)
+
+  # Each tet has exactly 4 non-zero entries (its 4 face triangles).
+  nnz_per_row = [length(wm[i,:].nzind) for i in 1:ntetrahedra(sd)]
+  @test all(nnz_per_row .== 4)
+
+  # Same on single-tetrahedron mesh.
+  wm1 = whitney_mat(Val(2), sd1)
+  @test size(wm1) == (ntetrahedra(sd1), ntriangles(sd1))
+  @test all(isapprox.(vec(sum(wm1, dims=2)), 1.0, atol=1e-14))
+  @test all(wm1 .≥ 0)
+end
+
+@testset "3D PD 2-1 Wedge Product" begin
+  # Dimensions check.
+  f_rand = randn(ntriangles(sd))
+  g_rand = randn(ntriangles(sd))
+  result = wpd(f_rand, g_rand)
+  @test length(result) == ntetrahedra(sd)
+
+  # DP wedge should also produce the right dimensions.
+  wdp = dec_wedge_product_dp(Val(1), Val(2), sd)
+  result_dp = wdp(g_rand, f_rand)
+  @test length(result_dp) == ntetrahedra(sd)
+
+  # PD(f,g) = DP(g,f) by definition (both use same Whitney matrix and signs).
+  @test wpd(f_rand, g_rand) ≈ wdp(g_rand, f_rand)
+end
+
+@testset "3D boundary_inds(Val(2))" begin
+  # On the single tetrahedron, all 4 triangles are boundary faces.
+  b2_single = boundary_inds(Val(2), sd1)
+  @test length(b2_single) == ntriangles(sd1)
+  @test sort(b2_single) == sort(triangles(sd1))
+
+  # On the full mesh, boundary triangles are a strict subset of all triangles.
+  b2 = boundary_inds(Val(2), sd)
+  @test !isempty(b2)
+  @test length(b2) < ntriangles(sd)
+
+  # Every boundary triangle should appear in exactly one tetrahedron's face list.
+  for tri in b2
+    incident_tets = union(
+      incident(sd, tri, :∂t0)...,
+      incident(sd, tri, :∂t1)...,
+      incident(sd, tri, :∂t2)...,
+      incident(sd, tri, :∂t3)...)
+    @test length(incident_tets) == 1
+  end
+end
+
+μ = Point3D(1,1,6)
+nrml = MvNormal(μ, I(3))
+# This is a dual 0-form (mass density [M L^⁻³]).
+C = map(sd[sd[:tet_center], :dual_point]) do p
+  norm(p - μ) ≤ 3.0 ? 15.8e2 * pdf(nrml,p) : 0.0
+end
+
+# This is a dual 1-form, which encodes a constant gradient pointing "up".
+dZ = dd0 * map(x -> x[3], sd[sd[:tet_center], :dual_point])
+
+# This is a primal 2-form, encoding (signed) unit areas parallel to the z=0 plane.
+dXdY = map(triangles(sd)) do tri
+  _, e2, e3 = triangle_edges(sd,tri)
+  e3_vec, e2_vec = as_vec(sd,e3), as_vec(sd,e2)
+  (cross(e3_vec, e2_vec) * sign(2,sd,tri))[3] / 2
+  # Note that normalizing is the same as dividing by 2*sd[tri, :area],
+  # so the above is equivalent to:
+  #n = normalize(cross(e3_vec, e2_vec) * sign(2,sd,tri))
+  #sd[tri, :area] * n[3] # i.e. n ⋅ SVector{3,Float64}(0,0,1)
+end
+
+@test std(is2*dZ - dXdY) < 8.0
+
+# Test that dZ is closed.
+@test all(abs.(dd1*dZ) .< 1e-14)
+# Test that dXdY is closed.
+@test all(abs.(d2*dXdY) .< 1e-15)
+
+# Test the PD 2-1 wedge product: dXdY ∧ dZ should approximate tet volumes
+# (since dXdY encodes unit z-areas and dZ encodes unit z-gradient).
+wpd_result = wpd(dXdY, dZ)
+@test length(wpd_result) == ntetrahedra(sd)
+#=
+julia> histogram((is2*dZ - dXdY), nbins=20)
+                  ┌                                        ┐ 
+   [-35.0, -30.0) ┤▏ 2                                       
+   [-30.0, -25.0) ┤▎ 4                                       
+   [-25.0, -20.0) ┤▊ 31                                      
+   [-20.0, -15.0) ┤██▌ 83                                    
+   [-15.0, -10.0) ┤█████▌ 187                                
+   [-10.0,  -5.0) ┤███████████▉ 410                          
+   [ -5.0,   0.0) ┤█████████████████████████████████  1 130  
+   [  0.0,   5.0) ┤██████████████████████████████▌ 1 045     
+   [  5.0,  10.0) ┤████████▉ 308                             
+   [ 10.0,  15.0) ┤█████▋ 196                                
+   [ 15.0,  20.0) ┤██▊ 99                                    
+   [ 20.0,  25.0) ┤▊ 31                                      
+   [ 25.0,  30.0) ┤▍ 10                                      
+   [ 30.0,  35.0) ┤▏ 1                                       
+                  └                                        ┘ 
+                                   Frequency                 
+
+julia> histogram((is2*dZ - dXdY).^2, nbins=20)
+                    ┌                                        ┐ 
+   [   0.0,   50.0) ┤█████████████████████████████████  2 512  
+   [  50.0,  100.0) ┤█████▏ 381                                
+   [ 100.0,  150.0) ┤██▋ 201                                   
+   [ 150.0,  200.0) ┤█▋ 133                                    
+   [ 200.0,  250.0) ┤█▍ 97                                     
+   [ 250.0,  300.0) ┤▊ 59                                      
+   [ 300.0,  350.0) ┤▋ 46                                      
+   [ 350.0,  400.0) ┤▍ 29                                      
+   [ 400.0,  450.0) ┤▍ 21                                      
+   [ 450.0,  500.0) ┤▍ 20                                      
+   [ 500.0,  550.0) ┤▎ 11                                      
+   [ 550.0,  600.0) ┤▎ 9                                       
+   [ 600.0,  650.0) ┤▏ 3                                       
+   [ 650.0,  700.0) ┤▏ 1                                       
+   [ 700.0,  750.0) ┤▏ 6                                       
+   [ 750.0,  800.0) ┤▏ 2                                       
+   [ 800.0,  850.0) ┤▏ 1                                       
+   [ 850.0,  900.0) ┤▏ 2                                       
+   [ 900.0,  950.0) ┤▏ 2                                       
+   [ 950.0, 1000.0) ┤▏ 1                                       
+                    └                                        ┘ 
+                                     Frequency                 
+=#
+
+# Demonstrate advection in 3D using the midpoint method.
+function advection_3D_timestep!(dtC, C, dZ, k, dual_div, wdd)
+  dtC .= -dual_div * (k * wdd(C, dZ))
+end
+
+function midpoint_method_advection!(C, dZ, k, dual_div, wdd)
+  dt = 1e-5
+  dtC = zeros(length(C))
+  dC = zeros(length(C))
+  for _ in 1:100_000
+    advection_3D_timestep!(dC, C, dZ, k, dual_div, wdd)
+    dC[b_tets] .= 0.0
+    advection_3D_timestep!(dtC, C .+ (dt/2 * dC), dZ, k, dual_div, wdd)
+    C .+= dt * dtC
+    C[b_tets] .= 0.0
+  end
+  C
+end
+
+b_tets = boundary_inds(Val(3), sd)
+
+k = 1
+C[b_tets] .= 0.0
+C_adv = midpoint_method_advection!(copy(C), dZ, k, dual_div, wdd)
+
+# In 1 second, the center of mass should move by approximately k in the +z direction.
+function center_of_mass(D)
+  mass = is3 * D
+  sum(mass .* (sd[sd[:tet_center], :dual_point])) / sum(mass)
+end
+displacement(C,D) = center_of_mass(D) - center_of_mass(C)
+abs_error(C,D,k) = norm(displacement(C,D) - SVector{3,Float64}(0,0,k))
+rel_error(C,D,k) = abs_error(C,D,k) / norm(k)
+
+@test rel_error(C, C_adv, 1) < 0.5
+
+# The displacement should be primarily in the +z direction.
+disp_adv = displacement(C, C_adv)
+@test disp_adv[3] > 0  # Moving in +z direction
+@test abs(disp_adv[3]) > abs(disp_adv[1])  # z-component dominates x
+@test abs(disp_adv[3]) > abs(disp_adv[2])  # z-component dominates y
+
+# Mass should be approximately conserved (density doesn't vanish or blow up).
+total_mass_before = sum(is3 * C)
+total_mass_after = sum(is3 * C_adv)
+@test total_mass_after > 0
+@test abs(total_mass_after - total_mass_before) / abs(total_mass_before) < 0.5
+
+# Lie derivative on a dual 0-form: L_v C = ∇·(Cv) - C(∇·v)
+# i.e. ∂_t C = -L_v C = -∇·(Cv) + C(∇·v)
+# The first term is the advection (divergence form), and the second is a correction.
+div_v = dual_div * dZ  # ∇·v as a dual 0-form
+function lie_3D_timestep!(dtC, C, dZ, k, dual_div, wdd, div_v)
+  dtC .= k * (-(dual_div * wdd(C, dZ)) .+ C .* div_v)
+end
+
+function midpoint_method_lie!(C, dZ, k, dual_div, wdd, div_v)
+  dt = 1e-5
+  dtC = zeros(length(C))
+  dC = zeros(length(C))
+  for _ in 1:100_000
+    lie_3D_timestep!(dC, C, dZ, k, dual_div, wdd, div_v)
+    dC[b_tets] .= 0.0
+    lie_3D_timestep!(dtC, C .+ (dt/2 * dC), dZ, k, dual_div, wdd, div_v)
+    C .+= dt * dtC
+    C[b_tets] .= 0.0
+  end
+  C
+end
+
+C[b_tets] .= 0.0
+k = 1
+C_lie = midpoint_method_lie!(copy(C), dZ, k, dual_div, wdd, div_v)
+
+@test rel_error(C, C_lie, k) < 0.5
+
+# The Lie derivative displacement should also be primarily in +z.
+disp_lie = displacement(C, C_lie)
+@test disp_lie[3] > 0
+@test abs(disp_lie[3]) > abs(disp_lie[1])
+@test abs(disp_lie[3]) > abs(disp_lie[2])
+
+end
+
