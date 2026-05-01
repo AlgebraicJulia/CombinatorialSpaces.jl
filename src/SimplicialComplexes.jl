@@ -3,7 +3,7 @@ The category of simplicial complexes and Kleisli maps for the convex space monad
 """
 module SimplicialComplexes
 export SimplicialComplex, VertexList, has_simplex, GeometricPoint, has_point, has_span, GeometricMap, nv,
-as_matrix, compose, id, cocenter, primal_vertices
+compose, id, cocenter, primal_vertices
 using ..Tries
 using ..SimplicialSets
 import AlgebraicInterfaces: dom,codom,compose,id 
@@ -12,6 +12,8 @@ import StaticArrays: MVector
 import LinearAlgebra: I
 import ..DiscreteExteriorCalculus: Barycenter
 import ..DiscreteExteriorCalculus: PrimalVectorField
+import ..DiscreteExteriorCalculus: AbstractDeltaDualComplex1D, AbstractDeltaDualComplex2D, AbstractDeltaDualComplex3D, DualV
+const AbstractDeltaDualComplex = Union{AbstractDeltaDualComplex1D, AbstractDeltaDualComplex2D, AbstractDeltaDualComplex3D}
 #import ..SimplicialSets: nv,ne
 
 function add_0_cells(d::HasDeltaSet, t::Trie{Int, Int})
@@ -310,7 +312,5 @@ primal_vertices(s::AbstractDeltaDualComplex,v::DualV) = simplex_vertices(s,cocen
 primal_vertices(s::AbstractDeltaDualComplex,n::Int) = simplex_vertices(s,cocenter(s,DualV(n)))
 
 #dimension(x::Simplex{n}) where {n} = n
-
-end
 
 end

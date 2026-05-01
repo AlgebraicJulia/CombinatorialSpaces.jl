@@ -1,6 +1,7 @@
 module TestSimplicialComplexes
 using Test 
 using CombinatorialSpaces
+import CombinatorialSpaces.SimplicialComplexes: as_matrix
 using Catlab:@acset
 
 # Triangulated commutative square.
