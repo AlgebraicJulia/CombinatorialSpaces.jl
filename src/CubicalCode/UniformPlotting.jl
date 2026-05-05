@@ -22,46 +22,50 @@ convert_arguments(P::Union{Type{<:Makie.Wireframe}, Type{<:Makie.Mesh}, Type{<:M
 
 plottype(::UniformCubicalComplex2D) = GeometryBasics.Mesh
 
-function plot_wireframe(s::UniformCubicalComplex2D; kwargs...)
-  fig = Figure();
-  ax = CairoMakie.Axis(fig[1, 1])
-  CairoMakie.wireframe!(ax, s; kwargs...)
+function plot_wireframe(
+  s::UniformCubicalComplex2D;
+  figure_kwargs = (;),
+  axis_kwargs = (;),
+  wireframe_kwargs = (;),
+  kwargs..., # Backward-compatible passthrough to wireframe!
+)
+  fig = Figure(; figure_kwargs...)
+  ax = CairoMakie.Axis(fig[1, 1]; axis_kwargs...)
+  wf_kwargs = merge(wireframe_kwargs, (; kwargs...))
+  CairoMakie.wireframe!(ax, s; wf_kwargs...)
   fig
 end
 
-# TODO: Add in generic kwargs
-function plot_zeroform(s::UniformCubicalComplex2D, f)
-  fig = Figure();
-  ax = CairoMakie.Axis(fig[1, 1])
-  msh = CairoMakie.mesh!(ax, s, color=interior(Val(0), f, s), colormap=:jet)
-  Colorbar(fig[1, 2], msh)
+function plot_zeroform(
+  s::UniformCubicalComplex2D,
+  f;
+  figure_kwargs = (;),
+  axis_kwargs = (;),
+  mesh_kwargs = (;),
+  colorbar_kwargs = (;),
+)
+  fig = Figure(; figure_kwargs...)
+  ax = CairoMakie.Axis(fig[1, 1]; axis_kwargs...)
+  mesh_defaults = (
+    color = interior(Val(0), f, s),
+    colormap = :jet,
+  )
+  msh = CairoMakie.mesh!(ax, s; merge(mesh_defaults, mesh_kwargs)...)
+  Colorbar(fig[1, 2], msh; colorbar_kwargs...)
   fig
 end
 
 # Plot only the interior of a 1-form, since the halo values are not meaningful for visualization
-function plot_oneform(s::UniformCubicalComplex2D, alpha; lengthscale = 1, normalize = true)
-  dps = dual_points(s)
-  interdps = interior(Val(2), dps, s)
-  x = map(a -> a[1], interdps)
-  y = map(a -> a[2], interdps)
-
-  X = zeros(nquads(s)); Y = zeros(nquads(s))
-
-  X, Y = sharp_dd(X, Y, s, alpha)
-
-  X = interior(Val(2), X, s)
-  Y = interior(Val(2), Y, s)
-
-  color = sqrt.(X.^2 + Y.^2)
-
-  fig = Figure();
-  ax = CairoMakie.Axis(fig[1,1])
-  wireframe!(ax, s; alpha=0.5)
-  arrows2d!(ax, x, y, X, Y, color = color, colormap=:jet, lengthscale = lengthscale, normalize = normalize)
-  fig
-end
-
-function plot_xy_oneform(s::UniformCubicalComplex2D, alpha)
+function plot_oneform(
+  s::UniformCubicalComplex2D,
+  alpha;
+  lengthscale = 1,
+  normalize = true,
+  figure_kwargs = (;),
+  axis_kwargs = (;),
+  wireframe_kwargs = (;),
+  arrows_kwargs = (;),
+)
   dps = dual_points(s)
   interdps = interior(Val(2), dps, s)
   x = map(a -> a[1], interdps)
@@ -72,42 +76,122 @@ function plot_xy_oneform(s::UniformCubicalComplex2D, alpha)
   X = interior(Val(2), X, s)
   Y = interior(Val(2), Y, s)
 
-  fig = Figure();
-  axX = CairoMakie.Axis(fig[1,1]; title = "X Component", xlabel = "x", ylabel = "y")
-  msh = CairoMakie.heatmap!(axX, x, y, X, colormap=:jet)
-  Colorbar(fig[1, 2], msh)
+  color = sqrt.(X.^2 + Y.^2)
 
-  axY = CairoMakie.Axis(fig[2,1]; title = "Y Component", xlabel = "x", ylabel = "y")
-  msh = CairoMakie.heatmap!(axY, x, y, Y, colormap=:jet)
-  Colorbar(fig[2, 2], msh)
+  fig = Figure(; figure_kwargs...)
+  ax = CairoMakie.Axis(fig[1, 1]; axis_kwargs...)
+  wireframe_defaults = (
+    alpha = 0.5,
+  )
+  arrows_defaults = (
+    color = color,
+    colormap = :jet,
+    lengthscale = lengthscale,
+    normalize = normalize,
+  )
+  wireframe!(ax, s; merge(wireframe_defaults, wireframe_kwargs)...)
+  arrows2d!(ax, x, y, X, Y; merge(arrows_defaults, arrows_kwargs)...)
+  fig
+end
+
+function plot_xy_oneform(
+  s::UniformCubicalComplex2D,
+  alpha;
+  figure_kwargs = (;),
+  axis_x_kwargs = (;),
+  axis_y_kwargs = (;),
+  heatmap_x_kwargs = (;),
+  heatmap_y_kwargs = (;),
+  colorbar_x_kwargs = (;),
+  colorbar_y_kwargs = (;),
+)
+  dps = dual_points(s)
+  interdps = interior(Val(2), dps, s)
+  x = map(a -> a[1], interdps)
+  y = map(a -> a[2], interdps)
+
+  X, Y = sharp_dd(s, alpha)
+
+  X = interior(Val(2), X, s)
+  Y = interior(Val(2), Y, s)
+
+  fig = Figure(; figure_kwargs...)
+  axis_x_defaults = (
+    title = "X Component",
+    xlabel = "x",
+    ylabel = "y",
+  )
+  axis_y_defaults = (
+    title = "Y Component",
+    xlabel = "x",
+    ylabel = "y",
+  )
+  heatmap_defaults = (
+    colormap = :jet,
+  )
+
+  axX = CairoMakie.Axis(fig[1, 1]; merge(axis_x_defaults, axis_x_kwargs)...)
+  mshX = CairoMakie.heatmap!(axX, x, y, X; merge(heatmap_defaults, heatmap_x_kwargs)...)
+  Colorbar(fig[1, 2], mshX; colorbar_x_kwargs...)
+
+  axY = CairoMakie.Axis(fig[2, 1]; merge(axis_y_defaults, axis_y_kwargs)...)
+  mshY = CairoMakie.heatmap!(axY, x, y, Y; merge(heatmap_defaults, heatmap_y_kwargs)...)
+  Colorbar(fig[2, 2], mshY; colorbar_y_kwargs...)
 
   fig
 end
 
-function plot_twoform(s::UniformCubicalComplex2D, f)
-  fig = Figure();
-  ax = CairoMakie.Axis(fig[1, 1])
+function plot_twoform(
+  s::UniformCubicalComplex2D,
+  f;
+  figure_kwargs = (;),
+  axis_kwargs = (;),
+  heatmap_kwargs = (;),
+  colorbar_kwargs = (;),
+)
+  fig = Figure(; figure_kwargs...)
+  ax = CairoMakie.Axis(fig[1, 1]; axis_kwargs...)
 
   dps = dual_points(s)
   interdps = interior(Val(2), dps, s)
   x = map(a -> a[1], interdps)
   y = map(a -> a[2], interdps)
 
-  msh = CairoMakie.heatmap!(ax, x, y, interior(Val(2), f, s), colormap=:jet)
-  Colorbar(fig[1, 2], msh)
+  heatmap_defaults = (
+    colormap = :jet,
+  )
+  msh = CairoMakie.heatmap!(ax, x, y, interior(Val(2), f, s); merge(heatmap_defaults, heatmap_kwargs)...)
+  Colorbar(fig[1, 2], msh; colorbar_kwargs...)
   fig
 end
 
-plot_dual_zeroform(s::UniformCubicalComplex2D, f) = plot_twoform(s, f)
+function plot_dual_zeroform(s::UniformCubicalComplex2D, f; kwargs...)
+  return plot_twoform(s, f; kwargs...)
+end
 
-function create_gif(solution, file_name; frames = length(solution), framerate = 15)
+function create_gif(
+  solution,
+  file_name;
+  frames = length(solution),
+  framerate = 15,
+  figure_kwargs = (;),
+  axis_kwargs = (;),
+  mesh_kwargs = (;),
+  colorbar_kwargs = (;),
+  record_kwargs = (;),
+)
   t_e = solution.t[end]
 
-  fig = Figure()
-  ax = CairoMakie.Axis(fig[1,1])
-  msh = CairoMakie.mesh!(ax, s, color=interior(Val(0), first(solution), s), colormap=:jet, colorrange=extrema(first(solution)))
-  Colorbar(fig[1,2], msh)
-  CairoMakie.record(fig, file_name, 1:frames; framerate = framerate) do t
+  fig = Figure(; figure_kwargs...)
+  ax = CairoMakie.Axis(fig[1, 1]; axis_kwargs...)
+  mesh_defaults = (
+    color = interior(Val(0), first(solution), s),
+    colormap = :jet,
+    colorrange = extrema(first(solution)),
+  )
+  msh = CairoMakie.mesh!(ax, s; merge(mesh_defaults, mesh_kwargs)...)
+  Colorbar(fig[1, 2], msh; colorbar_kwargs...)
+  CairoMakie.record(fig, file_name, 1:frames; framerate = framerate, record_kwargs...) do t
     msh.color = interior(Val(0), solution(t * t_e / frames), s)
   end
 end

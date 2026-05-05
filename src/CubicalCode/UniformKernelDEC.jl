@@ -82,7 +82,7 @@ end
   @inbounds res[idx] = tmp
 end
 
-function wedge_product(::Val{0}, ::Val{1}, s::UniformCubicalComplex2D, f, a)
+function wedge_product(::Val{0}, ::Val{1}, s::UniformCubicalComplex2D, f::AbstractVector{FT}, a::AbstractVector{FT}) where FT <: AbstractFloat
   backend = get_backend(f)
   res = KernelAbstractions.zeros(backend, Float64, ne(s))
   kernel = kernel_wedge_product_01(backend)
@@ -91,9 +91,10 @@ function wedge_product(::Val{0}, ::Val{1}, s::UniformCubicalComplex2D, f, a)
   return res
 end
 
-wedge_product(::Val{1}, ::Val{0}, s::UniformCubicalComplex2D, a, f) = wedge_product(Val(0), Val(1), s, f, a)
+wedge_product(::Val{1}, ::Val{0}, s::UniformCubicalComplex2D, a::AbstractVector{FT}, f::AbstractVector{FT}) where FT <: AbstractFloat = 
+  wedge_product(Val(0), Val(1), s, f, a)
 
-function wedge_product(::Val{1}, ::Val{1}, s::UniformCubicalComplex2D, f1, f2)
+function wedge_product(::Val{1}, ::Val{1}, s::UniformCubicalComplex2D, f1::AbstractVector{FT}, f2::AbstractVector{FT}) where FT <: AbstractFloat
   backend = get_backend(f1)
   res = KernelAbstractions.zeros(backend, Float64, nquads(s))
   kernel = kernel_wedge_product_11(backend)
@@ -102,7 +103,7 @@ function wedge_product(::Val{1}, ::Val{1}, s::UniformCubicalComplex2D, f1, f2)
   return res
 end
 
-function wedge_product_dd(::Val{0}, ::Val{1}, s::UniformCubicalComplex2D, f, a)
+function wedge_product_dd(::Val{0}, ::Val{1}, s::UniformCubicalComplex2D, f::AbstractVector{FT}, a::AbstractVector{FT}) where FT <: AbstractFloat
   backend = get_backend(f)
   res = KernelAbstractions.zeros(backend, Float64, ne(s))
   kernel = kernel_wedge_product_dual_01(backend)
@@ -130,7 +131,7 @@ wedge_product_dd(::Val{1}, ::Val{0}, s::UniformCubicalComplex2D, a, f) = wedge_p
   Y[idx] = (a[e1]/le1 + a[e3]/le3) / 2
 end
 
-function sharp_dd(s::UniformCubicalComplex2D, a)
+function sharp_dd(s::UniformCubicalComplex2D, a::AbstractVector{FT}) where FT <:AbstractFloat
   backend = get_backend(a)
   X = KernelAbstractions.zeros(backend, Float64, nquads(s))
   Y = KernelAbstractions.zeros(backend, Float64, nquads(s))
@@ -163,7 +164,7 @@ end
   end
 end
 
-function flat_dp(s::UniformCubicalComplex2D, X, Y)
+function flat_dp(s::UniformCubicalComplex2D, X::AbstractVector{FT}, Y::AbstractVector{FT}) where FT <:AbstractFloat
   backend = get_backend(X)
   res = KernelAbstractions.zeros(backend, Float64, ne(s))
   kernel = kernel_flat_dp(backend)
@@ -196,7 +197,7 @@ end
   end
 end
 
-function flat_dd(s::UniformCubicalComplex2D, X, Y)
+function flat_dd(s::UniformCubicalComplex2D, X::AbstractVector{FT}, Y::AbstractVector{FT}) where FT <:AbstractFloat
   backend = get_backend(X)
   res = KernelAbstractions.zeros(backend, Float64, ne(s))
   kernel = kernel_flat_dd(backend)
@@ -254,7 +255,7 @@ end
   @inbounds f[coord_to_vert(s, i, j)] = f[coord_to_vert(s, i, ny_ - 2hy_ + j - 1)]
 end
 
-function set_periodic!(f::AbstractVector, ::Val{0}, s::UniformCubicalComplex2D, side::GridSide)
+function set_periodic!(f::AbstractVector{FT}, ::Val{0}, s::UniformCubicalComplex2D, side::GridSide) where FT <: AbstractFloat
   backend = get_backend(f)
   if side == EASTWEST || side == ALL
     kernel_set_periodic_0_ew!(backend)(f, s; ndrange = (hx(s) + 1) * ny(s))
@@ -311,7 +312,7 @@ end
   @inbounds f[coord_to_edge(s, i, nye_ - hy_ + j, Y_ALIGN)] = f[coord_to_edge(s, i, hy_ + j, Y_ALIGN)]
 end
 
-function set_periodic!(f::AbstractVector, ::Val{1}, s::UniformCubicalComplex2D, side::GridSide)
+function set_periodic!(f::AbstractVector{FT}, ::Val{1}, s::UniformCubicalComplex2D, side::GridSide) where FT <: AbstractFloat
   backend = get_backend(f)
   if side == EASTWEST || side == ALL
     kernel_set_periodic_1_ew_x!(backend)(f, s; ndrange = hx(s) * ny(s))
@@ -344,7 +345,7 @@ end
   @inbounds f[coord_to_quad(s, i, nqy_ - hy_ + j)] = f[coord_to_quad(s, i, hy_ + j)]
 end
 
-function set_periodic!(f::AbstractVector, ::Val{2}, s::UniformCubicalComplex2D, side::GridSide)
+function set_periodic!(f::AbstractVector{FT}, ::Val{2}, s::UniformCubicalComplex2D, side::GridSide) where FT <: AbstractFloat
   backend = get_backend(f)
   if side == EASTWEST || side == ALL
     kernel_set_periodic_2_ew!(backend)(f, s; ndrange = hx(s) * nyquads(s))

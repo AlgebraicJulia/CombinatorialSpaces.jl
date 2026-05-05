@@ -89,6 +89,9 @@ function coord_to_edge(s::AbstractCubicalComplex2D, x::Int, y::Int, align::Align
 end
 coord_to_quad(s::AbstractCubicalComplex2D, x::Int, y::Int) = (y - 1) * nxquads(s) + x
 
+is_X_aligned(e::Int, s::AbstractCubicalComplex2D) = e <= nxedges(s)
+is_Y_aligned(e::Int, s::AbstractCubicalComplex2D) = e > nxedges(s)
+
 real_coord_to_vert(s::AbstractCubicalComplex2D, x::Int, y::Int) = coord_to_vert(s, x + hx(s), y + hy(s))
 # This function takes a coordinate on the interior and maps it to a vertex index
 real_coord_to_real_vert(s::AbstractCubicalComplex2D, x::Int, y::Int) = x + (y - 1) * nxr(s)
