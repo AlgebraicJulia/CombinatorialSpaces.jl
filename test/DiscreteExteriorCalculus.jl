@@ -128,6 +128,12 @@ end
   @test all(unit.(primal_0_density) .== unit(1.0u"kg/m"))
   @test ustrip.(u"kg/m", primal_0_density) ≈ [2.0, 4.0, 6.0]
 
+  # d_0(x [kg / m]) -> y [kg / m].
+  primal_1_density = d(unitful_primal_s, density_vform)
+  @test primal_1_density == EForm([2.0, 2.0] .* u"kg/m")
+  @test all(unit.(primal_1_density) .== unit(1.0u"kg/m"))
+  @test ustrip.(u"kg/m", primal_1_density) ≈ [2.0, 2.0]
+
 end
 
 # Path graph on 5 vertices with regular lengths.
