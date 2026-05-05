@@ -89,10 +89,11 @@ end
   unitful_s = EmbeddedDeltaDualComplex1D{Bool,Float64,Point2d}(unitful_primal_s)
   subdivide_duals!(unitful_s, Barycenter())
 
-  # star_0(x [kg / m]) -> y [kg].
+  # star_0_default(x [kg / m]) -> y [kg / m].
   density_vform = VForm([2.0, 4.0, 6.0] .* u"kg/m")
   default_dual_1_form = ⋆(unitful_s, density_vform)
   @test default_dual_1_form == DualForm{1}([1.0, 6.0, 6.0] .* u"kg/m")
+  # star_0(x [kg / m]) -> y [kg].
   @test ⋆(0, unitful_s) ≈ Diagonal([0.5, 1.5, 1.0])
   @test ⋆(Val(0), unitful_s) ≈ Diagonal([0.5, 1.5, 1.0])
   star_0_unitful = ⋆(0, unitful_s, u"m")

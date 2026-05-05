@@ -1745,7 +1745,7 @@ end
 @inline function ⋆(::Val{0}, s::AbstractDeltaDualComplex1D, unit::Units;
                    hodge::DiscreteHodge=GeometricHodge())
   dimension(unit) == dimension(u"m") ||
-    throw(ArgumentError("0-Hodge star (primal 0-form to dual 1-form) units on 1D dual complexes must have dimensions of length."))
+    throw(ArgumentError("Unit parameter for 0-Hodge star on 1D dual complexes must have dimensions of length."))
   hdg = ⋆(Val(0), s, hodge)
   hdg isa Diagonal ||
     throw(ArgumentError("Units are currently supported only for diagonal 0-Hodge stars on 1D dual complexes."))
@@ -1826,7 +1826,7 @@ inv_hodge_star(::Val{n}, s::AbstractDeltaDualComplex1D,
                                 unit::Units;
                                 hodge::DiscreteHodge=GeometricHodge())
   dimension(unit) == dimension(u"m^-1") ||
-    throw(ArgumentError("Inverse 0-Hodge star (dual 1-form to primal 0-form) units on 1D dual complexes must have inverse-length dimensions."))
+    throw(ArgumentError("Unit parameter for inverse 0-Hodge star on 1D dual complexes must have inverse-length dimensions."))
   ihdg = inv_hodge_star(Val(0), s, hodge)
   ihdg isa Diagonal ||
     throw(ArgumentError("Units are currently supported only for diagonal inverse 0-Hodge stars on 1D dual complexes."))
@@ -1843,10 +1843,10 @@ end
                                 unit::Units;
                                 hodge::DiscreteHodge=GeometricHodge())
   dimension(unit) == dimension(u"m") ||
-    throw(ArgumentError("Inverse 1-Hodge star (dual 0-form to primal 1-form) units on 1D dual complexes must have dimensions of length."))
+    throw(ArgumentError("Unit parameter for inverse 1-Hodge star on 1D dual complexes must have dimensions of length."))
   ihdg = inv_hodge_star(Val(1), s, hodge)
   ihdg isa Diagonal ||
-    throw(ArgumentError("Units are currently supported only for diagonal inverse 1-Hodge stars (dual 0-form to primal 1-form) on 1D dual complexes."))
+    throw(ArgumentError("Units are currently supported only for diagonal inverse 1-Hodge stars on 1D dual complexes."))
   Diagonal(ihdg.diag .* unit)
 end
 
