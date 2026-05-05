@@ -128,11 +128,12 @@ end
   @test all(unit.(primal_0_density) .== unit(1.0u"kg/m"))
   @test ustrip.(u"kg/m", primal_0_density) ≈ [2.0, 4.0, 6.0]
 
-  # d_0(x [kg / m]) -> y [kg / m].
-  primal_1_density = d(unitful_primal_s, density_vform)
-  @test primal_1_density == EForm([2.0, 2.0] .* u"kg/m")
-  @test all(unit.(primal_1_density) .== unit(1.0u"kg/m"))
-  @test ustrip.(u"kg/m", primal_1_density) ≈ [2.0, 2.0]
+  # d_0(ϕ [m^2 / s]) -> q [m^2 / s], for 1D potential flow.
+  potential_vform = VForm([1.0, 4.0, 10.0] .* u"m^2/s")
+  potential_flow = d(unitful_primal_s, potential_vform)
+  @test potential_flow == EForm([3.0, 6.0] .* u"m^2/s")
+  @test all(unit.(potential_flow) .== unit(1.0u"m^2/s"))
+  @test ustrip.(u"m^2/s", potential_flow) ≈ [3.0, 6.0]
 
 end
 
