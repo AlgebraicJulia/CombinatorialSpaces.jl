@@ -1846,7 +1846,7 @@ end
     throw(ArgumentError("Inverse 1-Hodge star (dual 0-form to primal 1-form) units on 1D dual complexes must have dimensions of length."))
   ihdg = inv_hodge_star(Val(1), s, hodge)
   ihdg isa Diagonal ||
-    throw(ArgumentError("Units are currently supported only for diagonal dual 0-form Hodge stars on 1D dual complexes."))
+    throw(ArgumentError("Units are currently supported only for diagonal inverse 1-Hodge stars (dual 0-form to primal 1-form) on 1D dual complexes."))
   Diagonal(ihdg.diag .* unit)
 end
 
