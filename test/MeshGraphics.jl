@@ -1,10 +1,10 @@
 module TestMeshGraphics
 using Test
 
-using CairoMakie
+using Makie
 using CombinatorialSpaces
 
-CairoMakie.Makie.inline!(true)
+Makie.inline!(true)
 
 s = EmbeddedDeltaSet2D(joinpath(@__DIR__, "assets", "square.obj"))
 sd = EmbeddedDeltaDualComplex2D{Bool, Float64, Point3d}(s)
