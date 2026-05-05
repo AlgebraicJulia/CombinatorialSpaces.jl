@@ -1742,7 +1742,11 @@ end
 
 @inline function ⋆(::Val{0}, s::AbstractDeltaDualComplex1D, unit::Units;
                    hodge::DiscreteHodge=GeometricHodge())
+  dimension(unit) == dimension(u"m") ||
+    throw(ArgumentError("0-Hodge star units on 1D dual complexes must have dimensions of length."))
   hdg = ⋆(Val(0), s, hodge)
+  hdg isa Diagonal ||
+    throw(ArgumentError("Units are currently supported only for diagonal 0-Hodge stars on 1D dual complexes."))
   Diagonal(hdg.diag .* unit)
 end
 
@@ -1815,6 +1819,40 @@ inv_hodge_star(::Val{n}, s::AbstractDeltaDualComplex1D,
 inv_hodge_star(::Val{n}, s::AbstractDeltaDualComplex1D,
                form::AbstractVector, ::GeometricHodge) where n =
   inv_hodge_star(Val(n), s, form, DiagonalHodge())
+
+@inline function inv_hodge_star(::Val{0}, s::AbstractDeltaDualComplex1D,
+                                unit::Units;
+                                hodge::DiscreteHodge=GeometricHodge())
+  dimension(unit) == dimension(u"m^-1") ||
+    throw(ArgumentError("Inverse 0-Hodge star units on 1D dual complexes must have inverse-length dimensions."))
+  ihdg = inv_hodge_star(Val(0), s, hodge)
+  ihdg isa Diagonal ||
+    throw(ArgumentError("Units are currently supported only for diagonal inverse 0-Hodge stars on 1D dual complexes."))
+  Diagonal(ihdg.diag .* unit)
+end
+
+@inline function inv_hodge_star(::Val{0}, s::AbstractDeltaDualComplex1D,
+                                form::AbstractVector, unit::Units;
+                                hodge::DiscreteHodge=GeometricHodge())
+  inv_hodge_star(Val(0), s, unit; hodge) * form
+end
+
+@inline function inv_hodge_star(::Val{1}, s::AbstractDeltaDualComplex1D,
+                                unit::Units;
+                                hodge::DiscreteHodge=GeometricHodge())
+  dimension(unit) == dimension(u"m") ||
+    throw(ArgumentError("Dual 0-form Hodge star units on 1D dual complexes must have dimensions of length."))
+  ihdg = inv_hodge_star(Val(1), s, hodge)
+  ihdg isa Diagonal ||
+    throw(ArgumentError("Units are currently supported only for diagonal dual 0-form Hodge stars on 1D dual complexes."))
+  Diagonal(ihdg.diag .* unit)
+end
+
+@inline function inv_hodge_star(::Val{1}, s::AbstractDeltaDualComplex1D,
+                                form::AbstractVector, unit::Units;
+                                hodge::DiscreteHodge=GeometricHodge())
+  inv_hodge_star(Val(1), s, unit; hodge) * form
+end
 
 """ Alias for the inverse Hodge star operator [`⋆⁻¹`](@ref).
 """
