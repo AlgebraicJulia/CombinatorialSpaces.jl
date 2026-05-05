@@ -67,7 +67,7 @@ julia = "1.10"
 
 [extras]
 CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
-CairoMakie = "13f3f980-e62b-5c42-98c6-ff1f3baf88f0"
+Makie = "ee78f7c6-11fb-53f2-987a-cfe4a2b5a57a"
 DelaunayTriangulation = "927a84f5-c5f4-47a5-9785-b46e178433df"
 Meshes = "eacbb407-ea5a-433e-ab97-5258b1ca43fa"
 Pkg = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
@@ -76,4 +76,4 @@ Statistics = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
-test = ["CairoMakie", "CUDA", "DelaunayTriangulation", "Meshes", "Pkg", "Random", "Test", "Statistics"]
+test = ["Makie", "CUDA", "DelaunayTriangulation", "Meshes", "Pkg", "Random", "Test", "Statistics"]
