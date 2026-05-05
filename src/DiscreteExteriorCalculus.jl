@@ -1634,6 +1634,8 @@ fancy_acset_schema(d::HasDeltaSet) = Presentation(acset_schema(d))
 """
 ⋆(s::HasDeltaSet, x::SimplexForm{n}; kw...) where n =
   DualForm{ndims(s)-n}(⋆(Val(n), s, x.data; kw...))
+""" Hodge star on a primal form with an explicit Unitful unit annotation.
+"""
 ⋆(s::HasDeltaSet, x::SimplexForm{n}, unit::Units; kw...) where n =
   DualForm{ndims(s)-n}(⋆(Val(n), s, x.data, unit; kw...))
 @inline ⋆(n::Int, s::HasDeltaSet, args...; kw...) =
@@ -1743,7 +1745,7 @@ end
 @inline function ⋆(::Val{0}, s::AbstractDeltaDualComplex1D, unit::Units;
                    hodge::DiscreteHodge=GeometricHodge())
   dimension(unit) == dimension(u"m") ||
-    throw(ArgumentError("0-Hodge star units on 1D dual complexes must have dimensions of length."))
+    throw(ArgumentError("0-Hodge star (primal 0-form to dual 1-form) units on 1D dual complexes must have dimensions of length."))
   hdg = ⋆(Val(0), s, hodge)
   hdg isa Diagonal ||
     throw(ArgumentError("Units are currently supported only for diagonal 0-Hodge stars on 1D dual complexes."))
@@ -1824,7 +1826,7 @@ inv_hodge_star(::Val{n}, s::AbstractDeltaDualComplex1D,
                                 unit::Units;
                                 hodge::DiscreteHodge=GeometricHodge())
   dimension(unit) == dimension(u"m^-1") ||
-    throw(ArgumentError("Inverse 0-Hodge star units on 1D dual complexes must have inverse-length dimensions."))
+    throw(ArgumentError("Inverse 0-Hodge star (dual 1-form to primal 0-form) units on 1D dual complexes must have inverse-length dimensions."))
   ihdg = inv_hodge_star(Val(0), s, hodge)
   ihdg isa Diagonal ||
     throw(ArgumentError("Units are currently supported only for diagonal inverse 0-Hodge stars on 1D dual complexes."))
@@ -1841,7 +1843,7 @@ end
                                 unit::Units;
                                 hodge::DiscreteHodge=GeometricHodge())
   dimension(unit) == dimension(u"m") ||
-    throw(ArgumentError("Dual 0-form Hodge star units on 1D dual complexes must have dimensions of length."))
+    throw(ArgumentError("Inverse 1-Hodge star (dual 0-form to primal 1-form) units on 1D dual complexes must have dimensions of length."))
   ihdg = inv_hodge_star(Val(1), s, hodge)
   ihdg isa Diagonal ||
     throw(ArgumentError("Units are currently supported only for diagonal dual 0-form Hodge stars on 1D dual complexes."))
