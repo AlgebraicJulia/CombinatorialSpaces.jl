@@ -128,12 +128,25 @@ end
   @test all(unit.(primal_0_density) .== unit(1.0u"kg/m"))
   @test ustrip.(u"kg/m", primal_0_density) ≈ [2.0, 4.0, 6.0]
 
-  # d_0(ϕ [m^2 / s]) -> q [m^2 / s], for 1D potential flow.
+  # 1D potential flow: ϕ [m^2/s] → d₀(ϕ) [m^2/s] → u = d₀(ϕ)/L [m/s].
+  # The two primal edges have lengths 1 m and 2 m respectively.
+  edge_lengths = [1.0, 2.0] .* u"m"
   potential_vform = VForm([1.0, 4.0, 10.0] .* u"m^2/s")
-  potential_flow = d(unitful_primal_s, potential_vform)
-  @test potential_flow == EForm([3.0, 6.0] .* u"m^2/s")
-  @test all(unit.(potential_flow) .== unit(1.0u"m^2/s"))
-  @test ustrip.(u"m^2/s", potential_flow) ≈ [3.0, 6.0]
+  potential_diff = d(unitful_primal_s, potential_vform)
+  @test potential_diff == EForm([3.0, 6.0] .* u"m^2/s")
+  velocity = potential_diff.data ./ edge_lengths
+  @test velocity ≈ [3.0, 3.0] .* u"m/s"
+  @test all(unit.(velocity) .== unit(1.0u"m/s"))
+  @test ustrip.(u"m/s", velocity) ≈ [3.0, 3.0]
+
+  # Concentration gradient: c [kg/m] → d₀(c) [kg/m] → ∇c = d₀(c)/L [kg/m^2].
+  conc_vform = VForm([2.0, 4.0, 6.0] .* u"kg/m")
+  conc_diff = d(unitful_primal_s, conc_vform)
+  @test conc_diff == EForm([2.0, 2.0] .* u"kg/m")
+  conc_grad = conc_diff.data ./ edge_lengths
+  @test conc_grad ≈ [2.0, 1.0] .* u"kg/m^2"
+  @test all(unit.(conc_grad) .== unit(1.0u"kg/m^2"))
+  @test ustrip.(u"kg/m^2", conc_grad) ≈ [2.0, 1.0]
 
 end
 
