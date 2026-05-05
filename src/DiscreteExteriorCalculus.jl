@@ -1744,11 +1744,7 @@ end
 
 @inline function ⋆(::Val{0}, s::AbstractDeltaDualComplex1D, unit::Units;
                    hodge::DiscreteHodge=GeometricHodge())
-  dimension(unit) == dimension(u"m") ||
-    throw(ArgumentError("Unit parameter for 0-Hodge star on 1D dual complexes must have dimensions of length."))
   hdg = ⋆(Val(0), s, hodge)
-  hdg isa Diagonal ||
-    throw(ArgumentError("Units are currently supported only for diagonal 0-Hodge stars on 1D dual complexes."))
   Diagonal(hdg.diag .* unit)
 end
 
@@ -1825,11 +1821,7 @@ inv_hodge_star(::Val{n}, s::AbstractDeltaDualComplex1D,
 @inline function inv_hodge_star(::Val{0}, s::AbstractDeltaDualComplex1D,
                                 unit::Units;
                                 hodge::DiscreteHodge=GeometricHodge())
-  dimension(unit) == dimension(u"m^-1") ||
-    throw(ArgumentError("Unit parameter for inverse 0-Hodge star on 1D dual complexes must have inverse-length dimensions."))
   ihdg = inv_hodge_star(Val(0), s, hodge)
-  ihdg isa Diagonal ||
-    throw(ArgumentError("Units are currently supported only for diagonal inverse 0-Hodge stars on 1D dual complexes."))
   Diagonal(ihdg.diag .* unit)
 end
 
@@ -1842,11 +1834,7 @@ end
 @inline function inv_hodge_star(::Val{1}, s::AbstractDeltaDualComplex1D,
                                 unit::Units;
                                 hodge::DiscreteHodge=GeometricHodge())
-  dimension(unit) == dimension(u"m") ||
-    throw(ArgumentError("Unit parameter for inverse 1-Hodge star on 1D dual complexes must have dimensions of length."))
   ihdg = inv_hodge_star(Val(1), s, hodge)
-  ihdg isa Diagonal ||
-    throw(ArgumentError("Units are currently supported only for diagonal inverse 1-Hodge stars on 1D dual complexes."))
   Diagonal(ihdg.diag .* unit)
 end
 
