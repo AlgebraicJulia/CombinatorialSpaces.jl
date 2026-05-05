@@ -91,6 +91,8 @@ end
 
   # star_0(x [kg / m]) -> y [kg].
   density_vform = VForm([2.0, 4.0, 6.0] .* u"kg/m")
+  default_dual_1_form = ⋆(unitful_s, density_vform)
+  @test default_dual_1_form == DualForm{1}([1.0, 6.0, 6.0] .* u"kg/m")
   @test ⋆(0, unitful_s) ≈ Diagonal([0.5, 1.5, 1.0])
   @test ⋆(Val(0), unitful_s) ≈ Diagonal([0.5, 1.5, 1.0])
   star_0_unitful = ⋆(0, unitful_s, u"m")
