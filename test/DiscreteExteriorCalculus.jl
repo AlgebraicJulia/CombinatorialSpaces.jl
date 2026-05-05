@@ -102,7 +102,7 @@ end
   @test ustrip.(u"kg", dual_1_form) ≈ [1.0, 6.0, 6.0]
   @test_throws ArgumentError ⋆(0, unitful_s, u"s")
 
-  # dual_star_0(x [kg / m]) -> y [kg].
+  # dual_star_0 / inv_star_1(x [kg / m]) -> y [kg].
   dual_density_0 = DualForm{0}([2.0, 4.0] .* u"kg/m")
   @test inv_hodge_star(1, unitful_s) ≈ Diagonal([1.0, 2.0])
   dual_0_star_unitful = inv_hodge_star(1, unitful_s, u"m")
@@ -127,8 +127,6 @@ end
   @test ustrip.(u"kg/m", primal_0_density) ≈ [2.0, 4.0, 6.0]
   @test_throws ArgumentError inv_hodge_star(0, unitful_s, u"m")
 
-  # inv_star_1(x [kg / m]) -> y [kg].
-  @test inv_hodge_star(1, unitful_s, dual_density_0, u"m") == [2.0, 8.0] .* u"kg"
 end
 
 # Path graph on 5 vertices with regular lengths.
