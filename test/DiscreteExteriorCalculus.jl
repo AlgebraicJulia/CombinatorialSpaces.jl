@@ -96,7 +96,7 @@ end
   star_0_unitful = ⋆(0, unitful_s, u"m")
   @test ⋆(Val(0), unitful_s, u"m") == Diagonal([0.5, 1.5, 1.0] .* u"m")
   @test star_0_unitful == Diagonal([0.5, 1.5, 1.0] .* u"m")
-  dual_1_form = ⋆(unitful_s, density_vform, u"m")
+  dual_1_form = ⋆(unitful_s, density_vform, u"m")::DualForm{1}
   @test dual_1_form == DualForm{1}([1.0, 6.0, 6.0] .* u"kg")
   @test all(unit.(dual_1_form) .== unit(1.0u"kg"))
   @test ustrip.(u"kg", dual_1_form) ≈ [1.0, 6.0, 6.0]
@@ -109,6 +109,7 @@ end
   @test inv_hodge_star(Val(1), unitful_s, u"m") == Diagonal([1.0, 2.0] .* u"m")
   @test dual_0_star_unitful == Diagonal([1.0, 2.0] .* u"m")
   primal_1_form = inv_hodge_star(1, unitful_s, dual_density_0, u"m")
+  @test inv_hodge_star(Val(1), unitful_s, dual_density_0, u"m") == [2.0, 8.0] .* u"kg"
   @test primal_1_form == [2.0, 8.0] .* u"kg"
   @test all(unit.(primal_1_form) .== unit(1.0u"kg"))
   @test ustrip.(u"kg", primal_1_form) ≈ [2.0, 8.0]
