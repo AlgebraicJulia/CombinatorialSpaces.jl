@@ -1,24 +1,8 @@
-using Test
-using CairoMakie
-using LinearAlgebra
-using Printf
-using SparseArrays
-using JLD2
-using ComponentArrays
-using Distributions
-using OrdinaryDiffEqSSPRK
-using DiffEqCallbacks
-
-include(joinpath(@__DIR__, "..", "..", "src", "CubicalCode", "UniformDEC.jl"))
-include(joinpath(@__DIR__, "LMNS_Helpers", "Simulation_Harness.jl"))
-include(joinpath(@__DIR__, "LMNS_Helpers", "DEC_Operators.jl"))
-include(joinpath(@__DIR__, "LMNS_Helpers", "CUDA_Init.jl"))
+include(joinpath(@__DIR__, "LMNS_Helpers", "Simulation_Header.jl"))
 
 #################################
 ### Simulation Initialization ###
 #################################
-
-include(joinpath(@__DIR__, "LMNS_Helpers", "Physics.jl"))
 
 # simfile = "Kelvin-Helmholtz_Sim.jl"
 simfile = "Thermal_Bubble_Sim.jl"
@@ -72,53 +56,23 @@ include(joinpath(@__DIR__, "LMNS_Helpers", "Physics_Plotting.jl"))
 
 println("Setting up physical operators...")
 
-# TODO: Precompute some matrix products to speed up the loop
-function momentum_continuity(state::ComponentVector{FT}, p::NamedTuple, use_gravity::Bool=false, periodic_side::Union{Nothing, GridSide}=nothing) where FT <: AbstractFloat
-  U = hdg_1 * state.U_star
-  rho = hdg_2 * state.rho_star
-  Theta = hdg_2 * state.Theta_star
+# Pressure 2-form from potential temperature: P = pressure(Θ)
+momentum_pressure(::LMNSHModel, s::UniformCubicalComplex2D, state::ComponentVector{FT}, p::NamedTuple, dec_ops::NamedTuple, fields::NamedTuple) where FT <: AbstractFloat =
+  pressure(dec_ops.hdg_2 * state.Theta_star)
 
-  mu = p[:mu]
-
-  # Compute velocity u from momentum U and density rho
-  u = wedge_product_dd(Val(0), Val(1), s, 1 ./ rho, U)
-
-  # Interpolate u to primal edges
-  vX, vY = sharp_dd(s, u)
-  v = flat_dp(s, vX, vY)
-
-  VX, VY = sharp_dd(s, U)
-  V = flat_dp(s, VX, VY)
-
-  # TODO: Enforce conditions on V as well?
-  enforce_bc_v!(v)
-
-  # U ∧ δu
-  div_term = wedge_product_dd(Val(0), Val(1), s, dual_δ1 * u, U)
-
-  # L(u, U)
-  L_term = dual_d0 * hdg_2 * wedge_product(Val(1), Val(1), s, v, inv_hdg_1 * U) +
-    hdg_1 * wedge_product(Val(0), Val(1), s, inv_hdg_0 * (dual_d1 * U + d_beta * V), v)
-
-  # 1/2 * ρ * d||u||^2
-  diff_norm_u = dual_d0 * hdg_2 * wedge_product(Val(1), Val(1), s, v, inv_hdg_1 * u)
-  energy = 0.5 .* wedge_product_dd(Val(0), Val(1), s, rho, diff_norm_u)
-
-  # dP, P = κρ
-  diff_p = dual_d0 * pressure(Theta)
-
-  # muΔu
-  lap_term = mu * (dΔ1 * u + dΔ1_V * v)
-
-  momentum_rhs = -div_term .- L_term .+ energy .- diff_p .+ lap_term
-  if use_gravity
-    momentum_rhs .+= wedge_product_dd(Val(0), Val(1), s, rho, g_dual)
-  end
-
-  return -inv_hdg_1 * momentum_rhs
+# Viscous diffusion: μ Δu  (returns nothing when μ = 0)
+function momentum_diffusion(::LMNSHModel, s::UniformCubicalComplex2D, state::ComponentVector{FT}, p::NamedTuple, dec_ops::NamedTuple, fields::NamedTuple) where FT <: AbstractFloat
+  p.mu == 0 && return nothing
+  return p.mu * (dec_ops.dlap1 * fields.u + dec_ops.dlap1_v * fields.v)
 end
 
-function potential_temperature_continuity(state::ComponentVector{FT}, p::NamedTuple, periodic_side::Union{Nothing, GridSide}=nothing) where FT <: AbstractFloat
+# Gravity body force: ρ g  (only when use_gravity is active in the sim case)
+function momentum_body_forces(::LMNSHModel, s::UniformCubicalComplex2D, state::ComponentVector{FT}, p::NamedTuple, dec_ops::NamedTuple, fields::NamedTuple) where FT <: AbstractFloat
+  use_gravity || return nothing
+  return wedge_product_dd(Val(0), Val(1), s, fields.rho, g_dual)
+end
+
+function potential_temperature_continuity(state::ComponentVector{FT}, p::NamedTuple) where FT <: AbstractFloat
   U = hdg_1 * state.U_star
   rho = hdg_2 * state.rho_star
   Theta = hdg_2 * state.Theta_star
@@ -144,10 +98,6 @@ function potential_temperature_continuity(state::ComponentVector{FT}, p::NamedTu
   temperature_diffusion = kappa * dΔ0 * theta
 
   return inv_hdg_2 * (-temperature_creation - temperature_advection + temperature_diffusion)
-end
-
-function mass_continuity(state::ComponentVector{FT}, periodic_side::Union{Nothing, GridSide}=nothing) where FT <: AbstractFloat
-  return d1 * state.U_star
 end
 
 build_saved_value_type(::LMNSHModel, ::Type{FT}) where FT <: AbstractFloat =
@@ -229,44 +179,22 @@ function run_checkpoint_outputs!(::LMNSHModel, regular_save_values::SavedValues,
   return nothing
 end
 
-function run_compressible_ns(u0::ComponentVector{FT}, te::FT, dt::FT, p; saveat::Int=500, checkpoint_at::Int=10_000, use_gravity::Bool=false, full_periodic::Bool=false, periodic_left_right::Bool=false, periodic_top_bottom::Bool=false) where FT <: AbstractFloat
+############################
+### Context and Run       ###
+############################
 
-  periodic_side = periodic_side_selection(full_periodic, periodic_left_right, periodic_top_bottom)
+build_sim_context(::LMNSHModel, periodic_side) = (; simspec = simspec, dec_ops = dec_ops)
 
-  function rhs!(du, u, p_rhs, t)
-    du.U_star .= momentum_continuity(u, p_rhs, use_gravity, periodic_side)
-    du.Theta_star .= potential_temperature_continuity(u, p_rhs, periodic_side)
-    du.rho_star .= mass_continuity(u, periodic_side)
-
-    return nothing
-  end
-
-  cfg = CallbackConfig{FT}(
-    te = te,
-    dt = dt,
-    saveat = saveat,
-    checkpoint_at = checkpoint_at,
-  )
-
-  context = (
-    s = s,
-    save_path = save_path,
-    simspec = simspec,
-    dec_ops = dec_ops,
-    periodic_side = periodic_side,
-  )
-
-  run_with_model_callbacks(
-    LMNSHModel(),
-    u0,
-    rhs!,
-    p,
-    cfg;
-    context = context,
-  )
-
+function rhs!(du, u, p_rhs, t)
+  du.U_star .= momentum_conservation(LMNSHModel(), s, u, p_rhs, dec_ops)
+  du.Theta_star .= potential_temperature_continuity(u, p_rhs)
+  du.rho_star .= mass_continuity(s, u, dec_ops)
   return nothing
 end
+
+######################
+### Run Simulation  ###
+######################
 
 println("Starting simulation...")
 
@@ -276,13 +204,13 @@ initial_state = ComponentArray(
   Theta_star = to_device(Theta_star_0),
 )
 
-run_compressible_ns(initial_state, te, dt, p;
-  saveat=saveat,
-  checkpoint_at=checkpoint_at,
-  use_gravity=use_gravity,
-  full_periodic=full_periodic,
-  periodic_left_right=periodic_left_right,
-  periodic_top_bottom=periodic_top_bottom,
-);
-
+run_simulation(
+  LMNSHModel(), initial_state, rhs!, p;
+  te = te, dt = dt,
+  saveat = saveat,
+  checkpoint_at = checkpoint_at,
+  full_periodic = full_periodic,
+  periodic_left_right = periodic_left_right,
+  periodic_top_bottom = periodic_top_bottom,
+)
 println("Simulation complete.")

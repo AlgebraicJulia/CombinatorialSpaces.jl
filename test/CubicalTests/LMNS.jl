@@ -1,23 +1,8 @@
-using Test
-using CairoMakie
-using LinearAlgebra
-using Printf
-using SparseArrays
-using JLD2
-using ComponentArrays
-using OrdinaryDiffEqSSPRK
-using DiffEqCallbacks
-
-include(joinpath(@__DIR__, "..", "..", "src", "CubicalCode", "UniformDEC.jl"))
-include(joinpath(@__DIR__, "LMNS_Helpers", "Simulation_Harness.jl"))
-include(joinpath(@__DIR__, "LMNS_Helpers", "DEC_Operators.jl"))
-include(joinpath(@__DIR__, "LMNS_Helpers", "CUDA_Init.jl"))
+include(joinpath(@__DIR__, "LMNS_Helpers", "Simulation_Header.jl"))
 
 #################################
 ### Simulation Initialization ###
 #################################
-
-include(joinpath(@__DIR__, "LMNS_Helpers", "Physics.jl"))
 
 simfile = "Taylor_Vortices_Sim.jl"
 
@@ -63,53 +48,14 @@ include(joinpath(@__DIR__, "LMNS_Helpers", "Physics_Plotting.jl"))
 
 println("Setting up physical operators...")
 
-# TODO: Precompute some matrix products to speed up the loop
-function momentum_continuity(s::UniformCubicalComplex2D{FT}, state::ComponentVector{FT}, p::Dict{Symbol, FT}, periodic_side::Union{Nothing, GridSide}=nothing) where FT
-  U_star = state.U_star
-  rho_star = state.rho_star
+# Pressure 2-form for the isothermal closure: P = Rθᵣ ρ
+momentum_pressure(::LMNSModel, s::UniformCubicalComplex2D, state::ComponentVector{FT}, p::NamedTuple, dec_ops::NamedTuple, fields::NamedTuple) where FT <: AbstractFloat =
+  pressure_same_theta(fields.rho)
 
-  U = hdg_1 * U_star
-  rho = hdg_2 * rho_star
-  mu = p[:mu]
-
-  # Compute velocity u from momentum U and density rho
-  u = wedge_product_dd(Val(0), Val(1), s, 1 ./ rho, U)
-
-  # Interpolate u to primal edges
-  vX, vY = sharp_dd(s, u)
-  v = flat_dp(s, vX, vY)
-
-  VX, VY = sharp_dd(s, U)
-  V = flat_dp(s, VX, VY)
-
-  # TODO: Enforce conditions on V as well?
-  enforce_bc_v!(v)
-  enforce_bc_V!(V)
-
-  # U ∧ δu
-  div_term = wedge_product_dd(Val(0), Val(1), s, dual_δ1 * u, U)
-
-  # L(u, U)
-  L_term = dd0_h2 * wedge_product(Val(1), Val(1), s, v, inv_hdg_1 * U) +
-    hdg_1 * wedge_product(Val(0), Val(1), s, ih0_dd1 * U + ih0_db * V, v)
-
-  # 1/2 * ρ * d||u||^2
-  diff_norm_u = dd0_h2 * wedge_product(Val(1), Val(1), s, v, inv_hdg_1 * u)
-  energy = 0.5 .* wedge_product_dd(Val(0), Val(1), s, rho, diff_norm_u)
-
-  # dP, P = κρ
-  diff_p = dual_d0 * pressure_same_theta(rho)
-
-  # muΔu
-  lap_term = mu * (dΔ1 * u + dΔ1_V * v)
-
-  return -inv_hdg_1 * (-div_term - L_term + energy - diff_p + lap_term)
-end
-
-function mass_continuity(s::UniformCubicalComplex2D{FT}, state::ComponentVector{FT}, periodic_side::Union{Nothing, GridSide}=nothing) where FT <: AbstractFloat
-  U_star = state.U_star
-
-  return d1 * U_star
+# Viscous diffusion: μ Δu  (returns nothing when μ = 0)
+function momentum_diffusion(::LMNSModel, s::UniformCubicalComplex2D, state::ComponentVector{FT}, p::NamedTuple, dec_ops::NamedTuple, fields::NamedTuple) where FT <: AbstractFloat
+  p.mu == 0 && return nothing
+  return p.mu * (dec_ops.dlap1 * fields.u + dec_ops.dlap1_v * fields.v)
 end
 
 build_saved_value_type(::LMNSModel, ::Type{FT}) where FT <: AbstractFloat =
@@ -178,54 +124,30 @@ function run_checkpoint_outputs!(::LMNSModel, regular_save_values::SavedValues, 
   return nothing
 end
 
-function run_compressible_ns(u0::ComponentVector{FT}, te::FT, dt::FT, p::Dict{Symbol, FT}; saveat::Int=500, checkpoint_at::Int=10_000, full_periodic::Bool=false, periodic_left_right::Bool=false, periodic_top_bottom::Bool=false) where FT <: AbstractFloat
+############################
+### Context and Run       ###
+############################
 
-  u = deepcopy(u0)
+build_sim_context(::LMNSModel, periodic_side) = (; simspec = simspec)
 
-  periodic_side = periodic_side_selection(full_periodic, periodic_left_right, periodic_top_bottom)
-
-  function rhs!(du, u, p_rhs, t)
-    du.U_star .= momentum_continuity(s, u, p_rhs, periodic_side)
-    du.rho_star .= mass_continuity(s, u, periodic_side)
-
-    return nothing
-  end
-
-  cfg = CallbackConfig{FT}(
-    te = te,
-    dt = dt,
-    saveat = saveat,
-    checkpoint_at = checkpoint_at,
-  )
-
-  context = (
-    s = s,
-    save_path = save_path,
-    simspec = simspec,
-    periodic_side = periodic_side,
-  )
-
-  run_with_model_callbacks(
-    LMNSModel(),
-    u,
-    rhs!,
-    p,
-    cfg;
-    context = context,
-  )
-
+function rhs!(du, u, p_rhs, t)
+  du.U_star .= momentum_conservation(LMNSModel(), s, u, p_rhs, dec_ops)
+  du.rho_star .= mass_continuity(s, u, dec_ops)
   return nothing
 end
 
+######################
+### Run Simulation  ###
+######################
+
 println("Starting simulation...")
-
-run_compressible_ns(to_device(u0),
-  te, dt, p;
-  saveat=saveat,
-  checkpoint_at=checkpoint_at,
-  full_periodic=full_periodic,
-  periodic_left_right=periodic_left_right,
-  periodic_top_bottom=periodic_top_bottom,
-);
-
+run_simulation(
+  LMNSModel(), to_device(u0), rhs!, p;
+  te = te, dt = dt,
+  saveat = saveat,
+  checkpoint_at = checkpoint_at,
+  full_periodic = full_periodic,
+  periodic_left_right = periodic_left_right,
+  periodic_top_bottom = periodic_top_bottom,
+)
 println("Simulation complete.")

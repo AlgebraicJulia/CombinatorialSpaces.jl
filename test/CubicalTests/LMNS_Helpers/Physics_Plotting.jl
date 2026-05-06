@@ -206,18 +206,31 @@ function mhd_magnetic_magnitude(B::AbstractVector{Float64})
   return sqrt.(BX .^ 2 .+ BY .^ 2)
 end
 
-mhd_current_density(B::AbstractVector{Float64}) = (hdg_2 * d1 * (-inv_hdg_1 * B)) ./ μ₀
+function mhd_density_colorrange()
+  hasproperty(@__MODULE__, :rho_base) || return nothing
+  hasproperty(@__MODULE__, :rho_perturbation) || return nothing
+
+  rho0 = getproperty(@__MODULE__, :rho_base)
+  drho = getproperty(@__MODULE__, :rho_perturbation)
+  return (rho0 - drho, rho0 + drho)
+end
+
+mhd_current_density(B::AbstractVector{Float64}) = (dec_ops.hdg_2 * dec_ops.d1 * (-dec_ops.inv_hdg_1 * B)) ./ μ₀
 
 function plot_mhd_vorticity(state::NamedTuple{(:U, :rho, :B), <:Tuple}; suffix::String = "")
   suffix_txt = isempty(suffix) ? "" : "_$(suffix)"
-  ω = inv_hdg_0 * dual_d1 * state.U
+  ω = dec_ops.inv_hdg_0 * dec_ops.dual_d1 * state.U
   save(joinpath(save_path, "Vorticity$(suffix_txt).png"), plot_zeroform(s, ω))
   return nothing
 end
 
 function plot_mhd_density(state::NamedTuple{(:U, :rho, :B), <:Tuple}; suffix::String = "")
   suffix_txt = isempty(suffix) ? "" : "_$(suffix)"
-  save(joinpath(save_path, "FinalDensity$(suffix_txt).png"), plot_twoform(s, state.rho))
+  colorrange = mhd_density_colorrange()
+  fig = isnothing(colorrange) ?
+    plot_twoform(s, state.rho) :
+    plot_twoform(s, state.rho; heatmap_kwargs = (colorrange = colorrange,))
+  save(joinpath(save_path, "Density$(suffix_txt).png"), fig)
   return nothing
 end
 
@@ -256,7 +269,7 @@ end
 
 function plot_mhd_momentum_divergence(state::NamedTuple{(:U, :rho, :B), <:Tuple}; suffix::String = "")
   suffix_txt = isempty(suffix) ? "" : "_$(suffix)"
-  U_div = inv_hdg_0 * dual_d1 * state.U
+  U_div = dec_ops.inv_hdg_0 * dec_ops.dual_d1 * state.U
   save(joinpath(save_path, "MomentumDivergence$(suffix_txt).png"), plot_zeroform(s, U_div))
   return nothing
 end
@@ -318,7 +331,12 @@ function create_mp4(::MHDModel, filename::String, states::AbstractVector{<:Named
   end)
   Jz = @lift(reshape(interior(Val(2), mhd_current_density(states[$step].B), s), nqx, nqy))
 
-  h1 = heatmap!(ax1, unique_x, unique_y, rho, colormap = Reverse(:oslo))
+  rho_colorrange = mhd_density_colorrange()
+  rho_heatmap_kwargs = isnothing(rho_colorrange) ?
+    (colormap = Reverse(:oslo),) :
+    (colormap = Reverse(:oslo), colorrange = rho_colorrange)
+
+  h1 = heatmap!(ax1, unique_x, unique_y, rho; rho_heatmap_kwargs...)
   Colorbar(fig[1, 2], h1)
 
   h2 = heatmap!(ax2, unique_x, unique_y, B_mag, colormap = :inferno)
