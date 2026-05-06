@@ -11,11 +11,15 @@ using Random
 Random.seed!(0)
 set_theme!(size=(900, 300))
 
+# Start from the mirrored porous-convection mesh used in tests and examples.
+# The `(40.0, 20.0)` domain matches the original optimization experiments.
 s_orig = binary_subdivision(mirrored_mesh(40.0, 20.0))
 orient!(s_orig)
 s_orig[:edge_orientation] = false
 
 s = deepcopy(s_orig)
+# Use the same optimization scale used in tests; 200 epochs keeps docs runtime low
+# while still showing visible improvement.
 eqs = optimize_mesh!(s, SimulatedAnnealing(ϵ=1e-3, epochs=200))
 nothing
 ```
@@ -83,7 +87,7 @@ function compare_integrals()
   f
 end
 
-function viz(msh, msh_soln, msh_title)
+function viz(msh, msh_soln)
   f = Figure()
   ax = CairoMakie.LScene(f[1, 1], scenekw=(lights=[],))
   mesh!(ax, msh, color=msh_soln(tₑ).C)
