@@ -1744,6 +1744,12 @@ end
 ⋆(::Val{n}, s::AbstractDeltaDualComplex1D, form::AbstractVector, ::GeometricHodge) where n =
   ⋆(Val(n), s, form, DiagonalHodge())
 
+"""Apply an explicit unit annotation to a Hodge diagonal.
+
+If the diagonal entries are dimensionless, multiply by the requested unit.
+If entries are already unitful, convert them to the requested unit.
+Empty diagonals are returned unchanged.
+"""
 @inline function _apply_hodge_unit(hdg::Diagonal, unit::Units)
   isempty(hdg.diag) && return hdg
   dimension(first(hdg.diag)) == NoDims ? Diagonal(hdg.diag .* unit) :
