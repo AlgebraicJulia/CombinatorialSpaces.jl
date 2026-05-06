@@ -188,11 +188,191 @@ apply_periodic_prestep!(::AbstractSimulationModel, integrator, context) = nothin
 
 run_checkpoint_outputs!(::AbstractSimulationModel, regular_save_values::SavedValues, step::Int, checkpoint_t::AbstractFloat, cfg::CallbackConfig, context) = nothing
 
+###################################
+### Shared Momentum Conservation ##
+###################################
+
+# Model-dispatched hook: returns the pressure 2-form used to build the pressure-gradient
+# term `dual_d0 * momentum_pressure(...)` in the momentum equation.
+# Each model must define a method for its own type.
+# `fields` is a NamedTuple (U, rho, u, v, V) pre-computed by momentum_conservation.
+momentum_pressure(::AbstractSimulationModel, s::UniformCubicalComplex2D, state::ComponentVector{FT}, p::NamedTuple, dec_ops::NamedTuple, fields::NamedTuple) where FT <: AbstractFloat =
+  error("momentum_pressure not implemented for $(typeof(model))")
+
+# Model-dispatched hook: returns an optional dual-1-form body force (e.g. gravity for
+# LMNSHModel, Lorentz force for MHDModel).  Default: no body forces.
+# `fields` is a NamedTuple (U, rho, u, v, V) pre-computed by momentum_conservation.
+momentum_body_forces(::AbstractSimulationModel, s::UniformCubicalComplex2D, state::ComponentVector{FT}, p::NamedTuple, dec_ops::NamedTuple, fields::NamedTuple) where FT <: AbstractFloat = 
+  nothing
+
+# Model-dispatched hook: returns an optional dual-1-form viscous diffusion term.
+# Return nothing for inviscid models; otherwise return the fully assembled diffusion
+# dual-1-form (e.g. μ*(dlap1*u + dlap1_v*v)).  Default: no diffusion.
+# `fields` is a NamedTuple (U, rho, u, v, V) pre-computed by momentum_conservation.
+momentum_diffusion(::AbstractSimulationModel, s::UniformCubicalComplex2D, state::ComponentVector{FT}, p::NamedTuple, dec_ops::NamedTuple, fields::NamedTuple) where FT <: AbstractFloat = 
+  nothing
+
+# Shared compressible-fluid momentum conservation kernel.
+#
+# Implements:
+#   ∂U/∂t = -L_{u♯}U + ½ρ d‖u‖² − U ∧ δu − d P(state) + μΔu + F_body
+#
+# Arguments
+#   model    – simulation model tag (dispatches pressure and body-force hooks)
+#   s        – the mesh (UniformCubicalComplex2D)
+#   state    – ComponentVector with at least U_star and rho_star fields
+#   p        – NamedTuple of physical parameters (must include p.mu)
+#   dec_ops  – NamedTuple of pre-built DEC operators for the mesh
+#
+# Boundary-condition hooks `enforce_bc_v!(v)` and `enforce_bc_V!(V)` are called on
+# the primal-edge velocity and momentum interpolants respectively; define them in the
+# sim-case file for non-trivial BCs.
+function momentum_conservation(
+  model::AbstractSimulationModel,
+  s::UniformCubicalComplex2D,
+  state::ComponentVector{FT},
+  p::NamedTuple,
+  dec_ops::NamedTuple,
+) where FT <: AbstractFloat
+
+  (; hdg_1, hdg_2, inv_hdg_0, inv_hdg_1, dual_d0, dual_d1, d_beta,
+     dual_delta1, dlap1, dlap1_v) = dec_ops
+
+  U   = hdg_1 * state.U_star
+  rho = hdg_2 * state.rho_star
+
+  # Velocity u = U / ρ (dual 1-form)
+  u = wedge_product_dd(Val(0), Val(1), s, 1 ./ rho, U)
+
+  # Interpolate to primal edges for advection and diffusion
+  vX, vY = sharp_dd(s, u)
+  v = flat_dp(s, vX, vY)
+
+  VX, VY = sharp_dd(s, U)
+  V = flat_dp(s, VX, VY)
+
+  # Boundary-condition hooks (no-op by default; defined per sim-case)
+  enforce_bc_v!(v)
+  enforce_bc_V!(V)
+
+  # Bundle pre-computed fields for dispatch hooks to avoid redundant work.
+  fields = (; U, rho, u, v, V)
+
+  # U ∧ δu  (divergence / continuity coupling)
+  div_term = wedge_product_dd(Val(0), Val(1), s, dual_delta1 * u, U)
+
+  # Lie derivative  L_{u♯}U
+  L_term = dual_d0 * hdg_2 * wedge_product(Val(1), Val(1), s, v, inv_hdg_1 * U) +
+    hdg_1 * wedge_product(Val(0), Val(1), s, inv_hdg_0 * (dual_d1 * U + d_beta * V), v)
+
+  # ½ ρ d‖u‖²
+  diff_norm_u = dual_d0 * hdg_2 * wedge_product(Val(1), Val(1), s, v, inv_hdg_1 * u)
+  energy = 0.5 .* wedge_product_dd(Val(0), Val(1), s, rho, diff_norm_u)
+
+  # Pressure gradient  d P
+  diff_p = dual_d0 * momentum_pressure(model, s, state, p, dec_ops, fields)
+
+  rhs = -div_term - L_term + energy - diff_p
+
+  # Optional viscous diffusion
+  diff = momentum_diffusion(model, s, state, p, dec_ops, fields)
+  if diff !== nothing
+    rhs .+= diff
+  end
+
+  # Optional body forces (gravity, Lorentz force, …)
+  body = momentum_body_forces(model, s, state, p, dec_ops, fields)
+  if body !== nothing
+    rhs .+= body
+  end
+
+  return -inv_hdg_1 * rhs
+end
+
+###############################
+### Shared Mass Continuity  ###
+###############################
+
+# ∂ρ★/∂t = d₁ U★
+# Identical across all compressible models: the primal exterior derivative of the
+# momentum 1-form gives the rate of change of the dual density 2-form coefficient.
+function mass_continuity(
+  s::UniformCubicalComplex2D,
+  state::ComponentVector{FT},
+  dec_ops::NamedTuple,
+) where FT <: AbstractFloat
+  return dec_ops.d1 * state.U_star
+end
+
 function periodic_side_selection(full_periodic::Bool, periodic_left_right::Bool, periodic_top_bottom::Bool)
   full_periodic && return ALL
   periodic_left_right && periodic_top_bottom && return ALL
   periodic_left_right && return EASTWEST
   periodic_top_bottom && return NORTHSOUTH
+  return nothing
+end
+
+############################
+### Shared Run Entrypoint ###
+############################
+
+# Model-dispatched hook: return a NamedTuple of model-specific context fields that will
+# be merged with the common fields (s, save_path, periodic_side) before being passed
+# to run_with_model_callbacks.  Default: no extra fields.
+build_sim_context(::AbstractSimulationModel, periodic_side) = (;)
+
+# Top-level simulation runner.
+#
+# Arguments
+#   model         – simulation model tag (e.g. MHDModel(), LMNSModel(), LMNSHModel())
+#   initial_state – ComponentVector containing the initial field values
+#   rhs!          – in-place RHS function with signature (du, u, p, t)
+#   p             – physical parameters passed through to rhs! and callbacks
+#
+# Keyword arguments
+#   te, dt           – end time and fixed timestep (required)
+#   saveat           – save every N steps          (default 500)
+#   checkpoint_at    – checkpoint every N steps    (default 10_000)
+#   full_periodic,
+#   periodic_left_right,
+#   periodic_top_bottom – periodic boundary toggles (default false)
+#
+# The context visible to all model-dispatch hooks is:
+#   (s, save_path, periodic_side, <fields from build_sim_context>)
+# where s and save_path are expected globals in the simulation file.
+function run_simulation(
+  model::AbstractSimulationModel,
+  initial_state::ComponentVector{FT},
+  rhs!::Function,
+  p;
+  te::FT,
+  dt::FT,
+  saveat::Int = 500,
+  checkpoint_at::Int = 10_000,
+  full_periodic::Bool = false,
+  periodic_left_right::Bool = false,
+  periodic_top_bottom::Bool = false,
+) where FT <: AbstractFloat
+
+  periodic_side = periodic_side_selection(full_periodic, periodic_left_right, periodic_top_bottom)
+
+  cfg = CallbackConfig{FT}(
+    te = te,
+    dt = dt,
+    saveat = saveat,
+    checkpoint_at = checkpoint_at,
+  )
+
+  common_context = (
+    s = s,
+    save_path = save_path,
+    periodic_side = periodic_side,
+  )
+  model_context = build_sim_context(model, periodic_side)
+  context = merge(common_context, model_context)
+
+  run_with_model_callbacks(model, initial_state, rhs!, p, cfg; context = context)
+
   return nothing
 end
 

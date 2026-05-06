@@ -13,7 +13,7 @@ const s = UniformCubicalComplex2D(nx_, ny_, lx_, ly_, halo_x = halo_x, halo_y = 
 const u0 = form_taylor_vortices_initial_conditions(s)
 
 const Re = 10_000
-const p = Dict(:mu => 1 / Re) # μ
+const p = (mu = 1 / Re,) # μ
 
 const te = 1.0;
 const dt = 1e-4;
