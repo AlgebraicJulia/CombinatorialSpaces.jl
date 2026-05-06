@@ -9,7 +9,7 @@ using CombinatorialSpaces.DiscreteExteriorCalculus: eval_constant_primal_form,
   eval_constant_dual_form
 
 using Catlab
-using GeometryBasics: Point, QuadFace, MetaMesh
+using GeometryBasics: Point, Point3, QuadFace, MetaMesh
 using LinearAlgebra: Diagonal, mul!, norm, dot, cross, diag
 using SparseArrays
 using StaticArrays
@@ -148,6 +148,19 @@ end
   @test conc_grad ≈ [2.0, 1.0] .* u"kg/m^2"
   @test all(unit.(conc_grad) .== unit(1.0u"kg/m^2"))
   @test ustrip.(u"kg/m^2", conc_grad) ≈ [2.0, 1.0]
+
+  # Unitful Point3 coordinates in meters produce meter-valued primal edge lengths.
+  len_t = typeof(1.0u"m")
+  point3m_primal = EmbeddedDeltaSet1D{Bool,Point3{len_t}}()
+  add_vertices!(point3m_primal, 3, point=[
+    Point3(0.0u"m", 0.0u"m", 0.0u"m"),
+    Point3(1.0u"m", 0.0u"m", 0.0u"m"),
+    Point3(3.0u"m", 0.0u"m", 0.0u"m"),
+  ])
+  add_edges!(point3m_primal, [1,2], [2,3], edge_orientation=true)
+  point3m_dual = EmbeddedDeltaDualComplex1D{Bool,len_t,Point3{len_t}}(point3m_primal)
+  subdivide_duals!(point3m_dual, Barycenter())
+  @test volume(point3m_dual, E(1:2)) == [1.0, 2.0] .* u"m"
 
 end
 

@@ -894,8 +894,9 @@ end
 """ ``n``-dimensional volume of ``n``-simplex spanned by given ``n+1`` points.
 """
 function volume(points)
-  CM = cayley_menger(points...)
   n = length(points) - 1
+  n == 1 && return sqrt(sqdistance(points[1], points[2]))
+  CM = cayley_menger(points...)
   sqrt(abs(det(CM)) / 2^n) / factorial(n)
 end
 
