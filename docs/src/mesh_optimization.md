@@ -1,7 +1,6 @@
 # Mesh Optimization
 
-This page contains the plotting helpers from the original mesh optimization PR,
-organized as reproducible examples.
+This page demonstrates the mesh optimization API and its effect on error propagation over a domain. Note that error is measured alternatively via circumcentric or barycentric subdivided meshes; this influences the interpretation of error propagation.
 
 ```@example mesh_optimization
 using CairoMakie
