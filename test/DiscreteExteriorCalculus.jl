@@ -161,6 +161,10 @@ end
   point3m_dual = EmbeddedDeltaDualComplex1D{Bool,len_t,Point3{len_t}}(point3m_primal)
   subdivide_duals!(point3m_dual, Barycenter())
   @test volume(point3m_dual, E(1:2)) == [1.0, 2.0] .* u"m"
+  @test ⋆(0, point3m_dual) == Diagonal([0.5, 1.5, 1.0] .* u"m")
+  @test ⋆(0, point3m_dual, u"cm") == Diagonal([50.0, 150.0, 100.0] .* u"cm")
+  @test inv_hodge_star(1, point3m_dual) == Diagonal([1.0, 2.0] .* u"m")
+  @test inv_hodge_star(1, point3m_dual, u"cm") == Diagonal([100.0, 200.0] .* u"cm")
 
 end
 

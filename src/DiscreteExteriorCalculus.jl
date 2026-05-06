@@ -41,7 +41,7 @@ using LinearAlgebra: Diagonal, dot, norm, cross, pinv, normalize
 using SparseArrays
 using StaticArrays: @SVector, SVector, SMatrix, MVector, MMatrix, StaticVector
 using Statistics: mean
-using Unitful: Units, dimension, @u_str
+using Unitful: Units, NoDims, dimension, uconvert, @u_str
 
 # TODO: This is not consistent with other definitions and should be removed
 const Point2D = SVector{2,Float64}
@@ -1744,10 +1744,16 @@ end
 ⋆(::Val{n}, s::AbstractDeltaDualComplex1D, form::AbstractVector, ::GeometricHodge) where n =
   ⋆(Val(n), s, form, DiagonalHodge())
 
+@inline function _apply_hodge_unit(hdg::Diagonal, unit::Units)
+  isempty(hdg.diag) && return hdg
+  dimension(first(hdg.diag)) == NoDims ? Diagonal(hdg.diag .* unit) :
+                                         Diagonal(uconvert.(unit, hdg.diag))
+end
+
 @inline function ⋆(::Val{0}, s::AbstractDeltaDualComplex1D, unit::Units;
                    hodge::DiscreteHodge=GeometricHodge())
   hdg = ⋆(Val(0), s, hodge)
-  Diagonal(hdg.diag .* unit)
+  _apply_hodge_unit(hdg, unit)
 end
 
 @inline function ⋆(::Val{0}, s::AbstractDeltaDualComplex1D,
@@ -1824,7 +1830,7 @@ inv_hodge_star(::Val{n}, s::AbstractDeltaDualComplex1D,
                                 unit::Units;
                                 hodge::DiscreteHodge=GeometricHodge())
   ihdg = inv_hodge_star(Val(0), s, hodge)
-  Diagonal(ihdg.diag .* unit)
+  _apply_hodge_unit(ihdg, unit)
 end
 
 @inline function inv_hodge_star(::Val{0}, s::AbstractDeltaDualComplex1D,
@@ -1837,7 +1843,7 @@ end
                                 unit::Units;
                                 hodge::DiscreteHodge=GeometricHodge())
   ihdg = inv_hodge_star(Val(1), s, hodge)
-  Diagonal(ihdg.diag .* unit)
+  _apply_hodge_unit(ihdg, unit)
 end
 
 @inline function inv_hodge_star(::Val{1}, s::AbstractDeltaDualComplex1D,
