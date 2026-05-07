@@ -82,58 +82,6 @@ for primal_s in [explicit_s, implicit_s]
 end
 
 @testset "Unitful density 0-form hodge star in 1D" begin
-  # Unitful support for the upstream dispatch-based 1D 0-Hodge path.
-  unitful_primal_s = EmbeddedDeltaSet1D{Bool,Point2d}()
-  add_vertices!(unitful_primal_s, 3, point=[Point2d(1,0), Point2d(0,0), Point2d(0,2)])
-  add_edges!(unitful_primal_s, [1,2], [2,3], edge_orientation=true)
-  unitful_s = EmbeddedDeltaDualComplex1D{Bool,Float64,Point2d}(unitful_primal_s)
-  subdivide_duals!(unitful_s, Barycenter())
-
-  # star_0_default(x [kg / m]) -> y [kg / m].
-  density_vform = VForm([2.0, 4.0, 6.0] .* u"kg/m")
-  default_dual_1_form = ⋆(unitful_s, density_vform)
-  @test default_dual_1_form == DualForm{1}([1.0, 6.0, 6.0] .* u"kg/m")
-  # On this non-Unitful mesh, the 0-Hodge diagonal is dimensionless.
-  @test ⋆(0, unitful_s) ≈ Diagonal([0.5, 1.5, 1.0])
-  @test ⋆(Val(0), unitful_s) ≈ Diagonal([0.5, 1.5, 1.0])
-
-  # inv_star_1(x [kg / m]) -> y [kg / m] on this non-Unitful mesh.
-  dual_density_0 = DualForm{0}([2.0, 4.0] .* u"kg/m")
-  @test inv_hodge_star(1, unitful_s) ≈ Diagonal([1.0, 2.0])
-  primal_1_form = inv_hodge_star(1, unitful_s, dual_density_0)
-  @test inv_hodge_star(Val(1), unitful_s, dual_density_0) == [2.0, 8.0] .* u"kg/m"
-  @test primal_1_form == [2.0, 8.0] .* u"kg/m"
-  @test all(unit.(primal_1_form) .== unit(1.0u"kg/m"))
-  @test ustrip.(u"kg/m", primal_1_form) ≈ [2.0, 8.0]
-
-  # inv_star_0(x [kg]) -> y [kg] on this non-Unitful mesh.
-  dual_1_mass = DualForm{1}([1.0, 6.0, 6.0] .* u"kg")
-  @test inv_hodge_star(0, unitful_s) ≈ Diagonal([2.0, 2/3, 1.0])
-  primal_0_density = inv_hodge_star(0, unitful_s, dual_1_mass)
-  @test primal_0_density == [2.0, 4.0, 6.0] .* u"kg"
-  @test all(unit.(primal_0_density) .== unit(1.0u"kg"))
-  @test ustrip.(u"kg", primal_0_density) ≈ [2.0, 4.0, 6.0]
-
-  # 1D potential flow: ϕ [m^2/s] → d₀(ϕ) [m^2/s] → u = d₀(ϕ)/L [m/s].
-  # The two primal edges have lengths 1 m and 2 m respectively.
-  edge_lengths = [1.0, 2.0] .* u"m"
-  potential_vform = VForm([1.0, 4.0, 10.0] .* u"m^2/s")
-  potential_diff = d(unitful_primal_s, potential_vform)
-  @test potential_diff == EForm([3.0, 6.0] .* u"m^2/s")
-  velocity = potential_diff.data ./ edge_lengths
-  @test velocity ≈ [3.0, 3.0] .* u"m/s"
-  @test all(unit.(velocity) .== unit(1.0u"m/s"))
-  @test ustrip.(u"m/s", velocity) ≈ [3.0, 3.0]
-
-  # Concentration gradient: c [kg/m] → d₀(c) [kg/m] → ∇c = d₀(c)/L [kg/m^2].
-  conc_vform = VForm([2.0, 4.0, 6.0] .* u"kg/m")
-  conc_diff = d(unitful_primal_s, conc_vform)
-  @test conc_diff == EForm([2.0, 2.0] .* u"kg/m")
-  conc_grad = conc_diff.data ./ edge_lengths
-  @test conc_grad ≈ [2.0, 1.0] .* u"kg/m^2"
-  @test all(unit.(conc_grad) .== unit(1.0u"kg/m^2"))
-  @test ustrip.(u"kg/m^2", conc_grad) ≈ [2.0, 1.0]
-
   # Unitful Point3 coordinates in meters produce meter-valued primal edge lengths.
   len_t = typeof(1.0u"m")
   point3m_primal = EmbeddedDeltaSet1D{Bool,Point3{len_t}}()
@@ -146,9 +94,36 @@ end
   point3m_dual = EmbeddedDeltaDualComplex1D{Bool,len_t,Point3{len_t}}(point3m_primal)
   subdivide_duals!(point3m_dual, Barycenter())
   @test volume(point3m_dual, E(1:2)) == [1.0, 2.0] .* u"m"
-  @test ⋆(0, point3m_dual) == Diagonal([0.5, 1.5, 1.0] .* u"m")
-  @test inv_hodge_star(1, point3m_dual) == Diagonal([1.0, 2.0] .* u"m")
+  str0 = ⋆(0, point3m_dual)
+  invstr0 = inv_hodge_star(1, point3m_dual)
+  @test str0    == Diagonal([0.5, 1.5, 1.0] .* u"m")
+  @test invstr0 == Diagonal([1.0, 2.0]      .* u"m⁻¹")
 
+  # x [kg / m] -> ⋆(x) [kg] -> x [kg / m]
+  density_vform = VForm([2.0, 4.0, 6.0] .* u"kg/m")
+  @test str0 * density_vform == DualForm{1}([1.0, 6.0, 6.0] .* u"kg")
+  @test invstr0 * str0 * density_vform == Diagonal([1.0, 2.0] .* u"m")
+
+  # TODO: Grab `edge_lengths` from the mesh:
+  edge_lengths = [1.0, 2.0] .* u"m"
+  # Concentration gradient: c [kg/m] → d₀(c) [kg/m] → ∇c = d₀(c)/L [kg/m^2].
+  conc_vform = VForm([2.0, 4.0, 6.0] .* u"kg/m")
+  conc_diff = d(unitful_primal_s, conc_vform)
+  @test conc_diff == EForm([2.0, 2.0] .* u"kg/m")
+  conc_grad = conc_diff.data ./ edge_lengths
+  @test conc_grad ≈ [2.0, 1.0] .* u"kg/m^2"
+  @test all(unit.(conc_grad) .== unit(1.0u"kg/m^2"))
+  @test ustrip.(u"kg/m^2", conc_grad) ≈ [2.0, 1.0]
+
+  # 1D potential flow: ϕ [m^2/s] → d₀(ϕ) [m^2/s] → u = d₀(ϕ)/L [m/s].
+  # The two primal edges have lengths 1 m and 2 m respectively.
+  potential_vform = VForm([1.0, 4.0, 10.0] .* u"m^2/s")
+  potential_diff = d(unitful_primal_s, potential_vform)
+  @test potential_diff == EForm([3.0, 6.0] .* u"m^2/s")
+  velocity = potential_diff.data ./ edge_lengths
+  @test velocity ≈ [3.0, 3.0] .* u"m/s"
+  @test all(unit.(velocity) .== unit(1.0u"m/s"))
+  @test ustrip.(u"m/s", velocity) ≈ [3.0, 3.0]
 end
 
 # Path graph on 5 vertices with regular lengths.
