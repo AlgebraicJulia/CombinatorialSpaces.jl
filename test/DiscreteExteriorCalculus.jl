@@ -95,20 +95,19 @@ end
   subdivide_duals!(point3m_dual, Barycenter())
   @test volume(point3m_dual, E(1:2)) == [1.0, 2.0] .* u"m"
   str0 = ⋆(0, point3m_dual)
-  invstr0 = inv_hodge_star(1, point3m_dual)
+  invstr0 = inv_hodge_star(0, point3m_dual)
   @test str0    == Diagonal([0.5, 1.5, 1.0] .* u"m")
-  @test invstr0 == Diagonal([1.0, 2.0]      .* u"m⁻¹")
+  @test invstr0 == Diagonal([2.0, 2/3, 1.0] .* u"m^-1")
 
   # x [kg / m] -> ⋆(x) [kg] -> x [kg / m]
   density_vform = VForm([2.0, 4.0, 6.0] .* u"kg/m")
   @test str0 * density_vform == DualForm{1}([1.0, 6.0, 6.0] .* u"kg")
   @test invstr0 * str0 * density_vform == density_vform
 
-  # TODO: Grab `edge_lengths` from the mesh:
-  edge_lengths = [1.0, 2.0] .* u"m"
+  edge_lengths = volume(point3m_dual, E(1:2))
   # Concentration gradient: c [kg/m] → d₀(c) [kg/m] → ∇c = d₀(c)/L [kg/m^2].
   conc_vform = VForm([2.0, 4.0, 6.0] .* u"kg/m")
-  conc_diff = d(unitful_primal_s, conc_vform)
+  conc_diff = d(point3m_primal, conc_vform)
   @test conc_diff == EForm([2.0, 2.0] .* u"kg/m")
   conc_grad = conc_diff.data ./ edge_lengths
   @test conc_grad ≈ [2.0, 1.0] .* u"kg/m^2"
@@ -118,7 +117,7 @@ end
   # 1D potential flow: ϕ [m^2/s] → d₀(ϕ) [m^2/s] → u = d₀(ϕ)/L [m/s].
   # The two primal edges have lengths 1 m and 2 m respectively.
   potential_vform = VForm([1.0, 4.0, 10.0] .* u"m^2/s")
-  potential_diff = d(unitful_primal_s, potential_vform)
+  potential_diff = d(point3m_primal, potential_vform)
   @test potential_diff == EForm([3.0, 6.0] .* u"m^2/s")
   velocity = potential_diff.data ./ edge_lengths
   @test velocity ≈ [3.0, 3.0] .* u"m/s"
