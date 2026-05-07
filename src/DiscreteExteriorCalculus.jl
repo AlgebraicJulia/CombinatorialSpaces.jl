@@ -41,7 +41,6 @@ using LinearAlgebra: Diagonal, dot, norm, cross, pinv, normalize
 using SparseArrays
 using StaticArrays: @SVector, SVector, SMatrix, MVector, MMatrix, StaticVector
 using Statistics: mean
-using Unitful: @u_str
 
 # TODO: This is not consistent with other definitions and should be removed
 const Point2D = SVector{2,Float64}
