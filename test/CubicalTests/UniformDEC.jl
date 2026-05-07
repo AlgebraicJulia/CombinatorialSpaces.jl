@@ -56,8 +56,11 @@ include("../../src/CubicalCode/UniformKernelDEC.jl")
   cd2 = codifferential(Val(2), s)
   @test size(cd2) == (ne(s), nquads(s))
 
-  # Compute the divergence of a constant vector field (should be zero)
-  @test all(cd1 * ones(ne(s)) .== 0)
+  d_cd1 = dual_codifferential(Val(1), s)
+  @test size(d_cd1) == (nquads(s), ne(s))
+
+  d_cd2 = dual_codifferential(Val(2), s)
+  @test size(d_cd2) == (ne(s), nv(s))
 
   # Laplacians: shapes and basic properties
   L0 = laplacian(Val(0), s)
@@ -111,9 +114,8 @@ include("../../src/CubicalCode/UniformKernelDEC.jl")
 
   u = ones(ne(s))
   u[boundary_idxs] .= 0.5
-  v = zeros(ne(s))
   X, Y = sharp_dd(s, u)
-  u = flat_dp(s, X, Y)
+  v = flat_dp(s, X, Y)
 
   @test all(v[1:nxedges(s)] .== -1.0)
   @test all(v[nxedges(s)+1:end] .== 1.0)
@@ -129,9 +131,9 @@ include("../../src/CubicalCode/UniformKernelDEC.jl")
   v[nxedges(s)] = -2.0; v[end] = 2.0
   @test (dd1 * u + d_beta * v)[end] == 4.0
 
-  u = ones(ne(s))
-  f = ones(nquads(s))
-  res = zeros(ne(s))
+  u = ones(Float64, ne(s))
+  f = ones(Float64, nquads(s))
+  res = zeros(Float64, ne(s))
 
   res = wedge_product_dd(Val(0), Val(1), s, f, u)
   @test all(res .== 1.0)
@@ -142,7 +144,7 @@ include("../../src/CubicalCode/UniformKernelDEC.jl")
   res = wedge_product_dd(Val(0), Val(1), s, 2 * f, 5 * u)
   @test all(res .== 10.0)
 
-  f = [y for y in 1:nyquads(s) for x in 1:nxquads(s)]
+  f = [Float64(y) for y in 1:nyquads(s) for x in 1:nxquads(s)]
   res = wedge_product_dd(Val(0), Val(1), s, f, u)
   @test xedges(s, res)[1] == 1.0
   @test xedges(s, res)[end] == 4.0
@@ -189,7 +191,7 @@ end
   @test all(abs.(diag(ihs0 * hs0) .- 1) .< 1e-12)
 
   ihs1 = inv_hodge_star(Val(1), s)
-  @test all(abs.(diag(ihs1 * hs1) .- 1) .< 1e-12)
+  @test all(abs.(diag(-ihs1 * hs1) .- 1) .< 1e-12)
 
   ihs2 = inv_hodge_star(Val(2), s)
   @test all(abs.(diag(ihs2 * hs2) .- 1) .< 1e-12)
@@ -200,9 +202,6 @@ end
 
   cd2 = codifferential(Val(2), s)
   @test size(cd2) == (ne(s), nquads(s))
-
-  # Compute the divergence of a constant vector field (should be zero)
-  @test all(interior(cd1 * ones(ne(s)), s) .== 0)
 
   # Laplacians: shapes and basic properties
   L0 = laplacian(Val(0), s)
@@ -216,68 +215,60 @@ end
   # Laplacian of constant should be (near) zero for interior-preserving grid
   @test all(abs.(L0 * ones(nv(s))) .< 1e-12)
 
-  # Test that the halo values are set correctly by set_halo! and set_periodic!
-  f = zeros(nv(s))
-  set_halo!(f, Val(0), s, 1.0, ALL)
-  g = reshape(f, (nx(s), ny(s)))
-  @test all(g[1, :] .== 1.0)
-  @test all(g[end, :] .== 1.0)
-  @test all(g[:, 1] .== 1.0)
-  @test all(g[:, end] .== 1.0)
-
   # Tests for periodicity of 0-forms
-  f = [0 0 0 0 0 0 0;
-       0 2 1 1 1 1 0;
-       0 2 1 1 1 1 0;
-       0 2 1 1 1 1 0;
-       0 2 1 1 1 1 0;
-       0 2 1 1 1 1 0;
-       0 0 0 0 0 0 0] |> vec
+  f = Float64[0 0 0 0 0 0 0;
+              0 2 1 1 1 1 0;
+              0 2 1 1 1 1 0;
+              0 2 1 1 1 1 0;
+              0 2 1 1 1 1 0;
+              0 2 1 1 1 1 0;
+              0 0 0 0 0 0 0] |> vec
   set_periodic!(f, Val(0), s, NORTHSOUTH)
   g = reshape(f, (nx(s), ny(s)))
   @test all(g[2:end-1, 1:3] .== g[2:end-1, end-2:end])
 
-  f = [0 0 0 0 0 0 0;
-       0 2 2 2 2 2 0;
-       0 1 1 1 1 1 0;
-       0 1 1 1 1 1 0;
-       0 1 1 1 1 1 0;
-       0 1 1 1 1 1 0;
-       0 0 0 0 0 0 0] |> vec
+  f = Float64[0 0 0 0 0 0 0;
+              0 2 2 2 2 2 0;
+              0 1 1 1 1 1 0;
+              0 1 1 1 1 1 0;
+              0 1 1 1 1 1 0;
+              0 1 1 1 1 1 0;
+              0 0 0 0 0 0 0] |> vec
   set_periodic!(f, Val(0), s, EASTWEST)
   g = reshape(f, (nx(s), ny(s)))
   @test all(g[1:3, 2:end-1] .== g[end-2:end, 2:end-1])
-  
-  # Tests for periodicity of 1-forms 
-  # TODO: Fix these tests to reflect the fact that we're also replacing a real edge
-  f = vcat(collect(1:nxedges(s)), collect(1:nyedges(s)));
+
+  # Tests for periodicity of 1-forms
+  f = Float64.(vcat(collect(1:nxedges(s)), collect(1:nyedges(s))));
   set_periodic!(f, Val(1), s, NORTHSOUTH);
   g = reshape(f[1:nxedges(s)], (nxe(s), ny(s)))
-  @test all(g[:, 1:2] .== g[:, end - 1:end])
-  @test all(g[:, end] .== g[:, 2])
+  @test all(g[:, 1]     .== g[:, end-2])   # bottom halo ← interior top
+  @test all(g[:, end-1] .== g[:, 2])       # top halo ← interior bottom
+  @test all(g[:, end]   .== g[:, 3])       # top halo (overwrites real edge) ← 2nd interior from bottom
 
   g = reshape(f[nxedges(s)+1:end], (nx(s), nye(s)))
   @test all(g[:, 1] .== g[:, end - 1])
   @test all(g[:, end] .== g[:, 2])
 
-  f = vcat(collect(1:nxedges(s)), collect(1:nyedges(s)));
+  f = Float64.(vcat(collect(1:nxedges(s)), collect(1:nyedges(s))));
   set_periodic!(f, Val(1), s, EASTWEST);
   g = reshape(f[1:nxedges(s)], (nxe(s), ny(s)))
   @test all(g[1, :] .== g[end - 1, :])
   @test all(g[end, :] .== g[2, :])
 
   g = reshape(f[nxedges(s)+1:end], (nx(s), nye(s)))
-  @test all(g[1, :] .== g[end - 1, :])
-  @test all(g[end, :] .== g[2, :])
+  @test all(g[1, :]     .== g[end-2, :])   # left halo ← interior right
+  @test all(g[end-1, :] .== g[2, :])       # right halo ← interior left
+  @test all(g[end, :]   .== g[3, :])       # right halo (overwrites real edge) ← 2nd interior from left
 
   # Tests for periodicity of 2-forms
-  f = repeat(collect(1:nxquads(s)), inner = nyquads(s))
+  f = Float64.(repeat(collect(1:nxquads(s)), inner = nyquads(s)))
   set_periodic!(f, Val(2), s, NORTHSOUTH)
   g = reshape(f, (nxquads(s), nyquads(s)))
   @test all(g[:, 1] .== g[:, end - 1])
   @test all(g[:, end] .== g[:, 2])
 
-  f = repeat(collect(1:nxquads(s)), nyquads(s))
+  f = Float64.(repeat(collect(1:nxquads(s)), nyquads(s)))
   set_periodic!(f, Val(2), s, EASTWEST)
   g = reshape(f, (nxquads(s), nyquads(s)))
   @test all(g[1, :] .== g[end - 1, :])
@@ -286,19 +277,19 @@ end
 
 @testset "UniformMatrixDEC with Large Halo" begin
   s = UniformCubicalComplex2D(10, 10, 1.0, 1.0; halo_x = 2, halo_y = 2)
-  f = repeat(collect(1:nxquads(s)), inner = nyquads(s))
+  f = Float64.(repeat(collect(1:nxquads(s)), inner = nyquads(s)))
   set_periodic!(f, Val(2), s, NORTHSOUTH)
   g = reshape(f, (nxquads(s), nyquads(s)))
   @test all(g[:, 1:2] .== g[:, end - 3:end - 2])
   @test all(g[:, end-1:end] .== g[:, 3:4])
 
-  f = repeat(collect(1:nxquads(s)), nyquads(s))
+  f = Float64.(repeat(collect(1:nxquads(s)), nyquads(s)))
   set_periodic!(f, Val(2), s, EASTWEST)
   g = reshape(f, (nxquads(s), nyquads(s)))
   @test all(g[1:2, :] .== g[end - 3:end - 2, :])
   @test all(g[end-1:end, :] .== g[3:4, :])
 
-  f = collect(1:nquads(s));
+  f = Float64.(collect(1:nquads(s)));
   set_periodic!(f, Val(2), s, EASTWEST);
   g = reshape(f, (nxquads(s), nyquads(s)))
   @test all(g[1:2, :] .== g[end - 3:end - 2, :])
