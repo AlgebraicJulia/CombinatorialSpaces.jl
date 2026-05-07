@@ -896,6 +896,11 @@ end
 function volume(points)
   n = length(points) - 1
   n == 1 && return sqrt(sqdistance(points[1], points[2]))
+  if n == 2
+    v1 = points[2] - points[1]
+    v2 = points[3] - points[1]
+    return sqrt(abs(sum(v1 .* v1) * sum(v2 .* v2) - sum(v1 .* v2)^2)) / 2
+  end
   CM = cayley_menger(points...)
   sqrt(abs(det(CM)) / 2^n) / factorial(n)
 end

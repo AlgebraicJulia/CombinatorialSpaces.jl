@@ -144,6 +144,47 @@ end
   @test ustrip.(u"m/s", velocity) ≈ [3.0, 3.0]
 end
 
+@testset "Unitful DEC operators in 2D" begin
+  len_t = typeof(1.0u"m")
+  primal_s = EmbeddedDeltaSet2D{Bool,Point3{len_t}}()
+  add_vertices!(primal_s, 3, point=[
+    Point3(0.0u"m", 0.0u"m", 0.0u"m"),
+    Point3(1.0u"m", 0.0u"m", 0.0u"m"),
+    Point3(0.0u"m", 1.0u"m", 0.0u"m"),
+  ])
+  glue_triangle!(primal_s, 1, 2, 3, tri_orientation=true)
+  primal_s[:edge_orientation] = true
+  s = EmbeddedDeltaDualComplex2D{Bool,Real,Point3{len_t}}(primal_s)
+  subdivide_duals!(s, Barycenter())
+
+  @test volume(s, E(1:3)) ≈ [1.0, √2, 1.0] .* u"m"
+  @test volume(s, Tri(1)) ≈ 0.5u"m^2"
+
+  str0 = ⋆(0, s)
+  invstr0 = inv_hodge_star(0, s)
+  @test str0    == Diagonal(fill((1/6)u"m^2", 3))
+  @test invstr0 == Diagonal(fill(6.0u"m^-2", 3))
+
+  density_vform = VForm([2.0, 4.0, 6.0] .* u"kg/m^2")
+  @test str0 * density_vform == DualForm{2}([1/3, 2/3, 1.0] .* u"kg")
+  @test invstr0 * str0 * density_vform == density_vform
+
+  str2 = ⋆(2, s)
+  invstr2 = inv_hodge_star(2, s)
+  @test str2    == Diagonal([2.0] .* u"m^-2")
+  @test invstr2 == Diagonal([0.5] .* u"m^2")
+
+  mass_tform = TriForm([3.0] .* u"kg")
+  @test str2 * mass_tform == DualForm{0}([6.0] .* u"kg/m^2")
+  @test invstr2 * str2 * mass_tform == mass_tform
+
+  vel_dual0 = DualForm{0}(collect(1.0:nparts(s, :DualV)) .* u"m/s")
+  dual_deriv = d(s, vel_dual0)
+  dual_deriv_plain = d(s, DualForm{0}(ustrip.(u"m/s", vel_dual0.data)))
+  @test ustrip.(u"m/s", dual_deriv.data) == dual_deriv_plain.data
+  @test all(unit.(dual_deriv.data) .== unit(1.0u"m/s"))
+end
+
 # Path graph on 5 vertices with regular lengths.
 #
 # Equals the graph Laplacian of the underlying graph, except at the boundary.
