@@ -47,7 +47,6 @@ s = dualize(primal_s)
 
 @test ∂(s, DualChain{1}([1,0,1])) isa DualChain{0}
 @test d(s, DualForm{0}([1,1])) isa DualForm{1}
-@test dual_derivative(s, DualForm{0}([1,1])) == DualForm{1}([1,-2,1])
 @test dual_boundary(1,s) == ∂(1,s)'
 @test dual_derivative(0,s) == -d(0,s)'
 

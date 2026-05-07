@@ -1533,10 +1533,8 @@ Transpose of [`dual_boundary`](@ref). For more info, see (Desbrun, Kanso, Tong,
 """
 @inline dual_derivative(n::Int, s::HasDeltaSet, args...) =
   dual_derivative(Val(n), s, args...)
-dual_derivative(s::HasDeltaSet, x::DualForm{n}) where n =
-  DualForm{n+1}(dual_derivative(Val(n), s, x.data))
 d(s::HasDeltaSet, x::DualForm{n}) where n =
-  dual_derivative(s, x)
+  DualForm{n+1}(dual_derivative(Val(n), s, x.data))
 
 function dual_derivative(::Val{n}, s::HasDeltaSet, args...) where n
   operator_nz(Int, nsimplices(ndims(s)-n-1,s),
