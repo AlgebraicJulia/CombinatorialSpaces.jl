@@ -104,6 +104,25 @@ end
   @test str0 * density_vform == DualForm{1}([1.0, 6.0, 6.0] .* u"kg")
   @test invstr0 * str0 * density_vform == density_vform
 
+  # ⋆(1) maps primal 1-forms → dual 0-forms; inv_hodge_star(1) is its inverse.
+  # hodge_diag(1, s, e) = 1/volume(e), so ⋆(1) carries units m^-1 and inv carries m.
+  str1 = ⋆(1, point3m_dual)
+  invstr1 = inv_hodge_star(1, point3m_dual)
+  @test str1    == Diagonal([1.0, 0.5] .* u"m^-1")
+  @test invstr1 == Diagonal([1.0, 2.0] .* u"m")
+
+  # u [m^2/s] -> ⋆(u) = u/L [m/s] -> u [m^2/s]
+  flux_eform = EForm([2.0, 4.0] .* u"m^2/s")
+  @test str1 * flux_eform == DualForm{0}([2.0, 2.0] .* u"m/s")
+  @test invstr1 * str1 * flux_eform == flux_eform
+
+  # dual 0-exterior derivative: d̃₀: DualForm{0} → DualForm{1} is a ±1 matrix,
+  # so it preserves units (no geometric factors).
+  # Matrix rows = primal vertices, cols = primal edges (dual vertices):
+  #   v1: +q_e1, v2: -q_e1 + q_e2, v3: -q_e2
+  vel_dual0 = DualForm{0}([3.0, 1.0] .* u"m/s")
+  @test d(point3m_dual, vel_dual0) == DualForm{1}([3.0, -2.0, -1.0] .* u"m/s")
+
   edge_lengths = volume(point3m_dual, E(1:2))
   # Concentration gradient: c [kg/m] → d₀(c) [kg/m] → ∇c = d₀(c)/L [kg/m^2].
   conc_vform = VForm([2.0, 4.0, 6.0] .* u"kg/m")
