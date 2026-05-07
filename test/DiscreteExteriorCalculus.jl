@@ -178,6 +178,18 @@ end
   @test str2 * mass_tform == DualForm{0}([6.0] .* u"kg/m^2")
   @test invstr2 * str2 * mass_tform == mass_tform
 
+  str1 = ⋆(1, s)
+  invstr1 = inv_hodge_star(1, s)
+  flux_eform = EForm([2.0, 4.0, 6.0] .* u"kg/s")
+  flux_dual1 = str1 * flux_eform
+  @test all(unit.(flux_dual1.data) .== unit(1.0u"kg/s"))
+  @test ustrip.(u"kg/s", flux_dual1.data) ≈ (⋆(1, s) * EForm([2.0, 4.0, 6.0])).data
+  @test invstr1 * flux_dual1 ≈ EForm(-flux_eform.data)
+
+  back_to_dual1 = str1 * (invstr1 * flux_dual1)
+  @test all(unit.(back_to_dual1.data) .== unit(1.0u"kg/s"))
+  @test back_to_dual1 ≈ DualForm{1}(-flux_dual1.data)
+
   vel_dual0 = DualForm{0}(collect(1.0:nparts(s, :DualV)) .* u"m/s")
   dual_deriv = d(s, vel_dual0)
   dual_deriv_plain = d(s, DualForm{0}(ustrip.(u"m/s", vel_dual0.data)))
