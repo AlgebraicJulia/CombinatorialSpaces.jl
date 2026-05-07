@@ -186,7 +186,9 @@ end
   @test all(unit.(flux_dual1.data) .== unit(1.0u"kg/s"))
   @test ustrip.(u"kg/s", flux_dual1.data) ≈ (⋆(1, s) * EForm(flux_vals)).data
   # In 2D, inv_hodge_star(1) = -inv(⋆(1)), so inv⋆₁⋆₁ = -I on primal 1-forms.
-  @test invstr1 * flux_dual1 ≈ EForm(-flux_eform.data)
+  back_to_primal1 = invstr1 * flux_dual1
+  @test all(unit.(back_to_primal1.data) .== unit(1.0u"kg/s"))
+  @test back_to_primal1 ≈ EForm(-flux_eform.data)
 
   back_to_dual1 = str1 * (invstr1 * flux_dual1)
   @test all(unit.(back_to_dual1.data) .== unit(1.0u"kg/s"))
