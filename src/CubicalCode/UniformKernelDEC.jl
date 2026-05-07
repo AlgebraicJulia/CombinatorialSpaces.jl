@@ -5,17 +5,13 @@ using KernelAbstractions
   idx = @index(Global)
   x, y, align = edge_to_coord(s, idx)
 
-  if align == X_ALIGN
-    @inbounds res[coord_to_edge(s, x, y, align)] = f[tgt_x(s, x, y)] - f[src_x(s, x, y)]
-  elseif align == Y_ALIGN
-    @inbounds res[coord_to_edge(s, x, y, align)] = f[tgt_y(s, x, y)] - f[src_y(s, x, y)]
-  end
+  @inbounds res[idx] = f[tgt(s, x, y, align)] - f[src(s, x, y, align)]
 end
 
 # Kernel for exterior derivative of 1-forms (primal 1-forms to primal 2-forms)
 @kernel function kernel_exterior_derivative_one!(res, s, f, padding)
   idx = @index(Global)
-  x, y = idx
+  x, y = quad_to_coord(s, idx)
 
   b_xe, t_xe, l_ye, r_ye = quad_edges(x, y)
   @inbounds res[idx] = f[b_xe] - f[t_xe] - f[l_ye] + f[r_ye]
@@ -24,15 +20,17 @@ end
 # Main interface functions
 
 function exterior_derivative!(res, ::Val{0}, s::UniformCubicalComplex2D, f)
-  kernel = kernel_exterior_derivative_zero!(get_backend(res))
-
+  backend = get_backend(f)
+  kernel = kernel_exterior_derivative_zero!(backend)
   kernel(res, s, f; ndrange = size(res))
+  return res
 end
 
 function exterior_derivative!(res, ::Val{1}, s::UniformCubicalComplex2D, f)
-  kernel = kernel_exterior_derivative_one!(get_backend(res))
-
+  backend = get_backend(f)
+  kernel = kernel_exterior_derivative_one!(backend)
   kernel(res, s, f; ndrange = size(res))
+  return res
 end
 
 # Kernel for wedge 01, 11, and dual 01 products
@@ -91,7 +89,7 @@ function wedge_product(::Val{0}, ::Val{1}, s::UniformCubicalComplex2D, f::Abstra
   return res
 end
 
-wedge_product(::Val{1}, ::Val{0}, s::UniformCubicalComplex2D, a::AbstractVector{FT}, f::AbstractVector{FT}) where FT <: AbstractFloat = 
+wedge_product(::Val{1}, ::Val{0}, s::UniformCubicalComplex2D, a::AbstractVector{FT}, f::AbstractVector{FT}) where FT <: AbstractFloat =
   wedge_product(Val(0), Val(1), s, f, a)
 
 function wedge_product(::Val{1}, ::Val{1}, s::UniformCubicalComplex2D, f1::AbstractVector{FT}, f2::AbstractVector{FT}) where FT <: AbstractFloat
