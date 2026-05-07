@@ -18,7 +18,7 @@ makedocs(
     "combinatorial_maps.md",
     "grid_laplace.md",
     "meshes.md",
-    "mesh_optimization.md",
+    #"mesh_optimization.md",
     "euler.md",
     "subdivision.md",
     "multigrid.md",
