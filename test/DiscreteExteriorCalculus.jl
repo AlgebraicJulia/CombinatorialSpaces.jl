@@ -102,7 +102,7 @@ end
   # x [kg / m] -> ⋆(x) [kg] -> x [kg / m]
   density_vform = VForm([2.0, 4.0, 6.0] .* u"kg/m")
   @test str0 * density_vform == DualForm{1}([1.0, 6.0, 6.0] .* u"kg")
-  @test invstr0 * str0 * density_vform == Diagonal([1.0, 2.0] .* u"m")
+  @test invstr0 * str0 * density_vform == density_vform
 
   # TODO: Grab `edge_lengths` from the mesh:
   edge_lengths = [1.0, 2.0] .* u"m"
