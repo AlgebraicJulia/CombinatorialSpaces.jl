@@ -94,40 +94,26 @@ end
   density_vform = VForm([2.0, 4.0, 6.0] .* u"kg/m")
   default_dual_1_form = ⋆(unitful_s, density_vform)
   @test default_dual_1_form == DualForm{1}([1.0, 6.0, 6.0] .* u"kg/m")
-  # star_0(x [kg / m]) -> y [kg].
+  # On this non-Unitful mesh, the 0-Hodge diagonal is dimensionless.
   @test ⋆(0, unitful_s) ≈ Diagonal([0.5, 1.5, 1.0])
   @test ⋆(Val(0), unitful_s) ≈ Diagonal([0.5, 1.5, 1.0])
-  star_0_unitful = ⋆(0, unitful_s, u"m")
-  @test ⋆(Val(0), unitful_s, u"m") == Diagonal([0.5, 1.5, 1.0] .* u"m")
-  @test star_0_unitful == Diagonal([0.5, 1.5, 1.0] .* u"m")
-  dual_1_form = ⋆(unitful_s, density_vform, u"m")::DualForm{1}
-  @test dual_1_form == DualForm{1}([1.0, 6.0, 6.0] .* u"kg")
-  @test all(unit.(dual_1_form) .== unit(1.0u"kg"))
-  @test ustrip.(u"kg", dual_1_form) ≈ [1.0, 6.0, 6.0]
 
-  # dual_star_0 / inv_star_1(x [kg / m]) -> y [kg].
+  # inv_star_1(x [kg / m]) -> y [kg / m] on this non-Unitful mesh.
   dual_density_0 = DualForm{0}([2.0, 4.0] .* u"kg/m")
   @test inv_hodge_star(1, unitful_s) ≈ Diagonal([1.0, 2.0])
-  dual_0_star_unitful = inv_hodge_star(1, unitful_s, u"m")
-  @test inv_hodge_star(Val(1), unitful_s, u"m") == Diagonal([1.0, 2.0] .* u"m")
-  @test dual_0_star_unitful == Diagonal([1.0, 2.0] .* u"m")
-  primal_1_form = inv_hodge_star(1, unitful_s, dual_density_0, u"m")
-  @test inv_hodge_star(Val(1), unitful_s, dual_density_0, u"m") == [2.0, 8.0] .* u"kg"
-  @test primal_1_form == [2.0, 8.0] .* u"kg"
-  @test all(unit.(primal_1_form) .== unit(1.0u"kg"))
-  @test ustrip.(u"kg", primal_1_form) ≈ [2.0, 8.0]
+  primal_1_form = inv_hodge_star(1, unitful_s, dual_density_0)
+  @test inv_hodge_star(Val(1), unitful_s, dual_density_0) == [2.0, 8.0] .* u"kg/m"
+  @test primal_1_form == [2.0, 8.0] .* u"kg/m"
+  @test all(unit.(primal_1_form) .== unit(1.0u"kg/m"))
+  @test ustrip.(u"kg/m", primal_1_form) ≈ [2.0, 8.0]
 
-  # inv_star_0(x [kg]) -> y [kg / m].
+  # inv_star_0(x [kg]) -> y [kg] on this non-Unitful mesh.
   dual_1_mass = DualForm{1}([1.0, 6.0, 6.0] .* u"kg")
   @test inv_hodge_star(0, unitful_s) ≈ Diagonal([2.0, 2/3, 1.0])
-  inv_star_0_unitful = inv_hodge_star(0, unitful_s, u"m^-1")
-  @test inv_hodge_star(Val(0), unitful_s, u"m^-1") ==
-        Diagonal([2.0, 2/3, 1.0] .* u"m^-1")
-  @test inv_star_0_unitful == Diagonal([2.0, 2/3, 1.0] .* u"m^-1")
-  primal_0_density = inv_hodge_star(0, unitful_s, dual_1_mass, u"m^-1")
-  @test primal_0_density == [2.0, 4.0, 6.0] .* u"kg/m"
-  @test all(unit.(primal_0_density) .== unit(1.0u"kg/m"))
-  @test ustrip.(u"kg/m", primal_0_density) ≈ [2.0, 4.0, 6.0]
+  primal_0_density = inv_hodge_star(0, unitful_s, dual_1_mass)
+  @test primal_0_density == [2.0, 4.0, 6.0] .* u"kg"
+  @test all(unit.(primal_0_density) .== unit(1.0u"kg"))
+  @test ustrip.(u"kg", primal_0_density) ≈ [2.0, 4.0, 6.0]
 
   # 1D potential flow: ϕ [m^2/s] → d₀(ϕ) [m^2/s] → u = d₀(ϕ)/L [m/s].
   # The two primal edges have lengths 1 m and 2 m respectively.
@@ -162,9 +148,7 @@ end
   subdivide_duals!(point3m_dual, Barycenter())
   @test volume(point3m_dual, E(1:2)) == [1.0, 2.0] .* u"m"
   @test ⋆(0, point3m_dual) == Diagonal([0.5, 1.5, 1.0] .* u"m")
-  @test ⋆(0, point3m_dual, u"cm") == Diagonal([50.0, 150.0, 100.0] .* u"cm")
   @test inv_hodge_star(1, point3m_dual) == Diagonal([1.0, 2.0] .* u"m")
-  @test inv_hodge_star(1, point3m_dual, u"cm") == Diagonal([100.0, 200.0] .* u"cm")
 
 end
 

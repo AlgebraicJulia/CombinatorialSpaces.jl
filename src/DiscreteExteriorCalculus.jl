@@ -41,7 +41,7 @@ using LinearAlgebra: Diagonal, dot, norm, cross, pinv, normalize
 using SparseArrays
 using StaticArrays: @SVector, SVector, SMatrix, MVector, MMatrix, StaticVector
 using Statistics: mean
-using Unitful: Units, NoDims, dimension, uconvert, @u_str
+using Unitful: @u_str
 
 # TODO: This is not consistent with other definitions and should be removed
 const Point2D = SVector{2,Float64}
@@ -1636,10 +1636,6 @@ fancy_acset_schema(d::HasDeltaSet) = Presentation(acset_schema(d))
 """
 ⋆(s::HasDeltaSet, x::SimplexForm{n}; kw...) where n =
   DualForm{ndims(s)-n}(⋆(Val(n), s, x.data; kw...))
-""" Hodge star on a primal form with an explicit Unitful unit annotation.
-"""
-⋆(s::HasDeltaSet, x::SimplexForm{n}, unit::Units; kw...) where n =
-  DualForm{ndims(s)-n}(⋆(Val(n), s, x.data, unit; kw...))
 @inline ⋆(n::Int, s::HasDeltaSet, args...; kw...) =
   ⋆(Val(n), s, args...; kw...)
 @inline ⋆(::Val{n}, s::HasDeltaSet;
@@ -1744,30 +1740,6 @@ end
 ⋆(::Val{n}, s::AbstractDeltaDualComplex1D, form::AbstractVector, ::GeometricHodge) where n =
   ⋆(Val(n), s, form, DiagonalHodge())
 
-"""Apply an explicit unit annotation to a Hodge diagonal.
-
-If the diagonal entries are dimensionless, multiply by the requested unit.
-If entries are already unitful, convert them to the requested unit.
-Empty diagonals are returned unchanged.
-"""
-@inline function _apply_hodge_unit(hdg::Diagonal, unit::Units)
-  isempty(hdg.diag) && return hdg
-  dimension(first(hdg.diag)) == NoDims ? Diagonal(hdg.diag .* unit) :
-                                         Diagonal(uconvert.(unit, hdg.diag))
-end
-
-@inline function ⋆(::Val{0}, s::AbstractDeltaDualComplex1D, unit::Units;
-                   hodge::DiscreteHodge=GeometricHodge())
-  hdg = ⋆(Val(0), s, hodge)
-  _apply_hodge_unit(hdg, unit)
-end
-
-@inline function ⋆(::Val{0}, s::AbstractDeltaDualComplex1D,
-                   form::AbstractVector, unit::Units;
-                   hodge::DiscreteHodge=GeometricHodge())
-  ⋆(Val(0), s, unit; hodge) * form
-end
-
 """ Alias for the Hodge star operator [`⋆`](@ref).
 """
 const hodge_star = ⋆
@@ -1831,32 +1803,6 @@ inv_hodge_star(::Val{n}, s::AbstractDeltaDualComplex1D,
 inv_hodge_star(::Val{n}, s::AbstractDeltaDualComplex1D,
                form::AbstractVector, ::GeometricHodge) where n =
   inv_hodge_star(Val(n), s, form, DiagonalHodge())
-
-@inline function inv_hodge_star(::Val{0}, s::AbstractDeltaDualComplex1D,
-                                unit::Units;
-                                hodge::DiscreteHodge=GeometricHodge())
-  ihdg = inv_hodge_star(Val(0), s, hodge)
-  _apply_hodge_unit(ihdg, unit)
-end
-
-@inline function inv_hodge_star(::Val{0}, s::AbstractDeltaDualComplex1D,
-                                form::AbstractVector, unit::Units;
-                                hodge::DiscreteHodge=GeometricHodge())
-  inv_hodge_star(Val(0), s, unit; hodge) * form
-end
-
-@inline function inv_hodge_star(::Val{1}, s::AbstractDeltaDualComplex1D,
-                                unit::Units;
-                                hodge::DiscreteHodge=GeometricHodge())
-  ihdg = inv_hodge_star(Val(1), s, hodge)
-  _apply_hodge_unit(ihdg, unit)
-end
-
-@inline function inv_hodge_star(::Val{1}, s::AbstractDeltaDualComplex1D,
-                                form::AbstractVector, unit::Units;
-                                hodge::DiscreteHodge=GeometricHodge())
-  inv_hodge_star(Val(1), s, unit; hodge) * form
-end
 
 """ Alias for the inverse Hodge star operator [`⋆⁻¹`](@ref).
 """
