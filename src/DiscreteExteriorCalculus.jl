@@ -121,7 +121,7 @@ end
 function geometric_center(points::StaticVector{N}, ::Circumcenter) where N
   if eltype(eltype(points)) <: AbstractQuantity
     u = unit(points[1][1])
-    points_no_units = map(p -> map(x -> ustrip(u, x), p), points)
+    points_no_units = map(p -> ustrip.(u, p), points)
     return geometric_center(points_no_units, Circumcenter()) .* u
   end
   CM = cayley_menger(points...)
