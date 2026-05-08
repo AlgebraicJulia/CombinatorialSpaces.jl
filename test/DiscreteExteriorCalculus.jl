@@ -194,10 +194,11 @@ end
   @test all(unit.(back_to_dual1.data) .== unit(1.0u"kg/s"))
   @test back_to_dual1 ≈ DualForm{1}(-flux_dual1.data)
 
-  primal_vec_vals = fill(SVector(2.0, 3.0, 0.0), nv(s))
-  primal_vec_field = fill(SVector(2.0u"m", 3.0u"m", 0.0u"m"), nv(s))
-  tri_vec_vals = fill(SVector(2.0, 3.0, 0.0), ntriangles(s))
-  tri_vec_field = fill(SVector(2.0u"m", 3.0u"m", 0.0u"m"), ntriangles(s))
+  base_vec = SVector(2.0, 3.0, 0.0)
+  primal_vec_vals = fill(base_vec, nv(s))
+  primal_vec_field = fill(base_vec .* 1.0u"m", nv(s))
+  tri_vec_vals = fill(base_vec, ntriangles(s))
+  tri_vec_field = fill(base_vec .* 1.0u"m", ntriangles(s))
 
   flat_pp = ♭(s, primal_vec_field, PPFlat())
   flat_dpp = ♭(s, tri_vec_field, DPPFlat())
@@ -209,8 +210,9 @@ end
   sharp_pp = ♯(s, flat_pp, PPSharp())
   sharp_pp_plain = ♯(s, ustrip.(u"m^2", flat_pp), PPSharp())
   @test all(all(unit.(Tuple(v)) .== unit(1.0u"m")) for v in sharp_pp)
-  @test all(all(isapprox.(ustrip.(u"m", Tuple(sharp_pp[i])), Tuple(sharp_pp_plain[i])))
-            for i in eachindex(sharp_pp))
+  sharp_pp_vals = map(v -> ustrip.(u"m", Tuple(v)), sharp_pp)
+  sharp_pp_plain_vals = map(v -> Tuple(v), sharp_pp_plain)
+  @test all(isapprox.(sharp_pp_vals, sharp_pp_plain_vals))
 
   vel_dual0 = DualForm{0}(collect(1.0:nparts(s, :DualV)) .* u"m/s")
   dual_deriv = d(s, vel_dual0)
