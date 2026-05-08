@@ -494,6 +494,8 @@ subdivide_duals!(flipped_s, Barycenter())
                         -2.0  1 -1.0;
                          -1  -1 -2.0], atol=1e-3)
 @test δ(s, EForm([0.5,1.5,0.5])) isa VForm
+@test Δ(s, VForm([1.,2.,3.])) isa VForm
+@test Δ(s, VForm([1.,2.,3.]); hodge=DiagonalHodge()) isa VForm
 @test Δ(s, EForm([1.,2.,1.])) isa EForm
 @test Δ(s, EForm([1.,2.,1.]); hodge=DiagonalHodge()) isa EForm
 @test Δ(s, TriForm([1.])) isa TriForm
