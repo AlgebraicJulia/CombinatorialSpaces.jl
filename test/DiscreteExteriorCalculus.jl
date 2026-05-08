@@ -148,14 +148,16 @@ end
   u_d = ♯(point3m_dual, dΦ.data, PDSharp())
   u_d0 = ♯(point3m_dual, ustrip.(u"m^2/s", dΦ.data), PDSharp())
   @test all(all(unit.(Tuple(v)) .== unit(1.0u"m/s")) for v in u_d)
-  @test all(isapprox.(map(v -> ustrip.(u"m/s", Tuple(v)), u_d),
-                      map(v -> ustrip.(u"m^-1", Tuple(v)), u_d0)))
+  @test all(all(isapprox.(ustrip.(u"m/s", Tuple(v)),
+                          ustrip.(u"m^-1", Tuple(v0))))
+            for (v, v0) in zip(u_d, u_d0))
 
   u_p = ♯(point3m_dual, dΦ.data, PPSharp())
   u_p0 = ♯(point3m_dual, ustrip.(u"m^2/s", dΦ.data), PPSharp())
   @test all(all(unit.(Tuple(v)) .== unit(1.0u"m/s")) for v in u_p)
-  @test all(isapprox.(map(v -> ustrip.(u"m/s", Tuple(v)), u_p),
-                      map(v -> ustrip.(u"m^-1", Tuple(v)), u_p0)))
+  @test all(all(isapprox.(ustrip.(u"m/s", Tuple(v)),
+                          ustrip.(u"m^-1", Tuple(v0))))
+            for (v, v0) in zip(u_p, u_p0))
 end
 
 function test_unitful_dec_operators_2d(subdivision)
