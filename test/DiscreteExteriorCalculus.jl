@@ -136,12 +136,26 @@ end
   # 1D potential flow: ϕ [m^2/s] → d₀(ϕ) [m^2/s] → u = d₀(ϕ)/L [m/s].
   # The two primal edges have lengths 1 m and 2 m respectively.
   potential_vform = VForm([1.0, 4.0, 10.0] .* u"m^2/s")
+  @test all(unit.(potential_vform.data) .== unit(1.0u"m^2/s"))
   potential_diff = d(point3m_primal, potential_vform)
   @test potential_diff == EForm([3.0, 6.0] .* u"m^2/s")
+  @test all(unit.(potential_diff.data) .== unit(1.0u"m^2/s"))
   velocity = potential_diff.data ./ edge_lengths
   @test velocity ≈ [3.0, 3.0] .* u"m/s"
   @test all(unit.(velocity) .== unit(1.0u"m/s"))
   @test ustrip.(u"m/s", velocity) ≈ [3.0, 3.0]
+
+  potential_sharp_pd = ♯(point3m_dual, potential_diff.data, PDSharp())
+  potential_sharp_pd_plain = ♯(point3m_dual, ustrip.(u"m^2/s", potential_diff.data), PDSharp())
+  @test all(all(unit.(Tuple(v)) .== unit(1.0u"m/s")) for v in potential_sharp_pd)
+  @test all(isapprox.(map(v -> ustrip.(u"m/s", Tuple(v)), potential_sharp_pd),
+                      map(v -> Tuple(v), potential_sharp_pd_plain)))
+
+  potential_sharp_pp = ♯(point3m_dual, potential_diff.data, PPSharp())
+  potential_sharp_pp_plain = ♯(point3m_dual, ustrip.(u"m^2/s", potential_diff.data), PPSharp())
+  @test all(all(unit.(Tuple(v)) .== unit(1.0u"m/s")) for v in potential_sharp_pp)
+  @test all(isapprox.(map(v -> ustrip.(u"m/s", Tuple(v)), potential_sharp_pp),
+                      map(v -> Tuple(v), potential_sharp_pp_plain)))
 end
 
 @testset "Unitful DEC operators in 2D" begin
