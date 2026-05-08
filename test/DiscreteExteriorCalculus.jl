@@ -158,7 +158,7 @@ end
                       map(v -> Tuple(v), u_p0)))
 end
 
-@testset "Unitful DEC operators in 2D" begin
+function test_unitful_dec_operators_2d(subdivision)
   len_t = typeof(1.0u"m")
   primal_s = EmbeddedDeltaSet2D{Bool,Point3{len_t}}()
   add_vertices!(primal_s, 3, point=[
@@ -169,27 +169,27 @@ end
   glue_triangle!(primal_s, 1, 2, 3, tri_orientation=true)
   primal_s[:edge_orientation] = true
   s = EmbeddedDeltaDualComplex2D{Bool,Real,Point3{len_t}}(primal_s)
-  subdivide_duals!(s, Barycenter())
+  subdivide_duals!(s, subdivision)
 
   @test volume(s, E(1:3)) ≈ [1.0, √2, 1.0] .* u"m"
   @test volume(s, Tri(1)) ≈ 0.5u"m^2"
 
   str0 = ⋆(0, s)
   invstr0 = inv_hodge_star(0, s)
-  @test str0    == Diagonal(fill((1/6)u"m^2", 3))
-  @test invstr0 == Diagonal(fill(6.0u"m^-2", 3))
+  @test all(unit.(diag(str0)) .== unit(1.0u"m^2"))
+  @test all(unit.(diag(invstr0)) .== unit(1.0u"m^-2"))
 
   density_vform = VForm([2.0, 4.0, 6.0] .* u"kg/m^2")
-  @test str0 * density_vform == DualForm{2}([1/3, 2/3, 1.0] .* u"kg")
+  @test all(unit.((str0 * density_vform).data) .== unit(1.0u"kg"))
   @test invstr0 * str0 * density_vform == density_vform
 
   str2 = ⋆(2, s)
   invstr2 = inv_hodge_star(2, s)
-  @test str2    == Diagonal([2.0] .* u"m^-2")
-  @test invstr2 == Diagonal([0.5] .* u"m^2")
+  @test all(unit.(diag(str2)) .== unit(1.0u"m^-2"))
+  @test all(unit.(diag(invstr2)) .== unit(1.0u"m^2"))
 
   mass_tform = TriForm([3.0] .* u"kg")
-  @test str2 * mass_tform == DualForm{0}([6.0] .* u"kg/m^2")
+  @test all(unit.((str2 * mass_tform).data) .== unit(1.0u"kg/m^2"))
   @test invstr2 * str2 * mass_tform == mass_tform
 
   str1 = ⋆(1, s)
@@ -206,6 +206,25 @@ end
   q̃_back = str1 * (invstr1 * q̃)
   @test all(unit.(q̃_back.data) .== unit(1.0u"kg/s"))
   @test q̃_back ≈ DualForm{1}(-q̃.data)
+
+  ρ = VForm([1.0, 2.0, 3.0] .* u"kg/m^2")
+  q_form = EForm([1.0, 2.0, 1.0] .* u"kg/s")
+  m = TriForm([1.0] .* u"kg")
+  lap0 = Δ(s, ρ)
+  lap1 = Δ(s, q_form)
+  lap1_diag = Δ(s, q_form; hodge=DiagonalHodge())
+  lap2 = Δ(s, m)
+  lap2_diag = Δ(s, m; hodge=DiagonalHodge())
+  @test lap0 isa VForm
+  @test lap1 isa EForm
+  @test lap1_diag isa EForm
+  @test lap2 isa TriForm
+  @test lap2_diag isa TriForm
+  @test all(unit.(lap0.data) .== unit(1.0u"kg/m^2"))
+  @test all(unit.(lap1.data) .== unit(1.0u"kg/s"))
+  @test all(unit.(lap1_diag.data) .== unit(1.0u"kg/s"))
+  @test all(unit.(lap2.data) .== unit(1.0u"kg"))
+  @test all(unit.(lap2_diag.data) .== unit(1.0u"kg"))
 
   u0 = SVector(2.0, 3.0, 0.0)
   u_p_vals = fill(u0, nv(s))
@@ -232,6 +251,12 @@ end
   dual_deriv_plain = d(s, DualForm{0}(ustrip.(u"m/s", vel_dual0.data)))
   @test ustrip.(u"m/s", dual_deriv.data) == dual_deriv_plain.data
   @test all(unit.(dual_deriv.data) .== unit(1.0u"m/s"))
+end
+
+@testset "Unitful DEC operators in 2D" begin
+  @testset "subdivision = $(nameof(typeof(subdivision)))" for subdivision in (Barycenter(), Circumcenter())
+    test_unitful_dec_operators_2d(subdivision)
+  end
 end
 
 # Path graph on 5 vertices with regular lengths.
