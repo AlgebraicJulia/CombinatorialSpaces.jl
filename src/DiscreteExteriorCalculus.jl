@@ -41,7 +41,6 @@ using LinearAlgebra: Diagonal, dot, norm, cross, pinv, normalize
 using SparseArrays
 using StaticArrays: @SVector, SVector, SMatrix, MVector, MMatrix, StaticVector
 using Statistics: mean
-using Unitful: AbstractQuantity, unit, ustrip
 
 # TODO: This is not consistent with other definitions and should be removed
 const Point2D = SVector{2,Float64}
@@ -119,13 +118,15 @@ function geometric_center(points, ::Circumcenter)
 end
 
 function geometric_center(points::StaticVector{N}, ::Circumcenter) where N
-  if eltype(eltype(points)) <: AbstractQuantity
-    u = unit(points[1][1])
-    points_no_units = map(p -> ustrip.(u, p), points)
-    return geometric_center(points_no_units, Circumcenter()) .* u
-  end
   CM = cayley_menger(points...)
-  inv_CM = inv(CM)
+  inv_CM = try
+    inv(CM)
+  catch err
+    err isa ArgumentError || rethrow(err)
+    coord_scale = oneunit(points[1][1])
+    points_no_units = map(p -> p ./ coord_scale, points)
+    inv(cayley_menger(points_no_units...))
+  end
   barycentric_coords = SVector(ntuple(i -> inv_CM[1, i+1], Val(N)))
   mapreduce(*, +, barycentric_coords, points)
 end
