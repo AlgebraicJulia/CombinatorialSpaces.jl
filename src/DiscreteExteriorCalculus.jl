@@ -123,6 +123,7 @@ function geometric_center(points::StaticVector{N}, ::Circumcenter) where N
     inv(CM)
   catch err
     err isa ArgumentError || rethrow(err)
+    occursin("zero(", sprint(showerror, err)) || rethrow(err)
     coord_scale = oneunit(points[1][1])
     points_no_units = map(p -> p ./ coord_scale, points)
     inv(cayley_menger(points_no_units...))
