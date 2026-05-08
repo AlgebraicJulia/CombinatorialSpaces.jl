@@ -162,6 +162,8 @@ end
 
 function test_unitful_dec_operators_2d(subdivision)
   len_t = typeof(1.0u"m")
+  area_t = typeof(1.0u"m^2")
+  geom_t = Union{len_t, area_t}
   primal_s = EmbeddedDeltaSet2D{Bool,Point3{len_t}}()
   add_vertices!(primal_s, 3, point=[
     Point3(0.0u"m", 0.0u"m", 0.0u"m"),
@@ -170,7 +172,7 @@ function test_unitful_dec_operators_2d(subdivision)
   ])
   glue_triangle!(primal_s, 1, 2, 3, tri_orientation=true)
   primal_s[:edge_orientation] = true
-  s = EmbeddedDeltaDualComplex2D{Bool,len_t,Point3{len_t}}(primal_s)
+  s = EmbeddedDeltaDualComplex2D{Bool,geom_t,Point3{len_t}}(primal_s)
   subdivide_duals!(s, subdivision)
 
   @test volume(s, E(1:3)) ≈ [1.0, √2, 1.0] .* u"m"
