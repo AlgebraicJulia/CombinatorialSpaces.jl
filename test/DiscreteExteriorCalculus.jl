@@ -135,27 +135,27 @@ end
 
   # 1D potential flow: ϕ [m^2/s] → d₀(ϕ) [m^2/s] → u = d₀(ϕ)/L [m/s].
   # The two primal edges have lengths 1 m and 2 m respectively.
-  potential_vform = VForm([1.0, 4.0, 10.0] .* u"m^2/s")
-  @test all(unit.(potential_vform.data) .== unit(1.0u"m^2/s"))
-  potential_diff = d(point3m_primal, potential_vform)
-  @test potential_diff == EForm([3.0, 6.0] .* u"m^2/s")
-  @test all(unit.(potential_diff.data) .== unit(1.0u"m^2/s"))
-  velocity = potential_diff.data ./ edge_lengths
-  @test velocity ≈ [3.0, 3.0] .* u"m/s"
-  @test all(unit.(velocity) .== unit(1.0u"m/s"))
-  @test ustrip.(u"m/s", velocity) ≈ [3.0, 3.0]
+  Φ = VForm([1.0, 4.0, 10.0] .* u"m^2/s")
+  @test all(unit.(Φ.data) .== unit(1.0u"m^2/s"))
+  dΦ = d(point3m_primal, Φ)
+  @test dΦ == EForm([3.0, 6.0] .* u"m^2/s")
+  @test all(unit.(dΦ.data) .== unit(1.0u"m^2/s"))
+  u = dΦ.data ./ edge_lengths
+  @test u ≈ [3.0, 3.0] .* u"m/s"
+  @test all(unit.(u) .== unit(1.0u"m/s"))
+  @test ustrip.(u"m/s", u) ≈ [3.0, 3.0]
 
-  potential_sharp_pd = ♯(point3m_dual, potential_diff.data, PDSharp())
-  potential_sharp_pd_plain = ♯(point3m_dual, ustrip.(u"m^2/s", potential_diff.data), PDSharp())
-  @test all(all(unit.(Tuple(v)) .== unit(1.0u"m/s")) for v in potential_sharp_pd)
-  @test all(isapprox.(map(v -> ustrip.(u"m/s", Tuple(v)), potential_sharp_pd),
-                      map(v -> Tuple(v), potential_sharp_pd_plain)))
+  u_d = ♯(point3m_dual, dΦ.data, PDSharp())
+  u_d0 = ♯(point3m_dual, ustrip.(u"m^2/s", dΦ.data), PDSharp())
+  @test all(all(unit.(Tuple(v)) .== unit(1.0u"m/s")) for v in u_d)
+  @test all(isapprox.(map(v -> ustrip.(u"m/s", Tuple(v)), u_d),
+                      map(v -> Tuple(v), u_d0)))
 
-  potential_sharp_pp = ♯(point3m_dual, potential_diff.data, PPSharp())
-  potential_sharp_pp_plain = ♯(point3m_dual, ustrip.(u"m^2/s", potential_diff.data), PPSharp())
-  @test all(all(unit.(Tuple(v)) .== unit(1.0u"m/s")) for v in potential_sharp_pp)
-  @test all(isapprox.(map(v -> ustrip.(u"m/s", Tuple(v)), potential_sharp_pp),
-                      map(v -> Tuple(v), potential_sharp_pp_plain)))
+  u_p = ♯(point3m_dual, dΦ.data, PPSharp())
+  u_p0 = ♯(point3m_dual, ustrip.(u"m^2/s", dΦ.data), PPSharp())
+  @test all(all(unit.(Tuple(v)) .== unit(1.0u"m/s")) for v in u_p)
+  @test all(isapprox.(map(v -> ustrip.(u"m/s", Tuple(v)), u_p),
+                      map(v -> Tuple(v), u_p0)))
 end
 
 @testset "Unitful DEC operators in 2D" begin
@@ -194,39 +194,38 @@ end
 
   str1 = ⋆(1, s)
   invstr1 = inv_hodge_star(1, s)
-  flux_vals = [2.0, 4.0, 6.0]
-  flux_eform = EForm(flux_vals .* u"kg/s")
-  flux_dual1 = str1 * flux_eform
-  @test all(unit.(flux_dual1.data) .== unit(1.0u"kg/s"))
-  @test ustrip.(u"kg/s", flux_dual1.data) ≈ (⋆(1, s) * EForm(flux_vals)).data
+  q = EForm([2.0, 4.0, 6.0] .* u"kg/s")
+  q̃ = str1 * q
+  @test all(unit.(q̃.data) .== unit(1.0u"kg/s"))
+  @test ustrip.(u"kg/s", q̃.data) ≈ (⋆(1, s) * EForm([2.0, 4.0, 6.0])).data
   # In 2D, inv_hodge_star(1) = -inv(⋆(1)), so inv⋆₁⋆₁ = -I on primal 1-forms.
-  back_to_primal1 = invstr1 * flux_dual1
-  @test all(unit.(back_to_primal1.data) .== unit(1.0u"kg/s"))
-  @test back_to_primal1 ≈ EForm(-flux_eform.data)
+  q_back = invstr1 * q̃
+  @test all(unit.(q_back.data) .== unit(1.0u"kg/s"))
+  @test q_back ≈ EForm(-q.data)
 
-  back_to_dual1 = str1 * (invstr1 * flux_dual1)
-  @test all(unit.(back_to_dual1.data) .== unit(1.0u"kg/s"))
-  @test back_to_dual1 ≈ DualForm{1}(-flux_dual1.data)
+  q̃_back = str1 * (invstr1 * q̃)
+  @test all(unit.(q̃_back.data) .== unit(1.0u"kg/s"))
+  @test q̃_back ≈ DualForm{1}(-q̃.data)
 
-  base_vec = SVector(2.0, 3.0, 0.0)
-  primal_vec_vals = fill(base_vec, nv(s))
-  primal_vec_field = fill(base_vec .* 1.0u"m", nv(s))
-  tri_vec_vals = fill(base_vec, ntriangles(s))
-  tri_vec_field = fill(base_vec .* 1.0u"m", ntriangles(s))
+  u0 = SVector(2.0, 3.0, 0.0)
+  u_p_vals = fill(u0, nv(s))
+  u_p = fill(u0 .* 1.0u"m", nv(s))
+  u_t_vals = fill(u0, ntriangles(s))
+  u_t = fill(u0 .* 1.0u"m", ntriangles(s))
 
-  flat_pp = ♭(s, primal_vec_field, PPFlat())
-  flat_dpp = ♭(s, tri_vec_field, DPPFlat())
-  @test all(unit.(flat_pp) .== unit(1.0u"m^2"))
-  @test all(unit.(flat_dpp) .== unit(1.0u"m^2"))
-  @test ustrip.(u"m^2", flat_pp) ≈ ♭(s, primal_vec_vals, PPFlat())
-  @test ustrip.(u"m^2", flat_dpp) ≈ ♭(s, tri_vec_vals, DPPFlat())
+  α_pp = ♭(s, u_p, PPFlat())
+  α_dpp = ♭(s, u_t, DPPFlat())
+  @test all(unit.(α_pp) .== unit(1.0u"m^2"))
+  @test all(unit.(α_dpp) .== unit(1.0u"m^2"))
+  @test ustrip.(u"m^2", α_pp) ≈ ♭(s, u_p_vals, PPFlat())
+  @test ustrip.(u"m^2", α_dpp) ≈ ♭(s, u_t_vals, DPPFlat())
 
-  sharp_pp = ♯(s, flat_pp, PPSharp())
-  sharp_pp_plain = ♯(s, ustrip.(u"m^2", flat_pp), PPSharp())
-  @test all(all(unit.(Tuple(v)) .== unit(1.0u"m")) for v in sharp_pp)
-  sharp_pp_vals = map(v -> ustrip.(u"m", Tuple(v)), sharp_pp)
-  sharp_pp_plain_vals = map(v -> Tuple(v), sharp_pp_plain)
-  @test all(isapprox.(sharp_pp_vals, sharp_pp_plain_vals))
+  u_sharp = ♯(s, α_pp, PPSharp())
+  u_sharp0 = ♯(s, ustrip.(u"m^2", α_pp), PPSharp())
+  @test all(all(unit.(Tuple(v)) .== unit(1.0u"m")) for v in u_sharp)
+  u_sharp_vals = map(v -> ustrip.(u"m", Tuple(v)), u_sharp)
+  u_sharp0_vals = map(v -> Tuple(v), u_sharp0)
+  @test all(isapprox.(u_sharp_vals, u_sharp0_vals))
 
   vel_dual0 = DualForm{0}(collect(1.0:nparts(s, :DualV)) .* u"m/s")
   dual_deriv = d(s, vel_dual0)
