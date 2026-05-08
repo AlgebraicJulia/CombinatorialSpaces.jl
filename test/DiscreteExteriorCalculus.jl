@@ -168,15 +168,15 @@ function test_unitful_dec_operators_2d(subdivision)
   add_vertices!(primal_s, 3, point=[
     Point3(0.0u"m", 0.0u"m", 0.0u"m"),
     Point3(1.0u"m", 0.0u"m", 0.0u"m"),
-    Point3(0.0u"m", 1.0u"m", 0.0u"m"),
+    Point3(0.5u"m", (√3/2)u"m", 0.0u"m"),
   ])
   glue_triangle!(primal_s, 1, 2, 3, tri_orientation=true)
   primal_s[:edge_orientation] = true
   s = EmbeddedDeltaDualComplex2D{Bool,geom_t,Point3{len_t}}(primal_s)
   subdivide_duals!(s, subdivision)
 
-  @test volume(s, E(1:3)) ≈ [1.0, √2, 1.0] .* u"m"
-  @test volume(s, Tri(1)) ≈ 0.5u"m^2"
+  @test volume(s, E(1:3)) ≈ [1.0, 1.0, 1.0] .* u"m"
+  @test volume(s, Tri(1)) ≈ (√3/4)u"m^2"
 
   str0 = ⋆(0, s)
   invstr0 = inv_hodge_star(0, s)
@@ -184,8 +184,8 @@ function test_unitful_dec_operators_2d(subdivision)
   @test all(unit.(diag(invstr0)) .== unit(1.0u"m^-2"))
 
   density_vform = VForm([2.0, 4.0, 6.0] .* u"kg/m^2")
-  @test all(unit.((str0 * density_vform).data) .== unit(1.0u"kg"))
-  @test invstr0 * str0 * density_vform == density_vform
+  @test all(unit.(str0 * density_vform) .== unit(1.0u"kg"))
+  @test (invstr0 * (str0 * density_vform)) ≈ density_vform.data
 
   str2 = ⋆(2, s)
   invstr2 = inv_hodge_star(2, s)
@@ -193,23 +193,23 @@ function test_unitful_dec_operators_2d(subdivision)
   @test all(unit.(diag(invstr2)) .== unit(1.0u"m^2"))
 
   mass_tform = TriForm([3.0] .* u"kg")
-  @test all(unit.((str2 * mass_tform).data) .== unit(1.0u"kg/m^2"))
-  @test invstr2 * str2 * mass_tform == mass_tform
+  @test all(unit.(str2 * mass_tform) .== unit(1.0u"kg/m^2"))
+  @test (invstr2 * (str2 * mass_tform)) ≈ mass_tform.data
 
   str1 = ⋆(1, s)
   invstr1 = inv_hodge_star(1, s)
   q = EForm([2.0, 4.0, 6.0] .* u"kg/s")
   q̃ = str1 * q
-  @test all(unit.(q̃.data) .== unit(1.0u"kg/s"))
-  @test ustrip.(u"kg/s", q̃.data) ≈ (⋆(1, s) * EForm([2.0, 4.0, 6.0])).data
+  @test all(unit.(q̃) .== unit(1.0u"kg/s"))
+  @test ustrip.(u"kg/s", q̃) ≈ (⋆(1, s) * EForm([2.0, 4.0, 6.0]))
   # In 2D, inv_hodge_star(1) = -inv(⋆(1)), so inv⋆₁⋆₁ = -I on primal 1-forms.
   q_back = invstr1 * q̃
-  @test all(unit.(q_back.data) .== unit(1.0u"kg/s"))
-  @test q_back ≈ EForm(-q.data)
+  @test all(unit.(q_back) .== unit(1.0u"kg/s"))
+  @test q_back ≈ -q.data
 
   q̃_back = str1 * (invstr1 * q̃)
-  @test all(unit.(q̃_back.data) .== unit(1.0u"kg/s"))
-  @test q̃_back ≈ DualForm{1}(-q̃.data)
+  @test all(unit.(q̃_back) .== unit(1.0u"kg/s"))
+  @test q̃_back ≈ -q̃
 
   ρ = VForm([1.0, 2.0, 3.0] .* u"kg/m^2")
   q_form = EForm([1.0, 2.0, 1.0] .* u"kg/s")
