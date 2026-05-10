@@ -316,6 +316,71 @@ function test_unitful_dec_operators_2d(subdivision)
   dual_deriv_plain = d(s, DualForm{0}(ustrip.(u"m/s", vel_dual0.data)))
   @test ustrip.(u"m/s", dual_deriv.data) == dual_deriv_plain.data
   @test all(unit.(dual_deriv.data) .== unit(1.0u"m/s"))
+
+  # Wedge products: unit propagation.
+  # All primal wedge-product weights are dimensionless ratios of dual volumes to
+  # primal volumes (both measured in the same unit, m^k for a k-simplex), so the
+  # output unit is simply the product of the two input form units.
+  # Operator: dimensionless (no geometric unit factor).
+  # Output unit = left_input_unit × right_input_unit.
+
+  # Input 0-form: surface density [kg/m²] at each primal vertex.
+  f_0 = VForm([1.0, 2.0, 3.0] .* u"kg/m^2")
+
+  # 00 wedge: VForm[kg/m²] ∧ VForm[K] → VForm[kg⋅K/m²]
+  # No geometric weights; output is the pointwise product f[x]⋅g[x].
+  g_0 = VForm([3.0, 2.0, 1.0] .* u"K")
+  w_00 = ∧(s, f_0, g_0)
+  @test w_00 isa VForm
+  @test all(unit.(w_00.data) .== unit(1.0u"kg*K/m^2"))
+  @test ustrip.(u"kg*K/m^2", w_00.data) ≈
+        ∧(s, VForm(ustrip.(u"kg/m^2", f_0.data)), VForm(ustrip.(u"K", g_0.data))).data
+
+  # 01 wedge: VForm[kg/m²] ∧ EForm[m/s] → EForm[kg/(m⋅s)]
+  # Weights: dual_volume(1, s, x′) / volume(1, s, e) = dual_edge_length [m] /
+  #   primal_edge_length [m] = dimensionless.
+  β_1 = EForm([1.0, 2.0, 3.0] .* u"m/s")
+  w_01 = ∧(s, f_0, β_1)
+  @test w_01 isa EForm
+  @test all(unit.(w_01.data) .== unit(1.0u"kg/(m*s)"))
+  @test ustrip.(u"kg/(m*s)", w_01.data) ≈
+        ∧(s, VForm(ustrip.(u"kg/m^2", f_0.data)), EForm(ustrip.(u"m/s", β_1.data))).data
+
+  # 10 wedge: EForm[m/s] ∧ VForm[kg/m²] → EForm[kg/(m⋅s)]
+  # Same dimensionless weights as the 01 case, but with operands swapped.
+  w_10 = ∧(s, β_1, f_0)
+  @test w_10 isa EForm
+  @test all(unit.(w_10.data) .== unit(1.0u"kg/(m*s)"))
+  @test ustrip.(u"kg/(m*s)", w_10.data) ≈
+        ∧(s, EForm(ustrip.(u"m/s", β_1.data)), VForm(ustrip.(u"kg/m^2", f_0.data))).data
+
+  # 11 wedge: EForm[kg/s] ∧ EForm[m] → TriForm[kg⋅m/s]
+  # Weights: sum_of_dual_areas(2) / primal_area(2) = [m²] / [m²] = dimensionless.
+  α_1 = EForm([1.0, 2.0, 3.0] .* u"kg/s")
+  β_1b = EForm([3.0, 2.0, 1.0] .* u"m")
+  w_11 = ∧(s, α_1, β_1b)
+  @test w_11 isa TriForm
+  @test all(unit.(w_11.data) .== unit(1.0u"kg*m/s"))
+  @test ustrip.(u"kg*m/s", w_11.data) ≈
+        ∧(s, EForm(ustrip.(u"kg/s", α_1.data)), EForm(ustrip.(u"m", β_1b.data))).data
+
+  # 02 wedge: VForm[kg/m²] ∧ TriForm[m²] → TriForm[kg]
+  # Weights: dual_volume(2, s, x′) / volume(2, s, t) = dual_face_area [m²] /
+  #   primal_triangle_area [m²] = dimensionless.
+  β_2 = TriForm([2.0] .* u"m^2")
+  w_02 = ∧(s, f_0, β_2)
+  @test w_02 isa TriForm
+  @test all(unit.(w_02.data) .== unit(1.0u"kg"))
+  @test ustrip.(u"kg", w_02.data) ≈
+        ∧(s, VForm(ustrip.(u"kg/m^2", f_0.data)), TriForm(ustrip.(u"m^2", β_2.data))).data
+
+  # 20 wedge: TriForm[m²] ∧ VForm[kg/m²] → TriForm[kg]
+  # Same dimensionless weights as the 02 case, but with operands swapped.
+  w_20 = ∧(s, β_2, f_0)
+  @test w_20 isa TriForm
+  @test all(unit.(w_20.data) .== unit(1.0u"kg"))
+  @test ustrip.(u"kg", w_20.data) ≈
+        ∧(s, TriForm(ustrip.(u"m^2", β_2.data)), VForm(ustrip.(u"kg/m^2", f_0.data))).data
 end
 
 @testset "Unitful DEC operators in 2D" begin
