@@ -94,37 +94,56 @@ end
   point3m_dual = EmbeddedDeltaDualComplex1D{Bool,len_t,Point3{len_t}}(point3m_primal)
   subdivide_duals!(point3m_dual, Barycenter())
   @test volume(point3m_dual, E(1:2)) == [1.0, 2.0] .* u"m"
+
+  # ⋆(0): VForm[U] → DualForm{1}[U·m]
+  # Operator diagonal entries = dual edge lengths [m].
+  # inv_hodge_star(0): DualForm{1}[U·m] → VForm[U]
+  # Operator diagonal entries = 1/(dual edge length) [m⁻¹].
   str0 = ⋆(0, point3m_dual)
   invstr0 = inv_hodge_star(0, point3m_dual)
   @test str0    == Diagonal([0.5, 1.5, 1.0] .* u"m")
   @test invstr0 == Diagonal([2.0, 2/3, 1.0] .* u"m^-1")
 
-  # x [kg / m] -> ⋆(x) [kg] -> x [kg / m]
+  # Input: density c [kg/m] (mass per length on a 1D mesh).
+  # ⋆(0) [m] · c [kg/m] = ⋆(c) [kg]  (integrates density over the dual cell).
+  # inv_hodge_star(0) [m⁻¹] · ⋆(c) [kg] = c [kg/m]  (recovers the original density).
   density_vform = VForm([2.0, 4.0, 6.0] .* u"kg/m")
   @test str0 * density_vform == DualForm{1}([1.0, 6.0, 6.0] .* u"kg")
   @test invstr0 * str0 * density_vform == density_vform
 
-  # ⋆(1) maps primal 1-forms → dual 0-forms; inv_hodge_star(1) is its inverse.
-  # hodge_diag(1, s, e) = 1/volume(e), so ⋆(1) carries units m^-1 and inv carries m.
+  # ⋆(1): EForm[U] → DualForm{0}[U·m⁻¹]
+  # Operator diagonal entries = 1/edge_length [m⁻¹] (hodge_diag(1, s, e) = 1/vol(e)).
+  # inv_hodge_star(1): DualForm{0}[U·m⁻¹] → EForm[U]
+  # Operator diagonal entries = edge_length [m].
   str1 = ⋆(1, point3m_dual)
   invstr1 = inv_hodge_star(1, point3m_dual)
   @test str1    == Diagonal([1.0, 0.5] .* u"m^-1")
   @test invstr1 == Diagonal([1.0, 2.0] .* u"m")
 
-  # u [m^2/s] -> ⋆(u) = u/L [m/s] -> u [m^2/s]
+  # Input: volumetric flux u [m²/s] (area per time on a 1D mesh).
+  # ⋆(1) [m⁻¹] · u [m²/s] = ũ [m/s]  (converts flux to velocity at dual vertex).
+  # inv_hodge_star(1) [m] · ũ [m/s] = u [m²/s]  (recovers the original flux).
   flux_eform = EForm([2.0, 4.0] .* u"m^2/s")
   @test str1 * flux_eform == DualForm{0}([2.0, 2.0] .* u"m/s")
   @test invstr1 * str1 * flux_eform == flux_eform
 
-  # dual 0-exterior derivative: d̃₀: DualForm{0} → DualForm{1} is a ±1 matrix,
-  # so it preserves units (no geometric factors).
-  # Matrix rows = primal vertices, cols = primal edges (dual vertices):
-  #   v1: +q_e1, v2: -q_e1 + q_e2, v3: -q_e2
+  # Dual exterior derivative d̃₀: DualForm{0} → DualForm{1}.
+  # The matrix contains only ±1 entries (no geometric factors), so it is
+  # dimensionless and preserves the units of its input.
+  # Connectivity: v1 ← +q_e1, v2 ← −q_e1 + q_e2, v3 ← −q_e2.
+  # Input: velocity q̃ [m/s] at dual 0-cells (edge midpoints).
+  # Output: DualForm{1}[m/s] at dual 1-cells (primal vertices).
   vel_dual0 = DualForm{0}([3.0, 1.0] .* u"m/s")
   @test d(point3m_dual, vel_dual0) == DualForm{1}([3.0, -2.0, -1.0] .* u"m/s")
 
   edge_lengths = volume(point3m_dual, E(1:2))
-  # Concentration gradient: c [kg/m] → d₀(c) [kg/m] → ∇c = d₀(c)/L [kg/m^2].
+
+  # Primal exterior derivative d₀: VForm[U] → EForm[U].
+  # The matrix contains only ±1 entries, so it is dimensionless and preserves units.
+  # Concentration gradient example:
+  #   Input:  c [kg/m] (linear density at primal vertices).
+  #   d₀ [dimensionless] · c = Δc [kg/m]  (difference of concentrations along each edge).
+  #   Dividing by edge length [m] gives the physical gradient ∇c [kg/m²].
   conc_vform = VForm([2.0, 4.0, 6.0] .* u"kg/m")
   conc_diff = d(point3m_primal, conc_vform)
   @test conc_diff == EForm([2.0, 2.0] .* u"kg/m")
@@ -133,8 +152,10 @@ end
   @test all(unit.(conc_grad) .== unit(1.0u"kg/m^2"))
   @test ustrip.(u"kg/m^2", conc_grad) ≈ [2.0, 1.0]
 
-  # 1D potential flow: ϕ [m^2/s] → d₀(ϕ) [m^2/s] → u = d₀(ϕ)/L [m/s].
+  # 1D potential flow: ϕ [m²/s] → d₀(ϕ) [m²/s] → u = d₀(ϕ)/L [m/s].
   # The two primal edges have lengths 1 m and 2 m respectively.
+  # d₀ [dimensionless] · ϕ [m²/s] = dΦ [m²/s]  (flux differences along edges).
+  # Dividing by edge length [m] gives velocity [m/s].
   Φ = VForm([1.0, 4.0, 10.0] .* u"m^2/s")
   @test all(unit.(Φ.data) .== unit(1.0u"m^2/s"))
   dΦ = d(point3m_primal, Φ)
@@ -145,6 +166,9 @@ end
   @test all(unit.(u) .== unit(1.0u"m/s"))
   @test ustrip.(u"m/s", u) ≈ [3.0, 3.0]
 
+  # ♯ (sharp) operator: EForm[U] → vector field at vertices/edge-midpoints.
+  # On a meter-scale mesh, dΦ [m²/s] is divided by edge length [m], giving [m/s].
+  # The unitless version of dΦ is divided by [m⁻¹] (inverse length), also giving [m/s].
   u_d = ♯(point3m_dual, dΦ.data, PDSharp())
   u_d0 = ♯(point3m_dual, ustrip.(u"m^2/s", dΦ.data), PDSharp())
   @test all(all(unit.(Tuple(v)) .== unit(1.0u"m/s")) for v in u_d)
@@ -178,31 +202,52 @@ function test_unitful_dec_operators_2d(subdivision)
   @test volume(s, E(1:3)) ≈ [1.0, 1.0, 1.0] .* u"m"
   @test volume(s, Tri(1)) ≈ (√3/4)u"m^2"
 
+  # ⋆(0): VForm[U] → DualForm{2}[U·m²]
+  # Operator diagonal entries = dual 2-cell area at each primal vertex [m²].
+  # inv_hodge_star(0): DualForm{2}[U·m²] → VForm[U]
+  # Operator diagonal entries = 1/(dual area) [m⁻²].
   str0 = ⋆(0, s)
   invstr0 = inv_hodge_star(0, s)
   @test all(unit.(diag(str0)) .== unit(1.0u"m^2"))
   @test all(unit.(diag(invstr0)) .== unit(1.0u"m^-2"))
 
+  # Input: surface density ρ [kg/m²].
+  # ⋆(0) [m²] · ρ [kg/m²] = ⋆(ρ) [kg]  (integrates density over the dual cell area).
+  # inv_hodge_star(0) [m⁻²] · ⋆(ρ) [kg] = ρ [kg/m²]  (recovers the original density).
   density_vform = VForm([2.0, 4.0, 6.0] .* u"kg/m^2")
   @test all(unit.(str0 * density_vform) .== unit(1.0u"kg"))
   @test (invstr0 * (str0 * density_vform)) ≈ density_vform.data
 
+  # ⋆(2): TriForm[U] → DualForm{0}[U·m⁻²]
+  # Operator diagonal entries = 1/(primal triangle area) [m⁻²].
+  # inv_hodge_star(2): DualForm{0}[U·m⁻²] → TriForm[U]
+  # Operator diagonal entries = primal triangle area [m²].
   str2 = ⋆(2, s)
   invstr2 = inv_hodge_star(2, s)
   @test all(unit.(diag(str2)) .== unit(1.0u"m^-2"))
   @test all(unit.(diag(invstr2)) .== unit(1.0u"m^2"))
 
+  # Input: mass m [kg] (integrated over each triangle).
+  # ⋆(2) [m⁻²] · m [kg] = ⋆(m) [kg/m²]  (converts mass to surface density).
+  # inv_hodge_star(2) [m²] · ⋆(m) [kg/m²] = m [kg]  (recovers the original mass).
   mass_tform = TriForm([3.0] .* u"kg")
   @test all(unit.(str2 * mass_tform) .== unit(1.0u"kg/m^2"))
   @test (invstr2 * (str2 * mass_tform)) ≈ mass_tform.data
 
+  # ⋆(1) (GeometricHodge): EForm[U] → DualForm{1}[U]
+  # Operator entries are ratios of dual edge length to primal edge length [dimensionless].
+  # In 2D, inv_hodge_star(1) = -⋆(1)⁻¹ (the inverse carries an additional sign),
+  # so that inv⋆₁ ∘ ⋆₁ = -I on primal 1-forms.
   str1 = ⋆(1, s)
   invstr1 = inv_hodge_star(1, s)
+
+  # Input: mass flux q [kg/s] (a primal 1-form).
+  # ⋆(1) [dimensionless] · q [kg/s] = q̃ [kg/s]  (rotates flux to the dual edge).
+  # inv_hodge_star(1) · q̃ [kg/s] = −q [kg/s]  (the 2D sign convention).
   q = EForm([2.0, 4.0, 6.0] .* u"kg/s")
   q̃ = str1 * q
   @test all(unit.(q̃) .== unit(1.0u"kg/s"))
   @test ustrip.(u"kg/s", q̃) ≈ (⋆(1, s) * EForm([2.0, 4.0, 6.0]))
-  # In 2D, inv_hodge_star(1) = -inv(⋆(1)), so inv⋆₁⋆₁ = -I on primal 1-forms.
   q_back = invstr1 * q̃
   @test all(unit.(q_back) .== unit(1.0u"kg/s"))
   @test q_back ≈ -q.data
@@ -211,6 +256,11 @@ function test_unitful_dec_operators_2d(subdivision)
   @test all(unit.(q̃_back) .== unit(1.0u"kg/s"))
   @test q̃_back ≈ -q̃
 
+  # Laplace-Beltrami operator Δ = d ∘ δ on a 2D meter-scale mesh.
+  # δ = inv⋆ ∘ d ∘ ⋆ picks up a factor of [m⁻²] from the hodge operators:
+  #   Δ(ρ [kg/m²]) → [kg/m⁴]       (0-form: two applications of ⋆(0)/⋆(2))
+  #   Δ(q [kg/s])  → [kg/(m²·s)]   (1-form: applications of ⋆(1) and ⋆(0)/⋆(2))
+  #   Δ(m [kg])    → [kg/m²]        (2-form: two applications of ⋆(2)/⋆(0))
   ρ = VForm([1.0, 2.0, 3.0] .* u"kg/m^2")
   q_form = EForm([1.0, 2.0, 1.0] .* u"kg/s")
   m = TriForm([1.0] .* u"kg")
@@ -230,6 +280,12 @@ function test_unitful_dec_operators_2d(subdivision)
   @test all(unit.(lap2.data) .== unit(1.0u"kg/m^2"))
   @test all(unit.(lap2_diag.data) .== unit(1.0u"kg/m^2"))
 
+  # ♭ (flat) operator: vector field [U] → EForm.
+  # PPFlat: projects vertex-based vectors onto primal edges via dot product with
+  #   edge tangent vectors [m], so input [m] gives output [m²].
+  # DPPFlat: projects triangle-based vectors similarly.
+  # A dimensionless vector field on a meter-scale mesh acquires one factor of [m]
+  # (one factor from the edge tangent), so m-unit input yields m²-unit output.
   test_vec = SVector(2.0, 3.0, 0.0)
   u_p_vals = fill(test_vec, nv(s))
   u_p = fill(test_vec .* 1.0u"m", nv(s))
@@ -240,16 +296,21 @@ function test_unitful_dec_operators_2d(subdivision)
   α_dpp = ♭(s, u_t, DPPFlat())
   @test all(unit.(α_pp) .== unit(1.0u"m^2"))
   @test all(unit.(α_dpp) .== unit(1.0u"m^2"))
-  # ♭ on dimensionless vectors against a meter-scale mesh gives m-unit 1-forms
-  # (edge tangents are in meters, so the dot product acquires one factor of m).
   @test ustrip.(u"m^2", α_pp) ≈ ustrip.(u"m", ♭(s, u_p_vals, PPFlat()))
   @test ustrip.(u"m^2", α_dpp) ≈ ustrip.(u"m", ♭(s, u_t_vals, DPPFlat()))
 
+  # ♯ (sharp) operator: EForm[U·m] → vector field[U] at primal vertices.
+  # PPSharp inverts ♭ PPFlat: input α_pp [m²] divided by edge tangent [m] gives [m].
   u_sharp = ♯(s, α_pp, PPSharp())
   @test all(all(unit.(Tuple(v)) .== unit(1.0u"m")) for v in u_sharp)
 
+  # Dual exterior derivative d̃₁: DualForm{0} → DualForm{1}.
+  # The matrix contains only ±1 entries (no geometric factors), so it is
+  # dimensionless and preserves the units of its input.
   # DualForm{0} in 2D is indexed by primal triangles (outer dual 0-cells),
   # not by all dual vertices in the subdivided complex.
+  # Input: velocity at dual 0-cells [m/s].
+  # Output: DualForm{1}[m/s] at dual 1-cells (primal edges).
   vel_dual0 = DualForm{0}(collect(1.0:ntriangles(s)) .* u"m/s")
   dual_deriv = d(s, vel_dual0)
   dual_deriv_plain = d(s, DualForm{0}(ustrip.(u"m/s", vel_dual0.data)))
