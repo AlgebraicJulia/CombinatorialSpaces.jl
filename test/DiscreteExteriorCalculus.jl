@@ -248,7 +248,9 @@ function test_unitful_dec_operators_2d(subdivision)
   u_sharp = ♯(s, α_pp, PPSharp())
   @test all(all(unit.(Tuple(v)) .== unit(1.0u"m")) for v in u_sharp)
 
-  vel_dual0 = DualForm{0}(collect(1.0:nparts(s, :DualV)) .* u"m/s")
+  # DualForm{0} in 2D is indexed by primal triangles (outer dual 0-cells),
+  # not by all dual vertices in the subdivided complex.
+  vel_dual0 = DualForm{0}(collect(1.0:ntriangles(s)) .* u"m/s")
   dual_deriv = d(s, vel_dual0)
   dual_deriv_plain = d(s, DualForm{0}(ustrip.(u"m/s", vel_dual0.data)))
   @test ustrip.(u"m/s", dual_deriv.data) == dual_deriv_plain.data
