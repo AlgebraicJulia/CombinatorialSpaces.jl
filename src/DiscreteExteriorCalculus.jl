@@ -1789,9 +1789,9 @@ function inv_hodge_star(::Val{1}, s::AbstractDeltaDualComplex2D,
   -1 * inv(Matrix(⋆(Val(1), s, GeometricHodge())))
 end
 function inv_hodge_star(::Val{1}, s::AbstractDeltaDualComplex2D,
-                        form::AbstractVector, ::GeometricHodge)
+                        form::AbstractVector{T}, ::GeometricHodge) where T
   M = Matrix(⋆(Val(1), s, GeometricHodge()))
-  u = oneunit(eltype(form))
+  u = oneunit(T)
   -1 * (M \ (form ./ u)) .* u
 end
 
