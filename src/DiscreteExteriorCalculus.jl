@@ -1846,6 +1846,13 @@ function δ(::Val{n}, s::HasDeltaSet, ::DiagonalHodge, args...) where n
   end
 end
 
+function δ(::Val{n}, s::HasDeltaSet, hd::DiagonalHodge, form::AbstractVector) where n
+  # Use sequential operator application so that unitful forms are handled
+  # correctly: each step (⋆, d̃, ⋆⁻¹) propagates units individually, avoiding
+  # the type mismatch in the operator_nz / applynz framework.
+  Vector(inv_hodge_star(Val(n-1), s, dual_derivative(ndims(s)-n, s, ⋆(Val(n), s, form, hd)), hd))
+end
+
 function δ(::Val{n}, s::HasDeltaSet, ::GeometricHodge, matrix_type) where n
   inv_hodge_star(n-1, s) * dual_derivative(ndims(s)-n, s) * ⋆(n, s)
 end

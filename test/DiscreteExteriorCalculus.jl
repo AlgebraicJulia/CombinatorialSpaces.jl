@@ -224,11 +224,11 @@ function test_unitful_dec_operators_2d(subdivision)
   @test lap1_diag isa EForm
   @test lap2 isa TriForm
   @test lap2_diag isa TriForm
-  @test all(unit.(lap0.data) .== unit(1.0u"kg/m^2"))
-  @test all(unit.(lap1.data) .== unit(1.0u"kg/s"))
-  @test all(unit.(lap1_diag.data) .== unit(1.0u"kg/s"))
-  @test all(unit.(lap2.data) .== unit(1.0u"kg"))
-  @test all(unit.(lap2_diag.data) .== unit(1.0u"kg"))
+  @test all(unit.(lap0.data) .== unit(1.0u"kg/m^4"))
+  @test all(unit.(lap1.data) .== unit(1.0u"kg/m^2/s"))
+  @test all(unit.(lap1_diag.data) .== unit(1.0u"kg/m^2/s"))
+  @test all(unit.(lap2.data) .== unit(1.0u"kg/m^2"))
+  @test all(unit.(lap2_diag.data) .== unit(1.0u"kg/m^2"))
 
   test_vec = SVector(2.0, 3.0, 0.0)
   u_p_vals = fill(test_vec, nv(s))
