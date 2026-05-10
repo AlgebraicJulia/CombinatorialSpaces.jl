@@ -122,6 +122,9 @@ function geometric_center(points::StaticVector{N}, ::Circumcenter) where N
   inv_CM = try
     inv(CM)
   catch err
+    # ArgumentError can occur when inverting the Cayley-Menger matrix for
+    # unitful point coordinates (e.g., SMatrix{Float64,m}). Strip the common
+    # coordinate unit, invert, then restore units via barycentric weighting.
     err isa ArgumentError || rethrow(err)
     coord_scale = oneunit(points[1][1])
     points_no_units = map(p -> p ./ coord_scale, points)
@@ -1844,8 +1847,8 @@ end
 
 function δ(::Val{n}, s::HasDeltaSet, hd::DiagonalHodge, form::AbstractVector) where n
   # Use sequential operator application so that unitful forms are handled
-  # correctly: each step (⋆, d̃, ⋆⁻¹) propagates units individually, avoiding
-  # the type mismatch in the operator_nz / applynz framework.
+  # correctly: each step (⋆, dual_derivative, inv_hodge_star) propagates units
+  # individually, avoiding the type mismatch in the operator_nz/applynz path.
   Vector(inv_hodge_star(Val(n-1), s, dual_derivative(ndims(s)-n, s, ⋆(Val(n), s, form, hd)), hd))
 end
 
