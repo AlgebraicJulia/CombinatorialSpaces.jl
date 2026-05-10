@@ -125,11 +125,7 @@ function geometric_center(points::StaticVector{N}, ::Circumcenter) where N
     err isa ArgumentError || rethrow(err)
     coord_scale = oneunit(points[1][1])
     points_no_units = map(p -> p ./ coord_scale, points)
-    try
-      inv(cayley_menger(points_no_units...))
-    catch
-      rethrow(err)
-    end
+    inv(cayley_menger(points_no_units...))
   end
   barycentric_coords = SVector(ntuple(i -> inv_CM[1, i+1], Val(N)))
   mapreduce(*, +, barycentric_coords, points)
