@@ -749,7 +749,8 @@ function ♯(s::AbstractDeltaDualComplex1D, X::AbstractVector, ::PPSharp)
     des = incident(s, s[v, :vertex_center], :D_∂v1) # elementary_duals
     # The primal edges to which those dual edges belong:
     es = reduce(vcat, incident(s, s[des, :D_∂v0], :edge_center))
-    weights = reverse!(normalize(s[des, :dual_length], 1))
+    dl = s[des, :dual_length]
+    weights = reverse!(normalize(dl ./ oneunit(eltype(dl)), 1))
     sum(dvf[es] .* weights)
   end
 end
@@ -1790,7 +1791,9 @@ function inv_hodge_star(::Val{1}, s::AbstractDeltaDualComplex2D,
 end
 function inv_hodge_star(::Val{1}, s::AbstractDeltaDualComplex2D,
                         form::AbstractVector, ::GeometricHodge)
-  -1 * (Matrix(⋆(Val(1), s, GeometricHodge())) \ form)
+  M = Matrix(⋆(Val(1), s, GeometricHodge()))
+  u = oneunit(eltype(form))
+  -1 * (M \ (form ./ u)) .* u
 end
 
 inv_hodge_star(::Val{0}, s::AbstractDeltaDualComplex2D, ::GeometricHodge) =
