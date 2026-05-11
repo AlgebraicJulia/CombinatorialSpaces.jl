@@ -416,9 +416,9 @@ function test_unitful_dec_operators_2d(subdivision)
   dω_dt = DualForm{0}(-lie_vort.data)
   @test all(unit.(dω_dt.data) .== unit(1.0u"s^-2"))
   # Verify dω/dt + ℒ(u♭, ω) = 0 (both terms carry [1/s²] and cancel exactly).
-  lhs = DualForm{0}(dω_dt.data .+ lie_vort.data)
-  @test all(unit.(lhs.data) .== unit(1.0u"s^-2"))
-  @test ustrip.(u"s^-2", lhs.data) ≈ zeros(ntriangles(s))
+  vorticity_residual = DualForm{0}(dω_dt.data .+ lie_vort.data)
+  @test all(unit.(vorticity_residual.data) .== unit(1.0u"s^-2"))
+  @test ustrip.(u"s^-2", vorticity_residual.data) ≈ zeros(ntriangles(s))
 end
 
 @testset "Unitful DEC operators in 2D" begin
