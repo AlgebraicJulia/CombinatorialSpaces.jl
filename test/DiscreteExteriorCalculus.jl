@@ -397,6 +397,7 @@ function test_unitful_dec_operators_2d(subdivision)
   @test all(unit.(result_lie.data) .== unit(1.0u"kg/(m*s)"))
   result_lie_plain = ℒ(s, EForm(ustrip.(u"m/s", X♭_lie.data)),
                        DualForm{0}(ustrip.(u"kg", α_lie.data)); hodge=GeometricHodge())
+  @test all(unit.(result_lie_plain.data) .== unit(1.0u"m^-2"))
   @test ustrip.(u"kg/(m*s)", result_lie.data) ≈ ustrip.(u"m^-2", result_lie_plain.data)
 end
 
