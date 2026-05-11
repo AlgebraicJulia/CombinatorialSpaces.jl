@@ -399,6 +399,26 @@ function test_unitful_dec_operators_2d(subdivision)
                        DualForm{0}(ustrip.(u"kg", α_lie.data)); hodge=GeometricHodge())
   @test all(unit.(result_lie_plain.data) .== unit(1.0u"m^-2"))
   @test ustrip.(u"kg/(m*s)", result_lie.data) ≈ ustrip.(u"m^-2", result_lie_plain.data)
+
+  # Vorticity equation: dω/dt + ℒ(u♭, ω) = 0.
+  # Physical interpretation:
+  #   u♭ ∈ EForm[m²/s]: velocity 1-form (velocity [m/s] × length [m]).
+  #   ω ∈ DualForm{0}[1/s]: vorticity (curl of velocity in 2D, units s⁻¹).
+  #   ℒ(u♭, ω) ∈ DualForm{0}[1/s²]: vorticity advection [m²/s × s⁻¹ / m² = s⁻²].
+  #   dω/dt ∈ DualForm{0}[1/s²]: time derivative of vorticity.
+  # Dimensional consistency: dω/dt and ℒ(u♭, ω) must both carry [1/s²].
+  u_flow = EForm(collect(1.0:ne(s)) .* u"m^2/s")
+  ω_vort = DualForm{0}(collect(1.0:ntriangles(s)) .* u"s^-1")
+  lie_vort = ℒ(s, u_flow, ω_vort; hodge=GeometricHodge())
+  @test lie_vort isa DualForm{0}
+  @test all(unit.(lie_vort.data) .== unit(1.0u"s^-2"))
+  # dω/dt := -ℒ(u♭, ω) inherits the same units.
+  dω_dt = DualForm{0}(-lie_vort.data)
+  @test all(unit.(dω_dt.data) .== unit(1.0u"s^-2"))
+  # Verify dω/dt + ℒ(u♭, ω) = 0 (both terms carry [1/s²] and cancel exactly).
+  lhs = DualForm{0}(dω_dt.data .+ lie_vort.data)
+  @test all(unit.(lhs.data) .== unit(1.0u"s^-2"))
+  @test ustrip.(u"s^-2", lhs.data) ≈ zeros(ntriangles(s))
 end
 
 @testset "Unitful DEC operators in 2D" begin
