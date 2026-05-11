@@ -41,7 +41,7 @@ CombinatorialSpacesMeshesExt = "Meshes"
 [compat]
 ACSets = "0.2"
 Artifacts = "1.9, 1"
-CUDA = "5.2"
+CUDA = "5.2, 6"
 Catlab = "0.17"
 DelaunayTriangulation = "1.6.4"
 FileIO = "^1"
