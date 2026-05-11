@@ -199,6 +199,19 @@ function test_unitful_dec_operators_2d(subdivision)
   s = EmbeddedDeltaDualComplex2D{Bool,geom_t,Point3{len_t}}(primal_s)
   subdivide_duals!(s, subdivision)
 
+  # Plain (non-unitful) mesh with identical geometry (1 unit = 1 m).
+  # Used to provide the non-unitful reference pathway for equality checks.
+  plain_primal_s = EmbeddedDeltaSet2D{Bool,Point3d}()
+  add_vertices!(plain_primal_s, 3, point=[
+    Point3d(0.0, 0.0, 0.0),
+    Point3d(1.0, 0.0, 0.0),
+    Point3d(0.5, √3/2, 0.0),
+  ])
+  glue_triangle!(plain_primal_s, 1, 2, 3, tri_orientation=true)
+  plain_primal_s[:edge_orientation] = true
+  plain_s = EmbeddedDeltaDualComplex2D{Bool,Float64,Point3d}(plain_primal_s)
+  subdivide_duals!(plain_s, subdivision)
+
   @test volume(s, E(1:3)) ≈ [1.0, 1.0, 1.0] .* u"m"
   @test volume(s, Tri(1)) ≈ (√3/4)u"m^2"
 
@@ -247,7 +260,7 @@ function test_unitful_dec_operators_2d(subdivision)
   q = EForm([2.0, 4.0, 6.0] .* u"kg/s")
   q̃ = str1 * q
   @test all(unit.(q̃) .== unit(1.0u"kg/s"))
-  @test ustrip.(u"kg/s", q̃) ≈ (⋆(1, s) * EForm([2.0, 4.0, 6.0]))
+  @test ustrip.(u"kg/s", q̃) ≈ (⋆(1, plain_s) * EForm([2.0, 4.0, 6.0]))
   q_back = invstr1 * q̃
   @test all(unit.(q_back) .== unit(1.0u"kg/s"))
   @test q_back ≈ -q.data
@@ -296,8 +309,8 @@ function test_unitful_dec_operators_2d(subdivision)
   α_dpp = ♭(s, u_t, DPPFlat())
   @test all(unit.(α_pp) .== unit(1.0u"m^2"))
   @test all(unit.(α_dpp) .== unit(1.0u"m^2"))
-  @test ustrip.(u"m^2", α_pp) ≈ ustrip.(u"m", ♭(s, u_p_vals, PPFlat()))
-  @test ustrip.(u"m^2", α_dpp) ≈ ustrip.(u"m", ♭(s, u_t_vals, DPPFlat()))
+  @test ustrip.(u"m^2", α_pp) ≈ ♭(plain_s, u_p_vals, PPFlat())
+  @test ustrip.(u"m^2", α_dpp) ≈ ♭(plain_s, u_t_vals, DPPFlat())
 
   # ♯ (sharp) operator: EForm[U·m] → vector field[U] at primal vertices.
   # PPSharp inverts ♭ PPFlat: input α_pp [m²] divided by edge tangent [m] gives [m].
@@ -313,7 +326,7 @@ function test_unitful_dec_operators_2d(subdivision)
   # Output: DualForm{1}[m/s] at dual 1-cells (primal edges).
   vel_dual0 = DualForm{0}(collect(1.0:ntriangles(s)) .* u"m/s")
   dual_deriv = d(s, vel_dual0)
-  dual_deriv_plain = d(s, DualForm{0}(ustrip.(u"m/s", vel_dual0.data)))
+  dual_deriv_plain = d(plain_s, DualForm{0}(ustrip.(u"m/s", vel_dual0.data)))
   @test ustrip.(u"m/s", dual_deriv.data) == dual_deriv_plain.data
   @test all(unit.(dual_deriv.data) .== unit(1.0u"m/s"))
 
@@ -334,7 +347,7 @@ function test_unitful_dec_operators_2d(subdivision)
   @test w_00 isa VForm
   @test all(unit.(w_00.data) .== unit(1.0u"kg*K/m^2"))
   @test ustrip.(u"kg*K/m^2", w_00.data) ≈
-        ∧(s, VForm(ustrip.(u"kg/m^2", f_0.data)), VForm(ustrip.(u"K", g_0.data))).data
+        ∧(plain_s, VForm(ustrip.(u"kg/m^2", f_0.data)), VForm(ustrip.(u"K", g_0.data))).data
 
   # 01 wedge: VForm[kg/m²] ∧ EForm[m/s] → EForm[kg/(m⋅s)]
   # Weights: dual_volume(1, s, x′) / volume(1, s, e) = dual_edge_length [m] /
@@ -344,7 +357,7 @@ function test_unitful_dec_operators_2d(subdivision)
   @test w_01 isa EForm
   @test all(unit.(w_01.data) .== unit(1.0u"kg/(m*s)"))
   @test ustrip.(u"kg/(m*s)", w_01.data) ≈
-        ∧(s, VForm(ustrip.(u"kg/m^2", f_0.data)), EForm(ustrip.(u"m/s", β_1.data))).data
+        ∧(plain_s, VForm(ustrip.(u"kg/m^2", f_0.data)), EForm(ustrip.(u"m/s", β_1.data))).data
 
   # 10 wedge: EForm[m/s] ∧ VForm[kg/m²] → EForm[kg/(m⋅s)]
   # Same dimensionless weights as the 01 case, but with operands swapped.
@@ -352,7 +365,7 @@ function test_unitful_dec_operators_2d(subdivision)
   @test w_10 isa EForm
   @test all(unit.(w_10.data) .== unit(1.0u"kg/(m*s)"))
   @test ustrip.(u"kg/(m*s)", w_10.data) ≈
-        ∧(s, EForm(ustrip.(u"m/s", β_1.data)), VForm(ustrip.(u"kg/m^2", f_0.data))).data
+        ∧(plain_s, EForm(ustrip.(u"m/s", β_1.data)), VForm(ustrip.(u"kg/m^2", f_0.data))).data
 
   # 11 wedge: EForm[kg/s] ∧ EForm[m] → TriForm[kg⋅m/s]
   # Weights: sum_of_dual_areas(2) / primal_area(2) = [m²] / [m²] = dimensionless.
@@ -362,7 +375,7 @@ function test_unitful_dec_operators_2d(subdivision)
   @test w_11 isa TriForm
   @test all(unit.(w_11.data) .== unit(1.0u"kg*m/s"))
   @test ustrip.(u"kg*m/s", w_11.data) ≈
-        ∧(s, EForm(ustrip.(u"kg/s", α_1.data)), EForm(ustrip.(u"m", β_1b.data))).data
+        ∧(plain_s, EForm(ustrip.(u"kg/s", α_1.data)), EForm(ustrip.(u"m", β_1b.data))).data
 
   # 02 wedge: VForm[kg/m²] ∧ TriForm[m²] → TriForm[kg]
   # Weights: dual_volume(2, s, x′) / volume(2, s, t) = dual_face_area [m²] /
@@ -372,7 +385,7 @@ function test_unitful_dec_operators_2d(subdivision)
   @test w_02 isa TriForm
   @test all(unit.(w_02.data) .== unit(1.0u"kg"))
   @test ustrip.(u"kg", w_02.data) ≈
-        ∧(s, VForm(ustrip.(u"kg/m^2", f_0.data)), TriForm(ustrip.(u"m^2", β_2.data))).data
+        ∧(plain_s, VForm(ustrip.(u"kg/m^2", f_0.data)), TriForm(ustrip.(u"m^2", β_2.data))).data
 
   # 20 wedge: TriForm[m²] ∧ VForm[kg/m²] → TriForm[kg]
   # Same dimensionless weights as the 02 case, but with operands swapped.
@@ -380,25 +393,21 @@ function test_unitful_dec_operators_2d(subdivision)
   @test w_20 isa TriForm
   @test all(unit.(w_20.data) .== unit(1.0u"kg"))
   @test ustrip.(u"kg", w_20.data) ≈
-        ∧(s, TriForm(ustrip.(u"m^2", β_2.data)), VForm(ustrip.(u"kg/m^2", f_0.data))).data
+        ∧(plain_s, TriForm(ustrip.(u"m^2", β_2.data)), VForm(ustrip.(u"kg/m^2", f_0.data))).data
 
   # Lie derivative: ℒ(X♭, α) maps EForm[U_X] × DualForm{0}[U_α] → DualForm{0}[U_X·U_α/m²].
   # Via Cartan's formula: ℒ_{X♭} α = i_{X♭}(d̃₀ α).
   # Unit chain: d̃₀ is dimensionless (±1 entries), ⋆₁⁻¹ is dimensionless (dual_edge_length /
   #   primal_edge_length = m/m), ∧₁₁ is dimensionless (m²/m²), ⋆₂ divides by area [m²].
   # For X♭[m/s] and α[kg]: output ∈ DualForm{0}[kg/(m·s)].
-  # On a unitful mesh, even with dimensionless form inputs the ⋆₂ in ℒ still picks up [m²]
-  # from the mesh geometry, so result_lie_plain carries [m⁻²]; stripping that gives the
-  # same numerics as stripping [kg/(m·s)] from the fully unitful result.
   X♭_lie = EForm(collect(1.0:ne(s)) .* u"m/s")
   α_lie  = DualForm{0}(collect(1.0:ntriangles(s)) .* u"kg")
   result_lie = ℒ(s, X♭_lie, α_lie; hodge=GeometricHodge())
   @test result_lie isa DualForm{0}
   @test all(unit.(result_lie.data) .== unit(1.0u"kg/(m*s)"))
-  result_lie_plain = ℒ(s, EForm(ustrip.(u"m/s", X♭_lie.data)),
+  result_lie_plain = ℒ(plain_s, EForm(ustrip.(u"m/s", X♭_lie.data)),
                        DualForm{0}(ustrip.(u"kg", α_lie.data)); hodge=GeometricHodge())
-  @test all(unit.(result_lie_plain.data) .== unit(1.0u"m^-2"))
-  @test ustrip.(u"kg/(m*s)", result_lie.data) ≈ ustrip.(u"m^-2", result_lie_plain.data)
+  @test ustrip.(u"kg/(m*s)", result_lie.data) ≈ result_lie_plain.data
 
   # Vorticity equation: dω/dt + ℒ(u♭, ω) = 0.
   # Physical interpretation:
