@@ -381,6 +381,23 @@ function test_unitful_dec_operators_2d(subdivision)
   @test all(unit.(w_20.data) .== unit(1.0u"kg"))
   @test ustrip.(u"kg", w_20.data) ≈
         ∧(s, TriForm(ustrip.(u"m^2", β_2.data)), VForm(ustrip.(u"kg/m^2", f_0.data))).data
+
+  # Lie derivative: ℒ(X♭, α) maps EForm[U_X] × DualForm{0}[U_α] → DualForm{0}[U_X·U_α/m²].
+  # Via Cartan's formula: ℒ_{X♭} α = i_{X♭}(d̃₀ α).
+  # Unit chain: d̃₀ is dimensionless (±1 entries), ⋆₁⁻¹ is dimensionless (dual_edge_length /
+  #   primal_edge_length = m/m), ∧₁₁ is dimensionless (m²/m²), ⋆₂ divides by area [m²].
+  # For X♭[m/s] and α[kg]: output ∈ DualForm{0}[kg/(m·s)].
+  # On a unitful mesh, even with dimensionless form inputs the ⋆₂ in ℒ still picks up [m²]
+  # from the mesh geometry, so result_lie_plain carries [m⁻²]; stripping that gives the
+  # same numerics as stripping [kg/(m·s)] from the fully unitful result.
+  X♭_lie = EForm(collect(1.0:ne(s)) .* u"m/s")
+  α_lie  = DualForm{0}(collect(1.0:ntriangles(s)) .* u"kg")
+  result_lie = ℒ(s, X♭_lie, α_lie; hodge=GeometricHodge())
+  @test result_lie isa DualForm{0}
+  @test all(unit.(result_lie.data) .== unit(1.0u"kg/(m*s)"))
+  result_lie_plain = ℒ(s, EForm(ustrip.(u"m/s", X♭_lie.data)),
+                       DualForm{0}(ustrip.(u"kg", α_lie.data)); hodge=GeometricHodge())
+  @test ustrip.(u"kg/(m*s)", result_lie.data) ≈ ustrip.(u"m^-2", result_lie_plain.data)
 end
 
 @testset "Unitful DEC operators in 2D" begin
