@@ -7,7 +7,6 @@ authors = ["Luke Morris <luke.morris@ufl.edu>", "George Rauta <grauta@ufl.edu>",
 [deps]
 ACSets = "227ef7b5-1206-438b-ac65-934d6da304b8"
 Artifacts = "56f22d72-fd6d-98f1-02f0-08ddc0907c33"
-CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
 Catlab = "134e5e36-593f-5add-ad60-77f754baafbe"
 FileIO = "5789e2e9-d7fb-5bc7-8068-2c6fae9b9549"
 GATlab = "f0ffcf3b-d13a-433e-917c-cc44ccf5ead2"
@@ -28,6 +27,7 @@ StatsBase = "2913bbd2-ae8a-5f71-8c99-4fb6c76f3a91"
 TetGen = "c5d3f3f7-f850-59f6-8a2e-ffc6dc1317ea"
 
 [weakdeps]
+CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
 DelaunayTriangulation = "927a84f5-c5f4-47a5-9785-b46e178433df"
 Makie = "ee78f7c6-11fb-53f2-987a-cfe4a2b5a57a"
 Meshes = "eacbb407-ea5a-433e-ab97-5258b1ca43fa"
