@@ -185,6 +185,7 @@ end
 end
 
 function test_unitful_dec_operators_2d(subdivision)
+  tri_height = √3/2  # height of an equilateral triangle with unit side length
   len_t = typeof(1.0u"m")
   area_t = typeof(1.0u"m^2")
   geom_t = Union{len_t, area_t}
@@ -192,7 +193,7 @@ function test_unitful_dec_operators_2d(subdivision)
   add_vertices!(primal_s, 3, point=[
     Point3(0.0u"m", 0.0u"m", 0.0u"m"),
     Point3(1.0u"m", 0.0u"m", 0.0u"m"),
-    Point3(0.5u"m", (√3/2)u"m", 0.0u"m"),
+    Point3(0.5u"m", tri_height * u"m", 0.0u"m"),
   ])
   glue_triangle!(primal_s, 1, 2, 3, tri_orientation=true)
   primal_s[:edge_orientation] = true
@@ -205,7 +206,7 @@ function test_unitful_dec_operators_2d(subdivision)
   add_vertices!(plain_primal_s, 3, point=[
     Point3d(0.0, 0.0, 0.0),
     Point3d(1.0, 0.0, 0.0),
-    Point3d(0.5, √3/2, 0.0),
+    Point3d(0.5, tri_height, 0.0),
   ])
   glue_triangle!(plain_primal_s, 1, 2, 3, tri_orientation=true)
   plain_primal_s[:edge_orientation] = true
@@ -213,7 +214,7 @@ function test_unitful_dec_operators_2d(subdivision)
   subdivide_duals!(plain_s, subdivision)
 
   @test volume(s, E(1:3)) ≈ [1.0, 1.0, 1.0] .* u"m"
-  @test volume(s, Tri(1)) ≈ (√3/4)u"m^2"
+  @test volume(s, Tri(1)) ≈ (tri_height/2)u"m^2"
 
   # ⋆(0): VForm[U] → DualForm{2}[U·m²]
   # Operator diagonal entries = dual 2-cell area at each primal vertex [m²].
