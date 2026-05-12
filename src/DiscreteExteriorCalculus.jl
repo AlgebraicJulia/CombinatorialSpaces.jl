@@ -1791,6 +1791,8 @@ end
 function inv_hodge_star(::Val{1}, s::AbstractDeltaDualComplex2D,
                         form::AbstractVector{T}, ::GeometricHodge) where T
   M = Matrix(⋆(Val(1), s, GeometricHodge()))
+  # https://github.com/JuliaPhysics/Unitful.jl/issues/46
+  # -1 * (M \ form)
   u = oneunit(T)
   -1 * (M \ (form ./ u)) .* u
 end
