@@ -1,18 +1,18 @@
 module RunTests
 using Test
 
-@testset "CombinatorialMaps" begin
-  include("CombinatorialMaps.jl")
-end
-
-@testset "SimplicialSets" begin
+@testset "Simplicial Sets" begin
   include("SimplicialSets.jl")
 end
 
-@testset "ExteriorCalculus" begin
+@testset "Exterior Calculus" begin
   include("ExteriorCalculus.jl")
   include("DiscreteExteriorCalculus.jl")
   include("Operators.jl")
+end
+
+@testset "Unitful Operators" begin
+  include("Unitful.jl")
 end
 
 @testset "Meshes" begin
@@ -35,6 +35,10 @@ end
 
 @testset "Multigrid" begin
   include("Multigrid.jl")
+end
+
+@testset "Combinatorial Maps" begin
+  include("CombinatorialMaps.jl")
 end
 
 end
