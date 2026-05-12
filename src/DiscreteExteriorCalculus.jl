@@ -119,7 +119,17 @@ end
 
 function geometric_center(points::StaticVector{N}, ::Circumcenter) where N
   CM = cayley_menger(points...)
-  inv_CM = inv(CM)
+  inv_CM = try
+    inv(CM)
+  catch err
+    # ArgumentError can occur when inverting the Cayley-Menger matrix for
+    # unitful point coordinates (e.g., SMatrix{Float64,m}). Strip the common
+    # coordinate unit, invert, then restore units via barycentric weighting.
+    err isa ArgumentError || rethrow(err)
+    coord_scale = oneunit(points[1][1])
+    points_no_units = map(p -> p ./ coord_scale, points)
+    inv(cayley_menger(points_no_units...))
+  end
   barycentric_coords = SVector(ntuple(i -> inv_CM[1, i+1], Val(N)))
   mapreduce(*, +, barycentric_coords, points)
 end
@@ -738,7 +748,8 @@ function ♯(s::AbstractDeltaDualComplex1D, X::AbstractVector, ::PPSharp)
     des = incident(s, s[v, :vertex_center], :D_∂v1) # elementary_duals
     # The primal edges to which those dual edges belong:
     es = reduce(vcat, incident(s, s[des, :D_∂v0], :edge_center))
-    weights = reverse!(normalize(s[des, :dual_length], 1))
+    dl = s[des, :dual_length]
+	weights = reverse!(dl ./ sum(dl))
     sum(dvf[es] .* weights)
   end
 end
@@ -1778,8 +1789,12 @@ function inv_hodge_star(::Val{1}, s::AbstractDeltaDualComplex2D,
   -1 * inv(Matrix(⋆(Val(1), s, GeometricHodge())))
 end
 function inv_hodge_star(::Val{1}, s::AbstractDeltaDualComplex2D,
-                        form::AbstractVector, ::GeometricHodge)
-  -1 * (Matrix(⋆(Val(1), s, GeometricHodge())) \ form)
+                        form::AbstractVector{T}, ::GeometricHodge) where T
+  M = Matrix(⋆(Val(1), s, GeometricHodge()))
+  # https://github.com/JuliaPhysics/Unitful.jl/issues/46
+  # -1 * (M \ form)
+  u = oneunit(T)
+  -1 * (M \ (form ./ u)) .* u
 end
 
 inv_hodge_star(::Val{0}, s::AbstractDeltaDualComplex2D, ::GeometricHodge) =
@@ -1830,6 +1845,13 @@ function δ(::Val{n}, s::HasDeltaSet, ::DiagonalHodge, args...) where n
     end
     (I, V)
   end
+end
+
+function δ(::Val{n}, s::HasDeltaSet, hd::DiagonalHodge, form::AbstractVector) where n
+  # Use sequential operator application so that unitful forms are handled
+  # correctly: each step (⋆, dual_derivative, inv_hodge_star) propagates units
+  # individually, avoiding the type mismatch in the operator_nz/applynz path.
+  Vector(inv_hodge_star(Val(n-1), s, dual_derivative(ndims(s)-n, s, ⋆(Val(n), s, form, hd)), hd))
 end
 
 function δ(::Val{n}, s::HasDeltaSet, ::GeometricHodge, matrix_type) where n

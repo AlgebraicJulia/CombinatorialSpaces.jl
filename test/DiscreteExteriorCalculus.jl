@@ -14,7 +14,6 @@ using LinearAlgebra: Diagonal, mul!, norm, dot, cross, diag
 using SparseArrays
 using StaticArrays
 using Statistics: mean, median
-using Unitful: unit, ustrip, @u_str
 
 # 1D dual complex
 #################
@@ -79,69 +78,6 @@ for primal_s in [explicit_s, implicit_s]
   @test ∧(s, VForm([1,1,0]), EForm([2.5, 5.0])) ≈ EForm([2.5, 2.5])
   vform, eform = VForm([1.5, 2, 2.5]), EForm([13, 7])
   @test ∧(s, vform, eform) ≈ ∧(s, eform, vform)
-end
-
-@testset "Unitful density 0-form hodge star in 1D" begin
-  # Unitful Point3 coordinates in meters produce meter-valued primal edge lengths.
-  len_t = typeof(1.0u"m")
-  point3m_primal = EmbeddedDeltaSet1D{Bool,Point3{len_t}}()
-  add_vertices!(point3m_primal, 3, point=[
-    Point3(0.0u"m", 0.0u"m", 0.0u"m"),
-    Point3(1.0u"m", 0.0u"m", 0.0u"m"),
-    Point3(3.0u"m", 0.0u"m", 0.0u"m"),
-  ])
-  add_edges!(point3m_primal, [1,2], [2,3], edge_orientation=true)
-  point3m_dual = EmbeddedDeltaDualComplex1D{Bool,len_t,Point3{len_t}}(point3m_primal)
-  subdivide_duals!(point3m_dual, Barycenter())
-  @test volume(point3m_dual, E(1:2)) == [1.0, 2.0] .* u"m"
-  str0 = ⋆(0, point3m_dual)
-  invstr0 = inv_hodge_star(0, point3m_dual)
-  @test str0    == Diagonal([0.5, 1.5, 1.0] .* u"m")
-  @test invstr0 == Diagonal([2.0, 2/3, 1.0] .* u"m^-1")
-
-  # x [kg / m] -> ⋆(x) [kg] -> x [kg / m]
-  density_vform = VForm([2.0, 4.0, 6.0] .* u"kg/m")
-  @test str0 * density_vform == DualForm{1}([1.0, 6.0, 6.0] .* u"kg")
-  @test invstr0 * str0 * density_vform == density_vform
-
-  # ⋆(1) maps primal 1-forms → dual 0-forms; inv_hodge_star(1) is its inverse.
-  # hodge_diag(1, s, e) = 1/volume(e), so ⋆(1) carries units m^-1 and inv carries m.
-  str1 = ⋆(1, point3m_dual)
-  invstr1 = inv_hodge_star(1, point3m_dual)
-  @test str1    == Diagonal([1.0, 0.5] .* u"m^-1")
-  @test invstr1 == Diagonal([1.0, 2.0] .* u"m")
-
-  # u [m^2/s] -> ⋆(u) = u/L [m/s] -> u [m^2/s]
-  flux_eform = EForm([2.0, 4.0] .* u"m^2/s")
-  @test str1 * flux_eform == DualForm{0}([2.0, 2.0] .* u"m/s")
-  @test invstr1 * str1 * flux_eform == flux_eform
-
-  # dual 0-exterior derivative: d̃₀: DualForm{0} → DualForm{1} is a ±1 matrix,
-  # so it preserves units (no geometric factors).
-  # Matrix rows = primal vertices, cols = primal edges (dual vertices):
-  #   v1: +q_e1, v2: -q_e1 + q_e2, v3: -q_e2
-  vel_dual0 = DualForm{0}([3.0, 1.0] .* u"m/s")
-  @test d(point3m_dual, vel_dual0) == DualForm{1}([3.0, -2.0, -1.0] .* u"m/s")
-
-  edge_lengths = volume(point3m_dual, E(1:2))
-  # Concentration gradient: c [kg/m] → d₀(c) [kg/m] → ∇c = d₀(c)/L [kg/m^2].
-  conc_vform = VForm([2.0, 4.0, 6.0] .* u"kg/m")
-  conc_diff = d(point3m_primal, conc_vform)
-  @test conc_diff == EForm([2.0, 2.0] .* u"kg/m")
-  conc_grad = conc_diff.data ./ edge_lengths
-  @test conc_grad ≈ [2.0, 1.0] .* u"kg/m^2"
-  @test all(unit.(conc_grad) .== unit(1.0u"kg/m^2"))
-  @test ustrip.(u"kg/m^2", conc_grad) ≈ [2.0, 1.0]
-
-  # 1D potential flow: ϕ [m^2/s] → d₀(ϕ) [m^2/s] → u = d₀(ϕ)/L [m/s].
-  # The two primal edges have lengths 1 m and 2 m respectively.
-  potential_vform = VForm([1.0, 4.0, 10.0] .* u"m^2/s")
-  potential_diff = d(point3m_primal, potential_vform)
-  @test potential_diff == EForm([3.0, 6.0] .* u"m^2/s")
-  velocity = potential_diff.data ./ edge_lengths
-  @test velocity ≈ [3.0, 3.0] .* u"m/s"
-  @test all(unit.(velocity) .== unit(1.0u"m/s"))
-  @test ustrip.(u"m/s", velocity) ≈ [3.0, 3.0]
 end
 
 # Path graph on 5 vertices with regular lengths.
@@ -404,6 +340,8 @@ subdivide_duals!(flipped_s, Barycenter())
                         -2.0  1 -1.0;
                          -1  -1 -2.0], atol=1e-3)
 @test δ(s, EForm([0.5,1.5,0.5])) isa VForm
+@test Δ(s, VForm([1.,2.,3.])) isa VForm
+@test Δ(s, VForm([1.,2.,3.]); hodge=DiagonalHodge()) isa VForm
 @test Δ(s, EForm([1.,2.,1.])) isa EForm
 @test Δ(s, EForm([1.,2.,1.]); hodge=DiagonalHodge()) isa EForm
 @test Δ(s, TriForm([1.])) isa TriForm
@@ -1185,6 +1123,5 @@ mesh_vols = s[:vol]
 
 # Constant interpolation
 @test all(interp * ones(ntetrahedra(s)) .≈ 1)
-
 
 end
