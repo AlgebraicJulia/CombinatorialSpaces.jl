@@ -41,7 +41,7 @@ CombinatorialSpacesMeshesExt = "Meshes"
 [compat]
 ACSets = "0.2"
 Artifacts = "1.9, 1"
-CUDA = "5.2"
+CUDA = "5.2, 6"
 Catlab = "0.17"
 DelaunayTriangulation = "1.6.4"
 FileIO = "^1"
@@ -68,8 +68,8 @@ julia = "1.10"
 
 [extras]
 CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
-Makie = "ee78f7c6-11fb-53f2-987a-cfe4a2b5a57a"
 DelaunayTriangulation = "927a84f5-c5f4-47a5-9785-b46e178433df"
+Makie = "ee78f7c6-11fb-53f2-987a-cfe4a2b5a57a"
 Meshes = "eacbb407-ea5a-433e-ab97-5258b1ca43fa"
 Pkg = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
 Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
