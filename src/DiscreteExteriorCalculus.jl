@@ -749,6 +749,9 @@ function ♯(s::AbstractDeltaDualComplex1D, X::AbstractVector, ::PPSharp)
     # The primal edges to which those dual edges belong:
     es = reduce(vcat, incident(s, s[des, :D_∂v0], :edge_center))
     dl = s[des, :dual_length]
+    # Divide by oneunit to strip any physical units before normalizing.
+    # The weights are purely the ratios of dual lengths (dimensionless), and
+    # LinearAlgebra.normalize does not support Unitful quantities.
     weights = reverse!(normalize(dl ./ oneunit(eltype(dl)), 1))
     sum(dvf[es] .* weights)
   end
