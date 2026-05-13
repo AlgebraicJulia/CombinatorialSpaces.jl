@@ -44,9 +44,9 @@ d0 = dec_dual_derivative(0, sd)
 d1 = dec_differential(1, sd);
 s1 = dec_hodge_star(1, sd);
 s2 = dec_hodge_star(2, sd);
-ι1 = interior_product_dd(Tuple{1,1}, sd)
-ι2 = interior_product_dd(Tuple{1,2}, sd)
-ℒ1 = ℒ_dd(Tuple{1,1}, sd);
+ι1 = interior_product_dd(1, 1, sd)
+ι2 = interior_product_dd(1, 2, sd)
+ℒ1 = ℒ_dd(1, 1, sd);
 ```
 
 ```@setup euler
