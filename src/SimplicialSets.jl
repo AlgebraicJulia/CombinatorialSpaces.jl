@@ -901,7 +901,7 @@ function volume(points)
     v2 = points[3] - points[1]
     return sqrt(abs(sum(v1 .* v1) * sum(v2 .* v2) - sum(v1 .* v2)^2)) / 2
   end
-  if n == 3
+  if n == 3 && length(first(points)) == 3
     v1 = points[2] - points[1]
     v2 = points[3] - points[1]
     v3 = points[4] - points[1]
