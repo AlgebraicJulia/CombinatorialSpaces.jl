@@ -1,4 +1,5 @@
 using KernelAbstractions
+using Adapt
 
 # Kernel for exterior derivative of 0-forms (primal 0-forms to primal 1-forms)
 @kernel function kernel_exterior_derivative_zero!(res, s, @Const(f))
@@ -210,7 +211,7 @@ end
 function interpolate_dp(::Val{1}, s::UniformCubicalComplex2D, a)
   backend = get_backend(a)
   X, Y = sharp_dd(s, a)
-  synchronize(backend)
+  KernelAbstractions.synchronize(backend)
   return flat_dp(s, X, Y)
 end
 
@@ -222,6 +223,13 @@ end
 # (east/west or north/south).  A single linear index maps to an (i, j)
 # pair within the halo strip; each thread copies from the matching interior
 # cell on the opposite side of the domain.
+
+# ── set_periodic! (cached): single generic copy kernel ──────────────────
+# Precomputed dst/src index arrays eliminate all integer arithmetic.
+@kernel function kernel_set_periodic_cached!(f, @Const(dst), @Const(src))
+  idx = @index(Global)
+  @inbounds f[dst[idx]] = f[src[idx]]
+end
 
 @enum GridSide EASTWEST NORTHSOUTH ALL
 
@@ -371,7 +379,7 @@ end
 # Memory note: Int32 indices halve the bandwidth cost of the look-up arrays
 # on both CPU and GPU relative to the default Int64.
 
-struct UniformDECCache{IT <: AbstractVector{Int32}, FT <: AbstractVector{Float64}}
+struct UniformDECCache{IT <: AbstractVector{Int32}, FT <: AbstractVector{Float64}, MT <: AbstractVector{Int8}}
   # ── Mesh dimensions (for allocation inside interface functions) ──────────
   nv_      :: Int
   ne_      :: Int
@@ -453,7 +461,7 @@ struct UniformDECCache{IT <: AbstractVector{Int32}, FT <: AbstractVector{Float64
   # ifelse(Bool(bit), f[q_pos], 0.0) - ifelse(Bool(bit), f[q_neg], 0.0)
   dd0_qp    :: IT   # length ne
   dd0_qn    :: IT   # length ne
-  dd0_emask :: IT   # length ne — Int32 bitmask
+  dd0_emask :: MT   # length ne — Int8 bitmask
 
   # ── dd1 = -d0^T: for each vertex v, ────────────────────────────────────
   # res[v] = +a[x_src] + a[y_src] - a[x_tgt] - a[y_tgt]
@@ -464,8 +472,24 @@ struct UniformDECCache{IT <: AbstractVector{Int32}, FT <: AbstractVector{Float64
   dd1_vys   :: IT   # length nv — Y-edge where v is src
   dd1_vxt   :: IT   # length nv — X-edge where v is tgt
   dd1_vyt   :: IT   # length nv — Y-edge where v is tgt
-  dd1_vmask :: IT   # length nv — Int32 bitmask
+  dd1_vmask :: MT   # length nv — Int8 bitmask
+
+  # ── set_periodic! precomputed copy pairs (f[dst[k]] ← f[src[k]]) ────────
+  # kernel_set_periodic_cached! does one copy per thread with no arithmetic.
+  # Each pair covers all copy operations for one (form, side) combination;
+  # both halo directions (e.g. right-halo←interior and left-halo←interior
+  # for EW) are flattened into a single array.  Length = 2 × old-ndrange.
+  per0_ew_dst :: IT;  per0_ew_src :: IT;  per0_ew_n :: Int
+  per0_ns_dst :: IT;  per0_ns_src :: IT;  per0_ns_n :: Int
+
+  per1_ew_dst :: IT;  per1_ew_src :: IT;  per1_ew_n :: Int
+  per1_ns_dst :: IT;  per1_ns_src :: IT;  per1_ns_n :: Int
+
+  per2_ew_dst :: IT;  per2_ew_src :: IT;  per2_ew_n :: Int
+  per2_ns_dst :: IT;  per2_ns_src :: IT;  per2_ns_n :: Int
 end
+
+Adapt.@adapt_structure UniformDECCache
 
 function UniformDECCache(s::UniformCubicalComplex2D{FT}) where {FT <: AbstractFloat}
   ne_  = ne(s);     nq_  = nquads(s)
@@ -607,7 +631,7 @@ function UniformDECCache(s::UniformCubicalComplex2D{FT}) where {FT <: AbstractFl
   # Y-edge at (x, y): pos = quad(x-1, y) [left], neg = quad(x, y) [right]
   dd0_qp    = Vector{Int32}(undef, ne_)
   dd0_qn    = Vector{Int32}(undef, ne_)
-  dd0_emask = Vector{Int32}(undef, ne_)
+  dd0_emask = Vector{Int8}(undef, ne_)
   for e in 1:ne_
     x, y, align = edge_to_coord(s, e)
     if align == X_ALIGN
@@ -621,7 +645,7 @@ function UniformDECCache(s::UniformCubicalComplex2D{FT}) where {FT <: AbstractFl
       dd0_qp[e] = has_pos ? coord_to_quad(s, x - 1, y) : Int32(1)
       dd0_qn[e] = has_neg ? coord_to_quad(s, x, y)     : Int32(1)
     end
-    dd0_emask[e] = Int32(has_pos) | (Int32(has_neg) << 1)
+    dd0_emask[e] = Int8(has_pos) | (Int8(has_neg) << 1)
   end
 
   # ── dd1 = -d0^T: per-vertex 4 incident edges + bitmask ──────────────────
@@ -634,7 +658,7 @@ function UniformDECCache(s::UniformCubicalComplex2D{FT}) where {FT <: AbstractFl
   dd1_vys   = Vector{Int32}(undef, nv_)
   dd1_vxt   = Vector{Int32}(undef, nv_)
   dd1_vyt   = Vector{Int32}(undef, nv_)
-  dd1_vmask = Vector{Int32}(undef, nv_)
+  dd1_vmask = Vector{Int8}(undef, nv_)
   DUMMY_EDGE = Int32(1)
   for v in 1:nv_
     vx, vy = vert_to_coord(s, v)
@@ -644,8 +668,120 @@ function UniformDECCache(s::UniformCubicalComplex2D{FT}) where {FT <: AbstractFl
     dd1_vys[v]   = has_vys ? coord_to_edge(s, vx, vy, Y_ALIGN)      : DUMMY_EDGE
     dd1_vxt[v]   = has_vxt ? coord_to_edge(s, vx - 1, vy, X_ALIGN)  : DUMMY_EDGE
     dd1_vyt[v]   = has_vyt ? coord_to_edge(s, vx, vy - 1, Y_ALIGN)  : DUMMY_EDGE
-    dd1_vmask[v] = Int32(has_vxs)       | (Int32(has_vys) << 1) |
-                   (Int32(has_vxt) << 2) | (Int32(has_vyt) << 3)
+    dd1_vmask[v] = Int8(has_vxs)       | (Int8(has_vys) << 1) |
+                   (Int8(has_vxt) << 2) | (Int8(has_vyt) << 3)
+  end
+
+  # ── Periodic boundary copy indices for set_periodic! (cached) ────────────
+  # Flatten the two writes-per-thread from each original kernel into a single
+  # flat (dst, src) pair.  The cached kernel does one copy per thread.
+  # Layout: first half = first-direction copies, second half = second direction.
+  _hxc  = hx(s);      _hyc  = hy(s)
+  _nxec = nxe(s);     _nyec = nye(s)
+  _nqxc = nxquads(s); _nqyc = nyquads(s)
+
+  # per0 EW: 0-forms east–west  (old ndrange = (hxc+1)*ny)
+  _p0ew_h = (_hxc + 1) * ny_
+  per0_ew_n   = 2 * _p0ew_h
+  per0_ew_dst = Vector{Int32}(undef, per0_ew_n)
+  per0_ew_src = Vector{Int32}(undef, per0_ew_n)
+  for _idx in 1:_p0ew_h
+    _j = div(_idx - 1, _hxc + 1) + 1
+    _i = _idx - (_j - 1) * (_hxc + 1)
+    per0_ew_dst[_idx]             = coord_to_vert(s, nx_ - _hxc + _i - 1, _j)
+    per0_ew_src[_idx]             = coord_to_vert(s, _hxc + _i, _j)
+    per0_ew_dst[_p0ew_h + _idx]   = coord_to_vert(s, _i, _j)
+    per0_ew_src[_p0ew_h + _idx]   = coord_to_vert(s, nx_ - 2 * _hxc + _i - 1, _j)
+  end
+
+  # per0 NS: 0-forms north–south  (old ndrange = nx*(hyc+1))
+  _p0ns_h = nx_ * (_hyc + 1)
+  per0_ns_n   = 2 * _p0ns_h
+  per0_ns_dst = Vector{Int32}(undef, per0_ns_n)
+  per0_ns_src = Vector{Int32}(undef, per0_ns_n)
+  for _idx in 1:_p0ns_h
+    _j = div(_idx - 1, nx_) + 1
+    _i = _idx - (_j - 1) * nx_
+    per0_ns_dst[_idx]             = coord_to_vert(s, _i, ny_ - _hyc + _j - 1)
+    per0_ns_src[_idx]             = coord_to_vert(s, _i, _hyc + _j)
+    per0_ns_dst[_p0ns_h + _idx]   = coord_to_vert(s, _i, _j)
+    per0_ns_src[_p0ns_h + _idx]   = coord_to_vert(s, _i, ny_ - 2 * _hyc + _j - 1)
+  end
+
+  # per1 EW: 1-forms east–west (x-edges then y-edges concatenated)
+  _p1ewx_h = _hxc * ny_
+  _p1ewy_h = (_hxc + 1) * _nyec
+  per1_ew_n   = 2 * (_p1ewx_h + _p1ewy_h)
+  per1_ew_dst = Vector{Int32}(undef, per1_ew_n)
+  per1_ew_src = Vector{Int32}(undef, per1_ew_n)
+  for _idx in 1:_p1ewx_h
+    _j = div(_idx - 1, _hxc) + 1
+    _i = _idx - (_j - 1) * _hxc
+    per1_ew_dst[_idx]               = coord_to_edge(s, _nxec - _hxc + _i, _j, X_ALIGN)
+    per1_ew_src[_idx]               = coord_to_edge(s, _hxc + _i, _j, X_ALIGN)
+    per1_ew_dst[_p1ewx_h + _idx]    = coord_to_edge(s, _i, _j, X_ALIGN)
+    per1_ew_src[_p1ewx_h + _idx]    = coord_to_edge(s, _nxec - 2 * _hxc + _i, _j, X_ALIGN)
+  end
+  _off1 = 2 * _p1ewx_h
+  for _idx in 1:_p1ewy_h
+    _j = div(_idx - 1, _hxc + 1) + 1
+    _i = _idx - (_j - 1) * (_hxc + 1)
+    per1_ew_dst[_off1 + _idx]                = coord_to_edge(s, nx_ - _hxc + _i - 1, _j, Y_ALIGN)
+    per1_ew_src[_off1 + _idx]                = coord_to_edge(s, _hxc + _i, _j, Y_ALIGN)
+    per1_ew_dst[_off1 + _p1ewy_h + _idx]    = coord_to_edge(s, _i, _j, Y_ALIGN)
+    per1_ew_src[_off1 + _p1ewy_h + _idx]    = coord_to_edge(s, nx_ - 2 * _hxc + _i - 1, _j, Y_ALIGN)
+  end
+
+  # per1 NS: 1-forms north–south (x-edges then y-edges concatenated)
+  _p1nsx_h = _nxec * (_hyc + 1)
+  _p1nsy_h = nx_ * _hyc
+  per1_ns_n   = 2 * (_p1nsx_h + _p1nsy_h)
+  per1_ns_dst = Vector{Int32}(undef, per1_ns_n)
+  per1_ns_src = Vector{Int32}(undef, per1_ns_n)
+  for _idx in 1:_p1nsx_h
+    _j = div(_idx - 1, _nxec) + 1
+    _i = _idx - (_j - 1) * _nxec
+    per1_ns_dst[_idx]               = coord_to_edge(s, _i, ny_ - _hyc + _j - 1, X_ALIGN)
+    per1_ns_src[_idx]               = coord_to_edge(s, _i, _hyc + _j, X_ALIGN)
+    per1_ns_dst[_p1nsx_h + _idx]    = coord_to_edge(s, _i, _j, X_ALIGN)
+    per1_ns_src[_p1nsx_h + _idx]    = coord_to_edge(s, _i, ny_ - 2 * _hyc + _j - 1, X_ALIGN)
+  end
+  _off2 = 2 * _p1nsx_h
+  for _idx in 1:_p1nsy_h
+    _j = div(_idx - 1, nx_) + 1
+    _i = _idx - (_j - 1) * nx_
+    per1_ns_dst[_off2 + _idx]                = coord_to_edge(s, _i, _j, Y_ALIGN)
+    per1_ns_src[_off2 + _idx]                = coord_to_edge(s, _i, _nyec - 2 * _hyc + _j, Y_ALIGN)
+    per1_ns_dst[_off2 + _p1nsy_h + _idx]    = coord_to_edge(s, _i, _nyec - _hyc + _j, Y_ALIGN)
+    per1_ns_src[_off2 + _p1nsy_h + _idx]    = coord_to_edge(s, _i, _hyc + _j, Y_ALIGN)
+  end
+
+  # per2 EW: 2-forms east–west  (old ndrange = hxc*nqyc)
+  _p2ew_h = _hxc * _nqyc
+  per2_ew_n   = 2 * _p2ew_h
+  per2_ew_dst = Vector{Int32}(undef, per2_ew_n)
+  per2_ew_src = Vector{Int32}(undef, per2_ew_n)
+  for _idx in 1:_p2ew_h
+    _j = div(_idx - 1, _hxc) + 1
+    _i = _idx - (_j - 1) * _hxc
+    per2_ew_dst[_idx]             = coord_to_quad(s, _i, _j)
+    per2_ew_src[_idx]             = coord_to_quad(s, _nqxc - 2 * _hxc + _i, _j)
+    per2_ew_dst[_p2ew_h + _idx]   = coord_to_quad(s, _nqxc - _hxc + _i, _j)
+    per2_ew_src[_p2ew_h + _idx]   = coord_to_quad(s, _hxc + _i, _j)
+  end
+
+  # per2 NS: 2-forms north–south  (old ndrange = nqxc*hyc)
+  _p2ns_h = _nqxc * _hyc
+  per2_ns_n   = 2 * _p2ns_h
+  per2_ns_dst = Vector{Int32}(undef, per2_ns_n)
+  per2_ns_src = Vector{Int32}(undef, per2_ns_n)
+  for _idx in 1:_p2ns_h
+    _j = div(_idx - 1, _nqxc) + 1
+    _i = _idx - (_j - 1) * _nqxc
+    per2_ns_dst[_idx]             = coord_to_quad(s, _i, _j)
+    per2_ns_src[_idx]             = coord_to_quad(s, _i, _nqyc - 2 * _hyc + _j)
+    per2_ns_dst[_p2ns_h + _idx]   = coord_to_quad(s, _i, _nqyc - _hyc + _j)
+    per2_ns_src[_p2ns_h + _idx]   = coord_to_quad(s, _i, _hyc + _j)
   end
 
   return UniformDECCache(
@@ -661,6 +797,12 @@ function UniformDECCache(s::UniformCubicalComplex2D{FT}) where {FT <: AbstractFl
     ihs0_scale, ihs1_scale, ihs1_hs2_scale, ihs2_val,
     dd0_qp, dd0_qn, dd0_emask,
     dd1_vxs, dd1_vys, dd1_vxt, dd1_vyt, dd1_vmask,
+    per0_ew_dst, per0_ew_src, per0_ew_n,
+    per0_ns_dst, per0_ns_src, per0_ns_n,
+    per1_ew_dst, per1_ew_src, per1_ew_n,
+    per1_ns_dst, per1_ns_src, per1_ns_n,
+    per2_ew_dst, per2_ew_src, per2_ew_n,
+    per2_ns_dst, per2_ns_src, per2_ns_n,
   )
 end
 
@@ -784,8 +926,8 @@ end
   @inbounds begin
     mask = dd0_emask[e]
     z = zero(eltype(f))
-    pos  = ifelse(Bool(mask & Int32(1)),               f[dd0_qp[e]], z)
-    neg  = ifelse(Bool((mask >> Int32(1)) & Int32(1)), f[dd0_qn[e]], z)
+    pos  = ifelse(Bool(mask & Int8(1)),               f[dd0_qp[e]], z)
+    neg  = ifelse(Bool((mask >> Int8(1)) & Int8(1)), f[dd0_qn[e]], z)
     res[e] = pos - neg
   end
 end
@@ -797,10 +939,10 @@ end
   @inbounds begin
     mask = dd1_vmask[v]
     z = zero(eltype(a))
-    xs = ifelse(Bool(mask & Int32(1)),               a[dd1_vxs[v]], z)
-    ys = ifelse(Bool((mask >> Int32(1)) & Int32(1)), a[dd1_vys[v]], z)
-    xt = ifelse(Bool((mask >> Int32(2)) & Int32(1)), a[dd1_vxt[v]], z)
-    yt = ifelse(Bool((mask >> Int32(3)) & Int32(1)), a[dd1_vyt[v]], z)
+    xs = ifelse(Bool(mask & Int8(1)),               a[dd1_vxs[v]], z)
+    ys = ifelse(Bool((mask >> Int8(1)) & Int8(1)), a[dd1_vys[v]], z)
+    xt = ifelse(Bool((mask >> Int8(2)) & Int8(1)), a[dd1_vxt[v]], z)
+    yt = ifelse(Bool((mask >> Int8(3)) & Int8(1)), a[dd1_vyt[v]], z)
     res[v] = xs + ys - xt - yt
   end
 end
@@ -1003,10 +1145,10 @@ end
   @inbounds begin
     mask = dd1_vmask[v]
     e_vxs = dd1_vxs[v]; e_vys = dd1_vys[v]; e_vxt = dd1_vxt[v]; e_vyt = dd1_vyt[v]
-    xs = ifelse(Bool(mask & Int32(1)),               hs1_scale[e_vxs] * a[e_vxs], zero(eltype(a)))
-    ys = ifelse(Bool((mask >> Int32(1)) & Int32(1)), hs1_scale[e_vys] * a[e_vys], zero(eltype(a)))
-    xt = ifelse(Bool((mask >> Int32(2)) & Int32(1)), hs1_scale[e_vxt] * a[e_vxt], zero(eltype(a)))
-    yt = ifelse(Bool((mask >> Int32(3)) & Int32(1)), hs1_scale[e_vyt] * a[e_vyt], zero(eltype(a)))
+    xs = ifelse(Bool(mask & Int8(1)),               hs1_scale[e_vxs] * a[e_vxs], zero(eltype(a)))
+    ys = ifelse(Bool((mask >> Int8(1)) & Int8(1)), hs1_scale[e_vys] * a[e_vys], zero(eltype(a)))
+    xt = ifelse(Bool((mask >> Int8(2)) & Int8(1)), hs1_scale[e_vxt] * a[e_vxt], zero(eltype(a)))
+    yt = ifelse(Bool((mask >> Int8(3)) & Int8(1)), hs1_scale[e_vyt] * a[e_vyt], zero(eltype(a)))
     res[v] = ihs0_scale[v] * (xs + ys - xt - yt)
   end
 end
@@ -1019,8 +1161,8 @@ end
   e = @index(Global)
   @inbounds begin
     mask = dd0_emask[e]
-    pos  = ifelse(Bool(mask & Int32(1)),               f[dd0_qp[e]], zero(eltype(f)))
-    neg  = ifelse(Bool((mask >> Int32(1)) & Int32(1)), f[dd0_qn[e]], zero(eltype(f)))
+    pos  = ifelse(Bool(mask & Int8(1)),               f[dd0_qp[e]], zero(eltype(f)))
+    neg  = ifelse(Bool((mask >> Int8(1)) & Int8(1)), f[dd0_qn[e]], zero(eltype(f)))
     res[e] = ihs1_hs2_scale[e] * (pos - neg)
   end
 end
@@ -1119,10 +1261,10 @@ end
   @inbounds begin
     mask = dd1_vmask[v]
     vxs = dd1_vxs[v]; vys = dd1_vys[v]; vxt = dd1_vxt[v]; vyt = dd1_vyt[v]
-    xs = ifelse(Bool(mask & Int32(1)),             hs1_scale[vxs] * (f[tgt_v[vxs]] - f[v]), zero(eltype(f)))
-    ys = ifelse(Bool((mask >> Int32(1)) & Int32(1)), hs1_scale[vys] * (f[tgt_v[vys]] - f[v]), zero(eltype(f)))
-    xt = ifelse(Bool((mask >> Int32(2)) & Int32(1)), hs1_scale[vxt] * (f[src_v[vxt]] - f[v]), zero(eltype(f)))
-    yt = ifelse(Bool((mask >> Int32(3)) & Int32(1)), hs1_scale[vyt] * (f[src_v[vyt]] - f[v]), zero(eltype(f)))
+    xs = ifelse(Bool(mask & Int8(1)),               hs1_scale[vxs] * (f[tgt_v[vxs]] - f[v]), zero(eltype(f)))
+    ys = ifelse(Bool((mask >> Int8(1)) & Int8(1)), hs1_scale[vys] * (f[tgt_v[vys]] - f[v]), zero(eltype(f)))
+    xt = ifelse(Bool((mask >> Int8(2)) & Int8(1)), hs1_scale[vxt] * (f[src_v[vxt]] - f[v]), zero(eltype(f)))
+    yt = ifelse(Bool((mask >> Int8(3)) & Int8(1)), hs1_scale[vyt] * (f[src_v[vyt]] - f[v]), zero(eltype(f)))
     res[v] = ihs0_scale[v] * (xs + ys + xt + yt)
   end
 end
@@ -1138,69 +1280,50 @@ end
     e1 = q_e1[q]; e2 = q_e2[q]; e3 = q_e3[q]; e4 = q_e4[q]
     m1 = dd0_emask[e1]; m2 = dd0_emask[e2]; m3 = dd0_emask[e3]; m4 = dd0_emask[e4]
     c1 = ihs1_hs2_scale[e1] *
-         (ifelse(Bool(m1 & Int32(1)),               f[dd0_qp[e1]], zero(eltype(f))) -
-          ifelse(Bool((m1 >> Int32(1)) & Int32(1)), f[dd0_qn[e1]], zero(eltype(f))))
+         (ifelse(Bool(m1 & Int8(1)),               f[dd0_qp[e1]], zero(eltype(f))) -
+          ifelse(Bool((m1 >> Int8(1)) & Int8(1)), f[dd0_qn[e1]], zero(eltype(f))))
     c2 = ihs1_hs2_scale[e2] *
-         (ifelse(Bool(m2 & Int32(1)),               f[dd0_qp[e2]], zero(eltype(f))) -
-          ifelse(Bool((m2 >> Int32(1)) & Int32(1)), f[dd0_qn[e2]], zero(eltype(f))))
+         (ifelse(Bool(m2 & Int8(1)),               f[dd0_qp[e2]], zero(eltype(f))) -
+          ifelse(Bool((m2 >> Int8(1)) & Int8(1)), f[dd0_qn[e2]], zero(eltype(f))))
     c3 = ihs1_hs2_scale[e3] *
-         (ifelse(Bool(m3 & Int32(1)),               f[dd0_qp[e3]], zero(eltype(f))) -
-          ifelse(Bool((m3 >> Int32(1)) & Int32(1)), f[dd0_qn[e3]], zero(eltype(f))))
+         (ifelse(Bool(m3 & Int8(1)),               f[dd0_qp[e3]], zero(eltype(f))) -
+          ifelse(Bool((m3 >> Int8(1)) & Int8(1)), f[dd0_qn[e3]], zero(eltype(f))))
     c4 = ihs1_hs2_scale[e4] *
-         (ifelse(Bool(m4 & Int32(1)),               f[dd0_qp[e4]], zero(eltype(f))) -
-          ifelse(Bool((m4 >> Int32(1)) & Int32(1)), f[dd0_qn[e4]], zero(eltype(f))))
+         (ifelse(Bool(m4 & Int8(1)),               f[dd0_qp[e4]], zero(eltype(f))) -
+          ifelse(Bool((m4 >> Int8(1)) & Int8(1)), f[dd0_qn[e4]], zero(eltype(f))))
     res[q] = c1 + c2 - c3 - c4
   end
 end
 
-# ── laplacian(1): d0*codiff1 + codiff2*d1, thread per edge e ─────────────
-# Term 1 — d0 * codiff1 = d0 * (ihs0 * dd1 * hs1):
-#   codiff1[v] = ihs0[v] * (hs1[vxs]*f[vxs] + hs1[vys]*f[vys]
-#                           - hs1[vxt]*f[vxt] - hs1[vyt]*f[vyt])
-#   term1 = codiff1[tgt(e)] - codiff1[src(e)]
-# Term 2 — codiff2 * d1 = (ihs1 * dd0 * hs2) * d1:
-#   (d1*f)[q] = f[q_e1]+f[q_e2]-f[q_e3]-f[q_e4]
-#   term2 = ihs1[e] * hs2 * ((d1*f)[qp(e)] - (d1*f)[qn(e)])
-# ifelse is branchless; dummy index 1 is a safe fallback for missing elements.
-@kernel function kernel_laplacian1_cached!(res, @Const(src_v), @Const(tgt_v),
-                                           @Const(dd1_vxs), @Const(dd1_vys), @Const(dd1_vxt), @Const(dd1_vyt), @Const(dd1_vmask),
-                                           @Const(q_e1), @Const(q_e2), @Const(q_e3), @Const(q_e4),
-                                           @Const(dd0_qp), @Const(dd0_qn), @Const(dd0_emask),
-                                           @Const(ihs0_scale), @Const(hs1_scale), @Const(ihs1_hs2_scale), @Const(f))
+# ── laplacian(1): d0*codiff1 + codiff2*d1, three-pass decomposition ──────
+#
+# Old two-pass approach had each edge thread independently recompute
+# codiff1 at both its endpoint vertices (4x redundancy) and d1*f at
+# both its adjacent quads (2x redundancy).
+#
+# Three-pass approach:
+#   Pass 1 (nv threads):    codiff1_v[v] = ihs0[v] * (hs1[vxs]*f[vxs] + ... )
+#   Pass 2 (nquads threads): d1f_q[q]    = f[e1] + f[e2] - f[e3] - f[e4]
+#   Pass 3 (ne threads):    res[e] = (codiff1_v[tv]-codiff1_v[sv])
+#                                   + ihs1_hs2[e]*(d1f_q[qp]-d1f_q[qn])
+# Each vertex/quad is computed exactly once; Pass 3 reads only 2+2 scalars.
+
+# Pass 1 — codiff1 of a 1-form, one result per vertex: reuses kernel_codiff1_cached!
+# Pass 2 — exterior derivative of a 1-form, one result per quad: reuses kernel_d1_cached!
+# Pass 3 — combine: one result per edge; reads only pre-computed scalars
+@kernel function kernel_lap1_combine!(res,
+                                      @Const(src_v), @Const(tgt_v),
+                                      @Const(dd0_qp), @Const(dd0_qn), @Const(dd0_emask),
+                                      @Const(ihs1_hs2_scale),
+                                      @Const(codiff1_v), @Const(d1f_q))
   e = @index(Global)
   @inbounds begin
-    # ── Term 1 ─────────────────────────────────────────────────────────────
-    sv = src_v[e]; tv = tgt_v[e]
-
-    mask_sv = dd1_vmask[sv]
-    svxs = dd1_vxs[sv]; svys = dd1_vys[sv]; svxt = dd1_vxt[sv]; svyt = dd1_vyt[sv]
-    codiff1_sv = ihs0_scale[sv] * (
-      ifelse(Bool(mask_sv & Int32(1)),             hs1_scale[svxs] * f[svxs], zero(eltype(f))) +
-      ifelse(Bool((mask_sv >> Int32(1)) & Int32(1)), hs1_scale[svys] * f[svys], zero(eltype(f))) -
-      ifelse(Bool((mask_sv >> Int32(2)) & Int32(1)), hs1_scale[svxt] * f[svxt], zero(eltype(f))) -
-      ifelse(Bool((mask_sv >> Int32(3)) & Int32(1)), hs1_scale[svyt] * f[svyt], zero(eltype(f))))
-
-    mask_tv = dd1_vmask[tv]
-    tvxs = dd1_vxs[tv]; tvys = dd1_vys[tv]; tvxt = dd1_vxt[tv]; tvyt = dd1_vyt[tv]
-    codiff1_tv = ihs0_scale[tv] * (
-      ifelse(Bool(mask_tv & Int32(1)),             hs1_scale[tvxs] * f[tvxs], zero(eltype(f))) +
-      ifelse(Bool((mask_tv >> Int32(1)) & Int32(1)), hs1_scale[tvys] * f[tvys], zero(eltype(f))) -
-      ifelse(Bool((mask_tv >> Int32(2)) & Int32(1)), hs1_scale[tvxt] * f[tvxt], zero(eltype(f))) -
-      ifelse(Bool((mask_tv >> Int32(3)) & Int32(1)), hs1_scale[tvyt] * f[tvyt], zero(eltype(f))))
-
-    term1 = codiff1_tv - codiff1_sv
-
-    # ── Term 2 ─────────────────────────────────────────────────────────────
+    term1 = codiff1_v[tgt_v[e]] - codiff1_v[src_v[e]]
     mask_e = dd0_emask[e]
-    qp = dd0_qp[e]; qn = dd0_qn[e]
-    d1_qp = ifelse(Bool(mask_e & Int32(1)),
-                   f[q_e1[qp]] + f[q_e2[qp]] - f[q_e3[qp]] - f[q_e4[qp]],
-                   zero(eltype(f)))
-    d1_qn = ifelse(Bool((mask_e >> Int32(1)) & Int32(1)),
-                   f[q_e1[qn]] + f[q_e2[qn]] - f[q_e3[qn]] - f[q_e4[qn]],
-                   zero(eltype(f)))
-    term2 = ihs1_hs2_scale[e] * (d1_qp - d1_qn)
-
+    qp = dd0_qp[e];  qn = dd0_qn[e]
+    term2 = ihs1_hs2_scale[e] * (
+      ifelse(Bool(mask_e & Int8(1)),               d1f_q[qp], zero(eltype(d1f_q))) -
+      ifelse(Bool((mask_e >> Int8(1)) & Int8(1)), d1f_q[qn], zero(eltype(d1f_q))))
     res[e] = term1 + term2
   end
 end
@@ -1215,14 +1338,21 @@ function laplacian!(res, ::Val{0}, cache::UniformDECCache, f)
   return res
 end
 
-function laplacian!(res, ::Val{1}, cache::UniformDECCache, f)
+function laplacian!(res, tmp1, tmp2, ::Val{1}, cache::UniformDECCache, f)
+  # tmp1: size nv  (codiff1 per vertex)
+  # tmp2: size nquads  (d1*f per quad)
   backend = get_backend(f)
-  kernel_laplacian1_cached!(backend)(res,
-    cache.src_v, cache.tgt_v,
+  kernel_codiff1_cached!(backend)(tmp1,
     cache.dd1_vxs, cache.dd1_vys, cache.dd1_vxt, cache.dd1_vyt, cache.dd1_vmask,
-    cache.q_e1, cache.q_e2, cache.q_e3, cache.q_e4,
+    cache.ihs0_scale, cache.hs1_scale, f;
+    ndrange = cache.nv_)
+  kernel_d1_cached!(backend)(tmp2,
+    cache.q_e1, cache.q_e2, cache.q_e3, cache.q_e4, f;
+    ndrange = cache.nquads_)
+  kernel_lap1_combine!(backend)(res,
+    cache.src_v, cache.tgt_v,
     cache.dd0_qp, cache.dd0_qn, cache.dd0_emask,
-    cache.ihs0_scale, cache.hs1_scale, cache.ihs1_hs2_scale, f;
+    cache.ihs1_hs2_scale, tmp1, tmp2;
     ndrange = cache.ne_)
   return res
 end
@@ -1241,6 +1371,11 @@ function laplacian(::Val{k}, cache::UniformDECCache, f::AbstractVector{FT}) wher
   backend = get_backend(f)
   n = k == 0 ? cache.nv_ : k == 1 ? cache.ne_ : cache.nquads_
   res = KernelAbstractions.zeros(backend, FT, n)
+  if k == 1
+    tmp1 = KernelAbstractions.zeros(backend, FT, cache.nv_)
+    tmp2 = KernelAbstractions.zeros(backend, FT, cache.nquads_)
+    return laplacian!(res, tmp1, tmp2, Val(1), cache, f)
+  end
   return laplacian!(res, Val(k), cache, f)
 end
 
@@ -1267,72 +1402,52 @@ end
     mask = dd1_vmask[v]
     vxs = dd1_vxs[v]; vys = dd1_vys[v]; vxt = dd1_vxt[v]; vyt = dd1_vyt[v]
     # For src-slots: (dcd2*f)[e] = hs1[e]*(ihs0[tgt(e)]*f[tgt(e)] - ihs0[v]*f[v])
-    xs = ifelse(Bool(mask & Int32(1)),
+    xs = ifelse(Bool(mask & Int8(1)),
                 hs1_scale[vxs] * (ihs0_scale[tgt_v[vxs]] * f[tgt_v[vxs]] - ihs0_scale[v] * f[v]),
                 zero(eltype(f)))
-    ys = ifelse(Bool((mask >> Int32(1)) & Int32(1)),
+    ys = ifelse(Bool((mask >> Int8(1)) & Int8(1)),
                 hs1_scale[vys] * (ihs0_scale[tgt_v[vys]] * f[tgt_v[vys]] - ihs0_scale[v] * f[v]),
                 zero(eltype(f)))
     # For tgt-slots: (dcd2*f)[e] = hs1[e]*(ihs0[v]*f[v] - ihs0[src(e)]*f[src(e)])
     # dd1 sign is -1 for tgt-slots → net: -(hs1*(ihs0_v*f_v - ihs0_src*f_src))
-    xt = ifelse(Bool((mask >> Int32(2)) & Int32(1)),
+    xt = ifelse(Bool((mask >> Int8(2)) & Int8(1)),
                 hs1_scale[vxt] * (ihs0_scale[v] * f[v] - ihs0_scale[src_v[vxt]] * f[src_v[vxt]]),
                 zero(eltype(f)))
-    yt = ifelse(Bool((mask >> Int32(3)) & Int32(1)),
+    yt = ifelse(Bool((mask >> Int8(3)) & Int8(1)),
                 hs1_scale[vyt] * (ihs0_scale[v] * f[v] - ihs0_scale[src_v[vyt]] * f[src_v[vyt]]),
                 zero(eltype(f)))
     res[v] = xs + ys - xt - yt
   end
 end
 
-# ── dual_laplacian(1): dcd2*dd1 + dd0*dcd1, thread per edge e ────────────
-# Term 1: dcd2(dd1*a)[e] = hs1[e]*(ihs0[tv]*(dd1*a)[tv] - ihs0[sv]*(dd1*a)[sv])
-#   (dd1*a)[v] is the bitmask-guarded sum of a at the 4 incident edges of v.
-# Term 2: dd0(dcd1*a)[e] = (dcd1*a)[qp] - (dcd1*a)[qn]
-#   (dcd1*a)[q] = hs2 * (ihs1[e1]*a[e1]+ihs1[e2]*a[e2]-ihs1[e3]*a[e3]-ihs1[e4]*a[e4])
-@kernel function kernel_dual_laplacian1_cached!(res, @Const(src_v), @Const(tgt_v),
-                                                @Const(dd1_vxs), @Const(dd1_vys), @Const(dd1_vxt), @Const(dd1_vyt), @Const(dd1_vmask),
-                                                @Const(q_e1), @Const(q_e2), @Const(q_e3), @Const(q_e4),
-                                                @Const(dd0_qp), @Const(dd0_qn), @Const(dd0_emask),
-                                                @Const(hs1_scale), @Const(ihs0_scale), @Const(ihs1_hs2_scale), @Const(a))
+# ── dual_laplacian(1): dcd2*dd1 + dd0*dcd1, three-pass decomposition ─────
+#
+# Old two-pass approach had each edge thread independently recompute
+# dd1[v] at both endpoint vertices and dcd1[q] at both adjacent quads.
+#
+# Three-pass approach:
+#   Pass 1 (nv threads):    dd1_v[v]   = sum_e sign(v,e) * a[e]   (raw, no scale)
+#   Pass 2 (nquads threads): dcd1_q[q] = sum_e ihs1_hs2[e]*sign*a[e]
+#   Pass 3 (ne threads):    res[e] = hs1[e]*(ihs0[tv]*dd1_v[tv] - ihs0[sv]*dd1_v[sv])
+#                                   + (dcd1_q[qp] - dcd1_q[qn])
+
+# Pass 1 — dd1 applied to a 1-form, raw signed sum per vertex: reuses kernel_dd1_cached!
+# Pass 2 — dcd1 applied to a 1-form, one result per quad: reuses kernel_dual_codiff1_cached!
+# Pass 3 — combine: one result per edge; reads only pre-computed scalars
+@kernel function kernel_dlap1_combine!(res,
+                                       @Const(src_v), @Const(tgt_v),
+                                       @Const(dd0_qp), @Const(dd0_qn), @Const(dd0_emask),
+                                       @Const(hs1_scale), @Const(ihs0_scale),
+                                       @Const(dd1_v), @Const(dcd1_q))
   e = @index(Global)
   @inbounds begin
-    sv = src_v[e]; tv = tgt_v[e]
-
-    # ── Term 1: dcd2 * dd1 ─────────────────────────────────────────────────
-    mask_sv = dd1_vmask[sv]
-    svxs = dd1_vxs[sv]; svys = dd1_vys[sv]; svxt = dd1_vxt[sv]; svyt = dd1_vyt[sv]
-    dd1_sv = (ifelse(Bool(mask_sv & Int32(1)),             a[svxs], zero(eltype(a))) +
-              ifelse(Bool((mask_sv >> Int32(1)) & Int32(1)), a[svys], zero(eltype(a))) -
-              ifelse(Bool((mask_sv >> Int32(2)) & Int32(1)), a[svxt], zero(eltype(a))) -
-              ifelse(Bool((mask_sv >> Int32(3)) & Int32(1)), a[svyt], zero(eltype(a))))
-
-    mask_tv = dd1_vmask[tv]
-    tvxs = dd1_vxs[tv]; tvys = dd1_vys[tv]; tvxt = dd1_vxt[tv]; tvyt = dd1_vyt[tv]
-    dd1_tv = (ifelse(Bool(mask_tv & Int32(1)),             a[tvxs], zero(eltype(a))) +
-              ifelse(Bool((mask_tv >> Int32(1)) & Int32(1)), a[tvys], zero(eltype(a))) -
-              ifelse(Bool((mask_tv >> Int32(2)) & Int32(1)), a[tvxt], zero(eltype(a))) -
-              ifelse(Bool((mask_tv >> Int32(3)) & Int32(1)), a[tvyt], zero(eltype(a))))
-
-    term1 = hs1_scale[e] * (ihs0_scale[tv] * dd1_tv - ihs0_scale[sv] * dd1_sv)
-
-    # ── Term 2: dd0 * dcd1 ─────────────────────────────────────────────────
+    sv = src_v[e];  tv = tgt_v[e]
+    term1 = hs1_scale[e] * (ihs0_scale[tv] * dd1_v[tv] - ihs0_scale[sv] * dd1_v[sv])
     mask_e = dd0_emask[e]
-    qp = dd0_qp[e]; qn = dd0_qn[e]
-    dcd1_qp = ifelse(Bool(mask_e & Int32(1)),
-                     ihs1_hs2_scale[q_e1[qp]] * a[q_e1[qp]] +
-                     ihs1_hs2_scale[q_e2[qp]] * a[q_e2[qp]] -
-                     ihs1_hs2_scale[q_e3[qp]] * a[q_e3[qp]] -
-                     ihs1_hs2_scale[q_e4[qp]] * a[q_e4[qp]],
-                     zero(eltype(a)))
-    dcd1_qn = ifelse(Bool((mask_e >> Int32(1)) & Int32(1)),
-                     ihs1_hs2_scale[q_e1[qn]] * a[q_e1[qn]] +
-                     ihs1_hs2_scale[q_e2[qn]] * a[q_e2[qn]] -
-                     ihs1_hs2_scale[q_e3[qn]] * a[q_e3[qn]] -
-                     ihs1_hs2_scale[q_e4[qn]] * a[q_e4[qn]],
-                     zero(eltype(a)))
-    term2 = dcd1_qp - dcd1_qn
-
+    qp = dd0_qp[e];  qn = dd0_qn[e]
+    term2 = (
+      ifelse(Bool(mask_e & Int8(1)),               dcd1_q[qp], zero(eltype(dcd1_q))) -
+      ifelse(Bool((mask_e >> Int8(1)) & Int8(1)), dcd1_q[qn], zero(eltype(dcd1_q))))
     res[e] = term1 + term2
   end
 end
@@ -1350,14 +1465,20 @@ function dual_laplacian!(res, ::Val{0}, cache::UniformDECCache, f)
   return res
 end
 
-function dual_laplacian!(res, ::Val{1}, cache::UniformDECCache, a)
+function dual_laplacian!(res, tmp1, tmp2, ::Val{1}, cache::UniformDECCache, a)
+  # tmp1: size nv  (dd1 raw sum per vertex)
+  # tmp2: size nquads  (dcd1 per quad)
   backend = get_backend(a)
-  kernel_dual_laplacian1_cached!(backend)(res,
-    cache.src_v, cache.tgt_v,
+  kernel_dd1_cached!(backend)(tmp1,
     cache.dd1_vxs, cache.dd1_vys, cache.dd1_vxt, cache.dd1_vyt, cache.dd1_vmask,
+    a; ndrange = cache.nv_)
+  kernel_dual_codiff1_cached!(backend)(tmp2,
     cache.q_e1, cache.q_e2, cache.q_e3, cache.q_e4,
+    cache.ihs1_hs2_scale, a; ndrange = cache.nquads_)
+  kernel_dlap1_combine!(backend)(res,
+    cache.src_v, cache.tgt_v,
     cache.dd0_qp, cache.dd0_qn, cache.dd0_emask,
-    cache.hs1_scale, cache.ihs0_scale, cache.ihs1_hs2_scale, a;
+    cache.hs1_scale, cache.ihs0_scale, tmp1, tmp2;
     ndrange = cache.ne_)
   return res
 end
@@ -1375,5 +1496,218 @@ function dual_laplacian(::Val{k}, cache::UniformDECCache, f::AbstractVector{FT})
   backend = get_backend(f)
   n = k == 0 ? cache.nquads_ : k == 1 ? cache.ne_ : cache.nv_
   res = KernelAbstractions.zeros(backend, FT, n)
+  if k == 1
+    tmp1 = KernelAbstractions.zeros(backend, FT, cache.nv_)
+    tmp2 = KernelAbstractions.zeros(backend, FT, cache.nquads_)
+    return dual_laplacian!(res, tmp1, tmp2, Val(1), cache, f)
+  end
   return dual_laplacian!(res, Val(k), cache, f)
+end
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  set_periodic! (cached) – dispatch on UniformDECCache
+#
+#  Uses the single generic kernel_set_periodic_cached! with precomputed
+#  (dst, src) index arrays; no integer division or branching inside the kernel.
+# ═══════════════════════════════════════════════════════════════════════════
+
+function set_periodic!(f::AbstractVector{FT}, ::Val{0}, cache::UniformDECCache, side::GridSide) where FT <: AbstractFloat
+  backend = get_backend(f)
+  kernel  = kernel_set_periodic_cached!(backend)
+  if side == EASTWEST || side == ALL
+    cache.per0_ew_n > 0 && kernel(f, cache.per0_ew_dst, cache.per0_ew_src; ndrange = cache.per0_ew_n)
+  end
+  if side == NORTHSOUTH || side == ALL
+    cache.per0_ns_n > 0 && kernel(f, cache.per0_ns_dst, cache.per0_ns_src; ndrange = cache.per0_ns_n)
+  end
+  return f
+end
+
+function set_periodic!(f::AbstractVector{FT}, ::Val{1}, cache::UniformDECCache, side::GridSide) where FT <: AbstractFloat
+  backend = get_backend(f)
+  kernel  = kernel_set_periodic_cached!(backend)
+  if side == EASTWEST || side == ALL
+    cache.per1_ew_n > 0 && kernel(f, cache.per1_ew_dst, cache.per1_ew_src; ndrange = cache.per1_ew_n)
+  end
+  if side == NORTHSOUTH || side == ALL
+    cache.per1_ns_n > 0 && kernel(f, cache.per1_ns_dst, cache.per1_ns_src; ndrange = cache.per1_ns_n)
+  end
+  return f
+end
+
+function set_periodic!(f::AbstractVector{FT}, ::Val{2}, cache::UniformDECCache, side::GridSide) where FT <: AbstractFloat
+  backend = get_backend(f)
+  kernel  = kernel_set_periodic_cached!(backend)
+  if side == EASTWEST || side == ALL
+    cache.per2_ew_n > 0 && kernel(f, cache.per2_ew_dst, cache.per2_ew_src; ndrange = cache.per2_ew_n)
+  end
+  if side == NORTHSOUTH || side == ALL
+    cache.per2_ns_n > 0 && kernel(f, cache.per2_ns_dst, cache.per2_ns_src; ndrange = cache.per2_ns_n)
+  end
+  return f
+end
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  SmoothingCache — kernel-based dual 0-form (quad) smoothing
+#
+#  Replaces the sparse-matrix pair smoothing_dual0(s,-c)*smoothing_dual0(s,c).
+#  One SmoothingCache (built with a positive c_smooth) encodes both passes:
+#    forward  pass: diag = 1 - c,  neighbor sign = +1
+#    backward pass: diag = 1 + c,  neighbor sign = -1
+#
+#  Weight derivation (mirrors UniformMatrixDEC.smoothing_dual0):
+#    c      = c_smooth / 2
+#    tot_w  = (has_left+has_right)*inv_dx + (has_down+has_up)*inv_dy  (per quad)
+#    w_nbr  = (c / tot_w) * inv_direction          (positive; stored once)
+#    diag_fwd = 1 - c,   diag_bwd = 1 + c          (scalars, not per-quad)
+#
+#  The diagonal is constant across ALL quads because the matrix row always
+#  sums to 1 regardless of how many neighbors exist.  Only the per-neighbor
+#  weights vary at boundary quads (fewer neighbours → larger individual weight).
+#  Missing neighbours get index 1 and weight 0; q_smask gates their contribution.
+# ─────────────────────────────────────────────────────────────────────────────
+
+struct SmoothingCache{IT <: AbstractVector{Int32}, FT <: AbstractVector{Float64}, MT <: AbstractVector{Int8}}
+  nquads_  :: Int
+  # Neighbor quad indices (Int32, dummy value 1 for non-existent boundary nbrs)
+  q_left   :: IT
+  q_right  :: IT
+  q_down   :: IT
+  q_up     :: IT
+  # Per-quad neighbor weights for the FORWARD pass (positive c_smooth).
+  # Backward pass uses the same magnitudes with negated sign.
+  w_left   :: FT
+  w_right  :: FT
+  w_down   :: FT
+  w_up     :: FT
+  # Diagonal weights: constant across all quads, differ between passes.
+  diag_fwd :: Float64   # = 1 - c_smooth/2
+  diag_bwd :: Float64   # = 1 + c_smooth/2
+  # Bitmask: bit0=left exists, bit1=right exists, bit2=down exists, bit3=up exists
+  q_smask  :: MT
+end
+
+Adapt.@adapt_structure SmoothingCache
+
+function SmoothingCache(s::UniformCubicalComplex2D, c_smooth::Real)
+  n      = nquads(s)
+  c      = Float64(c_smooth) / 2
+  inv_dx = 1.0 / dx(s)
+  inv_dy = 1.0 / dy(s)
+  nqx    = nxquads(s)
+  nqy    = nyquads(s)
+
+  q_left  = Vector{Int32}(undef, n)
+  q_right = Vector{Int32}(undef, n)
+  q_down  = Vector{Int32}(undef, n)
+  q_up    = Vector{Int32}(undef, n)
+  w_left  = Vector{Float64}(undef, n)
+  w_right = Vector{Float64}(undef, n)
+  w_down  = Vector{Float64}(undef, n)
+  w_up    = Vector{Float64}(undef, n)
+  q_smask = Vector{Int8}(undef, n)
+
+  for q in quads(s)
+    x, y = quad_to_coord(s, q)
+
+    has_left  = x > 1
+    has_right = x < nqx
+    has_down  = y > 1
+    has_up    = y < nqy
+
+    tot_w = (Int(has_left) + Int(has_right)) * inv_dx +
+            (Int(has_down) + Int(has_up))    * inv_dy
+
+    if tot_w > 0
+      scale   = c / tot_w
+      w_left[q]  = has_left  ? scale * inv_dx : 0.0
+      w_right[q] = has_right ? scale * inv_dx : 0.0
+      w_down[q]  = has_down  ? scale * inv_dy : 0.0
+      w_up[q]    = has_up    ? scale * inv_dy : 0.0
+    else
+      w_left[q] = w_right[q] = w_down[q] = w_up[q] = 0.0
+    end
+
+    q_left[q]  = Int32(has_left  ? coord_to_quad(s, x - 1, y) : 1)
+    q_right[q] = Int32(has_right ? coord_to_quad(s, x + 1, y) : 1)
+    q_down[q]  = Int32(has_down  ? coord_to_quad(s, x, y - 1) : 1)
+    q_up[q]    = Int32(has_up    ? coord_to_quad(s, x, y + 1) : 1)
+
+    q_smask[q] = Int8(has_left) |
+                 (Int8(has_right) << Int8(1)) |
+                 (Int8(has_down)  << Int8(2)) |
+                 (Int8(has_up)    << Int8(3))
+  end
+
+  return SmoothingCache(n,
+    q_left, q_right, q_down, q_up,
+    w_left, w_right, w_down, w_up,
+    1.0 - c, 1.0 + c,
+    q_smask)
+end
+
+# ── Kernel ────────────────────────────────────────────────────────────────────
+# `diag`     — scalar diagonal weight (diag_fwd or diag_bwd)
+# `nbr_sign` — scalar +1.0 (forward pass) or -1.0 (backward pass)
+
+@kernel function kernel_smooth_dual0_cached!(res,
+                                             @Const(q_left),  @Const(q_right),
+                                             @Const(q_down),  @Const(q_up),
+                                             @Const(w_left),  @Const(w_right),
+                                             @Const(w_down),  @Const(w_up),
+                                             @Const(q_smask),
+                                             @Const(f),
+                                             diag, nbr_sign)
+  q = @index(Global)
+  @inbounds begin
+    mask = q_smask[q]
+    z    = zero(eltype(f))
+    nbrs = ifelse(Bool(mask & Int8(1)),                     w_left[q]  * f[q_left[q]],  z) +
+           ifelse(Bool((mask >> Int8(1)) & Int8(1)),        w_right[q] * f[q_right[q]], z) +
+           ifelse(Bool((mask >> Int8(2)) & Int8(1)),        w_down[q]  * f[q_down[q]],  z) +
+           ifelse(Bool((mask >> Int8(3)) & Int8(1)),        w_up[q]    * f[q_up[q]],    z)
+    res[q] = diag * f[q] + nbr_sign * nbrs
+  end
+end
+
+# ── Interface ─────────────────────────────────────────────────────────────────
+
+function _smooth_dual0_pass!(res::AbstractVector{FT}, cache::SmoothingCache,
+                              f::AbstractVector{FT}, diag::Float64, sign::Float64) where FT
+  backend = get_backend(f)
+  kernel  = kernel_smooth_dual0_cached!(backend)
+  kernel(res,
+    cache.q_left, cache.q_right, cache.q_down, cache.q_up,
+    cache.w_left, cache.w_right, cache.w_down, cache.w_up,
+    cache.q_smask, f, diag, sign;
+    ndrange = cache.nquads_)
+  return res
+end
+
+"""
+    smooth_dual0_fused!(res, tmp, cache, f)
+
+Two-pass smoothing (`res .= M_bwd * (M_fwd * f)`) using a pre-allocated
+intermediate buffer `tmp`.  `cache` encodes both passes: the forward pass
+uses `+c_smooth` weights and the backward pass uses `-c_smooth` weights.
+"""
+function smooth_dual0_fused!(res::AbstractVector{FT}, tmp::AbstractVector{FT},
+                              cache::SmoothingCache,
+                              f::AbstractVector{FT}) where FT
+  _smooth_dual0_pass!(tmp, cache, f,   cache.diag_fwd,  1.0)
+  _smooth_dual0_pass!(res, cache, tmp, cache.diag_bwd, -1.0)
+  return res
+end
+
+"""
+    smooth_dual0_fused!(res, cache, f)
+
+Allocating wrapper around `smooth_dual0_fused!`.  Prefer the pre-allocated
+three-argument form in hot paths.
+"""
+function smooth_dual0_fused!(res::AbstractVector{FT},
+                              cache::SmoothingCache,
+                              f::AbstractVector{FT}) where FT
+  tmp = similar(f)
+  return smooth_dual0_fused!(res, tmp, cache, f)
 end

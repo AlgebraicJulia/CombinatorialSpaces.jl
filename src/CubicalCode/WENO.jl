@@ -106,7 +106,7 @@ end
   return c[1] * s1 * s1 + c[2] * s1 * s2 + c[3] * s2 * s2
 end
 
-@inline function beta3(s1::FT, s2::FT, s3::FT, c::NTuple{6, FT}) where {FT <: AbstractFloat}
+@inline @fastmath function beta3(s1::FT, s2::FT, s3::FT, c::NTuple{6, FT}) where {FT <: AbstractFloat}
   return c[1] * s1 * s1 + c[2] * s1 * s2 + c[3] * s1 * s3 +
          c[4] * s2 * s2 + c[5] * s2 * s3 +
          c[6] * s3 * s3
@@ -148,7 +148,7 @@ end
   return (a1 * q1 + a2 * q2) / asum
 end
 
-@inline function weno5_point(fm2::FT, fm1::FT, f0::FT, fp1::FT, fp2::FT, eps::FT) where {FT <: AbstractFloat}
+@inline @fastmath function weno5_point(fm2::FT, fm1::FT, f0::FT, fp1::FT, fp2::FT, eps::FT) where {FT <: AbstractFloat}
   weno = UniformWENO(5, FT)
 
   C1 = CW(weno, Val(1))

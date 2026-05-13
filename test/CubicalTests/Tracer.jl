@@ -1,8 +1,9 @@
+using Adapt
 using CairoMakie
 using Distributions
+using KernelAbstractions
 using LinearAlgebra
 using Printf
-using SparseArrays
 using StaticArrays
 using CUDA
 using CUDA.CUSPARSE
@@ -15,7 +16,6 @@ println("CUDA is functional: $USE_CUDA")
 
 to_device(arr::AbstractVector{FT}) where FT <: AbstractFloat = USE_CUDA ? CuVector{FT}(arr) : arr
 to_device(arr::AbstractVector{T}) where T = USE_CUDA ? CuVector{T}(arr) : arr
-to_device(mat::AbstractMatrix{FT}) where FT <: AbstractFloat = USE_CUDA ? CuSparseMatrixCSC{FT}(mat) : SparseMatrixCSC{FT}(mat)
 
 include("../../src/CubicalCode/UniformDEC.jl")
 
@@ -42,34 +42,15 @@ const saveat  = max(1, floor(Int64, 0.05 / dt))
 
 println("Constructing DEC operators...")
 
-const cpu_d0 = exterior_derivative(Val(0), s);
-const cpu_d1 = exterior_derivative(Val(1), s);
-
-# No-flux dual derivative: prevents tracer from leaving the domain
-const cpu_dual_d0 = no_flux_dual_derivative(Val(0), s);
-
-const cpu_hdg_1 = hodge_star(Val(1), s);
-const cpu_hdg_2 = hodge_star(Val(2), s);
-
-const cpu_inv_hdg_1 = inv_hodge_star(Val(1), s);
-const cpu_inv_hdg_2 = inv_hodge_star(Val(2), s);
-
-const cpu_dual_δ1 = dual_codifferential(Val(1), s);
-
-# Dual Laplacian on 0-forms: used for tracer diffusion
-const cpu_dΔ0 = cpu_hdg_2 * cpu_d1 * cpu_inv_hdg_1 * cpu_dual_d0;
-
-const d0 = to_device(cpu_d0);
-const d1 = to_device(cpu_d1);
-const dual_d0 = to_device(cpu_dual_d0);
-const hdg_1 = to_device(cpu_hdg_1);
-const hdg_2 = to_device(cpu_hdg_2);
-const inv_hdg_1 = to_device(cpu_inv_hdg_1);
-const inv_hdg_2 = to_device(cpu_inv_hdg_2);
-const dual_δ1 = to_device(cpu_dual_δ1);
-const dΔ0 = to_device(cpu_dΔ0);
-
 println("DEC operators constructed.")
+
+println("Building DEC and advection caches...")
+const cpu_dec_cache  = UniformDECCache(s)
+const cpu_adv_cache  = AdvectionCache(WENO5(), s)
+const dec_cache      = Adapt.adapt(USE_CUDA ? CUDABackend() : CPU(), cpu_dec_cache)
+const adv_cache      = Adapt.adapt(USE_CUDA ? CUDABackend() : CPU(), cpu_adv_cache)
+println("Caches built.")
+
 println("Loading simulation files...")
 
 simname = get(ENV, "CS_TRACER_SIM", "Diagonal") # "Diagonal", "Stretch", "Rotate", "CircularVortex", "ReversedVortex"
@@ -98,18 +79,20 @@ function tracer_continuity(
     phi_star::AbstractVector{Float64},
     kappa::Float64,
 )
-    phi = hdg_2 * phi_star
+    phi = hodge_star(Val(2), dec_cache, phi_star)
 
     # -φ·(δu): divergence/creation term (numerically zero for incompressible u)
-    tracer_divergence = phi .* (dual_δ1 * u)
+    tracer_divergence = phi .* dual_codifferential(Val(1), dec_cache, u)
 
-    # L(u, φ): Lie derivative advection term
-    tracer_advection = hdg_2 * wedge_product(Val(1), Val(1), WENO5(), s, v, inv_hdg_1 * dual_d0 * phi)
+    # L(u, φ): Lie derivative advection term — uses WENO5Cache
+    tracer_advection = hodge_star(Val(2), dec_cache,
+        wedge_product(Val(1), Val(1), WENO5(), adv_cache, v,
+            inv_hodge_star(Val(1), dec_cache, dual_derivative(Val(0), dec_cache, phi))))
 
     # κ·Δφ: diffusion via dual Laplacian on the scalar φ
-    tracer_diffusion = kappa * dΔ0 * (inv_hdg_2 * phi)
+    tracer_diffusion = kappa * dual_laplacian(Val(0), dec_cache, inv_hodge_star(Val(2), dec_cache, phi))
 
-    return inv_hdg_2 * (-tracer_divergence - tracer_advection + tracer_diffusion)
+    return inv_hodge_star(Val(2), dec_cache, (-tracer_divergence - tracer_advection + tracer_diffusion))
 end
 
 ######################
@@ -132,15 +115,15 @@ function run_tracer(
     mass_every = max(1, mass_every)
 
     u0 = deepcopy(phi_star_0)
-    m₀ = sum(hdg_2 * u0)
+    m₀ = sum(hodge_star(Val(2), dec_cache, u0))
 
     function rhs!(dphi_star, phi_star, p, t)
-        set_periodic!(phi_star, Val(2), s, ALL)
+        set_periodic!(phi_star, Val(2), dec_cache, ALL)
 
         X = generate_X(s, t, te)
         Y = generate_Y(s, t, te)
-        u = flat_dd(s, X, Y)
-        v = flat_dp(s, X, Y)
+        u = flat_dd(dec_cache, X, Y)
+        v = flat_dp(dec_cache, X, Y)
 
         dphi_star .= tracer_continuity(u, v, phi_star, kappa)
         return nothing
@@ -149,7 +132,7 @@ function run_tracer(
     mass_condition(u, t, integrator) = integrator.iter > 0 && (integrator.iter % mass_every == 0)
 
     function mass_affect!(integrator)
-        snap = hdg_2 * integrator.u
+        snap = hodge_star(Val(2), dec_cache, integrator.u)
         m = sum(snap)
         println(@sprintf("Step %6d/%d | Relative mass: %.4f%%", integrator.iter, steps, 100 * m / m₀))
         flush(stdout)
@@ -172,10 +155,10 @@ function run_tracer(
         callback = callbacks,
     )
 
-    phis = [Array(hdg_2 * u) for u in sol.u]
+    phis = [Array(hodge_star(Val(2), dec_cache, u)) for u in sol.u]
 
     final_step = Int(round(sol.t[end] / dt))
-    final_mass = sum(hdg_2 * sol.u[end])
+    final_mass = sum(hodge_star(Val(2), dec_cache, sol.u[end]))
     println(@sprintf("Final step %6d/%d | Relative mass: %.4f%%", final_step, steps, 100 * final_mass / m₀))
 
     return phis
@@ -199,26 +182,51 @@ println("Simulation complete. $(length(phis)) snapshots saved.")
 save_path = joinpath(@__DIR__, "imgs", "Tracer", simname)
 mkpath(save_path)
 
-fig_init = plot_twoform(s, phis[1])
+phi_clim = extrema(phis[1])
+fig_init = plot_twoform(s, phis[1];
+    axis_kwargs     = (; title = "Initial Tracer φ₀  ($simname, $(nx_)×$(ny_))",
+                        xlabel = "x", ylabel = "y", aspect = DataAspect()),
+    heatmap_kwargs  = (; colormap = :jet, colorrange = phi_clim),
+    colorbar_kwargs = (; label = "φ"),
+)
 save(joinpath(save_path, "initial_n=$(nx_).png"), fig_init)
 
-fig_final = plot_twoform(s, phis[end])
+fig_final = plot_twoform(s, phis[end];
+    axis_kwargs     = (; title = "Tracer φ at t = $te  ($simname, $(nx_)×$(ny_))",
+                        xlabel = "x", ylabel = "y", aspect = DataAspect()),
+    heatmap_kwargs  = (; colormap = :jet, colorrange = phi_clim),
+    colorbar_kwargs = (; label = "φ"),
+)
 save(joinpath(save_path, "final_n=$(nx_).png"), fig_final)
 
-fig_diff = plot_twoform(s, phis[end] - phis[1])
-save(joinpath(save_path, "difference_n=$(nx_).png"), fig_diff)
+let diff = phis[end] - phis[1]
+    diff_abs = maximum(abs, diff)
+    diff_clim = (-diff_abs, diff_abs)
+    fig_diff = plot_twoform(s, diff;
+        axis_kwargs     = (; title = "Error φ(T) − φ(0)  ($simname, $(nx_)×$(ny_))",
+                            xlabel = "x", ylabel = "y", aspect = DataAspect()),
+        heatmap_kwargs  = (; colormap = :RdBu, colorrange = diff_clim),
+        colorbar_kwargs = (; label = "Δφ"),
+    )
+    save(joinpath(save_path, "difference_n=$(nx_).png"), fig_diff)
+end
 
-fig_anim = Figure()
-ax_anim  = CairoMakie.Axis(fig_anim[1, 1]; title = "Tracer", xlabel = "x", ylabel = "y")
+fig_anim = Figure(size = (700, 600))
+ax_anim  = CairoMakie.Axis(fig_anim[1, 1];
+    title   = "Tracer φ — $simname  ($(nx_)×$(ny_))",
+    xlabel  = "x",
+    ylabel  = "y",
+    aspect  = DataAspect(),
+)
 
 interdps = interior(Val(2), dual_points(s), s)
 xs = map(p -> p[1], interdps)
 ys = map(p -> p[2], interdps)
 
-phi_range = extrema(phis[1])
+anim_clim = extrema(phis[1])
 hm = CairoMakie.heatmap!(ax_anim, xs, ys, interior(Val(2), phis[1], s);
-    colormap = :jet, colorrange = phi_range)
-Colorbar(fig_anim[1, 2], hm)
+    colormap = :jet, colorrange = anim_clim)
+Colorbar(fig_anim[1, 2], hm; label = "φ")
 
 CairoMakie.record(fig_anim, joinpath(save_path, "animation_n=$(nx_).mp4"), 1:length(phis); framerate = 15) do i
     hm[3] = interior(Val(2), phis[i], s)

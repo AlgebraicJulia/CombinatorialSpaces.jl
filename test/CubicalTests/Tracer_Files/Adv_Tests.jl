@@ -100,4 +100,4 @@ else
   error("Invalid case")
 end
 
-const phi_star_0  = to_device(cpu_inv_hdg_2 * phi_0)   # star representation of tracer
+const phi_star_0  = to_device(inv_hodge_star(Val(2), dec_cache, phi_0))   # star representation of tracer
