@@ -1924,6 +1924,11 @@ operator [`∇²`](@ref): ``Δ f = -∇² f``.
   d(Val(1), s, δ(2, s, form; kw...))
 Δ(::Val{2}, s::AbstractDeltaDualComplex2D; matrix_type::Type=SparseMatrixCSC{Float64}, kw...) =
   d(Val(1), s, matrix_type) * δ(2, s; matrix_type=matrix_type, kw...)
+
+Δ(::Val{3}, s::AbstractDeltaDualComplex3D, form::AbstractVector; kw...) =
+  d(Val(2), s, δ(3, s, form; kw...))
+Δ(::Val{3}, s::AbstractDeltaDualComplex3D; matrix_type::Type=SparseMatrixCSC{Float64}, kw...) =
+  d(Val(2), s, matrix_type) * δ(3, s; matrix_type=matrix_type, kw...)
 """ Alias for the Laplace-de Rham operator [`Δ`](@ref).
 """
 const laplace_de_rham = Δ

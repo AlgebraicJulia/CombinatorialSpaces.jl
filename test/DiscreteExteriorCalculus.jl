@@ -1124,4 +1124,9 @@ mesh_vols = s[:vol]
 # Constant interpolation
 @test all(interp * ones(ntetrahedra(s)) .≈ 1)
 
+# Laplace-de Rham on 3-forms (dδ only, since d of a top-dimensional form vanishes).
+primal_s, s = single_tetrahedron()
+@test Δ(s, TetForm([1.]); hodge=DiagonalHodge()) isa TetForm
+@test Δ(3, s; hodge=DiagonalHodge()) isa AbstractMatrix
+
 end

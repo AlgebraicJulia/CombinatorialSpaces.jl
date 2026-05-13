@@ -349,4 +349,124 @@ end
   end
 end
 
+function test_unitful_dec_operators_3d(subdivision)
+  len_t = typeof(1.0u"m")
+  area_t = typeof(1.0u"m^2")
+  vol_t = typeof(1.0u"m^3")
+  geom_t = Union{len_t, area_t, vol_t}
+  primal_s = EmbeddedDeltaSet3D{Bool, Point3{len_t}}()
+  add_vertices!(primal_s, 4, point=[
+    Point3(0.0u"m", 0.0u"m", 0.0u"m"),
+    Point3(1.0u"m", 0.0u"m", 0.0u"m"),
+    Point3(0.0u"m", 1.0u"m", 0.0u"m"),
+    Point3(0.0u"m", 0.0u"m", 1.0u"m"),
+  ])
+  glue_sorted_tetrahedron!(primal_s, 1, 2, 3, 4)
+  s = EmbeddedDeltaDualComplex3D{Bool, geom_t, Point3{len_t}}(primal_s)
+  subdivide_duals!(s, subdivision)
+
+  # Plain (non-unitful) mesh with identical geometry (1 unit = 1 m).
+  # Used to provide the non-unitful reference pathway for equality checks.
+  plain_primal_s = EmbeddedDeltaSet3D{Bool, Point3d}()
+  add_vertices!(plain_primal_s, 4, point=[
+    Point3d(0.0, 0.0, 0.0),
+    Point3d(1.0, 0.0, 0.0),
+    Point3d(0.0, 1.0, 0.0),
+    Point3d(0.0, 0.0, 1.0),
+  ])
+  glue_sorted_tetrahedron!(plain_primal_s, 1, 2, 3, 4)
+  plain_s = EmbeddedDeltaDualComplex3D{Bool, Float64, Point3d}(plain_primal_s)
+  subdivide_duals!(plain_s, subdivision)
+
+  @test volume(s, Tet(1)) ≈ (1/6)u"m^3"
+  @test volume(s, E(1:6)) ≈ [√2, √2, √2, 1.0, 1.0, 1.0] .* u"m"
+
+  # ⋆(0): VForm[U] → DualForm{3}[U·m³]
+  # Operator diagonal entries = dual 3-cell volume at each primal vertex [m³].
+  # inv_hodge_star(0): DualForm{3}[U·m³] → VForm[U]
+  # Operator diagonal entries = 1/(dual volume) [m⁻³].
+  str0 = ⋆(0, s, DiagonalHodge())
+  invstr0 = inv_hodge_star(0, s, DiagonalHodge())
+  @test all(unit.(diag(str0)) .== unit(1.0u"m^3"))
+  @test all(unit.(diag(invstr0)) .== unit(1.0u"m^-3"))
+  @test ustrip.(u"m^3", diag(str0)) ≈ diag(⋆(0, plain_s, DiagonalHodge()))
+  @test ustrip.(u"m^-3", diag(invstr0)) ≈ diag(inv_hodge_star(0, plain_s, DiagonalHodge()))
+
+  # Input: volumetric density ρ [kg/m³].
+  # ⋆(0) [m³] · ρ [kg/m³] = ⋆(ρ) [kg]  (integrates density over the dual cell volume).
+  # inv_hodge_star(0) [m⁻³] · ⋆(ρ) [kg] = ρ [kg/m³]  (recovers the original density).
+  density_vform = VForm([1.0, 2.0, 3.0, 4.0] .* u"kg/m^3")
+  @test all(unit.(str0 * density_vform) .== unit(1.0u"kg"))
+  @test (invstr0 * (str0 * density_vform)) ≈ density_vform.data
+
+  # ⋆(3): TetForm[U] → DualForm{0}[U·m⁻³]
+  # Operator diagonal entries = 1/(primal tet volume) [m⁻³].
+  # inv_hodge_star(3): DualForm{0}[U·m⁻³] → TetForm[U]
+  # Operator diagonal entries = primal tet volume [m³].
+  str3 = ⋆(3, s, DiagonalHodge())
+  invstr3 = inv_hodge_star(3, s, DiagonalHodge())
+  @test all(unit.(diag(str3)) .== unit(1.0u"m^-3"))
+  @test all(unit.(diag(invstr3)) .== unit(1.0u"m^3"))
+  @test ustrip.(u"m^-3", diag(str3)) ≈ diag(⋆(3, plain_s, DiagonalHodge()))
+  @test ustrip.(u"m^3", diag(invstr3)) ≈ diag(inv_hodge_star(3, plain_s, DiagonalHodge()))
+
+  # Input: mass m [kg] (integrated over each tetrahedron).
+  # ⋆(3) [m⁻³] · m [kg] = ⋆(m) [kg/m³]  (converts mass to volumetric density).
+  # inv_hodge_star(3) [m³] · ⋆(m) [kg/m³] = m [kg]  (recovers the original mass).
+  mass_tform = TetForm([3.0] .* u"kg")
+  @test all(unit.(str3 * mass_tform) .== unit(1.0u"kg/m^3"))
+  @test (invstr3 * (str3 * mass_tform)) ≈ mass_tform.data
+
+  # ⋆(1) (DiagonalHodge): EForm[U] → DualForm{2}[U·m]
+  # Operator diagonal entries = dual 2-area / primal edge length [m²/m = m].
+  # inv_hodge_star(1): DualForm{2}[U·m] → EForm[U]
+  # Operator diagonal entries = primal edge length / dual 2-area [m/m² = m⁻¹].
+  str1 = ⋆(1, s, DiagonalHodge())
+  invstr1 = inv_hodge_star(1, s, DiagonalHodge())
+  @test all(unit.(diag(str1)) .== unit(1.0u"m"))
+  @test all(unit.(diag(invstr1)) .== unit(1.0u"m^-1"))
+  @test ustrip.(u"m", diag(str1)) ≈ diag(⋆(1, plain_s, DiagonalHodge()))
+  @test ustrip.(u"m^-1", diag(invstr1)) ≈ diag(inv_hodge_star(1, plain_s, DiagonalHodge()))
+
+  # ⋆(2) (DiagonalHodge): TriForm[U] → DualForm{1}[U·m⁻¹]
+  # Operator diagonal entries = dual 1-length / primal triangle area [m/m² = m⁻¹].
+  # inv_hodge_star(2): DualForm{1}[U·m⁻¹] → TriForm[U]
+  # Operator diagonal entries = primal triangle area / dual 1-length [m²/m = m].
+  str2 = ⋆(2, s, DiagonalHodge())
+  invstr2 = inv_hodge_star(2, s, DiagonalHodge())
+  @test all(unit.(diag(str2)) .== unit(1.0u"m^-1"))
+  @test all(unit.(diag(invstr2)) .== unit(1.0u"m"))
+  @test ustrip.(u"m^-1", diag(str2)) ≈ diag(⋆(2, plain_s, DiagonalHodge()))
+  @test ustrip.(u"m", diag(invstr2)) ≈ diag(inv_hodge_star(2, plain_s, DiagonalHodge()))
+
+  # Laplace-Beltrami operator Δ = d ∘ δ on a 3D meter-scale mesh.
+  # In 3D: Δ picks up a factor of [m⁻²] from the hodge operators.
+  #   Δ(ρ [kg/m³])  → [kg/m⁵]       (0-form: ⋆(1)[m] and inv_⋆(0)[m⁻³])
+  #   Δ(q [kg/m²s]) → [kg/(m⁴·s)]   (1-form)
+  #   Δ(f [kg/ms])  → [kg/(m³·s)]   (2-form)
+  #   Δ(m [kg/m])   → [kg/m³]        (3-form: dδ only, d of 3-form vanishes)
+  ρ = VForm([1.0, 2.0, 3.0, 4.0] .* u"kg/m^3")
+  q = EForm(collect(1.0:ne(s)) .* u"kg/m^2/s")
+  f = TriForm(collect(1.0:ntriangles(s)) .* u"kg/m/s")
+  m = TetForm([1.0] .* u"kg/m")
+  lap0 = Δ(s, ρ; hodge=DiagonalHodge())
+  lap1 = Δ(s, q; hodge=DiagonalHodge())
+  lap2 = Δ(s, f; hodge=DiagonalHodge())
+  lap3 = Δ(s, m; hodge=DiagonalHodge())
+  @test lap0 isa VForm
+  @test lap1 isa EForm
+  @test lap2 isa TriForm
+  @test lap3 isa TetForm
+  @test all(unit.(lap0.data) .== unit(1.0u"kg/m^5"))
+  @test all(unit.(lap1.data) .== unit(1.0u"kg/m^4/s"))
+  @test all(unit.(lap2.data) .== unit(1.0u"kg/m^3/s"))
+  @test all(unit.(lap3.data) .== unit(1.0u"kg/m^3"))
+end
+
+@testset "Unitful DEC operators in 3D" begin
+  @testset "subdivision = $(nameof(typeof(subdivision)))" for subdivision in (Barycenter(), Circumcenter())
+    test_unitful_dec_operators_3d(subdivision)
+  end
+end
+
 end
