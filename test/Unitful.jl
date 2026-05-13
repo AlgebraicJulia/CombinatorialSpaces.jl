@@ -462,6 +462,151 @@ function test_unitful_dec_operators_3d(subdivision)
   @test all(unit.(lap1.data) .== unit(1.0u"kg/m^4/s"))
   @test all(unit.(lap2.data) .== unit(1.0u"kg/m^3/s"))
   @test all(unit.(lap3.data) .== unit(1.0u"kg/m^3"))
+
+  # Wedge products: all primal-primal weights are dimensionless ratios
+  # (dual k-volume / primal k-volume, same units cancel), so the output unit
+  # is simply the product of the two input form units.
+
+  f_0 = VForm([1.0, 2.0, 3.0, 4.0] .* u"kg/m^3")
+  g_0 = VForm([4.0, 3.0, 2.0, 1.0] .* u"K")
+
+  # 0∧0: VForm[kg/m³] ∧ VForm[K] → VForm[kg⋅K/m³]
+  w_00 = ∧(s, f_0, g_0)
+  @test all(unit.(w_00.data) .== unit(1.0u"kg*K/m^3"))
+  @test ustrip.(u"kg*K/m^3", w_00.data) ≈
+        ∧(plain_s, VForm(ustrip.(u"kg/m^3", f_0.data)), VForm(ustrip.(u"K", g_0.data))).data
+
+  e_1 = EForm(collect(1.0:ne(s)) .* u"m/s")
+
+  # 0∧1: VForm[kg/m³] ∧ EForm[m/s] → EForm[kg/(m²⋅s)]
+  w_01 = ∧(s, f_0, e_1)
+  @test all(unit.(w_01.data) .== unit(1.0u"kg/m^2/s"))
+  @test ustrip.(u"kg/m^2/s", w_01.data) ≈
+        ∧(plain_s, VForm(ustrip.(u"kg/m^3", f_0.data)), EForm(ustrip.(u"m/s", e_1.data))).data
+
+  # 1∧0: EForm[m/s] ∧ VForm[kg/m³] → EForm[kg/(m²⋅s)]
+  w_10 = ∧(s, e_1, f_0)
+  @test all(unit.(w_10.data) .== unit(1.0u"kg/m^2/s"))
+  @test ustrip.(u"kg/m^2/s", w_10.data) ≈
+        ∧(plain_s, EForm(ustrip.(u"m/s", e_1.data)), VForm(ustrip.(u"kg/m^3", f_0.data))).data
+
+  t_2 = TriForm(collect(1.0:ntriangles(s)) .* u"kg/m^2")
+
+  # 0∧2: VForm[kg/m³] ∧ TriForm[kg/m²] → TriForm[kg²/m⁵]
+  w_02 = ∧(s, f_0, t_2)
+  @test all(unit.(w_02.data) .== unit(1.0u"kg^2/m^5"))
+  @test ustrip.(u"kg^2/m^5", w_02.data) ≈
+        ∧(plain_s, VForm(ustrip.(u"kg/m^3", f_0.data)), TriForm(ustrip.(u"kg/m^2", t_2.data))).data
+
+  # 2∧0: TriForm[kg/m²] ∧ VForm[kg/m³] → TriForm[kg²/m⁵]
+  w_20 = ∧(s, t_2, f_0)
+  @test all(unit.(w_20.data) .== unit(1.0u"kg^2/m^5"))
+  @test ustrip.(u"kg^2/m^5", w_20.data) ≈
+        ∧(plain_s, TriForm(ustrip.(u"kg/m^2", t_2.data)), VForm(ustrip.(u"kg/m^3", f_0.data))).data
+
+  tet_3 = TetForm([1.0] .* u"kg")
+
+  # 0∧3: VForm[kg/m³] ∧ TetForm[kg] → TetForm[kg²/m³]
+  w_03 = ∧(s, f_0, tet_3)
+  @test all(unit.(w_03.data) .== unit(1.0u"kg^2/m^3"))
+  @test ustrip.(u"kg^2/m^3", w_03.data) ≈
+        ∧(plain_s, VForm(ustrip.(u"kg/m^3", f_0.data)), TetForm(ustrip.(u"kg", tet_3.data))).data
+
+  e_1b = EForm(collect(1.0:ne(s)) .* u"kg/s")
+
+  # 1∧1: EForm[kg/s] ∧ EForm[m/s] → TriForm[kg⋅m/s²]
+  w_11 = ∧(s, e_1b, e_1)
+  @test all(unit.(w_11.data) .== unit(1.0u"kg*m/s^2"))
+  @test ustrip.(u"kg*m/s^2", w_11.data) ≈
+        ∧(plain_s, EForm(ustrip.(u"kg/s", e_1b.data)), EForm(ustrip.(u"m/s", e_1.data))).data
+
+  # 2∧1: TriForm[kg/m²] ∧ EForm[m/s] → TetForm[kg/(m⋅s)]
+  w_21 = ∧(s, t_2, e_1)
+  @test all(unit.(w_21.data) .== unit(1.0u"kg/m/s"))
+  @test ustrip.(u"kg/m/s", w_21.data) ≈
+        ∧(plain_s, TriForm(ustrip.(u"kg/m^2", t_2.data)), EForm(ustrip.(u"m/s", e_1.data))).data
+
+  # 1∧2: EForm[m/s] ∧ TriForm[kg/m²] → TetForm[kg/(m⋅s)]
+  w_12 = ∧(s, e_1, t_2)
+  @test all(unit.(w_12.data) .== unit(1.0u"kg/m/s"))
+  @test ustrip.(u"kg/m/s", w_12.data) ≈
+        ∧(plain_s, EForm(ustrip.(u"m/s", e_1.data)), TriForm(ustrip.(u"kg/m^2", t_2.data))).data
+
+  # Interior product i_{X♭}(α): a primal EForm (encoding a covector field) and a
+  # dual n-form; yields a dual (n-1)-form.
+  # All geometric weights come from DiagonalHodge operators applied internally, so
+  # the output unit inherits the EForm unit × input DualForm unit × hodge factors.
+  X♭ = EForm(collect(1.0:ne(s)) .* u"m/s")
+  plain_X♭ = EForm(ustrip.(u"m/s", X♭.data))
+
+  # ip(X♭[m/s], DualForm{1}[kg/s]; DiagonalHodge) → DualForm{0}[kg/(m⋅s²)]
+  # Unit chain: inv_⋆(2)[m]: DualForm{1}[kg/s] → TriForm[kg⋅m/s];
+  #   ∧(2,1)[1]: TriForm[kg⋅m/s] ∧ EForm[m/s] → TetForm[kg⋅m²/s²];
+  #   ⋆(3)[m⁻³]: TetForm[kg⋅m²/s²] → DualForm{0}[kg/(m⋅s²)].
+  df1 = DualForm{1}(collect(1.0:ntriangles(s)) .* u"kg/s")
+  ip1 = interior_product(s, X♭, df1; hodge=DiagonalHodge())
+  @test ip1 isa DualForm{0}
+  @test all(unit.(ip1.data) .== unit(1.0u"kg/m/s^2"))
+  ip1_plain = interior_product(plain_s, plain_X♭, DualForm{1}(ustrip.(u"kg/s", df1.data));
+                               hodge=DiagonalHodge())
+  @test ustrip.(u"kg/m/s^2", ip1.data) ≈ ip1_plain.data
+
+  # ip(X♭[m/s], DualForm{2}[m²]; DiagonalHodge) → DualForm{1}[m/s]
+  # Unit chain: inv_⋆(1)[m⁻¹]: DualForm{2}[m²] → EForm[m];
+  #   ∧(1,1)[1]: EForm[m] ∧ EForm[m/s] → TriForm[m²/s];
+  #   ⋆(2)[m⁻¹]: TriForm[m²/s] → DualForm{1}[m/s].
+  df2 = DualForm{2}(collect(1.0:ne(s)) .* u"m^2")
+  ip2 = interior_product(s, X♭, df2; hodge=DiagonalHodge())
+  @test ip2 isa DualForm{1}
+  @test all(unit.(ip2.data) .== unit(1.0u"m/s"))
+  ip2_plain = interior_product(plain_s, plain_X♭, DualForm{2}(ustrip.(u"m^2", df2.data));
+                               hodge=DiagonalHodge())
+  @test ustrip.(u"m/s", ip2.data) ≈ ip2_plain.data
+
+  # ip(X♭[m/s], DualForm{3}[kg/m³]; DiagonalHodge) → DualForm{2}[kg/(m⁴⋅s)]
+  # Unit chain: inv_⋆(0)[m⁻³]: DualForm{3}[kg/m³] → VForm[kg/m⁶];
+  #   ∧(0,1)[1]: VForm[kg/m⁶] ∧ EForm[m/s] → EForm[kg/(m⁵⋅s)];
+  #   ⋆(1)[m]: EForm[kg/(m⁵⋅s)] → DualForm{2}[kg/(m⁴⋅s)].
+  df3 = DualForm{3}(collect(1.0:nv(s)) .* u"kg/m^3")
+  ip3 = interior_product(s, X♭, df3; hodge=DiagonalHodge())
+  @test ip3 isa DualForm{2}
+  @test all(unit.(ip3.data) .== unit(1.0u"kg/m^4/s"))
+  ip3_plain = interior_product(plain_s, plain_X♭, DualForm{3}(ustrip.(u"kg/m^3", df3.data));
+                               hodge=DiagonalHodge())
+  @test ustrip.(u"kg/m^4/s", ip3.data) ≈ ip3_plain.data
+
+  # Lie derivative ℒ_{X♭}(α) via Cartan's formula: ℒ = i∘d̃ + d̃∘i.
+  # All dual-derivative operators (d̃) are dimensionless (±1 entries).
+
+  # ℒ(X♭[m/s], DualForm{0}[kg]) → DualForm{0}[kg/(m⋅s)]
+  # Via ℒ = i∘d̃₀: d̃₀[1] maps DualForm{0}[kg] → DualForm{1}[kg],
+  #   then i(X♭[m/s], DualForm{1}[kg]) → DualForm{0}[kg/(m⋅s)].
+  df0 = DualForm{0}(collect(1.0:ntetrahedra(s)) .* u"kg")
+  lie0 = ℒ(s, X♭, df0; hodge=DiagonalHodge())
+  @test lie0 isa DualForm{0}
+  @test all(unit.(lie0.data) .== unit(1.0u"kg/m/s"))
+  lie0_plain = ℒ(plain_s, plain_X♭, DualForm{0}(ustrip.(u"kg", df0.data));
+                 hodge=DiagonalHodge())
+  @test ustrip.(u"kg/m/s", lie0.data) ≈ lie0_plain.data
+
+  # ℒ(X♭[m/s], DualForm{1}[kg/s]) → DualForm{1}[kg/(m⋅s²)]
+  # Via ℒ = i∘d̃₁ + d̃₀∘i: both terms contribute DualForm{1}[kg/(m⋅s²)].
+  lie1 = ℒ(s, X♭, df1; hodge=DiagonalHodge())
+  @test lie1 isa DualForm{1}
+  @test all(unit.(lie1.data) .== unit(1.0u"kg/m/s^2"))
+  lie1_plain = ℒ(plain_s, plain_X♭, DualForm{1}(ustrip.(u"kg/s", df1.data));
+                 hodge=DiagonalHodge())
+  @test ustrip.(u"kg/m/s^2", lie1.data) ≈ lie1_plain.data
+
+  # ℒ(X♭[m/s], DualForm{2}[m²]) → DualForm{2}[m/s]
+  # Via ℒ = d̃₁∘i: i(X♭[m/s], DualForm{2}[m²]) → DualForm{1}[m/s],
+  #   then d̃₁[1] maps DualForm{1}[m/s] → DualForm{2}[m/s].
+  lie2 = ℒ(s, X♭, df2; hodge=DiagonalHodge())
+  @test lie2 isa DualForm{2}
+  @test all(unit.(lie2.data) .== unit(1.0u"m/s"))
+  lie2_plain = ℒ(plain_s, plain_X♭, DualForm{2}(ustrip.(u"m^2", df2.data));
+                 hodge=DiagonalHodge())
+  @test ustrip.(u"m/s", lie2.data) ≈ lie2_plain.data
 end
 
 @testset "Unitful DEC operators in 3D" begin

@@ -2104,7 +2104,7 @@ primal vector field (or primal 1-form) and a dual ``n``-forms and then returns a
 dual ``(n-1)``-form.
 """
 interior_product(s::HasDeltaSet, X♭::EForm, α::DualForm{n}; kw...) where n =
-  DualForm{n-1}(interior_product_flat(Val(n), s, X♭.data, α.data); kw...)
+  DualForm{n-1}(interior_product_flat(Val(n), s, X♭.data, α.data; kw...))
 
 """ Interior product of a 1-form and a ``n``-form, yielding an ``(n-1)``-form.
 
