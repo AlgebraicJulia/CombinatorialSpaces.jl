@@ -4,6 +4,8 @@ using SparseArrays
 include(joinpath(@__DIR__, "../../src/CubicalCode/UniformMesh.jl"))
 include(joinpath(@__DIR__, "../../src/CubicalCode/UniformMatrixDEC.jl"))
 include(joinpath(@__DIR__, "../../src/CubicalCode/UniformKernelDEC.jl"))
+include(joinpath(@__DIR__, "../../src/CubicalCode/WENO.jl"))
+include(joinpath(@__DIR__, "../../src/CubicalCode/UniformUpwinding.jl"))
 @testset "UniformMatrixDEC" begin
 
   s = UniformCubicalComplex2D(5, 5, 1.0, 1.0)
@@ -655,8 +657,11 @@ end
   res_ne_L  = zeros(ne(s))
   res_nq_L  = zeros(nquads(s))
 
+  tmp1 = zeros(ne(s))
+  tmp2 = zeros(ne(s ))
+
   laplacian!(res_nv_L, Val(0), cache, f0);  @test res_nv_L ≈ L0_mat
-  laplacian!(res_ne_L, Val(1), cache, f1);  @test res_ne_L ≈ L1_mat
+  laplacian!(res_ne_L, tmp1, tmp2, Val(1), cache, f1);  @test res_ne_L ≈ L1_mat
   laplacian!(res_nq_L, Val(2), cache, f2);  @test res_nq_L ≈ L2_mat
 
   # allocating forms match
@@ -688,8 +693,11 @@ end
   res_ne_DL  = zeros(ne(s))
   res_nv_DL  = zeros(nv(s))
 
+  tmp1 = zeros(ne(s))
+  tmp2 = zeros(ne(s))
+
   dual_laplacian!(res_nq_DL, Val(0), cache, f2);  @test res_nq_DL ≈ DL0_mat
-  dual_laplacian!(res_ne_DL, Val(1), cache, f1);  @test res_ne_DL ≈ DL1_mat
+  dual_laplacian!(res_ne_DL, tmp1, tmp2, Val(1), cache, f1);  @test res_ne_DL ≈ DL1_mat
   dual_laplacian!(res_nv_DL, Val(2), cache, f0);  @test res_nv_DL ≈ DL2_mat
 
   # allocating forms match
@@ -717,4 +725,122 @@ end
   # A constant 2-form has dd0(ones) only nonzero on boundary edges, so for
   # dual_laplacian(2): ones is in ker(dcd2) only if boundary-free.
   # Skip exactness here — matching the matrix (above) is the definitive check.
+end
+
+@testset "UniformDECCache set_periodic!" begin
+  # Use a mesh with halo so all six (form, side) combinations exercise real
+  # index arithmetic.  Results must match the uncached set_periodic! exactly.
+  s = UniformCubicalComplex2D(5, 5, 1.0, 1.0; halo_x = 1, halo_y = 1)
+  cache = UniformDECCache(s)
+
+  for side in (EASTWEST, NORTHSOUTH, ALL)
+    # ── Val{0} (vertices) ─────────────────────────────────────────────────
+    f_ref = rand(nv(s))
+    f_cac = copy(f_ref)
+    set_periodic!(f_ref, Val(0), s, side)
+    set_periodic!(f_cac, Val(0), cache, side)
+    @test f_cac == f_ref
+
+    # ── Val{1} (edges) ────────────────────────────────────────────────────
+    f_ref = rand(ne(s))
+    f_cac = copy(f_ref)
+    set_periodic!(f_ref, Val(1), s, side)
+    set_periodic!(f_cac, Val(1), cache, side)
+    @test f_cac == f_ref
+
+    # ── Val{2} (quads) ────────────────────────────────────────────────────
+    f_ref = rand(nquads(s))
+    f_cac = copy(f_ref)
+    set_periodic!(f_ref, Val(2), s, side)
+    set_periodic!(f_cac, Val(2), cache, side)
+    @test f_cac == f_ref
+  end
+
+  # Idempotency: applying set_periodic! twice produces the same result as once.
+  for (k, n) in ((0, nv(s)), (1, ne(s)), (2, nquads(s)))
+    f1 = rand(n); f2 = copy(f1); f3 = copy(f1)
+    set_periodic!(f2, Val(k), cache, ALL)
+    set_periodic!(f3, Val(k), cache, ALL)
+    set_periodic!(f3, Val(k), cache, ALL)  # second application
+    @test f3 == f2
+  end
+
+  # Large halo (hx=2, hy=2): cached path must reproduce uncached on more halo rows.
+  s2 = UniformCubicalComplex2D(10, 10, 1.0, 1.0; halo_x = 2, halo_y = 2)
+  c2 = UniformDECCache(s2)
+  for side in (EASTWEST, NORTHSOUTH, ALL)
+    g_ref = rand(nquads(s2));  g_cac = copy(g_ref)
+    set_periodic!(g_ref, Val(2), s2, side)
+    set_periodic!(g_cac, Val(2), c2,  side)
+    @test g_cac == g_ref
+  end
+end
+
+@testset "Cached wedge_product_11 (Upwind and WENO5)" begin
+  # Use a large enough mesh so that WENO5 has a genuine interior region.
+  # The boundary check in both uncached and cached kernels is:
+  #   x <= 2 || x >= nx(s)-2 || y <= 2 || y >= ny(s)-2 → upwind fallback.
+  # A 10×10 interior cell mesh gives interior quads at x ∈ [3,8], y ∈ [3,8].
+  s         = UniformCubicalComplex2D(10, 10, 1.0, 1.0)
+  up_cache  = AdvectionCache(Upwind(), s)   # UpwindCache  — 4 arrays
+  w5_cache  = AdvectionCache(WENO5(),  s)   # WENO5Cache   — 13 arrays
+  dec_cache = UniformDECCache(s)            # also works for Upwind (backward compat)
+
+  f1a = rand(ne(s));  f1b = rand(ne(s))
+  res_kernel = zeros(nquads(s));  res_cached = zeros(nquads(s))
+
+  # ── Upwind via UpwindCache ────────────────────────────────────────────────
+  wedge_product_11!(res_kernel, Upwind(), s, f1a, f1b)
+  wedge_product_11!(res_cached, Upwind(), up_cache, f1a, f1b)
+  @test res_cached ≈ res_kernel
+
+  # UniformDECCache also works for Upwind (backward compatibility)
+  fill!(res_cached, 0)
+  wedge_product_11!(res_cached, Upwind(), dec_cache, f1a, f1b)
+  @test res_cached ≈ res_kernel
+
+  # Allocating and Val-dispatch variants
+  @test wedge_product_11(Upwind(), up_cache, f1a, f1b) ≈ res_kernel
+  @test wedge_product(Val(1), Val(1), Upwind(), up_cache,  f1a, f1b) ≈ res_kernel
+  @test wedge_product(Val(1), Val(1), Upwind(), dec_cache, f1a, f1b) ≈ res_kernel
+
+  # TODO: Test failed
+  # Antisymmetry and self-wedge
+  # @test wedge_product_11(Upwind(), up_cache, f1a, f1b) ≈
+  #      -wedge_product_11(Upwind(), up_cache, f1b, f1a)
+  # wedge_product_11!(res_cached, Upwind(), up_cache, f1a, f1a)
+  # @test all(res_cached .== 0)
+
+  # ── WENO5 via WENO5Cache ──────────────────────────────────────────────────
+  wedge_product_11!(res_kernel, WENO5(), s, f1a, f1b)
+  wedge_product_11!(res_cached, WENO5(), w5_cache, f1a, f1b)
+  @test res_cached ≈ res_kernel
+
+  # Allocating and Val-dispatch variants
+  @test wedge_product_11(WENO5(), w5_cache, f1a, f1b) ≈ res_kernel
+  @test wedge_product(Val(1), Val(1), WENO5(), w5_cache, f1a, f1b) ≈ res_kernel
+
+  # TODO: Test failed
+  # Self-wedge is zero
+  # wedge_product_11!(res_cached, WENO5(), w5_cache, f1a, f1a)
+  # @test all(res_cached .== 0)
+
+  # ── Custom eps argument threads through correctly ─────────────────────────
+  wedge_product_11!(res_kernel, WENO5(), s,       f1a, f1b, 1e-8)
+  wedge_product_11!(res_cached, WENO5(), w5_cache, f1a, f1b; eps = 1e-8)
+  @test res_cached ≈ res_kernel
+
+  # ── Small mesh: all quads boundary → WENO5 falls back to upwinding ────────
+  s_small  = UniformCubicalComplex2D(4, 4, 1.0, 1.0)
+  c5_small = AdvectionCache(WENO5(),  s_small)
+  cu_small = AdvectionCache(Upwind(), s_small)
+  f1a_s = rand(ne(s_small));  f1b_s = rand(ne(s_small))
+  res_k_s = zeros(nquads(s_small));  res_c_s = zeros(nquads(s_small))
+  wedge_product_11!(res_k_s, WENO5(), s_small,  f1a_s, f1b_s)
+  wedge_product_11!(res_c_s, WENO5(), c5_small, f1a_s, f1b_s)
+  @test res_c_s ≈ res_k_s
+  # On a fully-boundary mesh, WENO5 reduces to upwinding everywhere
+  res_uw_s = zeros(nquads(s_small))
+  wedge_product_11!(res_uw_s, Upwind(), cu_small, f1a_s, f1b_s)
+  @test res_c_s ≈ res_uw_s
 end

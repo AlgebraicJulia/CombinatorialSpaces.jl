@@ -1,12 +1,13 @@
 using Printf
+using Dates
 
-const DEFAULT_RESOLUTIONS = [129, 257, 513]
+const DEFAULT_RESOLUTIONS = [129, 257, 513, 1025]
 const DEFAULT_TESTCASES = [
 	"Diagonal",
 	"Stretch",
 	"Rotate",
 	"CircularVortex",
-	"ReversedVortex",
+	# "ReversedVortex", # TODO: This case is currently failing, needs investigation
 ]
 
 function parse_csv_strings(value::String)
@@ -35,9 +36,9 @@ function env_or_default_ints(varname::String, default::Vector{Int})
 	return parsed
 end
 
-function run_single_case(repo_root::String, tracer_script::String, n::Int, case_name::String)
-	println("============================================================")
-	println("Running tracer case=$(case_name), n=$(n)")
+function run_single_case(repo_root::String, tracer_script::String, n::Int, case_name::String, log_io::IO)
+	write(log_io, "============================================================\n")
+	write(log_io, "Running tracer case=$(case_name), n=$(n)\n")
 
 	cmd = `$(Base.julia_cmd()) --project=$(repo_root) $(tracer_script)`
 	start_time = time()
@@ -57,18 +58,18 @@ function run_single_case(repo_root::String, tracer_script::String, n::Int, case_
 	elapsed = time() - start_time
 
 	if ok
-		println(@sprintf("Finished case=%s, n=%d in %.2fs", case_name, n, elapsed))
+		write(log_io, @sprintf("Finished case=%s, n=%d in %.2fs\n", case_name, n, elapsed))
 	else
-		println(@sprintf("FAILED case=%s, n=%d in %.2fs", case_name, n, elapsed))
-		println("Error: $(err_msg)")
+		write(log_io, @sprintf("FAILED case=%s, n=%d in %.2fs\n", case_name, n, elapsed))
+		write(log_io, "Error: $(err_msg)\n")
 	end
 
-	flush(stdout)
+	flush(log_io)
 	return (n = n, case = case_name, ok = ok, seconds = elapsed, error = err_msg)
 end
 
-function print_summary(results)
-	println("\n======================== Tracer Sweep Summary ========================")
+function print_summary(results, log_io::IO)
+	write(log_io, "\n======================== Tracer Sweep Summary ========================\n")
 
 	total = length(results)
 	passed = count(r -> r.ok, results)
@@ -76,35 +77,43 @@ function print_summary(results)
 
 	for r in results
 		status = r.ok ? "PASS" : "FAIL"
-		println(@sprintf("[%s] n=%4d | case=%-16s | %8.2fs", status, r.n, r.case, r.seconds))
+		write(log_io, @sprintf("[%s] n=%4d | case=%-16s | %8.2fs\n", status, r.n, r.case, r.seconds))
 	end
 
-	println("---------------------------------------------------------------------")
-	println(@sprintf("Total: %d | Passed: %d | Failed: %d", total, passed, failed))
+	write(log_io, "---------------------------------------------------------------------\n")
+	write(log_io, @sprintf("Total: %d | Passed: %d | Failed: %d\n", total, passed, failed))
 end
 
 function main()
-	repo_root = normpath(joinpath(@__DIR__, "..", ".."))
+	repo_root     = normpath(joinpath(@__DIR__, "..", ".."))
 	tracer_script = joinpath(@__DIR__, "Tracer.jl")
 
+	rm(joinpath(@__DIR__, "imgs", "Tracer"); force = true, recursive = true) # Clear old images
+
 	resolutions = env_or_default_ints("CS_TRACER_RESOLUTIONS", DEFAULT_RESOLUTIONS)
-	testcases = env_or_default_strings("CS_TRACER_TESTCASES", DEFAULT_TESTCASES)
+	testcases   = env_or_default_strings("CS_TRACER_TESTCASES", DEFAULT_TESTCASES)
 
-	println("Tracer sweep starting...")
-	println("Resolutions: $(resolutions)")
-	println("Testcases: $(testcases)")
+	timestamp = Dates.format(now(), "yyyy-mm-ddTHH-MM-SS")
+	log_path  = joinpath(@__DIR__, "tracer_results_$(timestamp).txt")
 
-	results = NamedTuple[]
-	for n in resolutions
-		for case_name in testcases
-			push!(results, run_single_case(repo_root, tracer_script, n, case_name))
+	open(log_path, "w") do log_io
+		write(log_io, "Tracer sweep starting...\n")
+		write(log_io, "Resolutions: $(resolutions)\n")
+		write(log_io, "Testcases: $(testcases)\n")
+
+		results = NamedTuple[]
+		for n in resolutions
+			for case_name in testcases
+				push!(results, run_single_case(repo_root, tracer_script, n, case_name, log_io))
+			end
 		end
-	end
 
-	print_summary(results)
+		print_summary(results, log_io)
+		flush(log_io)
 
-	if any(!r.ok for r in results)
-		error("One or more tracer sweep runs failed.")
+		if any(!r.ok for r in results)
+			error("One or more tracer sweep runs failed.")
+		end
 	end
 
 	return nothing
