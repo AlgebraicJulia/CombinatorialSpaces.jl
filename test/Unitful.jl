@@ -379,6 +379,7 @@ function test_unitful_dec_operators_3d(subdivision)
   subdivide_duals!(plain_s, subdivision)
 
   @test volume(s, Tet(1)) ≈ (1/6)u"m^3"
+  # Edges 1-3 connect axis-aligned vertices (length √2); edges 4-6 are axis-aligned (length 1).
   @test volume(s, E(1:6)) ≈ [√2, √2, √2, 1.0, 1.0, 1.0] .* u"m"
 
   # ⋆(0): VForm[U] → DualForm{3}[U·m³]
@@ -439,7 +440,7 @@ function test_unitful_dec_operators_3d(subdivision)
   @test ustrip.(u"m^-1", diag(str2)) ≈ diag(⋆(2, plain_s, DiagonalHodge()))
   @test ustrip.(u"m", diag(invstr2)) ≈ diag(inv_hodge_star(2, plain_s, DiagonalHodge()))
 
-  # Laplace-Beltrami operator Δ = d ∘ δ on a 3D meter-scale mesh.
+  # Laplace-de Rham operator Δ = dδ + δd on a 3D meter-scale mesh.
   # In 3D: Δ picks up a factor of [m⁻²] from the hodge operators.
   #   Δ(ρ [kg/m³])  → [kg/m⁵]       (0-form: ⋆(1)[m] and inv_⋆(0)[m⁻³])
   #   Δ(q [kg/m²s]) → [kg/(m⁴·s)]   (1-form)
