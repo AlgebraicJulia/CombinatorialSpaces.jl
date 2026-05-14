@@ -224,9 +224,9 @@ momentum_diffusion(::AbstractSimulationModel, s::UniformCubicalComplex2D, state:
 #   p        – NamedTuple of physical parameters (must include p.mu)
 #   dec_ops  – NamedTuple of pre-built DEC operators for the mesh
 #
-# Boundary-condition hooks `enforce_bc_v!(v)` and `enforce_bc_V!(V)` are called on
-# the primal-edge velocity and momentum interpolants respectively; define them in the
-# sim-case file for non-trivial BCs.
+# Boundary-condition hooks `enforce_bc_v!(v)`, `enforce_bc_V!(V)`, and `enforce_bc_U!(result)`
+# are called on the primal-edge velocity, momentum interpolants, and the momentum RHS result
+# respectively; define them in the sim-case file for non-trivial BCs.
 function momentum_conservation(
   model::AbstractSimulationModel,
   s::UniformCubicalComplex2D,
@@ -286,7 +286,9 @@ function momentum_conservation(
     rhs .+= body
   end
 
-  return -inv_hdg_1 * rhs
+  result = -inv_hdg_1 * rhs
+  enforce_bc_U!(result) # TODO: This was added because gravity force was non-zero through boundary
+  return result
 end
 
 ###############################
@@ -485,6 +487,7 @@ function run_with_model_callbacks(
     save_everystep = false,
     save_start = false,
     save_end = false,
+    save_on = false,
     callback = callbacks,
     dense = false,
   )

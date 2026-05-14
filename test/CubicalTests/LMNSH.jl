@@ -6,6 +6,7 @@ include(joinpath(@__DIR__, "LMNS_Helpers", "Simulation_Header.jl"))
 
 # simfile = "Kelvin-Helmholtz_Sim.jl"
 simfile = "Thermal_Bubble_Sim.jl"
+# simfile = "RTI_Sim.jl"
 
 # Test case parameters for lid-driven cavity flow at different Reynolds numbers
 include(joinpath(@__DIR__, "Sim_Files", simfile))
@@ -95,7 +96,7 @@ function potential_temperature_continuity(state::ComponentVector{FT}, p::NamedTu
   temperature_advection = hdg_2 * wedge_product(Val(1), Val(1), s, v, inv_hdg_1 * dual_d0 * Theta)
 
   # κΔθ thermal diffusion
-  temperature_diffusion = kappa * dΔ0 * theta
+  temperature_diffusion = kappa * (dΔ0 * theta)
 
   return inv_hdg_2 * (-temperature_creation - temperature_advection + temperature_diffusion)
 end
@@ -126,6 +127,17 @@ function log_progress!(::LMNSHModel, integrator, refs, cfg::CallbackConfig, cont
   println("Loading simulation results: $(progress * 100)%")
   println("Relative mass is : $((sum(interior(Val(2), Array(integrator.u.rho_star), context.s)) / refs.m0) * 100)%")
   println("Relative energy is : $((sum(interior(Val(2), Array(integrator.u.Theta_star), context.s)) / refs.E0) * 100)%")
+
+  # mem_before = CUDA.used_memory()
+
+  # GC.gc(true)
+  # GC.gc(true)                # second pass: drain finalizer thread queue
+  # CUDA.synchronize()         # drain the CUDA stream — makes all cudaFreeAsync complete
+  # CUDA.reclaim()             # now the pool actually knows what's free
+
+  # mem_after = CUDA.used_memory()
+  # println("GPU live: $(round(mem_before / 1024^2, digits=1)) MiB before GC → $(round(mem_after / 1024^2, digits=1)) MiB after")
+
   println("-----")
   flush(stdout)
 
@@ -145,11 +157,19 @@ end
 
 model_has_smoothing(::LMNSHModel) = true
 
+const tmp_rho_smooth_buf = to_device(zeros(Float64, nquads(s)))
+const tmp_Theta_smooth_buf = to_device(zeros(Float64, nquads(s)))
+
 function apply_smoothing!(::LMNSHModel, integrator, context)
-  integrator.u.rho_star .= context.dec_ops.smoothing.rho * integrator.u.rho_star
-  integrator.u.Theta_star .= context.dec_ops.smoothing.Theta * integrator.u.Theta_star
+  mul!(tmp_rho_smooth_buf, context.dec_ops.smoothing.rho, integrator.u.rho_star)
+  integrator.u.rho_star .= tmp_rho_smooth_buf
+
+  mul!(tmp_Theta_smooth_buf, context.dec_ops.smoothing.Theta, integrator.u.Theta_star)
+  integrator.u.Theta_star .= tmp_Theta_smooth_buf
   return nothing
 end
+
+
 
 function run_checkpoint_outputs!(::LMNSHModel, regular_save_values::SavedValues, step::Int, checkpoint_t::AbstractFloat, cfg::CallbackConfig, context)
   println("Checkpoint saved at step: $(step)")

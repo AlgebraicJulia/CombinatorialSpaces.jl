@@ -108,3 +108,4 @@ const c_smooth = 0.2
 # Fully periodic — no flux conditions needed at boundaries.
 @inline enforce_bc_v!(v::AbstractVector{FT}) where FT = v
 @inline enforce_bc_V!(V::AbstractVector{FT}) where FT = V
+@inline enforce_bc_U!(U::AbstractVector{FT}) where FT = U
