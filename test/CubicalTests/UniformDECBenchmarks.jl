@@ -107,6 +107,11 @@ for n in GRID_SIZES
   suite[key]["dd1"]["matrix apply"] = @benchmarkable(mul!($res_nv, $dd1, $f1), teardown=$_teardown)
   suite[key]["dd1"]["cached apply"] = @benchmarkable(dual_derivative!($res_nv, Val(1), $cache, $f1), teardown=$_teardown)
 
+  local d_beta_mat = _dev_matrix(dual_derivative_beta(Val(1), s))
+  suite[key]["d_beta_mul"] = BenchmarkGroup()
+  suite[key]["d_beta_mul"]["matrix apply"] = @benchmarkable(mul!($res_nv, $d_beta_mat, $f1), teardown=$_teardown)
+  suite[key]["d_beta_mul"]["cached apply"] = @benchmarkable(d_beta_mul!($res_nv, $cache, $f1), teardown=$_teardown)
+
   # ── Hodge stars ───────────────────────────────────────────────────────────
   local hs0 = _dev_matrix(hodge_star(Val(0), s))
   suite[key]["hodge_star_0"] = BenchmarkGroup()

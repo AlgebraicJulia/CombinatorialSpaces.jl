@@ -932,6 +932,25 @@ end
   end
 end
 
+# TODO: Add support for passing in a custom boundary value (e.g. for nonzero Dirichlet conditions) instead of zero.
+# This should be done by passing a vector of boundary values
+# ── no_flux_dd0: same as dd0 but boundary-edge rows are zeroed ────────────
+# Boundary edges (dd0_emask != 3) are set to zero in the output.
+# Interior edges (dd0_emask == 3, both bits set) behave identically to dd0.
+# This matches no_flux_dual_derivative(Val(0), s) from UniformMatrixDEC.jl.
+@kernel function kernel_no_flux_dd0_cached!(res, @Const(dd0_qp), @Const(dd0_qn), @Const(dd0_emask), @Const(f))
+  e = @index(Global)
+  @inbounds begin
+    mask = dd0_emask[e]
+    # Interior bit: 1 only when both bit0 and bit1 are set (mask == 3).
+    interior = Int8(mask & Int8(1)) & Int8((mask >> Int8(1)) & Int8(1))
+    z = zero(eltype(f))
+    pos = ifelse(Bool(interior), f[dd0_qp[e]], z)
+    neg = ifelse(Bool(interior), f[dd0_qn[e]], z)
+    res[e] = pos - neg
+  end
+end
+
 # ── dd1 = -d0^T: signed gather from 4 incident edges per vertex ───────────
 # vmask bits 0-3 → vxs, vys, vxt, vyt exist respectively.
 @kernel function kernel_dd1_cached!(res, @Const(dd1_vxs), @Const(dd1_vys), @Const(dd1_vxt), @Const(dd1_vyt), @Const(dd1_vmask), @Const(a))
@@ -944,6 +963,44 @@ end
     xt = ifelse(Bool((mask >> Int8(2)) & Int8(1)), a[dd1_vxt[v]], z)
     yt = ifelse(Bool((mask >> Int8(3)) & Int8(1)), a[dd1_vyt[v]], z)
     res[v] = xs + ys - xt - yt
+  end
+end
+
+# ── d_beta_mul: boundary-edge contribution to vertex values ──────────────
+# Implements the matrix-vector product d_beta * V where
+#   d_beta = 0.5 * abs.(dd1) * diag(dd0 * ones(nquads))
+# For each vertex v, this sums 0.5 * sign(e) * V[e] over boundary edges
+# incident on v, where sign is determined by which side of the domain e lies on:
+#   dd0_emask == 1  (edge borders only its positive quad): sign = +1
+#   dd0_emask == 2  (edge borders only its negative quad): sign = −1
+#   dd0_emask == 3  (interior edge):                       sign =  0
+# Sign is extracted branchlessly as  bit0(emask) − bit1(emask).
+@kernel function kernel_d_beta_mul_cached!(res,
+                                           @Const(dd1_vxs), @Const(dd1_vys),
+                                           @Const(dd1_vxt), @Const(dd1_vyt),
+                                           @Const(dd1_vmask), @Const(dd0_emask), @Const(V))
+  v = @index(Global)
+  @inbounds begin
+    mask   = dd1_vmask[v]
+    z      = zero(eltype(V))
+
+    e_xsrc = dd1_vxs[v];  em_xsrc = dd0_emask[e_xsrc]
+    e_ysrc = dd1_vys[v];  em_ysrc = dd0_emask[e_ysrc]
+    e_xtgt = dd1_vxt[v];  em_xtgt = dd0_emask[e_xtgt]
+    e_ytgt = dd1_vyt[v];  em_ytgt = dd0_emask[e_ytgt]
+
+    # Branchless sign: bit0 − bit1 (interior emask=3 → 1−1=0, boundary → ±1)
+    sx = eltype(V)(em_xsrc & Int8(1)) - eltype(V)((em_xsrc >> Int8(1)) & Int8(1))
+    sy = eltype(V)(em_ysrc & Int8(1)) - eltype(V)((em_ysrc >> Int8(1)) & Int8(1))
+    st = eltype(V)(em_xtgt & Int8(1)) - eltype(V)((em_xtgt >> Int8(1)) & Int8(1))
+    su = eltype(V)(em_ytgt & Int8(1)) - eltype(V)((em_ytgt >> Int8(1)) & Int8(1))
+
+    xs = ifelse(Bool(mask & Int8(1)),               sx * V[e_xsrc], z)
+    ys = ifelse(Bool((mask >> Int8(1)) & Int8(1)), sy * V[e_ysrc], z)
+    xt = ifelse(Bool((mask >> Int8(2)) & Int8(1)), st * V[e_xtgt], z)
+    yt = ifelse(Bool((mask >> Int8(3)) & Int8(1)), su * V[e_ytgt], z)
+
+    res[v] = (xs + ys + xt + yt) * 0.5
   end
 end
 
@@ -962,6 +1019,18 @@ function exterior_derivative!(res, ::Val{1}, cache::UniformDECCache, f)
   kernel_d1_cached!(backend)(res, cache.q_e1, cache.q_e2, cache.q_e3, cache.q_e4, f;
                               ndrange = cache.nquads_)
   return res
+end
+
+function exterior_derivative(::Val{0}, cache::UniformDECCache, f::AbstractVector{FT}) where FT
+  backend = get_backend(f)
+  res = KernelAbstractions.zeros(backend, FT, cache.ne_)
+  return exterior_derivative!(res, Val(0), cache, f)
+end
+
+function exterior_derivative(::Val{1}, cache::UniformDECCache, f::AbstractVector{FT}) where FT
+  backend = get_backend(f)
+  res = KernelAbstractions.zeros(backend, FT, cache.nquads_)
+  return exterior_derivative!(res, Val(1), cache, f)
 end
 
 function wedge_product(::Val{0}, ::Val{1}, cache::UniformDECCache,
@@ -1121,6 +1190,44 @@ function dual_derivative(::Val{k}, cache::UniformDECCache, f::AbstractVector{FT}
   res = KernelAbstractions.zeros(backend, FT, n)
   return dual_derivative!(res, Val(k), cache, f)
 end
+
+# ── no_flux_dual_derivative (cached) ─────────────────────────────────────
+# Equivalent to the matrix no_flux_dual_derivative(Val(0), s): applies dd0
+# but zeros all boundary-edge rows. Boundary edges are identified by having
+# dd0_emask != 3 (i.e. only one adjacent quad exists).
+function no_flux_dual_derivative!(res, ::Val{0}, cache::UniformDECCache, f)
+  backend = get_backend(f)
+  kernel_no_flux_dd0_cached!(backend)(res, cache.dd0_qp, cache.dd0_qn, cache.dd0_emask, f;
+                                       ndrange = cache.ne_)
+  return res
+end
+
+function no_flux_dual_derivative(::Val{0}, cache::UniformDECCache, f::AbstractVector{FT}) where FT
+  backend = get_backend(f)
+  res = KernelAbstractions.zeros(backend, FT, cache.ne_)
+  return no_flux_dual_derivative!(res, Val(0), cache, f)
+end
+
+
+# Computes d_beta * V where d_beta = 0.5 * abs.(dd1) * diag(dd0 * ones(nquads)).
+# Result is a primal 0-form (nv): only boundary edges of V contribute.
+function d_beta_mul!(res, cache::UniformDECCache, V)
+  backend = get_backend(V)
+  kernel_d_beta_mul_cached!(backend)(res,
+    cache.dd1_vxs, cache.dd1_vys, cache.dd1_vxt, cache.dd1_vyt, cache.dd1_vmask,
+    cache.dd0_emask, V; ndrange = cache.nv_)
+  return res
+end
+
+function d_beta_mul(cache::UniformDECCache, V::AbstractVector{FT}) where FT
+  backend = get_backend(V)
+  res = KernelAbstractions.zeros(backend, FT, cache.nv_)
+  return d_beta_mul!(res, cache, V)
+end
+
+# TODO: Add support for passing in a custom boundary value (e.g. for nonzero Dirichlet conditions) instead of zero.
+# We need to make sure that any dual exterior derivatives that require some boundary condition are
+# being supported by these kernels
 
 # ═══════════════════════════════════════════════════════════════════════════
 #  Fused codifferential kernels
