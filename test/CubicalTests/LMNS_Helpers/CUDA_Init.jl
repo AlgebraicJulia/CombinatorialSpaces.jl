@@ -11,10 +11,12 @@ if HAS_CUDA
 
   to_device(arr::AbstractVector{T}) where T = USE_CUDA ? CUDA.CuVector{T}(arr) : arr
   to_device(mat::AbstractMatrix{T}) where T = USE_CUDA ? CUDA.CUSPARSE.CuSparseMatrixCSC{T}(mat) : SparseMatrixCSC{T}(mat)
+  to_device(ca::ComponentVector) = ComponentArray(map(to_device, NamedTuple(ca)))
 else
   const USE_CUDA = false
   println("CUDA package not found. Running on CPU.")
 
   to_device(arr::AbstractVector{T}) where T = arr
   to_device(mat::AbstractMatrix{T}) where T = SparseMatrixCSC{T}(mat)
+  to_device(ca::ComponentVector) = ComponentArray(map(to_device, NamedTuple(ca)))
 end

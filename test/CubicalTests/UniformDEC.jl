@@ -727,6 +727,60 @@ end
   # Skip exactness here — matching the matrix (above) is the definitive check.
 end
 
+@testset "d_beta_mul cached" begin
+  # Build the reference d_beta matrix.
+  s      = UniformCubicalComplex2D(5, 5, 1.0, 1.0)
+  cache  = UniformDECCache(s)
+  dd0    = dual_derivative(Val(0), s)
+  dd1    = dual_derivative(Val(1), s)
+  d_beta = dual_derivative_beta(Val(1), s)   # = 0.5 * abs.(dd1) * diag(dd0 * ones(nquads))
+
+  # ── random input: kernel matches matrix ──────────────────────────────────
+  V_rand = rand(ne(s))
+  ref    = d_beta * V_rand
+  @test d_beta_mul(cache, V_rand) ≈ ref
+
+  # in-place form also matches
+  res_nv = zeros(nv(s))
+  d_beta_mul!(res_nv, cache, V_rand)
+  @test res_nv ≈ ref
+
+  # ── zero input → zero output ──────────────────────────────────────────────
+  @test all(d_beta_mul(cache, zeros(ne(s))) .== 0)
+
+  # ── linearity: d_beta_mul(3V) == 3 * d_beta_mul(V) ───────────────────────
+  @test d_beta_mul(cache, 3.0 .* V_rand) ≈ 3.0 .* ref
+
+  # ── only boundary edges contribute ──────────────────────────────────────
+  # Setting all interior edges to zero should not change the result.
+  V_bdy = copy(V_rand)
+  boundary_idxs = findall(!=(0), dd0 * ones(nquads(s)))
+  interior_idxs = setdiff(1:ne(s), boundary_idxs)
+  V_bdy[interior_idxs] .= 0.0
+  @test d_beta_mul(cache, V_bdy) ≈ ref
+
+  # Setting only interior edges leaves nothing for d_beta to sum.
+  V_int = copy(V_rand)
+  V_int[boundary_idxs] .= 0.0
+  @test all(d_beta_mul(cache, V_int) .== 0)
+
+  # ── specific corner/boundary vertex values (from existing UniformDEC test) ─
+  # Vertex 1 is a corner; with a unit edge on the two adjacent boundary edges
+  # the original test used dd1*u + d_beta*v.  Here we verify d_beta*v alone.
+  V_pt = zeros(ne(s))
+  V_pt[1] = 2.0
+  V_pt[nxedges(s) + 1] = -2.0
+  ref_pt = d_beta * V_pt
+  @test d_beta_mul(cache, V_pt) ≈ ref_pt
+
+  # ── mesh with halo: kernel still matches matrix ───────────────────────────
+  sh       = UniformCubicalComplex2D(5, 5, 1.0, 1.0; halo_x = 1, halo_y = 1)
+  ch       = UniformDECCache(sh)
+  d_beta_h = dual_derivative_beta(Val(1), sh)
+  V_h      = rand(ne(sh))
+  @test d_beta_mul(ch, V_h) ≈ d_beta_h * V_h
+end
+
 @testset "UniformDECCache set_periodic!" begin
   # Use a mesh with halo so all six (form, side) combinations exercise real
   # index arithmetic.  Results must match the uncached set_periodic! exactly.
