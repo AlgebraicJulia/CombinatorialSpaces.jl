@@ -4,8 +4,25 @@
 
 println("Running Thermal Bubble Simulation...")
 
-const lx_ = ly_ = 6.0;
-const nx_ = ny_ = 129
+# # WARM BUBBLE
+# simname = "Perturbed_Warm_Bubble_Gradient"
+# thetaₕ = 300 * CUDA.ones(Float64, nv(sd))
+# Thetaₕ, ρₕ = generate_hydrostatic_vars(sd)
+# Pₕ = exact_pressure(Thetaₕ)
+
+# U₀ = CUDA.zeros(Float64, ne(sd))
+# theta_dist = MvNormal([lx / 2, ly / 4], 0.25)
+# theta′ = 10 * CuArray{Float64}([pdf(theta_dist, [p[1], p[2]]) for p in sd[:point]])
+# plot_zeroform(s, Array(theta′))
+
+# ρ′ = (Pₕ .^ (1 - R / Cₚ) * P₀^(R / Cₚ)) ./ (R .* (thetaₕ .+ theta′)) .- ρₕ
+# plot_zeroform(s, Array(ρ′))
+# Theta′ = ρ′ .* thetaₕ .+ ρₕ .* theta′ .+ ρ′ .* theta′
+# plot_zeroform(s, Array(Theta′))
+
+const lx_ = const ly_ = 6.0;
+# const nx_ = const ny_ = 129
+const nx_ = const ny_ = 65
 const s = UniformCubicalComplex2D(nx_, ny_, lx_, ly_)
 
 const ps = points(s)
@@ -21,7 +38,6 @@ const rho_h = map(dps) do (x, y)
   return hydrostatic_density(theta, y)
 end
 const Theta_h = theta_h .* rho_h
-const Theta_0 = deepcopy(Theta_h)
 
 const U_star_0 = zeros(ne(s))
 
@@ -39,6 +55,11 @@ const Theta_0 = rho_0 .* theta_0
 const rho_star_0 = inv_hdg_2 * rho_0
 const Theta_star_0 = inv_hdg_2 * Theta_0
 
+# const rho_star_0 = inv_hdg_2 * rho_h
+# const Theta_star_0 = inv_hdg_2 * Theta_h
+
+# Gravity parameters
+# This is on the dual grid, so we multiply by the dual edge length to get the correct force per unit mass
 const g_dual = to_device(map(edges(s)) do e
   if is_X_aligned(e, s)
     return gₐ * dual_edge_len(s, e)
@@ -55,8 +76,8 @@ const kappa = mu / Pr # Thermal diffusivity
 
 const p = (mu = mu, kappa = kappa)
 
-const te = 5.0
-const dt = 5e-5 # dx / 360
+const te = 40.0
+const dt = 1e-4 # dx / 360
 
 const use_gravity = true
 const full_periodic = false
@@ -79,6 +100,11 @@ end
   return U
 end
 
+@inline function enforce_bc_V!(V)
+  V .= V .* (1.0 .- boundary_mask_d) # Enforce no-slip boundary condition on velocity
+  return V
+end
+
 #########################
 ### Saving Parameters ###
 #########################
@@ -90,7 +116,7 @@ save_path = "/blue/fairbanksj/grauta/simulations/LMNS_ThermalBubble/$(simspec)"
 mkpath(save_path)
 
 const saveat = 1000
-const checkpoint_at = saveat * 10
+const checkpoint_at = saveat * 40
 
 const T_smooth_constant = 0.2
 const Theta_smoothing = to_device(smoothing_dual0(s, -T_smooth_constant) * smoothing_dual0(s, T_smooth_constant))
@@ -107,3 +133,6 @@ save(joinpath(save_path, "initial_velocity.png"), fig)
 
 fig = plot_twoform(s, hodge_star(Val(2), s) * Theta_star_0)
 save(joinpath(save_path, "initial_potential_temperature.png"), fig)
+
+fig = plot_xy_oneform(s, Array(g_dual))
+save(joinpath(save_path, "initial_gravity_sharp.png"), fig)
