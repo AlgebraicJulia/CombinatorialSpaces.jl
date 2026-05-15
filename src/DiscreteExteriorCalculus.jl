@@ -2156,7 +2156,17 @@ end
 
 function lie_derivative_flat(::Val{2}, s::HasDeltaSet,
                              X♭::AbstractVector, α::AbstractVector; kw...)
-  dual_derivative(1, s, interior_product_flat(2, s, X♭, α; kw...))
+  result = dual_derivative(1, s, interior_product_flat(2, s, X♭, α; kw...))
+  if ndims(s) > 2
+    result + interior_product_flat(3, s, X♭, dual_derivative(2, s, α); kw...)
+  else
+    result
+  end
+end
+
+function lie_derivative_flat(::Val{3}, s::HasDeltaSet,
+                             X♭::AbstractVector, α::AbstractVector; kw...)
+  dual_derivative(2, s, interior_product_flat(3, s, X♭, α; kw...))
 end
 
 function eval_constant_primal_form(s::HasDeltaSet1D, α)

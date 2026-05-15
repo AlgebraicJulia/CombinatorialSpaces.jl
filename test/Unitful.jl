@@ -607,8 +607,9 @@ function test_unitful_dec_operators_3d(subdivision)
   @test ustrip.(u"kg/m/s^2", lie1.data) ≈ lie1_plain.data
 
   # ℒ(X♭[m/s], DualForm{2}[m²]) → DualForm{2}[m/s]
-  # Via ℒ = d̃₁∘i: i(X♭[m/s], DualForm{2}[m²]) → DualForm{1}[m/s],
-  #   then d̃₁[1] maps DualForm{1}[m/s] → DualForm{2}[m/s].
+  # Via full Cartan formula ℒ = d̃₁∘i + i∘d̃₂:
+  #   i(X♭[m/s], DualForm{2}[m²]) → DualForm{1}[m/s], then d̃₁[1] → DualForm{2}[m/s];
+  #   d̃₂[1] maps DualForm{2}[m²] → DualForm{3}[m²], then i(X♭[m/s], DualForm{3}[m²]) → DualForm{2}[m/s].
   lie2 = ℒ(s, X♭, df2; hodge=DiagonalHodge())
   @test lie2 isa DualForm{2}
   @test all(unit.(lie2.data) .== unit(1.0u"m/s"))
@@ -629,6 +630,21 @@ function test_unitful_dec_operators_3d(subdivision)
   lie_adv = ℒ(s, u_flow_3d, ρ_adv; hodge=DiagonalHodge())
   @test lie_adv isa DualForm{0}
   @test all(unit.(lie_adv.data) .== unit(1.0u"kg/m^3/s"))
+
+  # Condensed Lie advection tests for higher dual forms.
+  # Geometric density chain: DualForm{k} carries [kg/m^{3-k}]; advection adds [1/s].
+  #   DualForm{1}[kg/m²]: areal density, ℒ(u♭[m²/s], ·) → [kg/(m²⋅s)]
+  #   DualForm{2}[kg/m]:  linear density, ℒ(u♭[m²/s], ·) → [kg/(m⋅s)]
+  #   DualForm{3}[kg]:    lumped (vertex) mass, ℒ(u♭[m²/s], ·) → [kg/s]
+  for (form, out_unit) in (
+    (DualForm{1}(collect(1.0:ntriangles(s)) .* u"kg/m^2"), u"kg/m^2/s"),
+    (DualForm{2}(collect(1.0:ne(s)) .* u"kg/m"),           u"kg/m/s"),
+    (DualForm{3}(collect(1.0:nv(s)) .* u"kg"),             u"kg/s"),
+  )
+    lie = ℒ(s, u_flow_3d, form; hodge=DiagonalHodge())
+    @test typeof(lie).parameters[1] == typeof(form).parameters[1]
+    @test all(unit.(lie.data) .== unit(1.0 * out_unit))
+  end
 end
 
 @testset "Unitful DEC operators in 3D" begin
