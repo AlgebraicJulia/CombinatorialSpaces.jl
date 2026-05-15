@@ -429,6 +429,13 @@ function test_unitful_dec_operators_3d(subdivision)
   @test ustrip.(u"m", diag(str1)) ≈ diag(⋆(1, plain_s, DiagonalHodge()))
   @test ustrip.(u"m^-1", diag(invstr1)) ≈ diag(inv_hodge_star(1, plain_s, DiagonalHodge()))
 
+  # Input: velocity 1-form q [m²/s] (line integral of velocity m/s over edges of length m → m²/s).
+  # ⋆(1) [m] · q [m²/s] = ⋆(q) [m³/s]  (dual-area-weighted flux).
+  # inv_hodge_star(1) [m⁻¹] · ⋆(q) [m³/s] = q [m²/s]  (recovers the original velocity 1-form).
+  vel_eform = EForm(collect(1.0:ne(s)) .* u"m^2/s")
+  @test all(unit.(str1 * vel_eform) .== unit(1.0u"m^3/s"))
+  @test (invstr1 * (str1 * vel_eform)) ≈ vel_eform.data
+
   # ⋆(2) (DiagonalHodge): TriForm[U] → DualForm{1}[U·m⁻¹]
   # Operator diagonal entries = dual 1-length / primal triangle area [m/m² = m⁻¹].
   # inv_hodge_star(2): DualForm{1}[U·m⁻¹] → TriForm[U]
