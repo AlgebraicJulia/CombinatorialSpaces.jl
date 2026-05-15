@@ -429,7 +429,8 @@ function test_unitful_dec_operators_3d(subdivision)
   @test ustrip.(u"m", diag(str1)) ≈ diag(⋆(1, plain_s, DiagonalHodge()))
   @test ustrip.(u"m^-1", diag(invstr1)) ≈ diag(inv_hodge_star(1, plain_s, DiagonalHodge()))
 
-  # Input: velocity 1-form q [m²/s] (line integral of velocity m/s over edges of length m → m²/s).
+  # Input: velocity 1-form q [m²/s].
+  # A velocity field (covector units m/s) integrated along an edge of length [m] gives [m²/s].
   # ⋆(1) [m] · q [m²/s] = ⋆(q) [m³/s]  (dual-area-weighted flux).
   # inv_hodge_star(1) [m⁻¹] · ⋆(q) [m³/s] = q [m²/s]  (recovers the original velocity 1-form).
   vel_eform = EForm(collect(1.0:ne(s)) .* u"m^2/s")
