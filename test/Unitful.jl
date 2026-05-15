@@ -349,4 +349,308 @@ end
   end
 end
 
+function test_unitful_dec_operators_3d(subdivision)
+  len_t = typeof(1.0u"m")
+  area_t = typeof(1.0u"m^2")
+  vol_t = typeof(1.0u"m^3")
+  geom_t = Union{len_t, area_t, vol_t}
+  primal_s = EmbeddedDeltaSet3D{Bool, Point3{len_t}}()
+  add_vertices!(primal_s, 4, point=[
+    Point3(0.0u"m", 0.0u"m", 0.0u"m"),
+    Point3(1.0u"m", 0.0u"m", 0.0u"m"),
+    Point3(0.0u"m", 1.0u"m", 0.0u"m"),
+    Point3(0.0u"m", 0.0u"m", 1.0u"m"),
+  ])
+  glue_sorted_tetrahedron!(primal_s, 1, 2, 3, 4)
+  s = EmbeddedDeltaDualComplex3D{Bool, geom_t, Point3{len_t}}(primal_s)
+  subdivide_duals!(s, subdivision)
+
+  # Plain (non-unitful) mesh with identical geometry (1 unit = 1 m).
+  # Used to provide the non-unitful reference pathway for equality checks.
+  plain_primal_s = EmbeddedDeltaSet3D{Bool, Point3d}()
+  add_vertices!(plain_primal_s, 4, point=[
+    Point3d(0.0, 0.0, 0.0),
+    Point3d(1.0, 0.0, 0.0),
+    Point3d(0.0, 1.0, 0.0),
+    Point3d(0.0, 0.0, 1.0),
+  ])
+  glue_sorted_tetrahedron!(plain_primal_s, 1, 2, 3, 4)
+  plain_s = EmbeddedDeltaDualComplex3D{Bool, Float64, Point3d}(plain_primal_s)
+  subdivide_duals!(plain_s, subdivision)
+
+  @test volume(s, Tet(1)) ≈ (1/6)u"m^3"
+  # Edges 1-3 connect axis-aligned vertices (length √2); edges 4-6 are axis-aligned (length 1).
+  @test volume(s, E(1:6)) ≈ [√2, √2, √2, 1.0, 1.0, 1.0] .* u"m"
+
+  # ⋆(0): VForm[U] → DualForm{3}[U·m³]
+  # Operator diagonal entries = dual 3-cell volume at each primal vertex [m³].
+  # inv_hodge_star(0): DualForm{3}[U·m³] → VForm[U]
+  # Operator diagonal entries = 1/(dual volume) [m⁻³].
+  str0 = ⋆(0, s, DiagonalHodge())
+  invstr0 = inv_hodge_star(0, s, DiagonalHodge())
+  @test all(unit.(diag(str0)) .== unit(1.0u"m^3"))
+  @test all(unit.(diag(invstr0)) .== unit(1.0u"m^-3"))
+  @test ustrip.(u"m^3", diag(str0)) ≈ diag(⋆(0, plain_s, DiagonalHodge()))
+  @test ustrip.(u"m^-3", diag(invstr0)) ≈ diag(inv_hodge_star(0, plain_s, DiagonalHodge()))
+
+  # Input: volumetric density ρ [kg/m³].
+  # ⋆(0) [m³] · ρ [kg/m³] = ⋆(ρ) [kg]  (integrates density over the dual cell volume).
+  # inv_hodge_star(0) [m⁻³] · ⋆(ρ) [kg] = ρ [kg/m³]  (recovers the original density).
+  density_vform = VForm([1.0, 2.0, 3.0, 4.0] .* u"kg/m^3")
+  @test all(unit.(str0 * density_vform) .== unit(1.0u"kg"))
+  @test (invstr0 * (str0 * density_vform)) ≈ density_vform.data
+
+  # ⋆(3): TetForm[U] → DualForm{0}[U·m⁻³]
+  # Operator diagonal entries = 1/(primal tet volume) [m⁻³].
+  # inv_hodge_star(3): DualForm{0}[U·m⁻³] → TetForm[U]
+  # Operator diagonal entries = primal tet volume [m³].
+  str3 = ⋆(3, s, DiagonalHodge())
+  invstr3 = inv_hodge_star(3, s, DiagonalHodge())
+  @test all(unit.(diag(str3)) .== unit(1.0u"m^-3"))
+  @test all(unit.(diag(invstr3)) .== unit(1.0u"m^3"))
+  @test ustrip.(u"m^-3", diag(str3)) ≈ diag(⋆(3, plain_s, DiagonalHodge()))
+  @test ustrip.(u"m^3", diag(invstr3)) ≈ diag(inv_hodge_star(3, plain_s, DiagonalHodge()))
+
+  # Input: mass m [kg] (integrated over each tetrahedron).
+  # ⋆(3) [m⁻³] · m [kg] = ⋆(m) [kg/m³]  (converts mass to volumetric density).
+  # inv_hodge_star(3) [m³] · ⋆(m) [kg/m³] = m [kg]  (recovers the original mass).
+  mass_tform = TetForm([3.0] .* u"kg")
+  @test all(unit.(str3 * mass_tform) .== unit(1.0u"kg/m^3"))
+  @test (invstr3 * (str3 * mass_tform)) ≈ mass_tform.data
+
+  # ⋆(1) (DiagonalHodge): EForm[U] → DualForm{2}[U·m]
+  # Operator diagonal entries = dual 2-area / primal edge length [m²/m = m].
+  # inv_hodge_star(1): DualForm{2}[U·m] → EForm[U]
+  # Operator diagonal entries = primal edge length / dual 2-area [m/m² = m⁻¹].
+  str1 = ⋆(1, s, DiagonalHodge())
+  invstr1 = inv_hodge_star(1, s, DiagonalHodge())
+  @test all(unit.(diag(str1)) .== unit(1.0u"m"))
+  @test all(unit.(diag(invstr1)) .== unit(1.0u"m^-1"))
+  @test ustrip.(u"m", diag(str1)) ≈ diag(⋆(1, plain_s, DiagonalHodge()))
+  @test ustrip.(u"m^-1", diag(invstr1)) ≈ diag(inv_hodge_star(1, plain_s, DiagonalHodge()))
+
+  # Input: velocity 1-form q [m²/s].
+  # A velocity field (covector units m/s) integrated along an edge of length [m] gives [m²/s].
+  # ⋆(1) [m] · q [m²/s] = ⋆(q) [m³/s]  (dual-area-weighted flux).
+  # inv_hodge_star(1) [m⁻¹] · ⋆(q) [m³/s] = q [m²/s]  (recovers the original velocity 1-form).
+  vel_eform = EForm(collect(1.0:ne(s)) .* u"m^2/s")
+  @test all(unit.(str1 * vel_eform) .== unit(1.0u"m^3/s"))
+  @test (invstr1 * (str1 * vel_eform)) ≈ vel_eform.data
+
+  # ⋆(2) (DiagonalHodge): TriForm[U] → DualForm{1}[U·m⁻¹]
+  # Operator diagonal entries = dual 1-length / primal triangle area [m/m² = m⁻¹].
+  # inv_hodge_star(2): DualForm{1}[U·m⁻¹] → TriForm[U]
+  # Operator diagonal entries = primal triangle area / dual 1-length [m²/m = m].
+  str2 = ⋆(2, s, DiagonalHodge())
+  invstr2 = inv_hodge_star(2, s, DiagonalHodge())
+  @test all(unit.(diag(str2)) .== unit(1.0u"m^-1"))
+  @test all(unit.(diag(invstr2)) .== unit(1.0u"m"))
+  @test ustrip.(u"m^-1", diag(str2)) ≈ diag(⋆(2, plain_s, DiagonalHodge()))
+  @test ustrip.(u"m", diag(invstr2)) ≈ diag(inv_hodge_star(2, plain_s, DiagonalHodge()))
+
+  # Laplace-de Rham operator Δ = dδ + δd on a 3D meter-scale mesh.
+  # In 3D: Δ picks up a factor of [m⁻²] from the hodge operators.
+  #   Δ(ρ [kg/m³])  → [kg/m⁵]       (0-form: ⋆(1)[m] and inv_⋆(0)[m⁻³])
+  #   Δ(q [kg/m²s]) → [kg/(m⁴·s)]   (1-form)
+  #   Δ(f [kg/ms])  → [kg/(m³·s)]   (2-form)
+  #   Δ(m [kg/m])   → [kg/m³]        (3-form: dδ only, d of 3-form vanishes)
+  ρ = VForm([1.0, 2.0, 3.0, 4.0] .* u"kg/m^3")
+  q = EForm(collect(1.0:ne(s)) .* u"kg/m^2/s")
+  f = TriForm(collect(1.0:ntriangles(s)) .* u"kg/m/s")
+  m = TetForm([1.0] .* u"kg/m")
+  lap0 = Δ(s, ρ; hodge=DiagonalHodge())
+  lap1 = Δ(s, q; hodge=DiagonalHodge())
+  lap2 = Δ(s, f; hodge=DiagonalHodge())
+  lap3 = Δ(s, m; hodge=DiagonalHodge())
+  @test lap0 isa VForm
+  @test lap1 isa EForm
+  @test lap2 isa TriForm
+  @test lap3 isa TetForm
+  @test all(unit.(lap0.data) .== unit(1.0u"kg/m^5"))
+  @test all(unit.(lap1.data) .== unit(1.0u"kg/m^4/s"))
+  @test all(unit.(lap2.data) .== unit(1.0u"kg/m^3/s"))
+  @test all(unit.(lap3.data) .== unit(1.0u"kg/m^3"))
+
+  # Wedge products: all primal-primal weights are dimensionless ratios
+  # (dual k-volume / primal k-volume, same units cancel), so the output unit
+  # is simply the product of the two input form units.
+
+  f_0 = VForm([1.0, 2.0, 3.0, 4.0] .* u"kg/m^3")
+  g_0 = VForm([4.0, 3.0, 2.0, 1.0] .* u"K")
+
+  # 0∧0: VForm[kg/m³] ∧ VForm[K] → VForm[kg⋅K/m³]
+  w_00 = ∧(s, f_0, g_0)
+  @test all(unit.(w_00.data) .== unit(1.0u"kg*K/m^3"))
+  @test ustrip.(u"kg*K/m^3", w_00.data) ≈
+        ∧(plain_s, VForm(ustrip.(u"kg/m^3", f_0.data)), VForm(ustrip.(u"K", g_0.data))).data
+
+  e_1 = EForm(collect(1.0:ne(s)) .* u"m/s")
+
+  # 0∧1: VForm[kg/m³] ∧ EForm[m/s] → EForm[kg/(m²⋅s)]
+  w_01 = ∧(s, f_0, e_1)
+  @test all(unit.(w_01.data) .== unit(1.0u"kg/m^2/s"))
+  @test ustrip.(u"kg/m^2/s", w_01.data) ≈
+        ∧(plain_s, VForm(ustrip.(u"kg/m^3", f_0.data)), EForm(ustrip.(u"m/s", e_1.data))).data
+
+  # 1∧0: EForm[m/s] ∧ VForm[kg/m³] → EForm[kg/(m²⋅s)]
+  w_10 = ∧(s, e_1, f_0)
+  @test all(unit.(w_10.data) .== unit(1.0u"kg/m^2/s"))
+  @test ustrip.(u"kg/m^2/s", w_10.data) ≈
+        ∧(plain_s, EForm(ustrip.(u"m/s", e_1.data)), VForm(ustrip.(u"kg/m^3", f_0.data))).data
+
+  t_2 = TriForm(collect(1.0:ntriangles(s)) .* u"kg/m^2")
+
+  # 0∧2: VForm[kg/m³] ∧ TriForm[kg/m²] → TriForm[kg²/m⁵]
+  w_02 = ∧(s, f_0, t_2)
+  @test all(unit.(w_02.data) .== unit(1.0u"kg^2/m^5"))
+  @test ustrip.(u"kg^2/m^5", w_02.data) ≈
+        ∧(plain_s, VForm(ustrip.(u"kg/m^3", f_0.data)), TriForm(ustrip.(u"kg/m^2", t_2.data))).data
+
+  # 2∧0: TriForm[kg/m²] ∧ VForm[kg/m³] → TriForm[kg²/m⁵]
+  w_20 = ∧(s, t_2, f_0)
+  @test all(unit.(w_20.data) .== unit(1.0u"kg^2/m^5"))
+  @test ustrip.(u"kg^2/m^5", w_20.data) ≈
+        ∧(plain_s, TriForm(ustrip.(u"kg/m^2", t_2.data)), VForm(ustrip.(u"kg/m^3", f_0.data))).data
+
+  tet_3 = TetForm([1.0] .* u"kg")
+
+  # 0∧3: VForm[kg/m³] ∧ TetForm[kg] → TetForm[kg²/m³]
+  w_03 = ∧(s, f_0, tet_3)
+  @test all(unit.(w_03.data) .== unit(1.0u"kg^2/m^3"))
+  @test ustrip.(u"kg^2/m^3", w_03.data) ≈
+        ∧(plain_s, VForm(ustrip.(u"kg/m^3", f_0.data)), TetForm(ustrip.(u"kg", tet_3.data))).data
+
+  e_1b = EForm(collect(1.0:ne(s)) .* u"kg/s")
+
+  # 1∧1: EForm[kg/s] ∧ EForm[m/s] → TriForm[kg⋅m/s²]
+  w_11 = ∧(s, e_1b, e_1)
+  @test all(unit.(w_11.data) .== unit(1.0u"kg*m/s^2"))
+  @test ustrip.(u"kg*m/s^2", w_11.data) ≈
+        ∧(plain_s, EForm(ustrip.(u"kg/s", e_1b.data)), EForm(ustrip.(u"m/s", e_1.data))).data
+
+  # 2∧1: TriForm[kg/m²] ∧ EForm[m/s] → TetForm[kg/(m⋅s)]
+  w_21 = ∧(s, t_2, e_1)
+  @test all(unit.(w_21.data) .== unit(1.0u"kg/m/s"))
+  @test ustrip.(u"kg/m/s", w_21.data) ≈
+        ∧(plain_s, TriForm(ustrip.(u"kg/m^2", t_2.data)), EForm(ustrip.(u"m/s", e_1.data))).data
+
+  # 1∧2: EForm[m/s] ∧ TriForm[kg/m²] → TetForm[kg/(m⋅s)]
+  w_12 = ∧(s, e_1, t_2)
+  @test all(unit.(w_12.data) .== unit(1.0u"kg/m/s"))
+  @test ustrip.(u"kg/m/s", w_12.data) ≈
+        ∧(plain_s, EForm(ustrip.(u"m/s", e_1.data)), TriForm(ustrip.(u"kg/m^2", t_2.data))).data
+
+  # Interior product i_{X♭}(α): a primal EForm (encoding a covector field) and a
+  # dual n-form; yields a dual (n-1)-form.
+  # All geometric weights come from DiagonalHodge operators applied internally, so
+  # the output unit inherits the EForm unit × input DualForm unit × hodge factors.
+  X♭ = EForm(collect(1.0:ne(s)) .* u"m/s")
+  plain_X♭ = EForm(ustrip.(u"m/s", X♭.data))
+
+  # ip(X♭[m/s], DualForm{1}[kg/s]; DiagonalHodge) → DualForm{0}[kg/(m⋅s²)]
+  # Unit chain: inv_⋆(2)[m]: DualForm{1}[kg/s] → TriForm[kg⋅m/s];
+  #   ∧(2,1)[1]: TriForm[kg⋅m/s] ∧ EForm[m/s] → TetForm[kg⋅m²/s²];
+  #   ⋆(3)[m⁻³]: TetForm[kg⋅m²/s²] → DualForm{0}[kg/(m⋅s²)].
+  df1 = DualForm{1}(collect(1.0:ntriangles(s)) .* u"kg/s")
+  ip1 = interior_product(s, X♭, df1; hodge=DiagonalHodge())
+  @test ip1 isa DualForm{0}
+  @test all(unit.(ip1.data) .== unit(1.0u"kg/m/s^2"))
+  ip1_plain = interior_product(plain_s, plain_X♭, DualForm{1}(ustrip.(u"kg/s", df1.data));
+                               hodge=DiagonalHodge())
+  @test ustrip.(u"kg/m/s^2", ip1.data) ≈ ip1_plain.data
+
+  # ip(X♭[m/s], DualForm{2}[m²]; DiagonalHodge) → DualForm{1}[m/s]
+  # Unit chain: inv_⋆(1)[m⁻¹]: DualForm{2}[m²] → EForm[m];
+  #   ∧(1,1)[1]: EForm[m] ∧ EForm[m/s] → TriForm[m²/s];
+  #   ⋆(2)[m⁻¹]: TriForm[m²/s] → DualForm{1}[m/s].
+  df2 = DualForm{2}(collect(1.0:ne(s)) .* u"m^2")
+  ip2 = interior_product(s, X♭, df2; hodge=DiagonalHodge())
+  @test ip2 isa DualForm{1}
+  @test all(unit.(ip2.data) .== unit(1.0u"m/s"))
+  ip2_plain = interior_product(plain_s, plain_X♭, DualForm{2}(ustrip.(u"m^2", df2.data));
+                               hodge=DiagonalHodge())
+  @test ustrip.(u"m/s", ip2.data) ≈ ip2_plain.data
+
+  # ip(X♭[m/s], DualForm{3}[kg/m³]; DiagonalHodge) → DualForm{2}[kg/(m⁴⋅s)]
+  # Unit chain: inv_⋆(0)[m⁻³]: DualForm{3}[kg/m³] → VForm[kg/m⁶];
+  #   ∧(0,1)[1]: VForm[kg/m⁶] ∧ EForm[m/s] → EForm[kg/(m⁵⋅s)];
+  #   ⋆(1)[m]: EForm[kg/(m⁵⋅s)] → DualForm{2}[kg/(m⁴⋅s)].
+  df3 = DualForm{3}(collect(1.0:nv(s)) .* u"kg/m^3")
+  ip3 = interior_product(s, X♭, df3; hodge=DiagonalHodge())
+  @test ip3 isa DualForm{2}
+  @test all(unit.(ip3.data) .== unit(1.0u"kg/m^4/s"))
+  ip3_plain = interior_product(plain_s, plain_X♭, DualForm{3}(ustrip.(u"kg/m^3", df3.data));
+                               hodge=DiagonalHodge())
+  @test ustrip.(u"kg/m^4/s", ip3.data) ≈ ip3_plain.data
+
+  # Lie derivative ℒ_{X♭}(α) via Cartan's formula: ℒ = i∘d̃ + d̃∘i.
+  # All dual-derivative operators (d̃) are dimensionless (±1 entries).
+
+  # ℒ(X♭[m/s], DualForm{0}[kg]) → DualForm{0}[kg/(m⋅s)]
+  # Via ℒ = i∘d̃₀: d̃₀[1] maps DualForm{0}[kg] → DualForm{1}[kg],
+  #   then i(X♭[m/s], DualForm{1}[kg]) → DualForm{0}[kg/(m⋅s)].
+  df0 = DualForm{0}(collect(1.0:ntetrahedra(s)) .* u"kg")
+  lie0 = ℒ(s, X♭, df0; hodge=DiagonalHodge())
+  @test lie0 isa DualForm{0}
+  @test all(unit.(lie0.data) .== unit(1.0u"kg/m/s"))
+  lie0_plain = ℒ(plain_s, plain_X♭, DualForm{0}(ustrip.(u"kg", df0.data));
+                 hodge=DiagonalHodge())
+  @test ustrip.(u"kg/m/s", lie0.data) ≈ lie0_plain.data
+
+  # ℒ(X♭[m/s], DualForm{1}[kg/s]) → DualForm{1}[kg/(m⋅s²)]
+  # Via ℒ = i∘d̃₁ + d̃₀∘i: both terms contribute DualForm{1}[kg/(m⋅s²)].
+  lie1 = ℒ(s, X♭, df1; hodge=DiagonalHodge())
+  @test lie1 isa DualForm{1}
+  @test all(unit.(lie1.data) .== unit(1.0u"kg/m/s^2"))
+  lie1_plain = ℒ(plain_s, plain_X♭, DualForm{1}(ustrip.(u"kg/s", df1.data));
+                 hodge=DiagonalHodge())
+  @test ustrip.(u"kg/m/s^2", lie1.data) ≈ lie1_plain.data
+
+  # ℒ(X♭[m/s], DualForm{2}[m²]) → DualForm{2}[m/s]
+  # Via full Cartan formula ℒ = d̃₁∘i + i∘d̃₂:
+  #   i(X♭[m/s], DualForm{2}[m²]) → DualForm{1}[m/s], then d̃₁[1] → DualForm{2}[m/s];
+  #   d̃₂[1] maps DualForm{2}[m²] → DualForm{3}[m²], then i(X♭[m/s], DualForm{3}[m²]) → DualForm{2}[m/s].
+  lie2 = ℒ(s, X♭, df2; hodge=DiagonalHodge())
+  @test lie2 isa DualForm{2}
+  @test all(unit.(lie2.data) .== unit(1.0u"m/s"))
+  lie2_plain = ℒ(plain_s, plain_X♭, DualForm{2}(ustrip.(u"m^2", df2.data));
+                 hodge=DiagonalHodge())
+  @test ustrip.(u"m/s", lie2.data) ≈ lie2_plain.data
+
+  # Lie advection equation in 3D: dρ/dt + ℒ(u♭, ρ) = 0.
+  # Physical interpretation:
+  #   u♭ ∈ EForm[m²/s]: velocity 1-form (velocity [m/s] integrated over edge length [m]).
+  #   ρ ∈ DualForm{0}[kg/m³]: volumetric density field (indexed by tetrahedra).
+  #   ℒ(u♭, ρ) ∈ DualForm{0}[kg/(m³⋅s)]: density advection term.
+  #   dρ/dt ∈ DualForm{0}[kg/(m³⋅s)]: time derivative of density.
+  # Unit chain: d̃₀ [1] maps DualForm{0}[kg/m³] → DualForm{1}[kg/m³];
+  #   i(u♭[m²/s], DualForm{1}[kg/m³]) → DualForm{0}[m²/s × kg/m³ / m²] = DualForm{0}[kg/(m³⋅s)].
+  u_flow_3d = EForm(collect(1.0:ne(s)) .* u"m^2/s")
+  ρ_adv = DualForm{0}(collect(1.0:ntetrahedra(s)) .* u"kg/m^3")
+  lie_adv = ℒ(s, u_flow_3d, ρ_adv; hodge=DiagonalHodge())
+  @test lie_adv isa DualForm{0}
+  @test all(unit.(lie_adv.data) .== unit(1.0u"kg/m^3/s"))
+
+  # Condensed Lie advection tests for higher dual forms.
+  # Geometric density chain: DualForm{k} carries [kg/m^{3-k}]; advection adds [1/s].
+  #   DualForm{1}[kg/m²]: areal density, ℒ(u♭[m²/s], ·) → [kg/(m²⋅s)]
+  #   DualForm{2}[kg/m]:  linear density, ℒ(u♭[m²/s], ·) → [kg/(m⋅s)]
+  #   DualForm{3}[kg]:    lumped (vertex) mass, ℒ(u♭[m²/s], ·) → [kg/s]
+  for (form, out_unit) in (
+    (DualForm{1}(collect(1.0:ntriangles(s)) .* u"kg/m^2"), u"kg/m^2/s"),
+    (DualForm{2}(collect(1.0:ne(s)) .* u"kg/m"),           u"kg/m/s"),
+    (DualForm{3}(collect(1.0:nv(s)) .* u"kg"),             u"kg/s"),
+  )
+    lie = ℒ(s, u_flow_3d, form; hodge=DiagonalHodge())
+    @test typeof(lie).parameters[1] == typeof(form).parameters[1]
+    @test all(unit.(lie.data) .== unit(1.0 * out_unit))
+  end
+end
+
+@testset "Unitful DEC operators in 3D" begin
+  @testset "subdivision = $(nameof(typeof(subdivision)))" for subdivision in (Barycenter(), Circumcenter())
+    test_unitful_dec_operators_3d(subdivision)
+  end
+end
+
 end

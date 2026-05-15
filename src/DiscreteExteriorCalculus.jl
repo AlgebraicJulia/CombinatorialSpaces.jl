@@ -1924,6 +1924,11 @@ operator [`∇²`](@ref): ``Δ f = -∇² f``.
   d(Val(1), s, δ(2, s, form; kw...))
 Δ(::Val{2}, s::AbstractDeltaDualComplex2D; matrix_type::Type=SparseMatrixCSC{Float64}, kw...) =
   d(Val(1), s, matrix_type) * δ(2, s; matrix_type=matrix_type, kw...)
+
+Δ(::Val{3}, s::AbstractDeltaDualComplex3D, form::AbstractVector; kw...) =
+  d(Val(2), s, δ(3, s, form; kw...))
+Δ(::Val{3}, s::AbstractDeltaDualComplex3D; matrix_type::Type=SparseMatrixCSC{Float64}, kw...) =
+  d(Val(2), s, matrix_type) * δ(3, s; matrix_type=matrix_type, kw...)
 """ Alias for the Laplace-de Rham operator [`Δ`](@ref).
 """
 const laplace_de_rham = Δ
@@ -2099,7 +2104,7 @@ primal vector field (or primal 1-form) and a dual ``n``-forms and then returns a
 dual ``(n-1)``-form.
 """
 interior_product(s::HasDeltaSet, X♭::EForm, α::DualForm{n}; kw...) where n =
-  DualForm{n-1}(interior_product_flat(Val(n), s, X♭.data, α.data); kw...)
+  DualForm{n-1}(interior_product_flat(Val(n), s, X♭.data, α.data; kw...))
 
 """ Interior product of a 1-form and a ``n``-form, yielding an ``(n-1)``-form.
 
@@ -2151,7 +2156,17 @@ end
 
 function lie_derivative_flat(::Val{2}, s::HasDeltaSet,
                              X♭::AbstractVector, α::AbstractVector; kw...)
-  dual_derivative(1, s, interior_product_flat(2, s, X♭, α; kw...))
+  result = dual_derivative(1, s, interior_product_flat(2, s, X♭, α; kw...))
+  if ndims(s) > 2
+    result + interior_product_flat(3, s, X♭, dual_derivative(2, s, α); kw...)
+  else
+    result
+  end
+end
+
+function lie_derivative_flat(::Val{3}, s::HasDeltaSet,
+                             X♭::AbstractVector, α::AbstractVector; kw...)
+  dual_derivative(2, s, interior_product_flat(3, s, X♭, α; kw...))
 end
 
 function eval_constant_primal_form(s::HasDeltaSet1D, α)

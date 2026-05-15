@@ -39,7 +39,7 @@ export Simplex, V, E, Tri, Tet, SimplexChain, VChain, EChain, TriChain, TetChain
   DeltaSet, OrientedDeltaSet, EmbeddedDeltaSet,
   boundary_inds, interior
 
-using LinearAlgebra: det
+using LinearAlgebra: det, cross, dot
 using SparseArrays
 using StaticArrays: @SVector, SVector, SMatrix
 using StatsBase: counts
@@ -900,6 +900,12 @@ function volume(points)
     v1 = points[2] - points[1]
     v2 = points[3] - points[1]
     return sqrt(abs(sum(v1 .* v1) * sum(v2 .* v2) - sum(v1 .* v2)^2)) / 2
+  end
+  if n == 3 && length(first(points)) == 3
+    v1 = points[2] - points[1]
+    v2 = points[3] - points[1]
+    v3 = points[4] - points[1]
+    return abs(dot(v1, cross(v2, v3))) / 6
   end
   CM = cayley_menger(points...)
   sqrt(abs(det(CM)) / 2^n) / factorial(n)
