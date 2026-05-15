@@ -616,19 +616,19 @@ function test_unitful_dec_operators_3d(subdivision)
                  hodge=DiagonalHodge())
   @test ustrip.(u"m/s", lie2.data) ≈ lie2_plain.data
 
-  # Lie advection equation in 3D: dc/dt + ℒ(u♭, c) = 0.
+  # Lie advection equation in 3D: dρ/dt + ℒ(u♭, ρ) = 0.
   # Physical interpretation:
   #   u♭ ∈ EForm[m²/s]: velocity 1-form (velocity [m/s] integrated over edge length [m]).
-  #   c ∈ DualForm{0}[1/s]: advected scalar field (indexed by tetrahedra).
-  #   ℒ(u♭, c) ∈ DualForm{0}[1/s²]: advection term.
-  #   dc/dt ∈ DualForm{0}[1/s²]: time derivative of c.
-  # Unit chain: d̃₀ [1] maps DualForm{0}[1/s] → DualForm{1}[1/s];
-  #   i(u♭[m²/s], DualForm{1}[1/s]) → DualForm{0}[m²/s × 1/s / m²] = DualForm{0}[1/s²].
+  #   ρ ∈ DualForm{0}[kg/m³]: volumetric density field (indexed by tetrahedra).
+  #   ℒ(u♭, ρ) ∈ DualForm{0}[kg/(m³⋅s)]: density advection term.
+  #   dρ/dt ∈ DualForm{0}[kg/(m³⋅s)]: time derivative of density.
+  # Unit chain: d̃₀ [1] maps DualForm{0}[kg/m³] → DualForm{1}[kg/m³];
+  #   i(u♭[m²/s], DualForm{1}[kg/m³]) → DualForm{0}[m²/s × kg/m³ / m²] = DualForm{0}[kg/(m³⋅s)].
   u_flow_3d = EForm(collect(1.0:ne(s)) .* u"m^2/s")
-  c_adv = DualForm{0}(collect(1.0:ntetrahedra(s)) .* u"s^-1")
-  lie_adv = ℒ(s, u_flow_3d, c_adv; hodge=DiagonalHodge())
+  ρ_adv = DualForm{0}(collect(1.0:ntetrahedra(s)) .* u"kg/m^3")
+  lie_adv = ℒ(s, u_flow_3d, ρ_adv; hodge=DiagonalHodge())
   @test lie_adv isa DualForm{0}
-  @test all(unit.(lie_adv.data) .== unit(1.0u"s^-2"))
+  @test all(unit.(lie_adv.data) .== unit(1.0u"kg/m^3/s"))
 end
 
 @testset "Unitful DEC operators in 3D" begin
