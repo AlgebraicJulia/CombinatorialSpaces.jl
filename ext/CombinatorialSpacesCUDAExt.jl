@@ -3,7 +3,7 @@ module CombinatorialSpacesCUDAExt
 using CombinatorialSpaces
 using CombinatorialSpaces.DiscreteExteriorCalculus: DiscreteHodge
 using CUDA
-using CUDA.CUSPARSE
+using CUDA.cuSPARSE
 using KernelAbstractions
 using Krylov
 import CombinatorialSpaces: cache_wedge,
