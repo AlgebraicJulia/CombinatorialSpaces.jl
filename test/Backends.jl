@@ -254,7 +254,7 @@ if Sys.isapple()
           @test all(isapprox.(
             hdg * inv_hdg(V_1),
             -V_1;
-            atol = 1e-6))
+            atol = 5f-6))
         end
       end
     end

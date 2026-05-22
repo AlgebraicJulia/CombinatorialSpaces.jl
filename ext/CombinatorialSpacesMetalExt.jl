@@ -100,7 +100,7 @@ solver. Uses CPU sparse matrices since Metal does not support sparse GPU solvers
 """
 function dec_inv_hodge_star(::Val{1}, sd::EmbeddedDeltaDualComplex2D{Bool, Float32, _p} where _p, ::GeometricHodge, ::Val{:Metal})
   hdg = -1 * dec_hodge_star(1, sd, GeometricHodge(), Val(:Metal))
-  x -> Krylov.gmres(hdg, Array(x), atol = 1e-7)[1]
+  x -> Krylov.gmres(hdg, Array(x), atol = 1f-7)[1]
 end
 
 end
