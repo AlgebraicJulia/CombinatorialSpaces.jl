@@ -59,7 +59,10 @@ dual_meshes_2D_circum = map(x -> generate_dual(x, Circumcenter()), [
 # Operator Test Definitions
 #--------------------------
 
-function test_unary_operators(backend)
+function test_unary_operators(backend,
+  meshes_1D=dual_meshes_1D,
+  meshes_2D_bary=dual_meshes_2D_bary,
+  meshes_2D_circum=dual_meshes_2D_circum)
   function all_are_equal(cpu_ans::SparseMatrixCSC, alt_ans)
     KernelAbstractions.synchronize(get_backend(alt_ans))
     all(cpu_ans .== SparseMatrixCSC(alt_ans))
@@ -83,32 +86,32 @@ function test_unary_operators(backend)
   end
 
   @testset "Exterior Derivative" begin
-    test_cpu_gpu_equality(dual_meshes_1D,        [0],   dec_differential)
-    test_cpu_gpu_equality(dual_meshes_2D_bary,   [0,1], dec_differential)
-    test_cpu_gpu_equality(dual_meshes_2D_circum, [0,1], dec_differential)
+    test_cpu_gpu_equality(meshes_1D,        [0],   dec_differential)
+    test_cpu_gpu_equality(meshes_2D_bary,   [0,1], dec_differential)
+    test_cpu_gpu_equality(meshes_2D_circum, [0,1], dec_differential)
   end
   @testset "Boundary" begin
-    test_cpu_gpu_equality(dual_meshes_1D,        [1],   dec_boundary)
-    test_cpu_gpu_equality(dual_meshes_2D_bary,   [1,2], dec_boundary)
-    test_cpu_gpu_equality(dual_meshes_2D_circum, [1,2], dec_boundary)
+    test_cpu_gpu_equality(meshes_1D,        [1],   dec_boundary)
+    test_cpu_gpu_equality(meshes_2D_bary,   [1,2], dec_boundary)
+    test_cpu_gpu_equality(meshes_2D_circum, [1,2], dec_boundary)
   end
   @testset "Dual Derivative" begin
-    test_cpu_gpu_equality(dual_meshes_1D,        [0],   dec_dual_derivative)
-    test_cpu_gpu_equality(dual_meshes_2D_bary,   [0,1], dec_dual_derivative)
-    test_cpu_gpu_equality(dual_meshes_2D_circum, [0,1], dec_dual_derivative)
+    test_cpu_gpu_equality(meshes_1D,        [0],   dec_dual_derivative)
+    test_cpu_gpu_equality(meshes_2D_bary,   [0,1], dec_dual_derivative)
+    test_cpu_gpu_equality(meshes_2D_circum, [0,1], dec_dual_derivative)
   end
   @testset "Diagonal Hodge" begin
-    test_cpu_gpu_equality(dual_meshes_1D,        [0,1],   dec_hodge_star, DiagonalHodge())
-    test_cpu_gpu_equality(dual_meshes_2D_circum, [0,1,2], dec_hodge_star, DiagonalHodge())
+    test_cpu_gpu_equality(meshes_1D,        [0,1],   dec_hodge_star, DiagonalHodge())
+    test_cpu_gpu_equality(meshes_2D_circum, [0,1,2], dec_hodge_star, DiagonalHodge())
   end
   @testset "Inverse Diagonal Hodge" begin
-    test_cpu_gpu_equality(dual_meshes_1D,        [0,1],   dec_inv_hodge_star, DiagonalHodge())
-    test_cpu_gpu_equality(dual_meshes_2D_circum, [0,1,2], dec_inv_hodge_star, DiagonalHodge())
+    test_cpu_gpu_equality(meshes_1D,        [0,1],   dec_inv_hodge_star, DiagonalHodge())
+    test_cpu_gpu_equality(meshes_2D_circum, [0,1,2], dec_inv_hodge_star, DiagonalHodge())
   end
   @testset "Geometric Hodge" begin
-    test_cpu_gpu_equality(dual_meshes_1D,      [0,1], dec_hodge_star, GeometricHodge())
-    test_cpu_gpu_equality(dual_meshes_2D_bary, [0,2], dec_hodge_star, GeometricHodge())
-    test_cpu_gpu_equality(dual_meshes_2D_bary, [1],   dec_hodge_star, GeometricHodge())
+    test_cpu_gpu_equality(meshes_1D,      [0,1], dec_hodge_star, GeometricHodge())
+    test_cpu_gpu_equality(meshes_2D_bary, [0,2], dec_hodge_star, GeometricHodge())
+    test_cpu_gpu_equality(meshes_2D_bary, [1],   dec_hodge_star, GeometricHodge())
   end
 end
 
@@ -206,7 +209,59 @@ if Sys.isapple()
   using Metal
   dev = Metal.device()
   if Metal.supports_family(dev, Metal.MTL.MTLGPUFamilyApple7) && Metal.supports_family(dev, Metal.MTL.MTLGPUFamilyMetal3)
+
+    # Float32 test meshes for Metal (Metal does not support Float64)
+    line_f32 = path_graph(EmbeddedDeltaSet1D{Bool,Point2{Float32}}, 3)
+    line_f32[:point] = [Point2{Float32}(1,0), Point2{Float32}(0,0), Point2{Float32}(0,2)]
+
+    cycle_f32 = cycle_graph(EmbeddedDeltaSet1D{Bool,Point2{Float32}}, 3)
+    cycle_f32[:point] = [Point2{Float32}(1,0), Point2{Float32}(0,0), Point2{Float32}(0,1)]
+
+    star_f32 = star_graph(EmbeddedDeltaSet1D{Bool,Point2{Float32}}, 5)
+    star_f32[:point] = [Point2{Float32}(0,-1), Point2{Float32}(1,0), Point2{Float32}(-1,0), Point2{Float32}(0,1), Point2{Float32}(0,0)]
+    star_f32[:edge_orientation] = true
+
+    function generate_dual_f32(s::HasDeltaSet1D)
+      orient!(s)
+      sd = EmbeddedDeltaDualComplex1D{Bool,Float32,Point2{Float32}}(s)
+      subdivide_duals!(sd, Barycenter())
+      sd
+    end
+
+    function generate_dual_f32(s::EmbeddedDeltaSet2D{B,P}, c::SimplexCenter) where {B,P}
+      orient!(s)
+      sd = EmbeddedDeltaDualComplex2D{B,Float32,P}(s)
+      subdivide_duals!(sd, c)
+      sd
+    end
+
+    dual_meshes_1D_f32 = map(generate_dual_f32, [line_f32, cycle_f32, star_f32])
+
+    dual_meshes_2D_bary_f32 = map(x -> generate_dual_f32(x, Barycenter()), [
+      triangulated_grid(10, 10, 8, 8, Point3{Float32}),
+      triangulated_grid(15, 15, 6, 6, Point3{Float32})])
+
+    dual_meshes_2D_circum_f32 = map(x -> generate_dual_f32(x, Circumcenter()), [
+      triangulated_grid(10, 10, 8, 8, Point2{Float32})])
+
+    function test_hodge_solver_metal()
+      @testset "Inverse Geometric Hodge" begin
+        for sd in dual_meshes_2D_bary_f32
+          V_1 = Float32.(I[1:ne(sd), 1])
+          hdg = dec_hodge_star(1, sd, GeometricHodge(), Val(:Metal))
+          inv_hdg = dec_inv_hodge_star(1, sd, GeometricHodge(), Val(:Metal))
+          # Verify ⋆ ∘ (⋆⁻¹ applied via GMRES) ≈ -I (sign from the solver convention)
+          @test all(isapprox.(
+            hdg * inv_hdg(V_1),
+            -V_1;
+            atol = 1e-6))
+        end
+      end
+    end
+
     @testset "Metal" begin
+      test_unary_operators(Val(:Metal), dual_meshes_1D_f32, dual_meshes_2D_bary_f32, dual_meshes_2D_circum_f32)
+      test_hodge_solver_metal()
       test_binary_operators(Float32, Val(:Metal), MtlArray, 0.5e-6)
       test_binary_operators(Float16, Val(:Metal), MtlArray, 0.5e-3)
     end
