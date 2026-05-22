@@ -39,7 +39,8 @@ Meshes = "eacbb407-ea5a-433e-ab97-5258b1ca43fa"
 CombinatorialSpacesCUDAExt = "CUDA"
 CombinatorialSpacesDelaunayTriangulationExt = "DelaunayTriangulation"
 CombinatorialSpacesMakieExt = "Makie"
-CombinatorialSpacesMetalExt = ["AppleAccelerate", "Metal"]
+CombinatorialSpacesMetalExt = "Metal"
+CombinatorialSpacesMetalAppleAccelerateExt = ["AppleAccelerate", "Metal"]
 CombinatorialSpacesMeshesExt = "Meshes"
 
 [compat]

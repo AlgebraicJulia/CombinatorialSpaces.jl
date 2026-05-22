@@ -207,6 +207,9 @@ if Sys.isapple()
   using Pkg
   Pkg.add("Metal")
   using Metal
+  # Load AppleAccelerate to trigger CombinatorialSpacesMetalAppleAccelerateExt, which
+  # provides the optimized AAFactorization-based dec_inv_hodge_star for GeometricHodge.
+  using AppleAccelerate
   dev = Metal.device()
   if Metal.supports_family(dev, Metal.MTL.MTLGPUFamilyApple7) && Metal.supports_family(dev, Metal.MTL.MTLGPUFamilyMetal3)
 
@@ -250,7 +253,9 @@ if Sys.isapple()
           V_1 = Float32.(I[1:ne(sd), 1])
           hdg = dec_hodge_star(1, sd, GeometricHodge(), Val(:Metal))
           inv_hdg = dec_inv_hodge_star(1, sd, GeometricHodge(), Val(:Metal))
-          # Verify ⋆ ∘ (⋆⁻¹ applied via AppleAccelerate QR) ≈ -I (sign from the solver convention)
+          # Verify ⋆ ∘ (⋆⁻¹) ≈ -I (sign convention: ⋆⁻¹ = -⋆ for 1-forms in 2D).
+          # Uses AAFactorization (AppleAccelerate QR) when AppleAccelerate is loaded,
+          # otherwise falls back to Krylov GMRES.
           @test all(isapprox.(
             hdg * inv_hdg(V_1),
             -V_1;
