@@ -253,9 +253,10 @@ if Sys.isapple()
           V_1 = Float32.(I[1:ne(sd), 1])
           hdg = dec_hodge_star(1, sd, GeometricHodge(), Val(:Metal))
           inv_hdg = dec_inv_hodge_star(1, sd, GeometricHodge(), Val(:Metal))
-          # Verify ⋆ ∘ (⋆⁻¹) ≈ -I (sign convention: ⋆⁻¹ = -⋆ for 1-forms in 2D).
+          # Verify hdg * inv_hdg(V_1) ≈ -V_1 (sign convention: ⋆⁻¹ = -⋆ for 1-forms in 2D).
           # Uses AAFactorization (AppleAccelerate QR) when AppleAccelerate is loaded,
           # otherwise falls back to Krylov GMRES.
+          # atol=5f-6 is appropriate for Float32 arithmetic on Metal.
           @test all(isapprox.(
             hdg * inv_hdg(V_1),
             -V_1;
