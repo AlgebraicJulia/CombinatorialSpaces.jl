@@ -4,7 +4,6 @@ using CombinatorialSpaces
 using CombinatorialSpaces.DiscreteExteriorCalculus: DiscreteHodge
 using Metal
 using KernelAbstractions
-using Krylov
 using SparseArrays
 import CombinatorialSpaces: cache_wedge,
   dec_boundary, dec_differential, dec_dual_derivative,
@@ -81,8 +80,9 @@ dec_hodge_star(::Val{1}, sd::EmbeddedDeltaDualComplex2D{Bool, Float32, _p} where
 
 """    dec_inv_hodge_star(n::Int, sd::HasDeltaSet, h::DiscreteHodge, ::Val{:Metal})
 
-Compute an inverse Hodge star as a Metal array (diagonal) or a direct sparse solver function
-(geometric Hodge 1-form). Metal only supports Float32 meshes.
+Compute an inverse Hodge star as a Metal array (diagonal Hodge). Metal only supports Float32
+meshes. For the geometric Hodge inverse on 2D meshes (primal 1-forms), load AppleAccelerate
+alongside Metal to trigger `CombinatorialSpacesMetalAppleAccelerateExt`.
 """
 dec_inv_hodge_star(n::Int, sd::HasDeltaSet, h::DiscreteHodge, ::Val{:Metal}) =
   dec_inv_hodge_star(Val(n), sd, h, Val(:Metal))
@@ -92,17 +92,5 @@ dec_inv_hodge_star(::Val{n}, sd::EmbeddedDeltaDualComplex1D{Bool, Float32, _p} w
 
 dec_inv_hodge_star(::Val{n}, sd::EmbeddedDeltaDualComplex2D{Bool, Float32, _p} where _p, h::DiscreteHodge, ::Val{:Metal}) where n =
   MtlArray(dec_inv_hodge_star(Val(n), sd, h))
-
-"""    dec_inv_hodge_star(::Val{1}, sd::EmbeddedDeltaDualComplex2D, ::GeometricHodge, ::Val{:Metal})
-
-Return a function that solves the inverse geometric Hodge star for primal 1-forms using
-a GMRES iterative solver. Load AppleAccelerate alongside Metal to use the faster direct
-sparse QR solver instead (via `CombinatorialSpacesMetalAppleAccelerateExt`).
-The Hodge matrix is negated to match the sign convention (⋆⁻¹ = -⋆ for 1-forms in 2D).
-"""
-function dec_inv_hodge_star(::Val{1}, sd::EmbeddedDeltaDualComplex2D{Bool, Float32, _p} where _p, ::GeometricHodge, ::Val{:Metal})
-  hdg = -1 * dec_hodge_star(1, sd, GeometricHodge(), Val(:Metal))
-  x -> Krylov.gmres(hdg, Array(x), atol = 1e-14)[1]
-end
 
 end
