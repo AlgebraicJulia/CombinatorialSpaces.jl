@@ -250,7 +250,7 @@ if Sys.isapple()
           V_1 = Float32.(I[1:ne(sd), 1])
           hdg = dec_hodge_star(1, sd, GeometricHodge(), Val(:Metal))
           inv_hdg = dec_inv_hodge_star(1, sd, GeometricHodge(), Val(:Metal))
-          # Verify ⋆ ∘ (⋆⁻¹ applied via GMRES) ≈ -I (sign from the solver convention)
+          # Verify ⋆ ∘ (⋆⁻¹ applied via AppleAccelerate QR) ≈ -I (sign from the solver convention)
           @test all(isapprox.(
             hdg * inv_hdg(V_1),
             -V_1;

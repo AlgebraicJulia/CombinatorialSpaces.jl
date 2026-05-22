@@ -97,7 +97,8 @@ dec_inv_hodge_star(::Val{n}, sd::EmbeddedDeltaDualComplex2D{Bool, Float32, _p} w
 """    dec_inv_hodge_star(::Val{1}, sd::EmbeddedDeltaDualComplex2D, ::GeometricHodge, ::Val{:Metal})
 
 Return a function that solves the inverse geometric Hodge star for primal 1-forms using
-AppleAccelerate's sparse QR direct solver via `AAFactorization`.
+AppleAccelerate's sparse QR direct solver via `AAFactorization`. The Hodge matrix is negated
+before factorization to match the sign convention for the inverse (⋆⁻¹ = -⋆ for 1-forms in 2D).
 """
 function dec_inv_hodge_star(::Val{1}, sd::EmbeddedDeltaDualComplex2D{Bool, Float32, _p} where _p, ::GeometricHodge, ::Val{:Metal})
   hdg = -1 * dec_hodge_star(1, sd, GeometricHodge(), Val(:Metal))
