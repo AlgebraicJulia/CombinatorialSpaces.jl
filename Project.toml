@@ -28,6 +28,7 @@ TetGen = "c5d3f3f7-f850-59f6-8a2e-ffc6dc1317ea"
 Unitful = "1986cc42-f94f-5a68-af5c-568840ba703d"
 
 [weakdeps]
+AppleAccelerate = "13e28ba4-7ad8-5781-acae-3021b1ed3924"
 CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
 DelaunayTriangulation = "927a84f5-c5f4-47a5-9785-b46e178433df"
 Makie = "ee78f7c6-11fb-53f2-987a-cfe4a2b5a57a"
@@ -38,10 +39,11 @@ Meshes = "eacbb407-ea5a-433e-ab97-5258b1ca43fa"
 CombinatorialSpacesCUDAExt = "CUDA"
 CombinatorialSpacesDelaunayTriangulationExt = "DelaunayTriangulation"
 CombinatorialSpacesMakieExt = "Makie"
-CombinatorialSpacesMetalExt = "Metal"
+CombinatorialSpacesMetalExt = ["AppleAccelerate", "Metal"]
 CombinatorialSpacesMeshesExt = "Meshes"
 
 [compat]
+AppleAccelerate = "0.6"
 ACSets = "0.2"
 Artifacts = "1.9, 1"
 CUDA = "5.2, 6"
@@ -71,6 +73,7 @@ Unitful = "1"
 julia = "1.10"
 
 [extras]
+AppleAccelerate = "13e28ba4-7ad8-5781-acae-3021b1ed3924"
 CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
 DelaunayTriangulation = "927a84f5-c5f4-47a5-9785-b46e178433df"
 Makie = "ee78f7c6-11fb-53f2-987a-cfe4a2b5a57a"
@@ -83,4 +86,4 @@ Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 Unitful = "1986cc42-f94f-5a68-af5c-568840ba703d"
 
 [targets]
-test = ["Makie", "CUDA", "DelaunayTriangulation", "Metal", "Meshes", "Pkg", "Random", "Test", "Statistics", "Unitful"]
+test = ["AppleAccelerate", "Makie", "CUDA", "DelaunayTriangulation", "Metal", "Meshes", "Pkg", "Random", "Test", "Statistics", "Unitful"]
