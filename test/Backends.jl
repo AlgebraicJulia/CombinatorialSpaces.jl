@@ -207,9 +207,7 @@ if Sys.isapple()
   using Pkg
   Pkg.add("Metal")
   using Metal
-  # Load AppleAccelerate to trigger CombinatorialSpacesMetalAppleAccelerateExt, which
-  # provides a direct sparse QR solver (AAFactorization) for dec_inv_hodge_star with
-  # GeometricHodge, as a faster alternative to the iterative Krylov GMRES fallback.
+  # AppleAccelerate is required alongside Metal to trigger CombinatorialSpacesMetalExt.
   using AppleAccelerate
   dev = Metal.device()
   if Metal.supports_family(dev, Metal.MTL.MTLGPUFamilyApple7) && Metal.supports_family(dev, Metal.MTL.MTLGPUFamilyMetal3)
@@ -255,7 +253,7 @@ if Sys.isapple()
           hdg = dec_hodge_star(1, sd, GeometricHodge(), Val(:Metal))
           inv_hdg = dec_inv_hodge_star(1, sd, GeometricHodge(), Val(:Metal))
           # Verify hdg * inv_hdg(V_1) ≈ -V_1 (sign convention: ⋆⁻¹ = -⋆ for 1-forms in 2D).
-          # Uses AAFactorization (AppleAccelerate direct sparse QR) when AppleAccelerate is loaded.
+          # Uses AAFactorization (AppleAccelerate direct sparse QR).
           # atol=5f-6: tolerance appropriate for Float32 arithmetic (≈10× machine epsilon at this scale).
           @test all(isapprox.(
             hdg * inv_hdg(V_1),
