@@ -204,10 +204,7 @@ else
 end
 
 if Sys.isapple()
-  using Pkg
-  Pkg.add("Metal")
   using Metal
-  # AppleAccelerate is required alongside Metal to trigger CombinatorialSpacesMetalExt.
   using AppleAccelerate
   dev = Metal.device()
   if Metal.supports_family(dev, Metal.MTL.MTLGPUFamilyApple7) && Metal.supports_family(dev, Metal.MTL.MTLGPUFamilyMetal3)
