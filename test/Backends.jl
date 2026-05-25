@@ -70,7 +70,7 @@ function test_unary_operators(backend,
 
   function all_are_equal(cpu_ans::Diagonal, alt_ans)
     KernelAbstractions.synchronize(get_backend(alt_ans))
-    all(cpu_ans .== Array(alt_ans))
+    all(cpu_ans .== SparseMatrixCSC(alt_ans))
   end
 
   function test_cpu_gpu_equality(meshes, degrees, operator)
