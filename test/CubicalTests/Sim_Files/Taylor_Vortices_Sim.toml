@@ -17,12 +17,8 @@ Re = 10_000
 [Simulation]
 te=1.0
 dt = 1e-4
-full_periodic = true
+periodic="ALL"
 savetime = 0.01
 checkpoint_every_savetime = 50
-
-[Plotting]
-imgs = ["Vorticity", "Density", "Momentum_Components", "Momentum_Magnitude",]
-create_mp4 = false
 
 # [Taylor Vortices]

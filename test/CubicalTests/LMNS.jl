@@ -6,7 +6,10 @@ include(joinpath(@__DIR__, "LMNS_Helpers", "Simulation_Header.jl"))
 
 sim = "Taylor_Vortices"
 
-const config = TOML.parsefile("Sim_Files/$(sim)_Sim.toml")
+const config_filepath = joinpath(@__DIR__, "Sim_Files", "$(sim)_Sim.toml")
+const sim_filepath = joinpath(@__DIR__, "Sim_Files", "$(sim)_Sim.jl")
+
+const config = TOML.parsefile(config_filepath)
 
 const simspec = config["Metadata"]["simspec"]
 const savepath = config["Metadata"]["savepath"]
@@ -16,6 +19,10 @@ println("Given simulation specification is: $(simspec)")
 println("Saving outputs at: $(savepath)")
 
 mkpath(savepath)
+cp(config_filepath, joinpath(savepath, "$(sim)_Sim.toml"); force=true)
+
+const savedata_filepath = joinpath(savepath, "savedata.jld2")
+jldopen(savedata_filepath, "w") do file end
 
 const lx_ = config["Mesh"]["lx"]
 const ly_ = config["Mesh"]["ly"]
@@ -32,24 +39,27 @@ const p = (mu = 1 / Re,) # μ
 const te = config["Simulation"]["te"]
 const dt = config["Simulation"]["dt"]
 
-const full_periodic = config["Simulation"]["full_periodic"]
-
-if full_periodic
-  const periodic_left_right = true
-  const periodic_top_bottom = true
-else
-  const periodic_left_right = config["Simulation"]["periodic_left_right"]
-  const periodic_top_bottom = config["Simulation"]["periodic_top_bottom"]
+function parse_periodic(config)
+  entry = config["Simulation"]["periodic"]
+  if entry == "ALL"
+    return ALL
+  elseif entry == "NORTHSOUTH"
+    return NORTHSOUTH
+  elseif entry == "EASTWEST"
+    return EASTWEST
+  else
+    error("Valid periodic settings are: ALL, NORTHSOUTH, EASTWEST")
+  end
 end
 
-@assert !periodic_left_right || halo_x > 0
-@assert !periodic_top_bottom || halo_y > 0
+const periodic = parse_periodic(config)
 
 const saveat = floor(Int64, config["Simulation"]["savetime"] / dt)
 const checkpoint_every_saveat = config["Simulation"]["checkpoint_every_savetime"]
 const checkpoint_at = saveat * checkpoint_every_saveat
 
-include(joinpath(@__DIR__, "Sim_Files", "$(sim)_Sim.jl"))
+# Load in initial and boundary conditions
+include(sim_filepath)
 
 @isdefined(u0) || error("Initial condition not defined properly, please assign to variable \"u0\"")
 # TODO: Are these checks working?
@@ -63,34 +73,45 @@ include(joinpath(@__DIR__, "Sim_Files", "$(sim)_Sim.jl"))
 ### DEC Operators ###
 #####################
 
-const dec_ops = build_dec_operators(LMNSModel(), s, to_device)
+function build_dec_kernels(s::UniformCubicalComplex2D{FT}) where FT <: AbstractFloat
+  cache = UniformDECCache(s);
 
-const d0 = dec_ops.d0
-const d1 = dec_ops.d1
-const dual_d0 = dec_ops.dual_d0
-const dual_d1 = dec_ops.dual_d1
-const d_beta = dec_ops.d_beta
-const hdg_1 = dec_ops.hdg_1
-const hdg_2 = dec_ops.hdg_2
-const inv_hdg_0 = dec_ops.inv_hdg_0
-const inv_hdg_1 = dec_ops.inv_hdg_1
-const inv_hdg_2 = dec_ops.inv_hdg_2
-const δ1 = dec_ops.delta1
-const dual_δ1 = dec_ops.dual_delta1
-const dΔ1 = dec_ops.dlap1
-const dΔ1_V = dec_ops.dlap1_v
-const dd0_h2 = dec_ops.dd0_h2
-const ih0_dd1 = dec_ops.ih0_dd1
-const ih0_db = dec_ops.ih0_db
-const smoothing = dec_ops.smoothing
+  d0(x) = exterior_derivative(Val(1), cache, x)
+  d1(x) = exterior_derivative(Val(1), cache, x)
 
-#######################################
-### Plotting and Analysis Functions ###
-#######################################
+  dd0(x) = no_flux_dual_derivative(Val(0), cache, x)
+  dd1(x) = dual_derivative(Val(1), cache, x)
 
-println("Setting up plotting and analysis functions...")
+  hdg_1(x) = hodge_star(Val(1), cache, x)
+  hdg_2(x) = hodge_star(Val(2), cache, x)
 
-include(joinpath(@__DIR__, "LMNS_Helpers", "Physics_Plotting.jl"))
+  inv_hdg_0(x) = inv_hodge_star(Val(0), cache, x)
+  inv_hdg_1(x) = inv_hodge_star(Val(1), cache, x)
+
+  d_beta(x) = d_beta_mul(cache, x)
+
+  wdg_01(f, a) = wedge_product(Val(0), Val(1), cache, f, a)
+  wdg_11(a, b) = wedge_product(Val(1), Val(1), cache, a, b)
+  wdg_dd_01(f, a) = wedge_product_dd(Val(0), Val(1), cache, f, a)
+
+  dcd_1(x) = dual_codifferential(Val(1), cache, x)
+  dcd_2(x) = dual_codifferential(Val(2), cache, x)
+
+  # TODO: Replace with the fused kernels
+  dlap_1(x) = dd0(dcd_1(x)) + dcd_2(dd1(x))
+  dlap_1_v(x) = dcd_2(d_beta(x))
+
+  interp_dp_1(x) = interpolate_dp(Val(1), cache, x)
+
+  return (; d0=d0, d1=d1, dd0=dd0, dd1=dd1, 
+  hdg_1=hdg_1, hdg_2=hdg_2, inv_hdg_0=inv_hdg_0, inv_hdg_1=inv_hdg_1, 
+  d_beta=d_beta, wdg_01=wdg_01, wdg_11=wdg_11, wdg_dd_01=wdg_dd_01, 
+  dcd_1=dcd_1, dcd_2=dcd_2, dlap_1=dlap_1, dlap_1_v=dlap_1_v,
+  interp_dp_1)
+end
+
+
+dec_ops = build_dec_kernels(s)
 
 ##########################
 ### Physical Operators ###
@@ -105,7 +126,7 @@ momentum_pressure(::LMNSModel, s::UniformCubicalComplex2D, state::ComponentVecto
 # Viscous diffusion: μ Δu  (returns nothing when μ = 0)
 function momentum_diffusion(::LMNSModel, s::UniformCubicalComplex2D, state::ComponentVector{FT}, p::NamedTuple, dec_ops::NamedTuple, fields::NamedTuple) where FT <: AbstractFloat
   p.mu == 0 && return nothing
-  return p.mu * (dec_ops.dlap1 * fields.u + dec_ops.dlap1_v * fields.v)
+  return p.mu * (dec_ops.dlap_1(fields.u) + dec_ops.dlap_1_v(fields.v))
 end
 
 build_saved_value_type(::LMNSModel, ::Type{FT}) where FT <: AbstractFloat =
@@ -116,75 +137,18 @@ checkpoint_field_names(::LMNSModel) = (:U_star, :rho_star)
 
 function regularized_state(::LMNSModel, u, context)
   return (
-    U = Array(hdg_1 * u.U_star),
-    rho = Array(hdg_2 * u.rho_star),
+    U = Array(dec_ops.hdg_1(u.U_star)),
+    rho = Array(dec_ops.hdg_2(u.rho_star)),
   )
 end
 
-function progress_reference(::LMNSModel, u0, context)
-  return (
-    m0 = sum(interior(Val(2), Array(u0.rho_star), context.s)),
-  )
-end
-
-function log_progress!(::LMNSModel, integrator, refs, cfg::CallbackConfig, context)
-  progress = integrator.t / max(cfg.te, eps(typeof(cfg.te)))
-  println("Loading simulation results: $(progress * 100)%")
-  println("Relative mass is : $((sum(interior(Val(2), Array(integrator.u.rho_star), context.s)) / refs.m0) * 100)%")
-  println("-----")
-  flush(stdout)
-
-  return nothing
-end
-
-model_has_periodic_prestep(::LMNSModel, context) =
-  hasproperty(context, :periodic_side) && context.periodic_side !== nothing
+model_has_periodic_prestep(::LMNSModel, context) = hasproperty(context, :periodic) && context.periodic !== nothing
 
 function apply_periodic_prestep!(::LMNSModel, integrator, context)
   s = context.s
-  periodic_side = context.periodic_side
-  set_periodic!(integrator.u.U_star, Val(1), s, periodic_side)
-  set_periodic!(integrator.u.rho_star, Val(2), s, periodic_side)
-  return nothing
-end
-
-# TODO: Add more plotting options later
-# TODO: Upstream into physics plotting
-function parse_plotting_config(config::Dict)
-  map(config["Plotting"]["imgs"]) do img
-    if img == "Vorticity" return plot_vorticity
-    elseif img == "Density" return plot_density
-    elseif img == "Momentum_Components" return plot_momentum_components
-    elseif img == "Momentum_Magnitude" return plot_momentum_magnitude
-    end
-  end
-end
-
-function run_checkpoint_outputs!(::LMNSModel, regular_save_values::SavedValues, step::Int, checkpoint_t::AbstractFloat, cfg::CallbackConfig, context)
-  println("Checkpoint saved at step: $(step)")
-  println("Generating plots and mp4 for checkpoint...")
-
-  state_end = regular_save_values.saveval[end]
-  time = @sprintf("%.6f", checkpoint_t)
-  file_end = "$(context.simspec)_t=$(time)"
-
-  # TODO: Add this to context?
-  required_plots = parse_plotting_config(config)
-  map(plot -> plot(context.s, state_end, savepath, file_end, time), required_plots)
-
-  if config["Plotting"]["create_mp4"]
-    create_mp4(
-      LMNSModel(),
-      regular_save_values,
-      file_end;
-      records = max(1, div(cfg.checkpoint_at, cfg.saveat)),
-    )
-  end
-
-  println("Plots and mp4 generated for checkpoint at step: $(step)")
-  println("-----")
-  flush(stdout)
-
+  periodic = context.periodic
+  set_periodic!(integrator.u.U_star, Val(1), s, periodic)
+  set_periodic!(integrator.u.rho_star, Val(2), s, periodic)
   return nothing
 end
 
@@ -192,7 +156,7 @@ end
 ### Context and Run       ###
 ############################
 
-build_sim_context(::LMNSModel, periodic_side) = (; simspec = simspec)
+build_sim_context(::LMNSModel, periodic) = (; simspec = simspec)
 
 function rhs!(du, u, p_rhs, t)
   du.U_star .= momentum_conservation(LMNSModel(), s, u, p_rhs, dec_ops)
@@ -206,12 +170,11 @@ end
 
 println("Starting simulation...")
 run_simulation(
-  LMNSModel(), to_device(u0), rhs!, p;
+  LMNSModel(), s,
+  to_device(u0), rhs!, p;
   te = te, dt = dt,
   saveat = saveat,
   checkpoint_at = checkpoint_at,
-  full_periodic = full_periodic,
-  periodic_left_right = periodic_left_right,
-  periodic_top_bottom = periodic_top_bottom,
-)
+  periodic=periodic,
+  savepath=savepath)
 println("Simulation complete.")
