@@ -9,10 +9,10 @@ const nx_ = ny_ = 151
 const s = UniformCubicalComplex2D(nx_, ny_, lx_, ly_; halo_x = 10, halo_y = 10)
 
 const simname = "Alfven_Wave"
-const save_path = joinpath(@__DIR__, "..", "imgs", "MHD")
-mkpath(save_path)
-for f in readdir(save_path)
-  rm(joinpath(save_path, f))
+const savepath = joinpath(@__DIR__, "..", "imgs", "MHD")
+mkpath(savepath)
+for f in readdir(savepath)
+  rm(joinpath(savepath, f))
 end
 
 #####################

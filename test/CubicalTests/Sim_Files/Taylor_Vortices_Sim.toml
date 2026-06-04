@@ -1,0 +1,28 @@
+[Metadata]
+name = "Taylor_Vortices"
+simspec = "Re=10_000_te=1.0"
+savepath = "../imgs/Taylor_Test/Re=10_000_te=1.0" # "/blue/fairbanksj/grauta/simulations/LMNS_TaylorVortices/$(simspec)"
+
+[Mesh]
+lx = 6.28
+ly = 6.28
+nx = 81
+ny = 81
+halo_x = 10
+halo_y = 10
+
+[Physics]
+Re = 10_000
+
+[Simulation]
+te=1.0
+dt = 1e-4
+full_periodic = true
+savetime = 0.01
+checkpoint_every_savetime = 50
+
+[Plotting]
+imgs = ["Vorticity", "Density", "Momentum_Components", "Momentum_Magnitude",]
+create_mp4 = false
+
+# [Taylor Vortices]

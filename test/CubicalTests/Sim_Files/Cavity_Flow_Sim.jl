@@ -62,8 +62,8 @@ end
 print_re = @sprintf("%.0f", Re)
 print_te = @sprintf("%.2f", te)
 const simspec = "Re=$(print_re)_te=$(print_te)"
-const save_path = "/blue/fairbanksj/grauta/simulations/LMNS_CavityFlow/$(simspec)"
-mkpath(save_path)
+const savepath = "/blue/fairbanksj/grauta/simulations/LMNS_CavityFlow/$(simspec)"
+mkpath(savepath)
 
 # Run for set time, checkpoint every 5s, save every 0.01s to get 500 frames for the mp4
 const saveat = floor(Int64, 0.01 / dt)

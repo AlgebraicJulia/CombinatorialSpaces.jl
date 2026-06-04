@@ -179,8 +179,8 @@ println("Simulation complete. $(length(phis)) snapshots saved.")
 ####################
 
 # Animate all snapshots
-save_path = joinpath(@__DIR__, "imgs", "Tracer", simname)
-mkpath(save_path)
+savepath = joinpath(@__DIR__, "imgs", "Tracer", simname)
+mkpath(savepath)
 
 phi_clim = extrema(phis[1])
 fig_init = plot_twoform(s, phis[1];
@@ -189,7 +189,7 @@ fig_init = plot_twoform(s, phis[1];
     heatmap_kwargs  = (; colormap = :jet, colorrange = phi_clim),
     colorbar_kwargs = (; label = "φ"),
 )
-save(joinpath(save_path, "initial_n=$(nx_).png"), fig_init)
+save(joinpath(savepath, "initial_n=$(nx_).png"), fig_init)
 
 fig_final = plot_twoform(s, phis[end];
     axis_kwargs     = (; title = "Tracer φ at t = $te  ($simname, $(nx_)×$(ny_))",
@@ -197,7 +197,7 @@ fig_final = plot_twoform(s, phis[end];
     heatmap_kwargs  = (; colormap = :jet, colorrange = phi_clim),
     colorbar_kwargs = (; label = "φ"),
 )
-save(joinpath(save_path, "final_n=$(nx_).png"), fig_final)
+save(joinpath(savepath, "final_n=$(nx_).png"), fig_final)
 
 let diff = phis[end] - phis[1]
     diff_abs = maximum(abs, diff)
@@ -208,7 +208,7 @@ let diff = phis[end] - phis[1]
         heatmap_kwargs  = (; colormap = :RdBu, colorrange = diff_clim),
         colorbar_kwargs = (; label = "Δφ"),
     )
-    save(joinpath(save_path, "difference_n=$(nx_).png"), fig_diff)
+    save(joinpath(savepath, "difference_n=$(nx_).png"), fig_diff)
 end
 
 fig_anim = Figure(size = (700, 600))
@@ -228,8 +228,8 @@ hm = CairoMakie.heatmap!(ax_anim, xs, ys, interior(Val(2), phis[1], s);
     colormap = :jet, colorrange = anim_clim)
 Colorbar(fig_anim[1, 2], hm; label = "φ")
 
-CairoMakie.record(fig_anim, joinpath(save_path, "animation_n=$(nx_).mp4"), 1:length(phis); framerate = 15) do i
+CairoMakie.record(fig_anim, joinpath(savepath, "animation_n=$(nx_).mp4"), 1:length(phis); framerate = 15) do i
     hm[3] = interior(Val(2), phis[i], s)
 end
 
-println("Plots and animation saved to $save_path")
+println("Plots and animation saved to $savepath")
