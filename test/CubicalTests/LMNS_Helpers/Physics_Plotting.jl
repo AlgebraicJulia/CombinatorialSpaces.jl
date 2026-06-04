@@ -7,7 +7,7 @@ function require_state_field(state, field::Symbol, func_name::AbstractString)
   return getproperty(state, field)
 end
 
-function plot_vorticity(s, state, file_end::String, time::String)
+function plot_vorticity((s, state, savepath::String, file_end::String, time::String))
   U = require_state_field(state, :U, "plot_vorticity")
   ω = inv_hodge_star(Val(0), s) * dual_derivative(Val(1), s) * U
 
@@ -17,11 +17,11 @@ function plot_vorticity(s, state, file_end::String, time::String)
     axis_kwargs = (title = "Vorticity Field (ω) at $(time)",),
     mesh_kwargs = (colormap = :jet,),
   )
-  save(joinpath(save_path, "Vorticity_$(file_end).png"), fig)
+  save(joinpath(savepath, "Vorticity_$(file_end).png"), fig)
   return fig
 end
 
-function plot_density(s, state, file_end::String, time::String)
+function plot_density((s, state, savepath::String, file_end::String, time::String))
   rho = require_state_field(state, :rho, "plot_density")
   fig = plot_twoform(
     s,
@@ -29,11 +29,11 @@ function plot_density(s, state, file_end::String, time::String)
     axis_kwargs = (title = "Density Field (ρ) at $(time)",),
     heatmap_kwargs = (colormap = Reverse(:oslo),),
   )
-  save(joinpath(save_path, "Density_$(file_end).png"), fig)
+  save(joinpath(savepath, "Density_$(file_end).png"), fig)
   return fig
 end
 
-function plot_momentum_magnitude(s, state, file_end::String, time::String)
+function plot_momentum_magnitude((s, state, savepath::String, file_end::String, time::String))
   U = require_state_field(state, :U, "plot_momentum_magnitude")
   u = U
 
@@ -44,11 +44,11 @@ function plot_momentum_magnitude(s, state, file_end::String, time::String)
     axis_kwargs = (title = "Momentum Magnitude at $(time)",),
     heatmap_kwargs = (colormap = :viridis,),
   )
-  save(joinpath(save_path, "Momentum_Magnitude_$(file_end).png"), fig)
+  save(joinpath(savepath, "Momentum_Magnitude_$(file_end).png"), fig)
   return fig
 end
 
-function plot_momentum_components(s, state, file_end::String, time::String)
+function plot_momentum_components((s, state, savepath::String, file_end::String, time::String))
   U = require_state_field(state, :U, "plot_momentum_components")
   u = U
   fig = plot_xy_oneform(
@@ -60,11 +60,11 @@ function plot_momentum_components(s, state, file_end::String, time::String)
     heatmap_y_kwargs = (colormap = :jet,),
   )
 
-  save(joinpath(save_path, "Momentum_Components_$(file_end).png"), fig)
+  save(joinpath(savepath, "Momentum_Components_$(file_end).png"), fig)
   return fig
 end
 
-function plot_pressure(s, state, file_end::String, time::String)
+function plot_pressure((s, state, savepath::String, file_end::String, time::String))
   Theta = require_state_field(state, :Theta, "plot_pressure")
   p = pressure(Theta)
 
@@ -74,7 +74,7 @@ function plot_pressure(s, state, file_end::String, time::String)
     axis_kwargs = (title = "Pressure Field (p) at $(time)",),
     heatmap_kwargs = (colormap = :magma,),
   )
-  save(joinpath(save_path, "Pressure_$(file_end).png"), fig)
+  save(joinpath(savepath, "Pressure_$(file_end).png"), fig)
   return fig
 end
 
@@ -118,7 +118,7 @@ end
 function create_mp4(::LMNSModel, regular_states::AbstractVector, file_end::String; frames::Int = length(regular_states), framerate::Int = 15, records::Int = 50)
   return create_mp4(
     LMNSModel(),
-    joinpath(save_path, "simulation_$(file_end).mp4"),
+    joinpath(savepath, "simulation_$(file_end).mp4"),
     regular_states;
     frames = frames,
     framerate = framerate,
@@ -179,7 +179,7 @@ end
 function create_mp4(::LMNSHModel, regular_states::AbstractVector, file_end::String; frames::Int = length(regular_states), framerate::Int = 15, records::Int = 50)
   return create_mp4(
     LMNSHModel(),
-    joinpath(save_path, "simulation_$(file_end).mp4"),
+    joinpath(savepath, "simulation_$(file_end).mp4"),
     regular_states;
     frames = frames,
     framerate = framerate,
@@ -220,7 +220,7 @@ mhd_current_density(B::AbstractVector{Float64}) = (dec_ops.hdg_2 * dec_ops.d1 * 
 function plot_mhd_vorticity(state::NamedTuple{(:U, :rho, :B), <:Tuple}; suffix::String = "")
   suffix_txt = isempty(suffix) ? "" : "_$(suffix)"
   ω = dec_ops.inv_hdg_0 * dec_ops.dual_d1 * state.U
-  save(joinpath(save_path, "Vorticity$(suffix_txt).png"), plot_zeroform(s, ω))
+  save(joinpath(savepath, "Vorticity$(suffix_txt).png"), plot_zeroform(s, ω))
   return nothing
 end
 
@@ -230,47 +230,47 @@ function plot_mhd_density(state::NamedTuple{(:U, :rho, :B), <:Tuple}; suffix::St
   fig = isnothing(colorrange) ?
     plot_twoform(s, state.rho) :
     plot_twoform(s, state.rho; heatmap_kwargs = (colorrange = colorrange,))
-  save(joinpath(save_path, "Density$(suffix_txt).png"), fig)
+  save(joinpath(savepath, "Density$(suffix_txt).png"), fig)
   return nothing
 end
 
 function plot_mhd_velocity_magnitude(state::NamedTuple{(:U, :rho, :B), <:Tuple}; suffix::String = "")
   suffix_txt = isempty(suffix) ? "" : "_$(suffix)"
   vel_mag = mhd_velocity_magnitude(state.U, state.rho)
-  save(joinpath(save_path, "VelocityMagnitude$(suffix_txt).png"), plot_twoform(s, vel_mag))
+  save(joinpath(savepath, "VelocityMagnitude$(suffix_txt).png"), plot_twoform(s, vel_mag))
   return nothing
 end
 
 function plot_mhd_magnetic_magnitude(state::NamedTuple{(:U, :rho, :B), <:Tuple}; suffix::String = "")
   suffix_txt = isempty(suffix) ? "" : "_$(suffix)"
   B_mag = mhd_magnetic_magnitude(state.B)
-  save(joinpath(save_path, "MagneticFieldMagnitude$(suffix_txt).png"), plot_twoform(s, B_mag))
+  save(joinpath(savepath, "MagneticFieldMagnitude$(suffix_txt).png"), plot_twoform(s, B_mag))
   return nothing
 end
 
 function plot_mhd_velocity_components(state::NamedTuple{(:U, :rho, :B), <:Tuple}; suffix::String = "")
   suffix_txt = isempty(suffix) ? "" : "_$(suffix)"
-  save(joinpath(save_path, "VelocityComponents$(suffix_txt).png"), plot_xy_oneform(s, state.U))
+  save(joinpath(savepath, "VelocityComponents$(suffix_txt).png"), plot_xy_oneform(s, state.U))
   return nothing
 end
 
 function plot_mhd_magnetic_components(state::NamedTuple{(:U, :rho, :B), <:Tuple}; suffix::String = "")
   suffix_txt = isempty(suffix) ? "" : "_$(suffix)"
-  save(joinpath(save_path, "MagneticFieldComponents$(suffix_txt).png"), plot_xy_oneform(s, state.B))
+  save(joinpath(savepath, "MagneticFieldComponents$(suffix_txt).png"), plot_xy_oneform(s, state.B))
   return nothing
 end
 
 function plot_mhd_current_density(state::NamedTuple{(:U, :rho, :B), <:Tuple}; suffix::String = "")
   suffix_txt = isempty(suffix) ? "" : "_$(suffix)"
   Jz = mhd_current_density(state.B)
-  save(joinpath(save_path, "CurrentDensity$(suffix_txt).png"), plot_twoform(s, Jz))
+  save(joinpath(savepath, "CurrentDensity$(suffix_txt).png"), plot_twoform(s, Jz))
   return nothing
 end
 
 function plot_mhd_momentum_divergence(state::NamedTuple{(:U, :rho, :B), <:Tuple}; suffix::String = "")
   suffix_txt = isempty(suffix) ? "" : "_$(suffix)"
   U_div = dec_ops.inv_hdg_0 * dec_ops.dual_d1 * state.U
-  save(joinpath(save_path, "MomentumDivergence$(suffix_txt).png"), plot_zeroform(s, U_div))
+  save(joinpath(savepath, "MomentumDivergence$(suffix_txt).png"), plot_zeroform(s, U_div))
   return nothing
 end
 
@@ -295,7 +295,7 @@ function save_mhd_diagnostics(regular_save_values::SavedValues; suffix::String =
   suffix_txt = isempty(suffix) ? "" : "_$(suffix)"
   create_mp4(
     MHDModel(),
-    joinpath(save_path, "$(simname)$(suffix_txt).mp4"),
+    joinpath(savepath, "$(simname)$(suffix_txt).mp4"),
     regular_save_values;
     framerate = framerate,
     records = records,

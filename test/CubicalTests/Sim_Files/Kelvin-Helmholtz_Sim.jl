@@ -94,18 +94,18 @@ end
 print_re = @sprintf("%.0f", Re)
 print_te = @sprintf("%.2f", te)
 simspec = "Re=$(print_re)_te=$(print_te)"
-save_path = "/blue/fairbanksj/grauta/simulations/LMNS_KelvinHelmholtz/$(simspec)"
-mkpath(save_path)
+savepath = "/blue/fairbanksj/grauta/simulations/LMNS_KelvinHelmholtz/$(simspec)"
+mkpath(savepath)
 
 const saveat = 1000
 const checkpoint_at = 20_000
 
 # Plot the density field at the start of the simulation
 fig = plot_twoform(s, hodge_star(Val(2), s) * rho_star_0)
-save(joinpath(save_path, "initial_density.png"), fig)
+save(joinpath(savepath, "initial_density.png"), fig)
 
 fig = plot_xy_oneform(s, inv_hodge_star(Val(1), s) * U_star_0)
-save(joinpath(save_path, "initial_velocity.png"), fig)
+save(joinpath(savepath, "initial_velocity.png"), fig)
 
 fig = plot_twoform(s, hodge_star(Val(2), s) * Theta_star_0)
-save(joinpath(save_path, "initial_potential_temperature.png"), fig)
+save(joinpath(savepath, "initial_potential_temperature.png"), fig)

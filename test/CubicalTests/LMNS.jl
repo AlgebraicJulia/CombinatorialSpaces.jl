@@ -4,10 +4,60 @@ include(joinpath(@__DIR__, "LMNS_Helpers", "Simulation_Header.jl"))
 ### Simulation Initialization ###
 #################################
 
-simfile = "Taylor_Vortices_Sim.jl"
+sim = "Taylor_Vortices"
 
-# Test case parameters for lid-driven cavity flow at different Reynolds numbers
-include(joinpath(@__DIR__, "Sim_Files", simfile))
+const config = TOML.parsefile("Sim_Files/$(sim)_Sim.toml")
+
+const simspec = config["Metadata"]["simspec"]
+const savepath = config["Metadata"]["savepath"]
+
+println("Running simulation: $(config["Metadata"]["name"])")
+println("Given simulation specification is: $(simspec)")
+println("Saving outputs at: $(savepath)")
+
+mkpath(savepath)
+
+const lx_ = config["Mesh"]["lx"]
+const ly_ = config["Mesh"]["ly"]
+const nx_ = config["Mesh"]["nx"]
+const ny_ = config["Mesh"]["ny"]
+const halo_x = config["Mesh"]["halo_x"]
+const halo_y = config["Mesh"]["halo_y"]
+
+const s = UniformCubicalComplex2D(nx_, ny_, lx_, ly_, halo_x = halo_x, halo_y = halo_y)
+
+const Re = config["Physics"]["Re"]
+const p = (mu = 1 / Re,) # μ
+
+const te = config["Simulation"]["te"]
+const dt = config["Simulation"]["dt"]
+
+const full_periodic = config["Simulation"]["full_periodic"]
+
+if full_periodic
+  const periodic_left_right = true
+  const periodic_top_bottom = true
+else
+  const periodic_left_right = config["Simulation"]["periodic_left_right"]
+  const periodic_top_bottom = config["Simulation"]["periodic_top_bottom"]
+end
+
+@assert !periodic_left_right || halo_x > 0
+@assert !periodic_top_bottom || halo_y > 0
+
+const saveat = floor(Int64, config["Simulation"]["savetime"] / dt)
+const checkpoint_every_saveat = config["Simulation"]["checkpoint_every_savetime"]
+const checkpoint_at = saveat * checkpoint_every_saveat
+
+include(joinpath(@__DIR__, "Sim_Files", "$(sim)_Sim.jl"))
+
+@isdefined(u0) || error("Initial condition not defined properly, please assign to variable \"u0\"")
+# TODO: Are these checks working?
+# @isdefined(enforce_bc_u!) || error("Please define boundary conditions for dual velocity (u), can be trivial")
+# @isdefined(enforce_bc_U!) || error("Please define boundary conditions for dual momentum (U), can be trivial")
+# @isdefined(enforce_bc_v!) || error("Please define boundary conditions for primal velocity (v), can be trivial")
+# @isdefined(enforce_bc_V!) || error("Please define boundary conditions for primal momentum (v), can be trivial")
+
 
 #####################
 ### DEC Operators ###
@@ -91,10 +141,23 @@ model_has_periodic_prestep(::LMNSModel, context) =
   hasproperty(context, :periodic_side) && context.periodic_side !== nothing
 
 function apply_periodic_prestep!(::LMNSModel, integrator, context)
+  s = context.s
   periodic_side = context.periodic_side
-  set_periodic!(integrator.u.U_star, Val(1), context.s, periodic_side)
-  set_periodic!(integrator.u.rho_star, Val(2), context.s, periodic_side)
+  set_periodic!(integrator.u.U_star, Val(1), s, periodic_side)
+  set_periodic!(integrator.u.rho_star, Val(2), s, periodic_side)
   return nothing
+end
+
+# TODO: Add more plotting options later
+# TODO: Upstream into physics plotting
+function parse_plotting_config(config::Dict)
+  map(config["Plotting"]["imgs"]) do img
+    if img == "Vorticity" return plot_vorticity
+    elseif img == "Density" return plot_density
+    elseif img == "Momentum_Components" return plot_momentum_components
+    elseif img == "Momentum_Magnitude" return plot_momentum_magnitude
+    end
+  end
 end
 
 function run_checkpoint_outputs!(::LMNSModel, regular_save_values::SavedValues, step::Int, checkpoint_t::AbstractFloat, cfg::CallbackConfig, context)
@@ -105,17 +168,18 @@ function run_checkpoint_outputs!(::LMNSModel, regular_save_values::SavedValues, 
   time = @sprintf("%.6f", checkpoint_t)
   file_end = "$(context.simspec)_t=$(time)"
 
-  plot_vorticity(context.s, state_end, file_end, time)
-  plot_density(context.s, state_end, file_end, time)
-  plot_momentum_components(context.s, state_end, file_end, time)
-  plot_momentum_magnitude(context.s, state_end, file_end, time)
+  # TODO: Add this to context?
+  required_plots = parse_plotting_config(config)
+  map(plot -> plot(context.s, state_end, savepath, file_end, time), required_plots)
 
-  create_mp4(
-    LMNSModel(),
-    regular_save_values,
-    file_end;
-    records = max(1, div(cfg.checkpoint_at, cfg.saveat)),
-  )
+  if config["Plotting"]["create_mp4"]
+    create_mp4(
+      LMNSModel(),
+      regular_save_values,
+      file_end;
+      records = max(1, div(cfg.checkpoint_at, cfg.saveat)),
+    )
+  end
 
   println("Plots and mp4 generated for checkpoint at step: $(step)")
   println("-----")

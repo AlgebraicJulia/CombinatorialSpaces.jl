@@ -39,19 +39,7 @@ function form_taylor_vortices_initial_conditions(s::AbstractCubicalComplex2D)
   )
 end
 
-const lx_ = ly_ = 2π;
-const nx_ = ny_ = 81
-const halo_x = halo_y = 10
-
-const s = UniformCubicalComplex2D(nx_, ny_, lx_, ly_, halo_x = halo_x, halo_y = halo_y)
-
 const u0 = form_taylor_vortices_initial_conditions(s)
-
-const Re = 10_000
-const p = (mu = 1 / Re,) # μ
-
-const te = 1.0;
-const dt = 1e-4;
 
 ###########################
 ### Boundary Conditions ###
@@ -68,22 +56,3 @@ end
 @inline function enforce_bc_U!(U::AbstractVector{FT}) where FT
   return U
 end
-
-const full_periodic = true
-const periodic_left_right = true
-const periodic_top_bottom = true
-
-#########################
-### Saving Parameters ###
-#########################
-
-print_re = @sprintf("%.0f", Re)
-print_te = @sprintf("%.2f", te)
-const simspec = "Re=$(print_re)_te=$(print_te)"
-const save_path = "/blue/fairbanksj/grauta/simulations/LMNS_TaylorVortices/$(simspec)"
-mkpath(save_path)
-
-# Save every 0.01s and checkpoint every 50 save events.
-const saveat = floor(Int64, 0.01 / dt)
-const checkpoint_every_saveat = 50
-const checkpoint_at = saveat * checkpoint_every_saveat

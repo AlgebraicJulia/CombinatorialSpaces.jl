@@ -319,7 +319,7 @@ end
 ############################
 
 # Model-dispatched hook: return a NamedTuple of model-specific context fields that will
-# be merged with the common fields (s, save_path, periodic_side) before being passed
+# be merged with the common fields (s, savepath, periodic_side) before being passed
 # to run_with_model_callbacks.  Default: no extra fields.
 build_sim_context(::AbstractSimulationModel, periodic_side) = (;)
 
@@ -340,8 +340,8 @@ build_sim_context(::AbstractSimulationModel, periodic_side) = (;)
 #   periodic_top_bottom – periodic boundary toggles (default false)
 #
 # The context visible to all model-dispatch hooks is:
-#   (s, save_path, periodic_side, <fields from build_sim_context>)
-# where s and save_path are expected globals in the simulation file.
+#   (s, savepath, periodic_side, <fields from build_sim_context>)
+# where s and savepath are expected globals in the simulation file.
 function run_simulation(
   model::AbstractSimulationModel,
   initial_state::ComponentVector{FT},
@@ -367,7 +367,7 @@ function run_simulation(
 
   common_context = (
     s = s,
-    save_path = save_path,
+    savepath = savepath,
     periodic_side = periodic_side,
   )
   model_context = build_sim_context(model, periodic_side)
@@ -441,7 +441,7 @@ function run_with_model_callbacks(
     checkpoint_regular_t = regular_save_values.t
     checkpoint_regular_state = regular_save_values.saveval
 
-    @save joinpath(context.save_path, "checkpoint_step_$(step).jld2") schema_version model_kind field_names checkpoint_t checkpoint_step checkpoint_state checkpoint_regular_t checkpoint_regular_state
+    @save joinpath(context.savepath, "checkpoint_step_$(step).jld2") schema_version model_kind field_names checkpoint_t checkpoint_step checkpoint_state checkpoint_regular_t checkpoint_regular_state
 
     if isempty(checkpoint_regular_state)
       push!(regular_save_values.t, checkpoint_t)

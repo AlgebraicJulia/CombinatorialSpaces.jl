@@ -2,16 +2,17 @@
 ### Package Imports       ###
 ############################
 
-using Test
 using CairoMakie
+using ComponentArrays
+using DiffEqCallbacks
+using Distributions
+using JLD2
 using LinearAlgebra
+using OrdinaryDiffEqSSPRK
 using Printf
 using SparseArrays
-using JLD2
-using ComponentArrays
-using Distributions
-using OrdinaryDiffEqSSPRK
-using DiffEqCallbacks
+using TOML
+using Test
 
 ############################
 ### Core Helper Includes  ###
