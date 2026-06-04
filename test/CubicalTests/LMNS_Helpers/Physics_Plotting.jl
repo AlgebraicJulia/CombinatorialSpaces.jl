@@ -7,7 +7,7 @@ function require_state_field(state, field::Symbol, func_name::AbstractString)
   return getproperty(state, field)
 end
 
-function plot_vorticity((s, state, savepath::String, file_end::String, time::String))
+function plot_vorticity(s, state, savepath::String, file_end::String, time::String)
   U = require_state_field(state, :U, "plot_vorticity")
   ω = inv_hodge_star(Val(0), s) * dual_derivative(Val(1), s) * U
 
@@ -21,7 +21,7 @@ function plot_vorticity((s, state, savepath::String, file_end::String, time::Str
   return fig
 end
 
-function plot_density((s, state, savepath::String, file_end::String, time::String))
+function plot_density(s, state, savepath::String, file_end::String, time::String)
   rho = require_state_field(state, :rho, "plot_density")
   fig = plot_twoform(
     s,
@@ -33,7 +33,7 @@ function plot_density((s, state, savepath::String, file_end::String, time::Strin
   return fig
 end
 
-function plot_momentum_magnitude((s, state, savepath::String, file_end::String, time::String))
+function plot_momentum_magnitude(s, state, savepath::String, file_end::String, time::String)
   U = require_state_field(state, :U, "plot_momentum_magnitude")
   u = U
 
@@ -48,7 +48,7 @@ function plot_momentum_magnitude((s, state, savepath::String, file_end::String, 
   return fig
 end
 
-function plot_momentum_components((s, state, savepath::String, file_end::String, time::String))
+function plot_momentum_components(s, state, savepath::String, file_end::String, time::String)
   U = require_state_field(state, :U, "plot_momentum_components")
   u = U
   fig = plot_xy_oneform(
@@ -64,7 +64,7 @@ function plot_momentum_components((s, state, savepath::String, file_end::String,
   return fig
 end
 
-function plot_pressure((s, state, savepath::String, file_end::String, time::String))
+function plot_pressure(s, state, savepath::String, file_end::String, time::String)
   Theta = require_state_field(state, :Theta, "plot_pressure")
   p = pressure(Theta)
 

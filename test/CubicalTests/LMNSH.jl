@@ -122,7 +122,7 @@ function progress_reference(::LMNSHModel, u0, context)
   )
 end
 
-function log_progress!(::LMNSHModel, integrator, refs, cfg::CallbackConfig, context)
+function log_progress(::LMNSHModel, integrator, refs, cfg::CallbackConfig, context)
   progress = integrator.t / max(cfg.te, eps(typeof(cfg.te)))
   println("Loading simulation results: $(progress * 100)%")
   println("Relative mass is : $((sum(interior(Val(2), Array(integrator.u.rho_star), context.s)) / refs.m0) * 100)%")
@@ -171,7 +171,7 @@ end
 
 
 
-function run_checkpoint_outputs!(::LMNSHModel, regular_save_values::SavedValues, step::Int, checkpoint_t::AbstractFloat, cfg::CallbackConfig, context)
+function run_checkpoint_outputs(::LMNSHModel, regular_save_values::SavedValues, step::Int, checkpoint_t::AbstractFloat, cfg::CallbackConfig, context)
   println("Checkpoint saved at step: $(step)")
   println("Generating plots and mp4 for checkpoint...")
 
