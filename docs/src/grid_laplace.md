@@ -324,16 +324,9 @@ Let's solve the Laplacian on a triangular mesh.
 using Krylov, CombinatorialSpaces, LinearAlgebra
 
 s = triangulated_grid(1,1,1/4,sqrt(3)/2*1/4,Point3d,false)
-fs = reverse(repeated_subdivision_maps(4, s, BinarySubdivision()));
-sses = map(fs) do f dom(f) end
-push!(sses,s)
-sds = map(sses) do s dualize(s,Circumcenter()) end
-Ls = map(sds) do sd ∇²(0,sd) end
-ps = transpose.(as_matrix.(fs))
-rs = transpose.(ps)./4.0 #4 is the biggest row sum that occurs for binary, this is not clearly the correct scaling
-
-u0 = zeros(nv(sds[1]))
-b = Ls[1]*rand(nv(sds[1])) #put into range of the Laplacian for solvability
-u = multigrid_vcycles(u0, b, MultigridData(Ls, rs, ps, 3), 10)
-norm(Ls[1]*u - b) / norm(b)
+md = MultigridData(s, BinarySubdivision(), 4, sd -> ∇²(0,sd), 3)
+u0 = zeros(size(md.operators[1], 1))
+b = md.operators[1]*rand(size(md.operators[1], 1))
+u = multigrid_vcycles(u0, b, md, 10)
+norm(md.operators[1]*u - b) / norm(b)
 ```
