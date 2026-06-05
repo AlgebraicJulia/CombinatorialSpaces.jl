@@ -2,11 +2,11 @@ module CombinatorialSpacesTetGenExt
 
 using CombinatorialSpaces
 using CombinatorialSpaces.CombMeshes
-using GeometryBasics: Mesh, MetaMesh, Point, Point3, Point3d, QuadFace
+using GeometryBasics: Mesh, MetaMesh, Point, Point3d, QuadFace
 using TetGen: tetrahedralize
 
-function CombMeshes.parallelepiped(;lx::Real = 1.0, ly::Real = 1.0, lz::Real = 1.0, dx::Real = 0.0, dy::Real = 0.0, point_type::Type{<:Point3} = Point3d, tetcmd::String = "pQq1.414a0.1")
-	points = point_type[
+function CombMeshes.parallelepiped(;lx::Real = 1.0, ly::Real = 1.0, lz::Real = 1.0, dx::Real = 0.0, dy::Real = 0.0, point_type = Point3d, tetcmd::String = "pQq1.414a0.1")
+  points = point_type[
     (0.0, 0.0, 0.0), (dx, dy, lz), (0.0, ly, 0.0), (dx, ly+dy, lz),
     (lx, 0.0, 0.0), (lx+dx, dy, lz), (lx, ly, 0.0), (lx+dx, ly+dy, lz)]
 
@@ -16,9 +16,9 @@ function CombMeshes.parallelepiped(;lx::Real = 1.0, ly::Real = 1.0, lz::Real = 1
 
   tet_mesh = tetrahedralize(Mesh(points, faces), tetcmd)
 
-  s = EmbeddedDeltaSet3D(tet_mesh)
+  s = CombinatorialSpaces.EmbeddedDeltaSet3D(tet_mesh)
 
-  orient!(s)
+  CombinatorialSpaces.orient!(s)
   s[:edge_orientation] = false
   s[:tri_orientation] = false
 
@@ -40,8 +40,8 @@ function CombMeshes.tetgen_readme_mesh()
   markers = Cint[-1, -2, 0, 0, 0, 0]
   msh = MetaMesh(points, facets; markers)
   tet_msh = tetrahedralize(msh, "Qvpq1.414a0.1")
-  s = EmbeddedDeltaSet3D(tet_msh)
-  orient!(s)
+  s = CombinatorialSpaces.EmbeddedDeltaSet3D(tet_msh)
+  CombinatorialSpaces.orient!(s)
   s[:edge_orientation] = false
   s[:tri_orientation] = false
   s
