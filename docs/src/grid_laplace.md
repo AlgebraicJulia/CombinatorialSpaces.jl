@@ -169,8 +169,8 @@ function test_vcycle_1D_cs_setup_sorted(k)
   N = 2^k-1 
   u = zeros(N)
 
-  sds = reverse(repeated_subdivisions(k, ss, BinarySubdivision()))
-  sses = [sd.domain for sd in sds]
+  sds = reverse(repeated_subdivision_maps(k, ss, BinarySubdivision()))
+  sses = [dom(sd) for sd in sds]
   sorts = [sort(vertices(ss),by=x->ss[:point][x]) for ss in sses]
   ls = [laplacian(sses[i])[sorts[i],sorts[i]][2:end-1,2:end-1] for i in eachindex(sses)]
   ps = transpose.([as_matrix(sds[i])[sorts[i+1],sorts[i]][2:end-1,2:end-1] for i in 1:length(sds)-1])
@@ -196,8 +196,8 @@ function test_vcycle_1D_cs_setup(k)
   N = 2^k-1 
   u = zeros(N)
 
-  sds = reverse(repeated_subdivisions(k, ss, BinarySubdivision()))
-  sses = [sd.domain for sd in sds]
+  sds = reverse(repeated_subdivision_maps(k, ss, BinarySubdivision()))
+  sses = [dom(sd) for sd in sds]
   ls = [laplacian(sses[i])[3:end,3:end] for i in eachindex(sses)]
   ps = transpose.([as_matrix(sds[i])[3:end,3:end] for i in 1:length(sds)-1])
   is = transpose.(ps)*1/2
@@ -324,7 +324,7 @@ Let's solve the Laplacian on a triangular mesh.
 using Krylov, CombinatorialSpaces, LinearAlgebra
 
 s = triangulated_grid(1,1,1/4,sqrt(3)/2*1/4,Point3d,false)
-fs = reverse(repeated_subdivisions(4, s, BinarySubdivision()));
+fs = reverse(repeated_subdivision_maps(4, s, BinarySubdivision()));
 sses = map(fs) do f dom(f) end
 push!(sses,s)
 sds = map(sses) do s dualize(s,Circumcenter()) end
