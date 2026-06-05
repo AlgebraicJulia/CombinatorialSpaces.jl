@@ -1,0 +1,29 @@
+[Metadata]
+name = "Kelvin-Helmholtz"
+simspec   = "Re=10_000_te=5.0"
+savepath = "imgs/KH_Test/Re=10_000_te=5.0" 
+# "/blue/fairbanksj/grauta/simulations/LMNS_KelvinHelmholtz/Re=10000_te=5.00"
+
+[Mesh]
+lx = 1.0
+ly = 1.0
+nx = 256
+ny = 256
+halo_x = 10
+halo_y = 10
+
+[Physics]
+Re          = 10_000
+Pr          = 0.71
+use_gravity = false
+
+[Smoothing]
+rho_smooth_constant = 0.05
+T_smooth_constant = 0.2
+
+[Simulation]
+te = 5.0
+dt = 5e-6
+periodic="ALL"
+savetime = 0.01
+checkpoint_every_savetime = 40

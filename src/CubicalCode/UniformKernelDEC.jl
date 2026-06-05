@@ -1818,3 +1818,8 @@ function smooth_dual0_fused!(res::AbstractVector{FT},
   tmp = similar(f)
   return smooth_dual0_fused!(res, tmp, cache, f)
 end
+
+function smooth_dual0_fused(cache::SmoothingCache, f::AbstractVector{FT}) where FT
+  res = similar(f)
+  return smooth_dual0_fused!(res, cache, f)
+end

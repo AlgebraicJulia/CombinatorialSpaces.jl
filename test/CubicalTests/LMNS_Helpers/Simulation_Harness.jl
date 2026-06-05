@@ -175,6 +175,7 @@ function run_simulation(
   initial_state::ComponentVector{FT},
   rhs!::Function,
   p;
+  dec_ops::NamedTuple,
   te::FT,
   dt::FT,
   saveat::Int = 500,
@@ -190,16 +191,23 @@ function run_simulation(
     checkpoint_at = checkpoint_at,
   )
 
+  # Common context fields available to all models and callbacks
+  # These are derived from global variables and the dec_ops, which is built from the mesh and shared across all models.
   common_context = (
     s = s,
     savepath = savepath,
+    simspec = simspec,
     periodic = periodic,
+    dec_ops = dec_ops,
   )
   model_context = build_sim_context(model, periodic)
   context = merge(common_context, model_context)
 
+  println("Starting simulation...")
+
   run_with_model_callbacks(model, initial_state, rhs!, p, cfg; context = context)
 
+  println("Simulation complete.")
   return nothing
 end
 
@@ -212,6 +220,7 @@ function run_with_model_callbacks(
   context = nothing,
 ) where FT <: AbstractFloat
 
+  println("Setting up callbacks...")
   regular_save_values = SavedValues(FT, build_saved_value_type(model, FT),)
 
   regular_state_cb = SavingCallback(
@@ -222,6 +231,8 @@ function run_with_model_callbacks(
     save_end = true,
   )
 
+  println("Regularized saving callbacks configured.")
+
   function smoothing_condition(u, t, integrator)
     integrator.iter > 0 || return false
     return model_has_smoothing(model)
@@ -231,6 +242,8 @@ function run_with_model_callbacks(
     apply_smoothing!(model, integrator, context)
     return nothing
   end
+
+  println("Smoothing callbacks configured.")
 
   function save_condition(u, t, integrator)
     integrator.iter > 0 || return false
@@ -262,6 +275,8 @@ function run_with_model_callbacks(
     return nothing
   end
 
+  println("Save callbacks configured.")
+
   function checkpoint_condition(u, t, integrator)
     integrator.iter > 0 || return false
     step = step_from_iter(cfg, integrator.iter)
@@ -279,6 +294,8 @@ function run_with_model_callbacks(
 
     return nothing
   end
+
+  println("Checkpoint callbacks configured.")
 
   callback_items = Any[]
   if hasproperty(context, :periodic) && context.periodic !== nothing
@@ -298,6 +315,10 @@ function run_with_model_callbacks(
   push!(callback_items, DiscreteCallback(save_condition, save_affect; save_positions = (false, false)))
 
   callbacks = CallbackSet(callback_items...)
+
+  println("All callbacks configured. Setting up and starting the solver...")
+
+  dec_ops = context.dec_ops
 
   prob = ODEProblem(rhs!, u0, (cfg.start_time, cfg.te), params)
   solve(
