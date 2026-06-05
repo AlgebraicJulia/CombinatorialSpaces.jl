@@ -407,7 +407,7 @@ create_mp4("imgs/CF/simulation_Re=$(Re).mp4", Us, Ps)
 
 # all(0 .<= get_magnitude(Us[debug_time]) .<= 1.0) # Velocity magnitudes should be reasonable
 
-# x = nxquads(s); y = nyquads(s);
+# x = nxq(s); y = nyq(s);
 # quad_idx = coord_to_quad(s, x, y);
 # tmp = divergence[quad_idx];
 

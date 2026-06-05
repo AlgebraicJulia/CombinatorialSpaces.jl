@@ -337,7 +337,7 @@ end
 
 @kernel function kernel_set_periodic_2_ew!(f, s)
   idx = @index(Global)
-  hx_ = hx(s); nqx_ = nxquads(s); nqy_ = nyquads(s)
+  hx_ = hx(s); nqx_ = nxq(s); nqy_ = nyq(s)
   j = div(idx - 1, hx_) + 1
   i = idx - (j - 1) * hx_
   @inbounds f[coord_to_quad(s, i, j)] = f[coord_to_quad(s, nqx_ - 2hx_ + i, j)]
@@ -346,7 +346,7 @@ end
 
 @kernel function kernel_set_periodic_2_ns!(f, s)
   idx = @index(Global)
-  hy_ = hy(s); nqx_ = nxquads(s); nqy_ = nyquads(s)
+  hy_ = hy(s); nqx_ = nxq(s); nqy_ = nyq(s)
   j = div(idx - 1, nqx_) + 1
   i = idx - (j - 1) * nqx_
   @inbounds f[coord_to_quad(s, i, j)] = f[coord_to_quad(s, i, nqy_ - 2hy_ + j)]
@@ -356,10 +356,10 @@ end
 function set_periodic!(f::AbstractVector{FT}, ::Val{2}, s::UniformCubicalComplex2D, side::GridSide) where FT <: AbstractFloat
   backend = get_backend(f)
   if side == EASTWEST || side == ALL
-    kernel_set_periodic_2_ew!(backend)(f, s; ndrange = hx(s) * nyquads(s))
+    kernel_set_periodic_2_ew!(backend)(f, s; ndrange = hx(s) * nyq(s))
   end
   if side == NORTHSOUTH || side == ALL
-    kernel_set_periodic_2_ns!(backend)(f, s; ndrange = nxquads(s) * hy(s))
+    kernel_set_periodic_2_ns!(backend)(f, s; ndrange = nxq(s) * hy(s))
   end
   return f
 end
@@ -678,7 +678,7 @@ function UniformDECCache(s::UniformCubicalComplex2D{FT}) where {FT <: AbstractFl
   # Layout: first half = first-direction copies, second half = second direction.
   _hxc  = hx(s);      _hyc  = hy(s)
   _nxec = nxe(s);     _nyec = nye(s)
-  _nqxc = nxquads(s); _nqyc = nyquads(s)
+  _nqxc = nxq(s); _nqyc = nyq(s)
 
   # per0 EW: 0-forms east–west  (old ndrange = (hxc+1)*ny)
   _p0ew_h = (_hxc + 1) * ny_
@@ -1701,8 +1701,8 @@ function SmoothingCache(s::UniformCubicalComplex2D, c_smooth::Real)
   c      = Float64(c_smooth) / 2
   inv_dx = 1.0 / dx(s)
   inv_dy = 1.0 / dy(s)
-  nqx    = nxquads(s)
-  nqy    = nyquads(s)
+  nqx    = nxq(s)
+  nqy    = nyq(s)
 
   q_left  = Vector{Int32}(undef, n)
   q_right = Vector{Int32}(undef, n)
