@@ -305,8 +305,8 @@ function save_mhd_diagnostics(regular_save_values::SavedValues; suffix::String =
 end
 
 function create_mp4(::MHDModel, filename::String, states::AbstractVector{<:NamedTuple}; frames::Int = length(states), framerate::Int = 15, records::Int = 200)
-  nqx = nxquads(s) - 2 * hx(s)
-  nqy = nyquads(s) - 2 * hy(s)
+  nqx = nxq(s) - 2 * hx(s)
+  nqy = nyq(s) - 2 * hy(s)
 
   dps = interior(Val(2), dual_points(s), s)
   unique_x = sort(unique(map(a -> a[1], dps)))

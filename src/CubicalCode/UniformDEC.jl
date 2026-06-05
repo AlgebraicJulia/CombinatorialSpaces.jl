@@ -1,4 +1,5 @@
 include("UniformMesh.jl")
+include("UniformMesh3D.jl")
 include("UniformMatrixDEC.jl")
 include("UniformKernelDEC.jl")
 include("UniformPlotting.jl")

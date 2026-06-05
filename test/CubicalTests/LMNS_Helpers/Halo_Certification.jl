@@ -42,8 +42,8 @@ end
 
 function shell_distance(::Val{2}, s::AbstractCubicalComplex2D, q::Int)
   x, y = quad_to_coord(s, q)
-  dx_shell = _axis_distance(x, hx(s) + 1, nxquads(s) - hx(s))
-  dy_shell = _axis_distance(y, hy(s) + 1, nyquads(s) - hy(s))
+  dx_shell = _axis_distance(x, hx(s) + 1, nxq(s) - hx(s))
+  dy_shell = _axis_distance(y, hy(s) + 1, nyq(s) - hy(s))
   return max(dx_shell, dy_shell)
 end
 

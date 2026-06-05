@@ -1,11 +1,8 @@
 using Test
 using SparseArrays
 
-include(joinpath(@__DIR__, "../../src/CubicalCode/UniformMesh.jl"))
-include(joinpath(@__DIR__, "../../src/CubicalCode/UniformMatrixDEC.jl"))
-include(joinpath(@__DIR__, "../../src/CubicalCode/UniformKernelDEC.jl"))
-include(joinpath(@__DIR__, "../../src/CubicalCode/WENO.jl"))
-include(joinpath(@__DIR__, "../../src/CubicalCode/UniformUpwinding.jl"))
+include(joinpath(@__DIR__, "../../src/CubicalCode/UniformDEC.jl"))
+
 @testset "UniformMatrixDEC" begin
 
   s = UniformCubicalComplex2D(5, 5, 1.0, 1.0)
@@ -145,7 +142,7 @@ include(joinpath(@__DIR__, "../../src/CubicalCode/UniformUpwinding.jl"))
   res = wedge_product_dd(Val(0), Val(1), s, 2 * f, 5 * u)
   @test all(res .== 10.0)
 
-  f = [Float64(y) for y in 1:nyquads(s) for x in 1:nxquads(s)]
+  f = [Float64(y) for y in 1:nyq(s) for x in 1:nxq(s)]
   res = wedge_product_dd(Val(0), Val(1), s, f, u)
   @test xedges(s, res)[1] == 1.0
   @test xedges(s, res)[end] == 4.0
@@ -263,36 +260,36 @@ end
   @test all(g[end, :]   .== g[3, :])       # right halo (overwrites real edge) ← 2nd interior from left
 
   # Tests for periodicity of 2-forms
-  f = Float64.(repeat(collect(1:nxquads(s)), inner = nyquads(s)))
+  f = Float64.(repeat(collect(1:nxq(s)), inner = nyq(s)))
   set_periodic!(f, Val(2), s, NORTHSOUTH)
-  g = reshape(f, (nxquads(s), nyquads(s)))
+  g = reshape(f, (nxq(s), nyq(s)))
   @test all(g[:, 1] .== g[:, end - 1])
   @test all(g[:, end] .== g[:, 2])
 
-  f = Float64.(repeat(collect(1:nxquads(s)), nyquads(s)))
+  f = Float64.(repeat(collect(1:nxq(s)), nyq(s)))
   set_periodic!(f, Val(2), s, EASTWEST)
-  g = reshape(f, (nxquads(s), nyquads(s)))
+  g = reshape(f, (nxq(s), nyq(s)))
   @test all(g[1, :] .== g[end - 1, :])
   @test all(g[end, :] .== g[2, :])
 end
 
 @testset "UniformMatrixDEC with Large Halo" begin
   s = UniformCubicalComplex2D(10, 10, 1.0, 1.0; halo_x = 2, halo_y = 2)
-  f = Float64.(repeat(collect(1:nxquads(s)), inner = nyquads(s)))
+  f = Float64.(repeat(collect(1:nxq(s)), inner = nyq(s)))
   set_periodic!(f, Val(2), s, NORTHSOUTH)
-  g = reshape(f, (nxquads(s), nyquads(s)))
+  g = reshape(f, (nxq(s), nyq(s)))
   @test all(g[:, 1:2] .== g[:, end - 3:end - 2])
   @test all(g[:, end-1:end] .== g[:, 3:4])
 
-  f = Float64.(repeat(collect(1:nxquads(s)), nyquads(s)))
+  f = Float64.(repeat(collect(1:nxq(s)), nyq(s)))
   set_periodic!(f, Val(2), s, EASTWEST)
-  g = reshape(f, (nxquads(s), nyquads(s)))
+  g = reshape(f, (nxq(s), nyq(s)))
   @test all(g[1:2, :] .== g[end - 3:end - 2, :])
   @test all(g[end-1:end, :] .== g[3:4, :])
 
   f = Float64.(collect(1:nquads(s)));
   set_periodic!(f, Val(2), s, EASTWEST);
-  g = reshape(f, (nxquads(s), nyquads(s)))
+  g = reshape(f, (nxq(s), nyq(s)))
   @test all(g[1:2, :] .== g[end - 3:end - 2, :])
   @test all(g[end-1:end, :] .== g[3:4, :])
 end
@@ -373,7 +370,7 @@ end
   @test all(wedge_product_dd(Val(0), Val(1), s, 2 * f2, 5 * u) .== 10.0)
 
   # linearly varying dual 0-form: boundary edges pick one neighbour, interior average two
-  f_vary = [Float64(y) for y in 1:nyquads(s) for x in 1:nxquads(s)]
+  f_vary = [Float64(y) for y in 1:nyq(s) for x in 1:nxq(s)]
   res_dd = wedge_product_dd(Val(0), Val(1), s, f_vary, u)
   @test xedges(s, res_dd)[1]   == 1.0
   @test xedges(s, res_dd)[end] == 4.0

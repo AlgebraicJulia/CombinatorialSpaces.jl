@@ -150,9 +150,9 @@ function interior(::Val{1}, f::AbstractVector, s::UniformCubicalComplex2D)
 end
 
 function interior(::Val{2}, f::AbstractVector, s::UniformCubicalComplex2D)
-  tmp = reshape(f, (nxquads(s), nyquads(s)))
-  real_x_range = (hx(s) + 1):(nxquads(s) - hx(s))
-  real_y_range = (hy(s) + 1):(nyquads(s) - hy(s))
+  tmp = reshape(f, (nxq(s), nyq(s)))
+  real_x_range = (hx(s) + 1):(nxq(s) - hx(s))
+  real_y_range = (hy(s) + 1):(nyq(s) - hy(s))
   return reshape(tmp[real_x_range, real_y_range], nquadsr(s))
 end
 
@@ -164,8 +164,8 @@ function smoothing_dual0(s::UniformCubicalComplex2D, c_smooth)
   c = c_smooth / 2
   inv_dx = 1 / dx(s)
   inv_dy = 1 / dy(s)
-  nqx = nxquads(s)
-  nqy = nyquads(s)
+  nqx = nxq(s)
+  nqy = nyq(s)
 
   # Pre-allocate COO arrays (at most 5 entries per quad: self + 4 neighbors)
   max_nnz = 5 * n

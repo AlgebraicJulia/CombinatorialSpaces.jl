@@ -7,13 +7,13 @@
 
 using GeometryBasics
 
-import Base: show, zeros, ones
+import Base: show
 
 abstract type AbstractCubicalComplex end
 
-abstract type AbstractCubicalComplex2D <: AbstractCubicalComplex end
+abstract type AbstractCubicalComplex2D{FT <: AbstractFloat} <: AbstractCubicalComplex end
 
-struct UniformCubicalComplex2D{FT <: AbstractFloat} <: AbstractCubicalComplex2D
+struct UniformCubicalComplex2D{FT} <: AbstractCubicalComplex2D{FT}
   nx::Int
   ny::Int
 
@@ -24,7 +24,7 @@ struct UniformCubicalComplex2D{FT <: AbstractFloat} <: AbstractCubicalComplex2D
   halo_y::Int
 end
 
-@enum Align X_ALIGN Y_ALIGN
+@enum Align X_ALIGN Y_ALIGN Z_ALIGN
 
 # Base point of real mesh will be (halo_x + 1, halo_y + 1)
 # End point of real mesh will be (halo_x + nxr, halo_y + nyr)
@@ -54,19 +54,16 @@ nye_r(s::AbstractCubicalComplex2D) = nye(s) - 2 * hy(s)
 nxedges(s::AbstractCubicalComplex2D) = nxe(s) * ny(s)
 nyedges(s::AbstractCubicalComplex2D) = nx(s) * nye(s)
 
-hxe(s::AbstractCubicalComplex2D) = hx(s)
-hye(s::AbstractCubicalComplex2D) = hy(s)
-
 ne(s::AbstractCubicalComplex2D) = nxedges(s) + nyedges(s)
 
-nxquads(s::AbstractCubicalComplex2D) = nx(s) - 1
-nyquads(s::AbstractCubicalComplex2D) = ny(s) - 1
-nquads(s::AbstractCubicalComplex2D) = nxquads(s) * nyquads(s)
+nxq(s::AbstractCubicalComplex2D) = nx(s) - 1
+nyq(s::AbstractCubicalComplex2D) = ny(s) - 1
+nquads(s::AbstractCubicalComplex2D) = nxq(s) * nyq(s)
 
-hxquads(s::AbstractCubicalComplex2D) = hx(s)
-hyquads(s::AbstractCubicalComplex2D) = hy(s)
+hxq(s::AbstractCubicalComplex2D) = hx(s)
+hyq(s::AbstractCubicalComplex2D) = hy(s)
 
-nquadsr(s::AbstractCubicalComplex2D) = (nxquads(s) - 2 * hxquads(s)) * (nyquads(s) - 2 * hyquads(s))
+nquadsr(s::AbstractCubicalComplex2D) = (nxq(s) - 2 * hxq(s)) * (nyq(s) - 2 * hyq(s))
 
 vertices(s::AbstractCubicalComplex2D) = 1:nv(s)
 edges(s::AbstractCubicalComplex2D) = 1:ne(s)
@@ -83,11 +80,13 @@ coord_to_vert(s::AbstractCubicalComplex2D, x::Int, y::Int) = x + (y - 1) * nx(s)
 function coord_to_edge(s::AbstractCubicalComplex2D, x::Int, y::Int, align::Align)
   if align == X_ALIGN
     return x + (y - 1) * nxe(s)
-  else # align == Y_ALIGN
+  elseif align == Y_ALIGN
     return x + (y - 1) * nx(s) + nxedges(s)
+  else # align == Z_ALIGN
+    return 0
   end
 end
-coord_to_quad(s::AbstractCubicalComplex2D, x::Int, y::Int) = (y - 1) * nxquads(s) + x
+coord_to_quad(s::AbstractCubicalComplex2D, x::Int, y::Int) = (y - 1) * nxq(s) + x
 
 is_X_aligned(e::Int, s::AbstractCubicalComplex2D) = e <= nxedges(s)
 is_Y_aligned(e::Int, s::AbstractCubicalComplex2D) = e > nxedges(s)
@@ -136,8 +135,8 @@ function dual_edge_to_coord(s::AbstractCubicalComplex2D, e::Int)
 end
 
 function quad_to_coord(s::AbstractCubicalComplex2D, q::Int)
-  y = div(q - 1, nxquads(s)) + 1
-  x = q - (y - 1) * nxquads(s)
+  y = div(q - 1, nxq(s)) + 1
+  x = q - (y - 1) * nxq(s)
   return x, y
 end
 
@@ -154,30 +153,6 @@ real_point(s::AbstractCubicalComplex2D, x::Int, y::Int) = point(s, x + hx(s), y 
 # TODO: Make this a generator that yields points one at a time instead of creating an array of all points at once
 function points(s::AbstractCubicalComplex2D)
   return map(v -> point(s, v), vertices(s))
-end
-
-function Base.zeros(::Val{k}, s::AbstractCubicalComplex2D, FT::DataType = Float64) where k
-  if k == 0
-    zeros(FT, nv(s))
-  elseif k == 1
-    zeros(FT, ne(s))
-  elseif k == 2
-    zeros(FT, nquads(s))
-  else
-    throw(ArgumentError("Invalid k for zeros: $k"))
-  end
-end
-
-function Base.ones(::Val{k}, s::AbstractCubicalComplex2D, FT::DataType = Float64) where k
-  if k == 0
-    ones(FT, nv(s))
-  elseif k == 1
-    ones(FT, ne(s))
-  elseif k == 2
-    ones(FT, nquads(s))
-  else
-    throw(ArgumentError("Invalid k for ones: $k"))
-  end
 end
 
 # Function to get spacing given a length and number of points
@@ -200,38 +175,33 @@ end
 
 # Get the index of the source point of an edge
 src(s::AbstractCubicalComplex2D, x::Int, y::Int, align::Align) = coord_to_vert(s, x, y)
-function src(s::AbstractCubicalComplex2D, e::Int)
-  x, y, align = edge_to_coord(s, e)
-  return src(s, x, y, align)
-end
+src(s::AbstractCubicalComplex2D, e::Int) = src(s, edge_to_coord(s, e)...)
 
 # Get the index of the target of an edge
 function tgt(s::AbstractCubicalComplex2D, x::Int, y::Int, align::Align)
   if align == X_ALIGN
     return coord_to_vert(s, x + 1, y)
-  else # align == Y_ALIGN
+  elseif align == Y_ALIGN
     return coord_to_vert(s, x, y + 1)
+  else # align == Z_ALIGN
+    return 0
   end
 end
-function tgt(s::AbstractCubicalComplex2D, e::Int)
-  x, y, align = edge_to_coord(s, e)
-  return tgt(s, x, y, align)
-end
+tgt(s::AbstractCubicalComplex, e::Int) = tgt(s, edge_to_coord(s, e)...)
 
-function edge_len(s::UniformCubicalComplex2D, align::Align)
+function edge_len(s::UniformCubicalComplex2D{FT}, align::Align) where FT <: AbstractFloat
   if align == X_ALIGN
     return dx(s)
-  else # align == Y_ALIGN
+  elseif align == Y_ALIGN
     return dy(s)
+  else # align == Z_ALIGN
+    return zero(FT)
   end
 end
 
 edge_len(s::UniformCubicalComplex2D, x::Int, y::Int, align::Align) = edge_len(s, align)
 
-function edge_len(s::AbstractCubicalComplex2D, e::Int)
-  x, y, align = edge_to_coord(s, e)
-  return edge_len(s, x, y, align)
-end
+edge_len(s::AbstractCubicalComplex2D, e::Int) = edge_len(s, edge_to_coord(s, e)...)
 
 xedges(s::AbstractCubicalComplex2D, arr::AbstractVector) = arr[1:nxedges(s)]
 yedges(s::AbstractCubicalComplex2D, arr::AbstractVector) = arr[nxedges(s)+1:end]
@@ -260,14 +230,16 @@ end
 function quad_edge_offset(s::AbstractCubicalComplex2D, x::Int, y::Int, align::Align, offset::Int)
   if align == X_ALIGN
     return coord_to_edge(s, x, y + offset, X_ALIGN)
-  else # align == Y_ALIGN
+  elseif align == Y_ALIGN
     return coord_to_edge(s, x + offset, y, Y_ALIGN)
+  else # align == Z_ALIGN
+    return 0
   end
 end
 
 quad_area(s::AbstractCubicalComplex2D) = dx(s) * dy(s)
 
-function dual_point(s::AbstractCubicalComplex2D, x::Int, y::Int)
+function dual_point(s::UniformCubicalComplex2D, x::Int, y::Int)
   px = (x - 0.5) * dx(s) - hx(s) * dx(s)
   py = (y - 0.5) * dy(s) - hy(s) * dy(s)
   return Point3(px, py, 0.0)
@@ -280,33 +252,34 @@ real_dual_point(s::AbstractCubicalComplex2D, x::Int, y::Int) = dual_point(s, x +
 function dual_edge(s::AbstractCubicalComplex2D, x::Int, y::Int, align::Align)
   if align == X_ALIGN
     return coord_to_edge(s, x, y, Y_ALIGN)
-  else # align == Y_ALIGN
+  elseif align == Y_ALIGN
     return coord_to_edge(s, x, y, X_ALIGN)
+  else
+    return 0
   end
 end
 
 # This function computes the length of the dual edge corresponding to the given primal edge
 # This the same as the primal edges except on the boundary, where the dual edge is half the length of the primal edge
-function dual_edge_len(s::AbstractCubicalComplex2D, x::Int, y::Int, align::Align)
+function dual_edge_len(s::AbstractCubicalComplex2D{FT}, x::Int, y::Int, align::Align) where FT <: AbstractFloat
   if align == X_ALIGN
     if y == 1 || y == ny(s)
       return 0.5 * dy(s)
     else
       return dy(s)
     end
-  else # align == Y_ALIGN
+  elseif align == Y_ALIGN
     if x == 1 || x == nx(s)
       return 0.5 * dx(s)
     else
       return dx(s)
     end
+  else
+    return zero(FT)
   end
 end
 
-function dual_edge_len(s::AbstractCubicalComplex2D, e::Int)
-  x, y, align = edge_to_coord(s, e)
-  return dual_edge_len(s, x, y, align)
-end
+dual_edge_len(s::AbstractCubicalComplex, e::Int) = dual_edge_len(s, edge_to_coord(s, e)...)
 
 dual_quad(s::AbstractCubicalComplex2D, x::Int, y::Int) = coord_to_vert(s, x, y)
 
@@ -347,10 +320,12 @@ function edge_quads(s::AbstractCubicalComplex2D, x::Int, y::Int, align::Align)
     q1 = coord_to_quad(s, x, y - 1)
     q2 = coord_to_quad(s, x, y)
     return q1, q2
-  else # align == Y_ALIGN
+  elseif align == Y_ALIGN
     q1 = coord_to_quad(s, x - 1, y)
     q2 = coord_to_quad(s, x, y)
     return q1, q2
+  else
+    return 0, 0
   end
 end
 

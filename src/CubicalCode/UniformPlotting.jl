@@ -8,8 +8,8 @@ function GeometryBasics.Mesh(s::UniformCubicalComplex2D)
   ps = interior(Val(0), points(s), s)
 
   qs = QuadFace{Int}[]
-  for y in 1:nyquads(s)
-    for x in 1:nxquads(s)
+  for y in 1:nyq(s)
+    for x in 1:nxq(s)
       is_halo_quad(s, x, y) && continue
       push!(qs, map(v -> vert_to_real_vert(s, v), quad_vertices(s, x, y)))
     end
