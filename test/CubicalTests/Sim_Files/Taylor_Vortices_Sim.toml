@@ -1,7 +1,7 @@
 [Metadata]
 name = "Taylor_Vortices"
 simspec = "Re=10_000_te=1.0"
-savepath = "../imgs/Taylor_Test/Re=10_000_te=1.0" # "/blue/fairbanksj/grauta/simulations/LMNS_TaylorVortices/$(simspec)"
+savepath = "imgs/Taylor_Test/Re=10_000_te=1.0" # "/blue/fairbanksj/grauta/simulations/LMNS_TaylorVortices/$(simspec)"
 
 [Mesh]
 lx = 6.28
@@ -15,7 +15,7 @@ halo_y = 10
 Re = 10_000
 
 [Simulation]
-te=1.0
+te = 1.0
 dt = 1e-4
 periodic="ALL"
 savetime = 0.01

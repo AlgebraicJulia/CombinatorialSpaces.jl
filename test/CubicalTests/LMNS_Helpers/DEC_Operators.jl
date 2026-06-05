@@ -1,70 +1,43 @@
-function build_dec_operators(model::AbstractSimulationModel, s::UniformCubicalComplex2D, to_device::Function = identity; smoothing_coefficients::NamedTuple = (;))
-  cpu_d0 = exterior_derivative(Val(0), s)
-  cpu_d1 = exterior_derivative(Val(1), s)
+function build_dec_kernels(s::UniformCubicalComplex2D{FT}) where FT <: AbstractFloat
+  cache = Adapt.adapt(USE_CUDA ? CUDABackend() : CPU(), UniformDECCache(s))
 
-  # Enforce no-flux boundary condition on density.
-  cpu_dual_d0 = no_flux_dual_derivative(Val(0), s)
-  cpu_dual_d1 = dual_derivative(Val(1), s)
+  d0(x) = exterior_derivative(Val(1), cache, x)
+  d1(x) = exterior_derivative(Val(1), cache, x)
 
-  # Closing the dual cells.
-  cpu_d_beta = dual_derivative_beta(Val(1), s)
+  dd0(x) = no_flux_dual_derivative(Val(0), cache, x)
+  dd1(x) = dual_derivative(Val(1), cache, x)
 
-  cpu_hdg_1 = hodge_star(Val(1), s)
-  cpu_hdg_2 = hodge_star(Val(2), s)
+  hdg_0(x) = hodge_star(Val(0), cache, x)
+  hdg_1(x) = hodge_star(Val(1), cache, x)
+  hdg_2(x) = hodge_star(Val(2), cache, x)
 
-  cpu_inv_hdg_0 = inv_hodge_star(Val(0), s)
-  cpu_inv_hdg_1 = inv_hodge_star(Val(1), s)
-  cpu_inv_hdg_2 = inv_hodge_star(Val(2), s)
+  inv_hdg_0(x) = inv_hodge_star(Val(0), cache, x)
+  inv_hdg_1(x) = inv_hodge_star(Val(1), cache, x)
+  inv_hdg_2(x) = inv_hodge_star(Val(2), cache, x)
 
-  cpu_delta1 = codifferential(Val(1), s)
-  cpu_dual_delta1 = dual_codifferential(Val(1), s)
+  d_beta(x) = d_beta_mul(cache, x)
 
-  # No gradient through boundary edges.
-  cpu_dlap0 = cpu_hdg_2 * cpu_d1 * cpu_inv_hdg_1 * cpu_dual_d0
+  wdg_01(f, a) = wedge_product(Val(0), Val(1), cache, f, a)
+  wdg_11(a, b) = wedge_product(Val(1), Val(1), cache, a, b)
+  wdg_dd_01(f, a) = wedge_product_dd(Val(0), Val(1), cache, f, a)
 
-  # Enforce closure of dual cells.
-  cpu_dlap1 = cpu_hdg_1 * cpu_d0 * cpu_inv_hdg_0 * cpu_dual_d1 + cpu_dual_d0 * cpu_hdg_2 * cpu_d1 * cpu_inv_hdg_1
-  cpu_dlap1_v = cpu_hdg_1 * cpu_d0 * cpu_inv_hdg_0 * cpu_d_beta
+  dcd_1(x) = dual_codifferential(Val(1), cache, x)
+  dcd_2(x) = dual_codifferential(Val(2), cache, x)
 
-  cpu_dd0_h2 = cpu_dual_d0 * cpu_hdg_2
-  cpu_ih0_dd1 = cpu_inv_hdg_0 * cpu_dual_d1
-  cpu_ih0_db = cpu_inv_hdg_0 * cpu_d_beta
 
-  return (
-    d0 = to_device(cpu_d0),
-    d1 = to_device(cpu_d1),
-    dual_d0 = to_device(cpu_dual_d0),
-    dual_d1 = to_device(cpu_dual_d1),
-    d_beta = to_device(cpu_d_beta),
-    hdg_1 = to_device(cpu_hdg_1),
-    hdg_2 = to_device(cpu_hdg_2),
-    inv_hdg_0 = to_device(cpu_inv_hdg_0),
-    inv_hdg_1 = to_device(cpu_inv_hdg_1),
-    inv_hdg_2 = to_device(cpu_inv_hdg_2),
-    delta1 = to_device(cpu_delta1),
-    dual_delta1 = to_device(cpu_dual_delta1),
-    dlap0 = to_device(cpu_dlap0),
-    dlap1 = to_device(cpu_dlap1),
-    dlap1_v = to_device(cpu_dlap1_v),
-    dd0_h2 = to_device(cpu_dd0_h2),
-    ih0_dd1 = to_device(cpu_ih0_dd1),
-    ih0_db = to_device(cpu_ih0_db),
-    smoothing = build_dec_smoothing(model, s, to_device, smoothing_coefficients),
-  )
+  # TODO: Replace with the fused kernels
+  dlap_0(x) = dcd_1(dd0(x))
+
+  dlap_1(x) = dd0(dcd_1(x)) + dcd_2(dd1(x))
+  dlap_1_v(x) = dcd_2(d_beta(x))
+
+  interp_dp_1(x) = interpolate_dp(Val(1), cache, x)
+
+  return (; d0=d0, d1=d1, dd0=dd0, dd1=dd1, 
+  hdg_0=hdg_0, hdg_1=hdg_1, hdg_2=hdg_2, 
+  inv_hdg_0=inv_hdg_0, inv_hdg_1=inv_hdg_1, inv_hdg_2=inv_hdg_2,
+  d_beta=d_beta, wdg_01=wdg_01, wdg_11=wdg_11, wdg_dd_01=wdg_dd_01, 
+  dcd_1=dcd_1, dcd_2=dcd_2, 
+  dlap_0=dlap_0, dlap_1=dlap_1, dlap_1_v=dlap_1_v,
+  interp_dp_1=interp_dp_1)
 end
-
-function build_smoothing(s::UniformCubicalComplex2D, to_device::Function, coefficients::NamedTuple)
-  smoothing_pairs = (
-    name => to_device(smoothing_dual0(s, -Float64(c)) * smoothing_dual0(s, Float64(c)))
-    for (name, c) in pairs(coefficients)
-  )
-  return (; smoothing_pairs...)
-end
-
-build_dec_smoothing(::LMNSModel, s::UniformCubicalComplex2D, to_device::Function, coefficients::NamedTuple) = (;)
-
-function build_dec_smoothing(::LMNSHModel, s::UniformCubicalComplex2D, to_device::Function, coefficients::NamedTuple)
-  return build_smoothing(s, to_device, coefficients)
-end
-
-build_dec_smoothing(::MHDModel, s::UniformCubicalComplex2D, to_device::Function, coefficients::NamedTuple) = (;)

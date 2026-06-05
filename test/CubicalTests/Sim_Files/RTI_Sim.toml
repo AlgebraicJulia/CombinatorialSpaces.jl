@@ -1,0 +1,28 @@
+[Metadata]
+simspec   = "RTI_Re=10_000_te=5.0"
+savepath = "imgs/RTI_Test/Re=10_000_te=5.0"
+# "/blue/fairbanksj/grauta/simulations/LMNS_RTI/RTI_Re=10000_te=5.00"
+
+[Mesh]
+lx = 2.0
+ly = 16.0
+nx = 65
+ny = 513
+halo_x = 10
+halo_y = 0
+
+[Physics]
+Re          = 10000
+Pr          = 0.71
+use_gravity = true
+
+[Smoothing]
+rho_smooth_constant = 0.05
+T_smooth_constant = 0.2
+
+[Simulation]
+te = 5.0
+dt = 5e-5
+periodic="EASTWEST"
+saveat = 0.01
+checkpoint_every_saveat = 40

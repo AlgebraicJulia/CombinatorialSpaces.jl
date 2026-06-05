@@ -2,28 +2,12 @@
 ### Initial Conditions ###
 ##########################
 
-println("Running Kelvin-Helmholtz Simulation...")
-
-const lx_ = ly_ = 1.0;
-const nx_ = ny_ = 256;
-const s = UniformCubicalComplex2D(nx_, ny_, lx_, ly_, halo_x = 10, halo_y = 10)
-
-# Initial conditions for Kelvin-Helmholtz instability
-
 # Collect points between 0 and 0.25 in y-direction for the shear layer
 
 # Conditions follow from San and Kara (2015)
 const ps = points(s)
 const dps = dual_points(s)
 const kh_inv_hdg_2 = inv_hodge_star(Val(2), s)
-
-# const rho_star_0 = kh_inv_hdg_2 * map(dps) do (x, y)
-#   if 0.25 <= y <= 0.75
-#     return 2.0
-#   else
-#     return 1.0
-#   end
-# end
 
 density(y) = 1.0 + 0.5 * tanh(alpha * (y - 0.25)) - 0.5 * tanh(alpha * (y - 0.75))
 
@@ -58,22 +42,9 @@ end;
 U_star_0[1:nxedges(s)] .= U_x;
 U_star_0[nxedges(s)+1:ne(s)] .= U_y;
 
-const Theta_star_0 = inv_hodge_star(Val(2), s) * (300.0 * ones(nquads(s)))
+const Theta_star_0 = kh_inv_hdg_2 * (300.0 * ones(nquads(s)))
 
-const Re = 10_000
-const Pr = 0.71
-const p = (mu = 1 / Re, kappa = 1 / (Re * Pr)) # μ and κ
-
-const te = 5.0;
-const dt = 5e-6; # Choose small time step for stability at high Re
-
-const use_gravity = false
-const full_periodic = true
-const periodic_left_right = true
-const periodic_top_bottom = true
-
-const T_smooth_constant = 0.2
-const r_smooth_constant = 0.05
+u0 = ComponentVector(U_star = U_star_0, rho_star = rho_star_0, Theta_star = Theta_star_0)
 
 ###########################
 ### Boundary Conditions ###
@@ -87,18 +58,13 @@ end
   return U
 end
 
-#########################
-### Saving Parameters ###
-#########################
+@inline function enforce_bc_V!(V::AbstractVector{FT}) where FT
+  return V
+end
 
-print_re = @sprintf("%.0f", Re)
-print_te = @sprintf("%.2f", te)
-simspec = "Re=$(print_re)_te=$(print_te)"
-savepath = "/blue/fairbanksj/grauta/simulations/LMNS_KelvinHelmholtz/$(simspec)"
-mkpath(savepath)
-
-const saveat = 1000
-const checkpoint_at = 20_000
+###################
+### Diagnostics ###
+###################
 
 # Plot the density field at the start of the simulation
 fig = plot_twoform(s, hodge_star(Val(2), s) * rho_star_0)
