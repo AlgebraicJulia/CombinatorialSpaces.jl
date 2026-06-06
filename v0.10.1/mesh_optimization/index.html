@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Mesh Optimization · CombinatorialSpaces.jl</title><meta name="title" content="Mesh Optimization · CombinatorialSpaces.jl"/><meta property="og:title" content="Mesh Optimization · CombinatorialSpaces.jl"/><meta property="twitter:title" content="Mesh Optimization · CombinatorialSpaces.jl"/><meta name="description" content="Documentation for CombinatorialSpaces.jl."/><meta property="og:description" content="Documentation for CombinatorialSpaces.jl."/><meta property="twitter:description" content="Documentation for CombinatorialSpaces.jl."/><script data-outdated-warner src="../assets/warner.js"></script><link href="https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.050/juliamono.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.8/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL=".."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../assets/documenter.js"></script><script src="../search_index.js"></script><script src="../siteinfo.js"></script><script src="../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/catppuccin-mocha.css" data-theme-name="catppuccin-mocha"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/catppuccin-macchiato.css" data-theme-name="catppuccin-macchiato"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/catppuccin-frappe.css" data-theme-name="catppuccin-frappe"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/catppuccin-latte.css" data-theme-name="catppuccin-latte"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../assets/themeswap.js"></script></head><body><div id="documenter"><nav class="docs-sidebar"><div class="docs-package-name"><span class="docs-autofit"><a href="../simplicial_sets/">CombinatorialSpaces.jl</a></span></div><button class="docs-search-query input is-rounded is-small is-clickable my-2 mx-auto py-1 px-2" id="documenter-search-query">Search docs (Ctrl + /)</button><ul class="docs-menu"><li><a class="tocitem" href="../simplicial_sets/">Simplicial sets</a></li><li><a class="tocitem" href="../discrete_exterior_calculus/">Discrete exterior calculus</a></li><li><a class="tocitem" href="../combinatorial_maps/">Combinatorial maps</a></li><li><a class="tocitem" href="../grid_laplace/">Solving Poisson&#39;s equation in multiscale</a></li><li><a class="tocitem" href="../meshes/">Meshes</a></li><li><a class="tocitem" href="../euler/">Steady-State Euler Equations</a></li><li><a class="tocitem" href="../subdivision/">Subdivision of Meshes</a></li><li><a class="tocitem" href="../multigrid/">Multigrid API</a></li><li><a class="tocitem" href="../mg_benchmarks/">Multigrid Benchmarks</a></li><li><a class="tocitem" href="../mesh_decomposition/">Mesh Decomposition</a></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><a class="docs-sidebar-button docs-navbar-link fa-solid fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a><nav class="breadcrumb"><ul class="is-hidden-mobile"><li class="is-active"><a href>Mesh Optimization</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>Mesh Optimization</a></li></ul></nav><div class="docs-right"><a class="docs-navbar-link" href="https://github.com/AlgebraicJulia/CombinatorialSpaces.jl" title="View the repository on GitHub"><span class="docs-icon fa-brands"></span><span class="docs-label is-hidden-touch">GitHub</span></a><a class="docs-navbar-link" href="https://github.com/AlgebraicJulia/CombinatorialSpaces.jl/blob/main/docs/src/mesh_optimization.md" title="Edit source on GitHub"><span class="docs-icon fa-solid"></span></a><a class="docs-settings-button docs-navbar-link fa-solid fa-gear" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-article-toggle-button fa-solid fa-chevron-up" id="documenter-article-toggle-button" href="javascript:;" title="Collapse all docstrings"></a></div></header><article class="content" id="documenter-page"><h1 id="Mesh-Optimization"><a class="docs-heading-anchor" href="#Mesh-Optimization">Mesh Optimization</a><a id="Mesh-Optimization-1"></a><a class="docs-heading-anchor-permalink" href="#Mesh-Optimization" title="Permalink"></a></h1><p>This page demonstrates the mesh optimization API and its effect on error propagation over a domain. Note that error is measured alternatively via circumcentric or barycentric subdivided meshes; this influences the interpretation of error propagation.</p><pre><code class="language-julia hljs">using CairoMakie
+using CombinatorialSpaces
+using Random
+
+Random.seed!(0)
+set_theme!(size=(900, 300))
+
+# Start from the mirrored porous-convection mesh used in tests and examples.
+# The `(40.0, 20.0)` domain matches the original optimization experiments.
+s_orig = binary_subdivision(mirrored_mesh(40.0, 20.0))
+orient!(s_orig)
+s_orig[:edge_orientation] = false
+
+s = deepcopy(s_orig)
+# Use the same optimization scale used in tests; 200 epochs keeps docs runtime low
+# while still showing visible improvement.
+eqs = optimize_mesh!(s, SimulatedAnnealing(ϵ=1e-3, epochs=200))
+nothing</code></pre><h2 id="Wireframe-comparison"><a class="docs-heading-anchor" href="#Wireframe-comparison">Wireframe comparison</a><a id="Wireframe-comparison-1"></a><a class="docs-heading-anchor-permalink" href="#Wireframe-comparison" title="Permalink"></a></h2><pre><code class="language-julia hljs">function wf(s_orig, s)
+  f = Figure()
+  ax = CairoMakie.Axis(f[1,1], xlabel=&quot;x-coordinate [m]&quot;, ylabel=&quot;y-coordinate [m]&quot;)
+  wireframe!(ax, s_orig, color=:orange)
+  wireframe!(ax, s, color=:dodgerblue)
+  f
+end
+
+wf(s_orig, s)</code></pre><img src="dcc63760.png" alt="Example block output"/><h2 id="Equilaterality-distribution"><a class="docs-heading-anchor" href="#Equilaterality-distribution">Equilaterality distribution</a><a id="Equilaterality-distribution-1"></a><a class="docs-heading-anchor-permalink" href="#Equilaterality-distribution" title="Permalink"></a></h2><pre><code class="language-julia hljs">edge_lengths = CombinatorialSpaces.MeshOptimization.edge_lengths
+equilateralities = CombinatorialSpaces.MeshOptimization.equilateralities
+
+function eqs_dist(s_orig, s)
+  f = Figure()
+  ax = CairoMakie.Axis(f[1,1], xlabel=&quot;equilaterality&quot;, ylabel=&quot;count&quot;)
+  hist!(ax, equilateralities(edge_lengths(s_orig)); color=(:orange, 0.45), label=&quot;Original&quot;)
+  hist!(ax, equilateralities(edge_lengths(s)); color=(:dodgerblue, 0.45), label=&quot;Optimized&quot;)
+  axislegend(ax, position=:rt)
+  f
+end
+
+eqs_dist(s_orig, s)</code></pre><img src="9132341c.png" alt="Example block output"/><h2 id="Cost-per-epoch"><a class="docs-heading-anchor" href="#Cost-per-epoch">Cost per epoch</a><a id="Cost-per-epoch-1"></a><a class="docs-heading-anchor-permalink" href="#Cost-per-epoch" title="Permalink"></a></h2><pre><code class="language-julia hljs">f = Figure()
+ax = CairoMakie.Axis(f[1,1], xlabel=&quot;Epoch&quot;, ylabel=&quot;Cost&quot;, title=&quot;Simulated annealing cost&quot;)
+lines!(ax, eachindex(eqs), eqs, color=:dodgerblue)
+f</code></pre><img src="7b364f4b.png" alt="Example block output"/><h2 id="Downstream-simulation-plotting-helpers"><a class="docs-heading-anchor" href="#Downstream-simulation-plotting-helpers">Downstream simulation plotting helpers</a><a id="Downstream-simulation-plotting-helpers-1"></a><a class="docs-heading-anchor-permalink" href="#Downstream-simulation-plotting-helpers" title="Permalink"></a></h2><p>These snippets are the original downstream plotting helpers used with simulation outputs:</p><pre><code class="language-julia hljs">function compare_integrals()
+  f = Figure()
+  ax = CairoMakie.Axis(f[1,1],
+    title=&quot;Error in integral over dome surface&quot;,
+    xlabel=&quot;Time [s]&quot;,
+    ylabel=&quot;Error&quot;)
+  lines!(ax, range(0, tₑ; length=100), map(range(0, tₑ; length=100)) do x
+    abs(sum(s0 * soln(x).C) - sum(s0 * soln(0).C))
+  end, label=&quot;Original&quot;)
+  lines!(ax, range(0, tₑ; length=100), map(range(0, tₑ; length=100)) do x
+    abs(sum(s0_orig * soln_orig(x).C) - sum(s0_orig * soln_orig(0).C))
+  end, label=&quot;Optimized&quot;)
+  axislegend(ax, position=:lt)
+  f
+end
+
+function viz(msh, msh_soln)
+  f = Figure()
+  ax = CairoMakie.LScene(f[1, 1], scenekw=(lights=[],))
+  mesh!(ax, msh, color=msh_soln(tₑ).C)
+  f
+end</code></pre></article><nav class="docs-footer"><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.17.0 on <span class="colophon-date" title="Saturday 6 June 2026 18:34">Saturday 6 June 2026</span>. Using Julia version 1.12.6.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
