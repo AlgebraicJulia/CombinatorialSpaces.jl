@@ -258,24 +258,26 @@ end
     # Quads to vertices
     @test quad_vertices(s, 1, 1, 1, Z_ALIGN) == (1, 2, 4, 3)
     @test quad_vertices(s, 1, 1, 2, Z_ALIGN) == (5, 6, 8, 7)
-    @test quad_vertices(s, 1, 1, 1, Y_ALIGN) == (1, 2, 6, 5)
-    @test quad_vertices(s, 1, 2, 1, Y_ALIGN) == (3, 4, 8, 7)
-    @test quad_vertices(s, 1, 1, 1, X_ALIGN) == (1, 5, 7, 3)
-    @test quad_vertices(s, 2, 1, 1, X_ALIGN) == (2, 6, 8, 4)
+    @test quad_vertices(s, 1, 1, 1, Y_ALIGN) == (1, 5, 6, 2)
+    @test quad_vertices(s, 1, 2, 1, Y_ALIGN) == (3, 7, 8, 4)
+    @test quad_vertices(s, 1, 1, 1, X_ALIGN) == (1, 3, 7, 5)
+    @test quad_vertices(s, 2, 1, 1, X_ALIGN) == (2, 4, 8, 6)
 
     # Quads to edges
     @test quad_edges(s, 1, 1, 1, Z_ALIGN) == (1, 6, 2, 5)
     @test quad_edges(s, 1, 1, 2, Z_ALIGN) == (3, 8, 4, 7)
-    @test quad_edges(s, 1, 1, 1, Y_ALIGN) == (1, 10, 3, 9)
-    @test quad_edges(s, 1, 2, 1, Y_ALIGN) == (2, 12, 4, 11)
-    @test quad_edges(s, 1, 1, 1, X_ALIGN) == (9, 7, 11, 5)
-    @test quad_edges(s, 2, 1, 1, X_ALIGN) == (10, 8, 12, 6)
+    @test quad_edges(s, 1, 1, 1, Y_ALIGN) == (9, 3, 10, 1)
+    @test quad_edges(s, 1, 2, 1, Y_ALIGN) == (11, 4, 12, 2)
+    @test quad_edges(s, 1, 1, 1, X_ALIGN) == (5, 11, 7, 9)
+    @test quad_edges(s, 2, 1, 1, X_ALIGN) == (6, 12, 8, 10)
 
     # Cuboid to vertices
     @test boid_vertices(s, 1, 1, 1) == (1, 2, 4, 3, 5, 6, 8, 7)
 
     # Cuboid to face
     @test boid_quads(s, 1, 1, 1) == (1, 2, 3, 4, 5, 6)
+
+    @test all(boid_edges(s, 1, 1, 1) .== collect(1:12))
 end
 
 @testset "Area and Volume Metrics" begin
@@ -374,35 +376,35 @@ end
 
     # --- Z-Aligned (XY) Quads ---
     # Interior: z=2 (Lower boid index 1, Higher boid index 5)
-    @test quad_boids(s, 1, 1, 2, Z_ALIGN) == (1, 5)
+    @test quad_boids(s, 1, 1, 2, Z_ALIGN) == ((1, 5), (true, true))
 
     # Boundary (bottom): z=1 (No lower boid)
-    @test quad_boids(s, 1, 1, 1, Z_ALIGN) == (-3, 1)
+    @test quad_boids(s, 1, 1, 1, Z_ALIGN) == ((0, 1), (false, true))
 
     # Boundary (top): z=3 (No higher boid)
-    @test quad_boids(s, 1, 1, 3, Z_ALIGN) == (5, 9)
+    @test quad_boids(s, 1, 1, 3, Z_ALIGN) == ((5, 0), (true, false))
 
 
     # --- Y-Aligned (XZ) Quads ---
     # Interior: y=2 (Higher boid index 3, Lower boid index 1)
-    @test quad_boids(s, 1, 2, 1, Y_ALIGN) == (3, 1)
+    @test quad_boids(s, 1, 2, 1, Y_ALIGN) == ((1, 3), (true, true))
 
     # Boundary (back): y=1 (No lower boid)
-    @test quad_boids(s, 1, 1, 1, Y_ALIGN) == (1, -1)
+    @test quad_boids(s, 1, 1, 1, Y_ALIGN) == ((0, 1), (false, true))
 
     # Boundary (front): y=3 (No higher boid)
-    @test quad_boids(s, 1, 3, 1, Y_ALIGN) == (5, 3)
+    @test quad_boids(s, 1, 3, 1, Y_ALIGN) == ((3, 0), (true, false))
 
 
     # --- X-Aligned (YZ) Quads ---
     # Interior: x=2 (Higher boid index 2, Lower boid index 1)
-    @test quad_boids(s, 2, 1, 1, X_ALIGN) == (2, 1)
+    @test quad_boids(s, 2, 1, 1, X_ALIGN) == ((1, 2), (true, true))
 
     # Boundary (left): x=1 (No lower boid)
-    @test quad_boids(s, 1, 1, 1, X_ALIGN) == (1, 0)
+    @test quad_boids(s, 1, 1, 1, X_ALIGN) == ((0, 1), (false, true))
 
     # Boundary (right): x=3 (No higher boid)
-    @test quad_boids(s, 3, 1, 1, X_ALIGN) == (3, 2)
+    @test quad_boids(s, 3, 1, 1, X_ALIGN) == ((2, 0), (true, false))
 end
 
 # TODO: Check this code to make sure it is working as intended
@@ -412,13 +414,72 @@ end
     # Base coordinate for our interior edges
     x, y, z = 2, 2, 2
 
-    @test edge_quads(s, x, y, z, X_ALIGN) == (6, 16, 8, 22)
-    @test edge_quads(s, x, y, z, Y_ALIGN) == (8, 29, 7, 35)
-    @test edge_quads(s, x, y, z, Z_ALIGN) == (32, 21, 35, 22)
+    @test edge_quads(s, x, y, z, X_ALIGN) == ((6, 16, 8, 22), (true, true, true, true))
+    @test edge_quads(s, x, y, z, Y_ALIGN) == ((29, 7, 35, 8), (true, true, true, true))
+    @test edge_quads(s, x, y, z, Z_ALIGN) == ((21, 32, 22, 35), (true, true, true, true))
 end
 
 # TODO: Check this code to make sure it is working as intended
 @testset "Vertex to Incident Edges (Explicit Indices)" begin
     s = UniformCubicalComplex3D(3, 3, 3, 10.0, 10.0, 10.0)
-    @test vertex_edges(s, 2, 2, 2) == (41, 50, 26, 29, 9, 10)
+    @test vertex_edges(s, 2, 2, 2) == ((41, 50, 26, 29, 9, 10), (true, true, true, true, true, true))
+end
+
+@testset "Primal Boundary Extraction" begin
+    s = UniformCubicalComplex3D(2, 2, 2, 1.0, 1.0, 1.0)
+
+    # --- Expected Vertices ---
+    west_v_expected = [1, 3, 5, 7]
+    east_v_expected = [2, 4, 6, 8]
+    south_v_expected = [1, 2, 5, 6]
+    north_v_expected = [3, 4, 7, 8]
+    down_v_expected = [1, 2, 3, 4]
+    up_v_expected = [5, 6, 7, 8]
+
+    west_v, east_v = primal_boundary_vertices(s, EASTWEST)
+    @test sort(west_v) == sort(west_v_expected)
+    @test sort(east_v) == sort(east_v_expected)
+
+    south_v, north_v = primal_boundary_vertices(s, NORTHSOUTH)
+    @test sort(south_v) == sort(south_v_expected)
+    @test sort(north_v) == sort(north_v_expected)
+
+    down_v, up_v = primal_boundary_vertices(s, UPDOWN)
+    @test sort(down_v) == sort(down_v_expected)
+    @test sort(up_v) == sort(up_v_expected)
+
+    # --- Expected Quads ---
+    west_q_expected = [5]
+    east_q_expected = [6]
+    south_q_expected = [3]
+    north_q_expected = [4]
+    down_q_expected = [1]
+    up_q_expected = [2]
+    
+    west_q, east_q = primal_boundary_quads(s, EASTWEST)
+    @test west_q == west_q_expected
+    @test east_q == east_q_expected
+
+    south_q, north_q = primal_boundary_quads(s, NORTHSOUTH)
+    @test south_q == south_q_expected
+    @test north_q == north_q_expected
+
+    down_q, up_q = primal_boundary_quads(s, UPDOWN)
+    @test down_q == down_q_expected
+    @test up_q == up_q_expected
+
+    # --- Expected Boids ---
+    boid_expected = [1]
+
+    west_b, east_b = primal_boundary_boids(s, EASTWEST)
+    @test west_b == boid_expected
+    @test east_b == boid_expected
+
+    south_b, north_b = primal_boundary_boids(s, NORTHSOUTH)
+    @test south_b == boid_expected
+    @test north_b == boid_expected
+
+    down_b, up_b = primal_boundary_boids(s, UPDOWN)
+    @test down_b == boid_expected
+    @test up_b == boid_expected
 end
