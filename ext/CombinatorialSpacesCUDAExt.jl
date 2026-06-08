@@ -44,24 +44,6 @@ Compute an exterior derivative matrix as a sparse CUDA matrix.
 dec_differential(n::Int, sd::HasDeltaSet, ::Val{:CUDA}) =
   CuSparseMatrixCSC(dec_differential(n, sd))
 
-# CUDA-specific: diagonal Hodge stars as sparse matrices for performance
-
-"""    dec_hodge_star(::Val{n}, sd::HasDeltaSet, ::DiagonalHodge, ::Val{:CUDA})
-
-Compute a diagonal Hodge star as a sparse CUDA matrix.
-Sparse storage is preferred over dense for the types of large systems that benefit from CUDA.
-"""
-dec_hodge_star(::Val{n}, sd::HasDeltaSet, ::DiagonalHodge, ::Val{:CUDA}) where n =
-  CuSparseMatrixCSC(dec_hodge_star(Val(n), sd, DiagonalHodge()))
-
-"""    dec_inv_hodge_star(::Val{n}, sd::HasDeltaSet, ::DiagonalHodge, ::Val{:CUDA})
-
-Compute a diagonal inverse Hodge star as a sparse CUDA matrix.
-Sparse storage is preferred over dense for the types of large systems that benefit from CUDA.
-"""
-dec_inv_hodge_star(::Val{n}, sd::HasDeltaSet, ::DiagonalHodge, ::Val{:CUDA}) where n =
-  CuSparseMatrixCSC(dec_inv_hodge_star(Val(n), sd, DiagonalHodge()))
-
 # CUDA-specific: inverse geometric Hodge star using GMRES solver
 
 """    dec_inv_hodge_star(::Val{1}, sd::EmbeddedDeltaDualComplex2D, ::GeometricHodge, ::Val{:CUDA})
