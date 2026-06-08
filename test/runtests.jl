@@ -1,5 +1,6 @@
 module RunTests
 using Test
+using TetGen
 
 @testset "Simplicial Sets" begin
   include("SimplicialSets.jl")
