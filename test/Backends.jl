@@ -114,16 +114,15 @@ function test_unary_operators(backend,
   end
 end
 
-function test_hodge_solver(backend, meshes, float_type, atol)
+function test_hodge_solver(backend, meshes, float_type, arr_cons, atol)
   @testset "Inverse Geometric Hodge" begin
     for sd in meshes
       V_1 = float_type.(I[1:ne(sd), 1])
-      hdg = dec_hodge_star(1, sd, GeometricHodge(), backend)
-      inv_hdg = dec_inv_hodge_star(1, sd, GeometricHodge(), backend)
-      # Verify hdg * inv_hdg(V_1) ≈ -V_1 (sign convention: ⋆⁻¹ = -⋆ for 1-forms in 2D).
+      cpu_result = dec_inv_hodge_star(1, sd, GeometricHodge())(V_1)
+      gpu_result = dec_inv_hodge_star(1, sd, GeometricHodge(), backend)(arr_cons(V_1))
       @test all(isapprox.(
-        hdg * inv_hdg(V_1),
-        -V_1;
+        cpu_result,
+        Array(gpu_result);
         atol = atol))
     end
   end
@@ -190,7 +189,7 @@ using CUDA
 if CUDA.functional()
   @testset "CUDA" begin
     test_unary_operators(Val(:CUDA))
-    test_hodge_solver(Val(:CUDA), dual_meshes_2D_bary[1:end-1], Float64, 1e-10)
+    test_hodge_solver(Val(:CUDA), dual_meshes_2D_bary[1:end-1], Float64, CuArray, 1e-10)
     test_binary_operators(Float64, Val(:CUDA), CuArray, 1e-15)
     test_binary_operators(Float32, Val(:CUDA), CuArray, 1e-15)
   end
@@ -246,7 +245,7 @@ if Sys.isapple()
 
     @testset "Metal" begin
       test_unary_operators(Val(:Metal), dual_meshes_1D_f32, dual_meshes_2D_bary_f32, dual_meshes_2D_circum_f32)
-      test_hodge_solver(Val(:Metal), dual_meshes_2D_bary_f32, Float32, 5f-6)
+      test_hodge_solver(Val(:Metal), dual_meshes_2D_bary_f32, Float32, MtlArray, 5f-6)
       test_binary_operators(Float32, Val(:Metal), MtlArray, 0.5e-6)
       test_binary_operators(Float16, Val(:Metal), MtlArray, 0.5e-3)
     end
