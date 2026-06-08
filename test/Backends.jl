@@ -5,7 +5,6 @@ using CombinatorialSpaces
 using CombinatorialSpaces.DiscreteExteriorCalculus: DiscreteHodge
 using GeometryBasics: Point2, Point3
 using KernelAbstractions
-using Krylov
 using LinearAlgebra
 using Random
 using SparseArrays
@@ -115,15 +114,17 @@ function test_unary_operators(backend,
   end
 end
 
-function test_hodge_solver()
+function test_hodge_solver(backend, meshes, float_type, atol)
   @testset "Inverse Geometric Hodge" begin
-    for sd in dual_meshes_2D_bary[1:end-1]
-      V_1 = Float64.(I[1:ne(sd), 1])
-      cuV_1 = CuArray(V_1)
+    for sd in meshes
+      V_1 = float_type.(I[1:ne(sd), 1])
+      hdg = dec_hodge_star(1, sd, GeometricHodge(), backend)
+      inv_hdg = dec_inv_hodge_star(1, sd, GeometricHodge(), backend)
+      # Verify hdg * inv_hdg(V_1) ≈ -V_1 (sign convention: ⋆⁻¹ = -⋆ for 1-forms in 2D).
       @test all(isapprox.(
-        dec_inv_hodge_star(1, sd, GeometricHodge())(V_1),
-        Array(dec_inv_hodge_star(1, sd, GeometricHodge(), Val(:CUDA))(cuV_1));
-        atol = 1e-10))
+        hdg * inv_hdg(V_1),
+        -V_1;
+        atol = atol))
     end
   end
 end
@@ -189,7 +190,7 @@ using CUDA
 if CUDA.functional()
   @testset "CUDA" begin
     test_unary_operators(Val(:CUDA))
-    test_hodge_solver()
+    test_hodge_solver(Val(:CUDA), dual_meshes_2D_bary[1:end-1], Float64, 1e-10)
     test_binary_operators(Float64, Val(:CUDA), CuArray, 1e-15)
     test_binary_operators(Float32, Val(:CUDA), CuArray, 1e-15)
   end
@@ -243,26 +244,9 @@ if Sys.isapple()
     dual_meshes_2D_circum_f32 = map(x -> generate_dual_f32(x, Circumcenter()), [
       triangulated_grid(10, 10, 8, 8, Point2{Float32})])
 
-    function test_hodge_solver_metal()
-      @testset "Inverse Geometric Hodge" begin
-        for sd in dual_meshes_2D_bary_f32
-          V_1 = Float32.(I[1:ne(sd), 1])
-          hdg = dec_hodge_star(1, sd, GeometricHodge(), Val(:Metal))
-          inv_hdg = dec_inv_hodge_star(1, sd, GeometricHodge(), Val(:Metal))
-          # Verify hdg * inv_hdg(V_1) ≈ -V_1 (sign convention: ⋆⁻¹ = -⋆ for 1-forms in 2D).
-          # Uses AAFactorization (AppleAccelerate direct sparse QR).
-          # atol=5f-6: tolerance appropriate for Float32 arithmetic (≈10× machine epsilon at this scale).
-          @test all(isapprox.(
-            hdg * inv_hdg(V_1),
-            -V_1;
-            atol = 5f-6))
-        end
-      end
-    end
-
     @testset "Metal" begin
       test_unary_operators(Val(:Metal), dual_meshes_1D_f32, dual_meshes_2D_bary_f32, dual_meshes_2D_circum_f32)
-      test_hodge_solver_metal()
+      test_hodge_solver(Val(:Metal), dual_meshes_2D_bary_f32, Float32, 5f-6)
       test_binary_operators(Float32, Val(:Metal), MtlArray, 0.5e-6)
       test_binary_operators(Float16, Val(:Metal), MtlArray, 0.5e-3)
     end
