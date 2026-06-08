@@ -26,6 +26,8 @@ end
 
 @enum Align X_ALIGN Y_ALIGN Z_ALIGN
 
+@enum GridSide EASTWEST NORTHSOUTH UPDOWN ALL
+
 # Base point of real mesh will be (halo_x + 1, halo_y + 1)
 # End point of real mesh will be (halo_x + nxr, halo_y + nyr)
 

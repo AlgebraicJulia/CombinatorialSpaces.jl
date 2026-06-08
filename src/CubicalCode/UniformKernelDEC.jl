@@ -231,8 +231,6 @@ end
   @inbounds f[dst[idx]] = f[src[idx]]
 end
 
-@enum GridSide EASTWEST NORTHSOUTH ALL
-
 # ── Val{0}  (0-forms on vertices) ────────────────────────────────────────
 
 @kernel function kernel_set_periodic_0_ew!(f, s)
