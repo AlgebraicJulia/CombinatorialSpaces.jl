@@ -26,36 +26,42 @@ end
 
 # TODO: Change all these to get_backend
 
-function exterior_derivative!(res, ::Val{0}, s::UniformCubicalComplex3D, f; backend = CPU(), workgroup_size = 256)
+function exterior_derivative!(res, ::Val{0}, s::UniformCubicalComplex3D, f; workgroup_size = 256)
+    backend = get_backend(res)
     kernel = kernel_exterior_derivative_zero!(backend, workgroup_size)
     kernel(res, s, f, ndrange=size(res))
 end
 
-function exterior_derivative!(res, ::Val{1}, s::UniformCubicalComplex3D, f; backend = CPU(), workgroup_size = 256)
+function exterior_derivative!(res, ::Val{1}, s::UniformCubicalComplex3D, f; workgroup_size = 256)
+    backend = get_backend(res)
     kernel = kernel_exterior_derivative_one!(backend, workgroup_size)
     kernel(res, s, f, ndrange=size(res))
 end
 
-function exterior_derivative!(res, ::Val{2}, s::UniformCubicalComplex3D, f; backend = CPU(), workgroup_size = 256)
+function exterior_derivative!(res, ::Val{2}, s::UniformCubicalComplex3D, f; workgroup_size = 256)
+    backend = get_backend(res)
     kernel = kernel_exterior_derivative_two!(backend, workgroup_size)
     kernel(res, s, f, ndrange=size(res))
 end
 
-function exterior_derivative(op::Val{0}, s::UniformCubicalComplex3D, f; backend = CPU(), workgroup_size = 256)
+function exterior_derivative(op::Val{0}, s::UniformCubicalComplex3D, f; workgroup_size = 256)
+    backend = get_backend(f)
     res = KernelAbstractions.zeros(backend, eltype(f), ne(s))
-    exterior_derivative!(res, op, s, f; backend=backend, workgroup_size=workgroup_size)
+    exterior_derivative!(res, op, s, f; workgroup_size=workgroup_size)
     return res
 end
 
-function exterior_derivative(op::Val{1}, s::UniformCubicalComplex3D, f; backend = CPU(), workgroup_size = 256)
+function exterior_derivative(op::Val{1}, s::UniformCubicalComplex3D, f; workgroup_size = 256)
+    backend = get_backend(f)
     res = KernelAbstractions.zeros(backend, eltype(f), nquads(s))
-    exterior_derivative!(res, op, s, f; backend=backend, workgroup_size=workgroup_size)
+    exterior_derivative!(res, op, s, f; workgroup_size=workgroup_size)
     return res
 end
 
-function exterior_derivative(op::Val{2}, s::UniformCubicalComplex3D, f; backend = CPU(), workgroup_size = 256)
+function exterior_derivative(op::Val{2}, s::UniformCubicalComplex3D, f; workgroup_size = 256)
+    backend = get_backend(f)
     res = KernelAbstractions.zeros(backend, eltype(f), nboids(s))
-    exterior_derivative!(res, op, s, f; backend=backend, workgroup_size=workgroup_size)
+    exterior_derivative!(res, op, s, f; workgroup_size=workgroup_size)
     return res
 end
 
@@ -99,47 +105,55 @@ end
 
 # TODO: Change all these to get_backend
 
-function hodge_star!(res, ::Val{0}, s::UniformCubicalComplex3D, f; backend = CPU(), workgroup_size = 256)
+function hodge_star!(res, ::Val{0}, s::UniformCubicalComplex3D, f; workgroup_size = 256)
+    backend = get_backend(res)
     kernel = kernel_hodge_star_zero!(backend, workgroup_size)
     kernel(res, s, f, ndrange=size(res))
 end
 
-function hodge_star!(res, ::Val{1}, s::UniformCubicalComplex3D, f; backend = CPU(), workgroup_size = 256)
+function hodge_star!(res, ::Val{1}, s::UniformCubicalComplex3D, f; workgroup_size = 256)
+    backend = get_backend(res)
     kernel = kernel_hodge_star_one!(backend, workgroup_size)
     kernel(res, s, f, ndrange=size(res))
 end
 
-function hodge_star!(res, ::Val{2}, s::UniformCubicalComplex3D, f; backend = CPU(), workgroup_size = 256)
+function hodge_star!(res, ::Val{2}, s::UniformCubicalComplex3D, f; workgroup_size = 256)
+    backend = get_backend(res)
     kernel = kernel_hodge_star_two!(backend, workgroup_size)
     kernel(res, s, f, ndrange=size(res))
 end
 
-function hodge_star!(res, ::Val{3}, s::UniformCubicalComplex3D, f; backend = CPU(), workgroup_size = 256)
+function hodge_star!(res, ::Val{3}, s::UniformCubicalComplex3D, f; workgroup_size = 256)
+    backend = get_backend(res)
     kernel = kernel_hodge_star_three!(backend, workgroup_size)
     kernel(res, s, f, ndrange=size(res))
 end
 
-function hodge_star(op::Val{0}, s::UniformCubicalComplex3D, f; backend = CPU(), workgroup_size = 256)
+function hodge_star(op::Val{0}, s::UniformCubicalComplex3D, f; workgroup_size = 256)
+    backend = get_backend(f)
     res = KernelAbstractions.zeros(backend, eltype(f), nv(s))
-    hodge_star!(res, op, s, f; backend=backend, workgroup_size=workgroup_size)
+    hodge_star!(res, op, s, f; workgroup_size=workgroup_size)
     return res
 end
 
-function hodge_star(op::Val{1}, s::UniformCubicalComplex3D, f; backend = CPU(), workgroup_size = 256)
+function hodge_star(op::Val{1}, s::UniformCubicalComplex3D, f; workgroup_size = 256)
+    backend = get_backend(f)
     res = KernelAbstractions.zeros(backend, eltype(f), ne(s))
-    hodge_star!(res, op, s, f; backend=backend, workgroup_size=workgroup_size)
+    hodge_star!(res, op, s, f; workgroup_size=workgroup_size)
     return res
 end
 
-function hodge_star(op::Val{2}, s::UniformCubicalComplex3D, f; backend = CPU(), workgroup_size = 256)
+function hodge_star(op::Val{2}, s::UniformCubicalComplex3D, f; workgroup_size = 256)
+    backend = get_backend(f)
     res = KernelAbstractions.zeros(backend, eltype(f), nquads(s))
-    hodge_star!(res, op, s, f; backend=backend, workgroup_size=workgroup_size)
+    hodge_star!(res, op, s, f; workgroup_size=workgroup_size)
     return res
 end
 
-function hodge_star(op::Val{3}, s::UniformCubicalComplex3D, f; backend = CPU(), workgroup_size = 256)
+function hodge_star(op::Val{3}, s::UniformCubicalComplex3D, f; workgroup_size = 256)
+    backend = get_backend(f)
     res = KernelAbstractions.zeros(backend, eltype(f), nboids(s))
-    hodge_star!(res, op, s, f; backend=backend, workgroup_size=workgroup_size)
+    hodge_star!(res, op, s, f; workgroup_size=workgroup_size)
     return res
 end
 
@@ -182,47 +196,55 @@ end
 
 # TODO: Change all these to get_backend
 
-function inv_hodge_star!(res, ::Val{0}, s::UniformCubicalComplex3D, f; backend = CPU(), workgroup_size = 256)
+function inv_hodge_star!(res, ::Val{0}, s::UniformCubicalComplex3D, f; workgroup_size = 256)
+    backend = get_backend(res)
     kernel = kernel_inv_hodge_star_zero!(backend, workgroup_size)
     kernel(res, s, f, ndrange=size(res))
 end
 
-function inv_hodge_star!(res, ::Val{1}, s::UniformCubicalComplex3D, f; backend = CPU(), workgroup_size = 256)
+function inv_hodge_star!(res, ::Val{1}, s::UniformCubicalComplex3D, f; workgroup_size = 256)
+    backend = get_backend(res)
     kernel = kernel_inv_hodge_star_one!(backend, workgroup_size)
     kernel(res, s, f, ndrange=size(res))
 end
 
-function inv_hodge_star!(res, ::Val{2}, s::UniformCubicalComplex3D, f; backend = CPU(), workgroup_size = 256)
+function inv_hodge_star!(res, ::Val{2}, s::UniformCubicalComplex3D, f; workgroup_size = 256)
+    backend = get_backend(res)
     kernel = kernel_inv_hodge_star_two!(backend, workgroup_size)
     kernel(res, s, f, ndrange=size(res))
 end
 
-function inv_hodge_star!(res, ::Val{3}, s::UniformCubicalComplex3D, f; backend = CPU(), workgroup_size = 256)
+function inv_hodge_star!(res, ::Val{3}, s::UniformCubicalComplex3D, f; workgroup_size = 256)
+    backend = get_backend(res)
     kernel = kernel_inv_hodge_star_three!(backend, workgroup_size)
     kernel(res, s, f, ndrange=size(res))
 end
 
-function inv_hodge_star(op::Val{0}, s::UniformCubicalComplex3D, f; backend = CPU(), workgroup_size = 256)
+function inv_hodge_star(op::Val{0}, s::UniformCubicalComplex3D, f; workgroup_size = 256)
+    backend = get_backend(f)
     res = KernelAbstractions.zeros(backend, eltype(f), nv(s))
-    inv_hodge_star!(res, op, s, f; backend=backend, workgroup_size=workgroup_size)
+    inv_hodge_star!(res, op, s, f; workgroup_size=workgroup_size)
     return res
 end
 
-function inv_hodge_star(op::Val{1}, s::UniformCubicalComplex3D, f; backend = CPU(), workgroup_size = 256)
+function inv_hodge_star(op::Val{1}, s::UniformCubicalComplex3D, f; workgroup_size = 256)
+    backend = get_backend(f)
     res = KernelAbstractions.zeros(backend, eltype(f), ne(s))
-    inv_hodge_star!(res, op, s, f; backend=backend, workgroup_size=workgroup_size)
+    inv_hodge_star!(res, op, s, f; workgroup_size=workgroup_size)
     return res
 end
 
-function inv_hodge_star(op::Val{2}, s::UniformCubicalComplex3D, f; backend = CPU(), workgroup_size = 256)
+function inv_hodge_star(op::Val{2}, s::UniformCubicalComplex3D, f; workgroup_size = 256)
+    backend = get_backend(f)
     res = KernelAbstractions.zeros(backend, eltype(f), nquads(s))
-    inv_hodge_star!(res, op, s, f; backend=backend, workgroup_size=workgroup_size)
+    inv_hodge_star!(res, op, s, f; workgroup_size=workgroup_size)
     return res
 end
 
-function inv_hodge_star(op::Val{3}, s::UniformCubicalComplex3D, f; backend = CPU(), workgroup_size = 256)
+function inv_hodge_star(op::Val{3}, s::UniformCubicalComplex3D, f; workgroup_size = 256)
+    backend = get_backend(f)
     res = KernelAbstractions.zeros(backend, eltype(f), nboids(s))
-    inv_hodge_star!(res, op, s, f; backend=backend, workgroup_size=workgroup_size)
+    inv_hodge_star!(res, op, s, f; workgroup_size=workgroup_size)
     return res
 end
 
@@ -272,36 +294,42 @@ end
 
 # TODO: Change all these to get_backend
 
-function dual_exterior_derivative!(res, ::Val{0}, s::UniformCubicalComplex3D, f; backend = CPU(), workgroup_size = 256)
+function dual_exterior_derivative!(res, ::Val{0}, s::UniformCubicalComplex3D, f; workgroup_size = 256)
+    backend = get_backend(res)
     kernel = kernel_dual_exterior_derivative_zero!(backend, workgroup_size)
     kernel(res, s, f, ndrange=size(res))
 end
 
-function dual_exterior_derivative!(res, ::Val{1}, s::UniformCubicalComplex3D, f; backend = CPU(), workgroup_size = 256)
+function dual_exterior_derivative!(res, ::Val{1}, s::UniformCubicalComplex3D, f; workgroup_size = 256)
+    backend = get_backend(res)
     kernel = kernel_dual_exterior_derivative_one!(backend, workgroup_size)
     kernel(res, s, f, ndrange=size(res))
 end
 
-function dual_exterior_derivative!(res, ::Val{2}, s::UniformCubicalComplex3D, f; backend = CPU(), workgroup_size = 256)
+function dual_exterior_derivative!(res, ::Val{2}, s::UniformCubicalComplex3D, f; workgroup_size = 256)
+    backend = get_backend(res)
     kernel = kernel_dual_exterior_derivative_two!(backend, workgroup_size)
     kernel(res, s, f, ndrange=size(res))
 end
 
-function dual_exterior_derivative(op::Val{0}, s::UniformCubicalComplex3D, f; backend = CPU(), workgroup_size = 256)
+function dual_exterior_derivative(op::Val{0}, s::UniformCubicalComplex3D, f; workgroup_size = 256)
+    backend = get_backend(f)
     res = KernelAbstractions.zeros(backend, eltype(f), nquads(s))
-    dual_exterior_derivative!(res, op, s, f; backend=backend, workgroup_size=workgroup_size)
+    dual_exterior_derivative!(res, op, s, f; workgroup_size=workgroup_size)
     return res
 end
 
-function dual_exterior_derivative(op::Val{1}, s::UniformCubicalComplex3D, f; backend = CPU(), workgroup_size = 256)
+function dual_exterior_derivative(op::Val{1}, s::UniformCubicalComplex3D, f; workgroup_size = 256)
+    backend = get_backend(f)
     res = KernelAbstractions.zeros(backend, eltype(f), ne(s))
-    dual_exterior_derivative!(res, op, s, f; backend=backend, workgroup_size=workgroup_size)
+    dual_exterior_derivative!(res, op, s, f; workgroup_size=workgroup_size)
     return res
 end
 
-function dual_exterior_derivative(op::Val{2}, s::UniformCubicalComplex3D, f; backend = CPU(), workgroup_size = 256)
+function dual_exterior_derivative(op::Val{2}, s::UniformCubicalComplex3D, f; workgroup_size = 256)
+    backend = get_backend(f)
     res = KernelAbstractions.zeros(backend, eltype(f), nv(s))
-    dual_exterior_derivative!(res, op, s, f; backend=backend, workgroup_size=workgroup_size)
+    dual_exterior_derivative!(res, op, s, f; workgroup_size=workgroup_size)
     return res
 end
 
@@ -391,14 +419,16 @@ end
 
 # TODO: Change all these to get_backend
 
-function wedge_product_dd!(res, ::Val{0}, ::Val{1}, s::UniformCubicalComplex3D, f, a; backend = CPU(), workgroup_size = 256)
+function wedge_product_dd!(res, ::Val{0}, ::Val{1}, s::UniformCubicalComplex3D, f, a; workgroup_size = 256)
+    backend = get_backend(res)
     kernel = kernel_wedge_product_dd_01!(backend, workgroup_size)
     kernel(res, s, f, a, ndrange=size(res))
 end
 
-function wedge_product_dd(op1::Val{0}, op2::Val{1}, s::UniformCubicalComplex3D, f, a; backend = CPU(), workgroup_size = 256)
+function wedge_product_dd(op1::Val{0}, op2::Val{1}, s::UniformCubicalComplex3D, f, a; workgroup_size = 256)
+    backend = get_backend(f)
     res = KernelAbstractions.zeros(backend, eltype(f), nquads(s))
-    wedge_product_dd!(res, op1, op2, s, f, a; backend=backend, workgroup_size=workgroup_size)
+    wedge_product_dd!(res, op1, op2, s, f, a; workgroup_size=workgroup_size)
     return res
 end
 
