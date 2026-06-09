@@ -195,3 +195,111 @@ function create_gif(
     msh.color = interior(Val(0), solution(t * t_e / frames), s)
   end
 end
+
+using CairoMakie
+using KernelAbstractions
+
+# Make sure all dependencies are included
+# include("UniformMesh.jl")
+# include("UniformMesh3D.jl")
+
+"""
+    plot_dual_zeroform_slice(s::UniformCubicalComplex3D, f, align::Align, slice_idx::Int; kwargs...)
+
+Plots a 2D heatmap of a slice of a 3D dual zero-form (data defined on boid centers).
+
+# Arguments
+- `s::UniformCubicalComplex3D`: The 3D mesh.
+- `f`: A 1D array containing the data for all boids in the mesh.
+- `align::Align`: The axis normal to the slice (`X_ALIGN`, `Y_ALIGN`, or `Z_ALIGN`).
+- `slice_idx::Int`: The integer index of the slice along the specified alignment axis.
+- `figure_kwargs`, `axis_kwargs`, `heatmap_kwargs`, `colorbar_kwargs`: Makie keyword arguments.
+"""
+function plot_dual_zeroform_slice(
+  s::UniformCubicalComplex3D,
+  f,
+  align::Align,
+  slice_idx::Int;
+  figure_kwargs = (;),
+  axis_kwargs = (;),
+  heatmap_kwargs = (;),
+  colorbar_kwargs = (;),
+)
+    # 1. Determine axes ranges, labels, and physical coordinates directly
+    if align == X_ALIGN
+        x_range, y_range = 1:nyb(s), 1:nzb(s)
+        x_ax_label, y_ax_label = "Y", "Z"
+        title_text = "Slice at X = $slice_idx"
+        
+        # Physical coordinates: Y is horizontal axis, Z is vertical axis
+        plot_x_axis = [dual_point(s, slice_idx, y, 1)[2] for y in x_range]
+        plot_y_axis = [dual_point(s, slice_idx, 1, z)[3] for z in y_range]
+
+    elseif align == Y_ALIGN
+        x_range, y_range = 1:nxb(s), 1:nzb(s)
+        x_ax_label, y_ax_label = "X", "Z"
+        title_text = "Slice at Y = $slice_idx"
+        
+        # Physical coordinates: X is horizontal axis, Z is vertical axis
+        plot_x_axis = [dual_point(s, x, slice_idx, 1)[1] for x in x_range]
+        plot_y_axis = [dual_point(s, 1, slice_idx, z)[3] for z in y_range]
+
+    else # align == Z_ALIGN
+        x_range, y_range = 1:nxb(s), 1:nyb(s)
+        x_ax_label, y_ax_label = "X", "Y"
+        title_text = "Slice at Z = $slice_idx"
+        
+        # Physical coordinates: X is horizontal axis, Y is vertical axis
+        plot_x_axis = [dual_point(s, x, 1, slice_idx)[1] for x in x_range]
+        plot_y_axis = [dual_point(s, 1, y, slice_idx)[2] for y in y_range]
+    end
+
+
+    # Pre-allocate a 2D array for the sliced data
+    data_slice = zeros(Float64, length(x_range), length(y_range))
+
+    # Extract the data for the specified slice
+    for i in x_range, j in y_range
+        b_coord = if align == X_ALIGN
+            (slice_idx, i, j)
+        elseif align == Y_ALIGN
+            (i, slice_idx, j)
+        else # align == Z_ALIGN
+            (i, j, slice_idx)
+        end
+        
+        # Check if the boid coordinate is valid before accessing
+        if valid_boid(s, b_coord...)
+            boid_idx = coord_to_boid(s, b_coord...)
+            data_slice[i, j] = f[boid_idx]
+        else
+            # If the slice index is out of bounds, data will be zero
+            data_slice[i, j] = NaN # Use NaN for out-of-bounds to get blank spots
+        end
+    end
+
+    # --- Plotting ---
+    fig = Figure(; figure_kwargs...)
+    
+    axis_defaults = (
+        title = title_text,
+        xlabel = x_ax_label,
+        ylabel = y_ax_label,
+        # aspect = DataAspect(), # Ensure correct aspect ratio, TODO: Do we include this?
+    )
+    ax = CairoMakie.Axis(fig[1, 1]; merge(axis_defaults, axis_kwargs)...)
+
+    heatmap_defaults = (
+        colormap = :jet,
+    )
+    
+    # The data matrix might need to be transposed depending on the alignment
+    # Makie plots columns along x and rows along y.
+    final_data = (align == Y_ALIGN) ? transpose(data_slice) : data_slice
+
+    hm = CairoMakie.heatmap!(ax, plot_x_axis, plot_y_axis, final_data; merge(heatmap_defaults, heatmap_kwargs)...)
+    
+    Colorbar(fig[1, 2], hm; colorbar_kwargs...)
+    
+    return fig
+end
