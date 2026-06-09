@@ -295,14 +295,113 @@ end
 end
 
 @testset "Sharp and Flat Operators" begin
-    s = UniformCubicalComplex3D(3, 3, 3, 1.0, 1.0, 1.0)
-    FT = Float64
-
     @testset "Sharp DD" begin
+        s = UniformCubicalComplex3D(4, 4, 4, 1.0, 2.0, 4.0)
+        FT = Float64
+
+        f = zeros(FT, nquads(s))
         
+        # --- Test 1: Interior Boid (2,2,2) ---
+        boid_idx = coord_to_boid(s, 2, 2, 2)
+        q_z1, q_z2, q_y1, q_y2, q_x1, q_x2 = boid_quads(s, 2, 2, 2)
+        
+        f[q_x1] = 1.0; f[q_x2] = 3.0
+        f[q_y1] = 5.0; f[q_y2] = 5.0
+        f[q_z1] = 8.0; f[q_z2] = 6.0
+
+        X, Y, Z = sharp_dd(s, f)
+        
+        @test X[boid_idx] ≈ 2.0 / dx(s)
+        @test Y[boid_idx] ≈ 5.0 / dy(s)
+        @test Z[boid_idx] ≈ 7.0 / dz(s)
+
+        # --- Test 2: Boundary Corner Boid (1,1,1) ---
+        f .= 0.0
+        boid_idx_corner = coord_to_boid(s, 1, 1, 1)
+        q_z1, q_z2, q_y1, q_y2, q_x1, q_x2 = boid_quads(s, 1, 1, 1)
+
+        f[q_x1] = 1.0; f[q_x2] = 3.0
+        f[q_y1] = 2.0; f[q_y2] = 4.0
+        f[q_z1] = 5.0; f[q_z2] = 6.0
+        
+        X_c, Y_c, Z_c = sharp_dd(s, f)
+        
+        @test X_c[boid_idx_corner] ≈ 2.5 / dx(s)
+        @test Y_c[boid_idx_corner] ≈ 4.0 / dy(s)
+        @test Z_c[boid_idx_corner] ≈ 8.0 / dz(s)
+        
+        # --- Test 3: Boid on Edge (1, 2, nzb(s)) ---
+        f .= 0.0
+        boid_idx_edge = coord_to_boid(s, 1, 2, nzb(s))
+        q_z1, q_z2, q_y1, q_y2, q_x1, q_x2 = boid_quads(s, 1, 2, nzb(s))
+
+        f[q_x1] = 1.0; f[q_x2] = 3.0 # West Boundary
+        f[q_y1] = 2.0; f[q_y2] = 4.0 # Interior
+        f[q_z1] = 5.0; f[q_z2] = 6.0 # Up Boundary
+        
+        X_e, Y_e, Z_e = sharp_dd(s, f)
+        
+        @test X_e[boid_idx_edge] ≈ 2.5 / dx(s)
+        @test Y_e[boid_idx_edge] ≈ 3.0 / dy(s)
+        @test Z_e[boid_idx_edge] ≈ 8.5 / dz(s)
     end
 
     @testset "Flat DP" begin
+        s = UniformCubicalComplex3D(3, 3, 3, 1.0, 2.0, 4.0)
+        FT = Float64
+
+        # Constant vector field
+        C_x, C_y, C_z = 1.5, 2.5, 3.5
+        X_const = fill(FT(C_x), nboids(s))
+        Y_const = fill(FT(C_y), nboids(s))
+        Z_const = fill(FT(C_z), nboids(s))
+
+        f_const = flat_dp(s, X_const, Y_const, Z_const)
+
+        # --- Test 1: Interior Edge ---
+        edge_idx_int = coord_to_edge(s, 2, 2, 2, X_ALIGN)
+        @test f_const[edge_idx_int] ≈ C_x * dx(s)
+
+        # --- Test 2: Boundary Edge on a face ---
+        edge_idx_face = coord_to_edge(s, 2, 3, 2, Z_ALIGN)
+        @test f_const[edge_idx_face] ≈ C_z * dz(s)
+
+        # --- Test 3: Boundary Edge on a corner ---
+        edge_idx_corner = coord_to_edge(s, 1, 1, 1, Y_ALIGN)
+        @test f_const[edge_idx_corner] ≈ C_y * dy(s)
+
+        # Varying vector field
+        boid_indices = FT.(1:nboids(s))
+        X = boid_indices
+        Y = 2 .* boid_indices
+        Z = 3 .* boid_indices
+
+        f = flat_dp(s, X, Y, Z)
+
+        # --- Test 1: Interior Edge ---
+        edge_idx = coord_to_edge(s, 2, 2, 2, X_ALIGN)
+        b_indices, b_valid = edge_boids(s, 2, 2, 2, X_ALIGN)
+        @test all(b_valid)
         
+        avg_X = (X[b_indices[1]] + X[b_indices[2]] + X[b_indices[3]] + X[b_indices[4]]) / 4.0
+        @test f[edge_idx] ≈ avg_X * dx(s)
+
+        # --- Test 2: Boundary Edge (on a face) ---
+        edge_idx = coord_to_edge(s, 2, 3, 2, Z_ALIGN) # y=3 is boundary for edge
+        b_indices, b_valid = edge_boids(s, 2, 3, 2, Z_ALIGN)
+        @test count(b_valid) == 2
+        
+        avg_Z = (Z[b_indices[1]] + Z[b_indices[2]]) / 2.0
+        @test f[edge_idx] ≈ avg_Z * dz(s)
+        
+        # --- Test 3: Boundary Edge (on a corner) ---
+        edge_idx = coord_to_edge(s, 1, 1, 1, Y_ALIGN)
+        b_indices, b_valid = edge_boids(s, 1, 1, 1, Y_ALIGN)
+        @test count(b_valid) == 1
+        
+        avg_Y = Y[b_indices[4]] / 1.0
+        @test f[edge_idx] ≈ avg_Y * dy(s)
     end
+
 end
+

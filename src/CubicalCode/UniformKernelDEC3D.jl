@@ -250,7 +250,7 @@ end
 
 ### Dual Derivative ###
 
-@kernel function kernel_dual_exterior_derivative_zero!(res, s, @Const(f))
+@kernel function kernel_dual_derivative_zero!(res, s, @Const(f))
     idx = @index(Global)
     FT = eltype(f)
     x, y, z, align = quad_to_coord(s, idx)
@@ -262,7 +262,7 @@ end
     @inbounds res[idx] = val2 - val1
 end
   
-@kernel function kernel_dual_exterior_derivative_one!(res, s, @Const(f))
+@kernel function kernel_dual_derivative_one!(res, s, @Const(f))
     idx = @index(Global)
     FT = eltype(f)
     x, y, z, align = edge_to_coord(s, idx)
@@ -276,7 +276,7 @@ end
     @inbounds res[idx] = -val1 + val2 + val3 - val4
 end
   
-@kernel function kernel_dual_exterior_derivative_two!(res, s, @Const(f))
+@kernel function kernel_dual_derivative_two!(res, s, @Const(f))
     idx = @index(Global)
     FT = eltype(f)
     x, y, z = vert_to_coord(s, idx)
@@ -294,42 +294,42 @@ end
 
 # TODO: Change all these to get_backend
 
-function dual_exterior_derivative!(res, ::Val{0}, s::UniformCubicalComplex3D, f; workgroup_size = 256)
+function dual_derivative!(res, ::Val{0}, s::UniformCubicalComplex3D, f; workgroup_size = 256)
     backend = get_backend(res)
-    kernel = kernel_dual_exterior_derivative_zero!(backend, workgroup_size)
+    kernel = kernel_dual_derivative_zero!(backend, workgroup_size)
     kernel(res, s, f, ndrange=size(res))
 end
 
-function dual_exterior_derivative!(res, ::Val{1}, s::UniformCubicalComplex3D, f; workgroup_size = 256)
+function dual_derivative!(res, ::Val{1}, s::UniformCubicalComplex3D, f; workgroup_size = 256)
     backend = get_backend(res)
-    kernel = kernel_dual_exterior_derivative_one!(backend, workgroup_size)
+    kernel = kernel_dual_derivative_one!(backend, workgroup_size)
     kernel(res, s, f, ndrange=size(res))
 end
 
-function dual_exterior_derivative!(res, ::Val{2}, s::UniformCubicalComplex3D, f; workgroup_size = 256)
+function dual_derivative!(res, ::Val{2}, s::UniformCubicalComplex3D, f; workgroup_size = 256)
     backend = get_backend(res)
-    kernel = kernel_dual_exterior_derivative_two!(backend, workgroup_size)
+    kernel = kernel_dual_derivative_two!(backend, workgroup_size)
     kernel(res, s, f, ndrange=size(res))
 end
 
-function dual_exterior_derivative(op::Val{0}, s::UniformCubicalComplex3D, f; workgroup_size = 256)
+function dual_derivative(op::Val{0}, s::UniformCubicalComplex3D, f; workgroup_size = 256)
     backend = get_backend(f)
     res = KernelAbstractions.zeros(backend, eltype(f), nquads(s))
-    dual_exterior_derivative!(res, op, s, f; workgroup_size=workgroup_size)
+    dual_derivative!(res, op, s, f; workgroup_size=workgroup_size)
     return res
 end
 
-function dual_exterior_derivative(op::Val{1}, s::UniformCubicalComplex3D, f; workgroup_size = 256)
+function dual_derivative(op::Val{1}, s::UniformCubicalComplex3D, f; workgroup_size = 256)
     backend = get_backend(f)
     res = KernelAbstractions.zeros(backend, eltype(f), ne(s))
-    dual_exterior_derivative!(res, op, s, f; workgroup_size=workgroup_size)
+    dual_derivative!(res, op, s, f; workgroup_size=workgroup_size)
     return res
 end
 
-function dual_exterior_derivative(op::Val{2}, s::UniformCubicalComplex3D, f; workgroup_size = 256)
+function dual_derivative(op::Val{2}, s::UniformCubicalComplex3D, f; workgroup_size = 256)
     backend = get_backend(f)
     res = KernelAbstractions.zeros(backend, eltype(f), nv(s))
-    dual_exterior_derivative!(res, op, s, f; workgroup_size=workgroup_size)
+    dual_derivative!(res, op, s, f; workgroup_size=workgroup_size)
     return res
 end
 
@@ -434,14 +434,109 @@ end
 
 ### Sharp and Flat Operators ###
 
-# TODO: Fill out this function
-@kernel function kernel_sharp_dd(X, Y, Z, s, @Const(f))
+@kernel function kernel_sharp_dd!(X, Y, Z, s, @Const(f))
     idx = @index(Global)
     x, y, z = boid_to_coord(s, idx)
     FT = eltype(f)
 
-    q1, q2, q3, q4, q5, q6 = boid_quads(s, x, y, z)
+    # boid_quads returns faces in order: Z-low, Z-high, Y-low, Y-high, X-low, X-high
+    q_z1, q_z2, q_y1, q_y2, q_x1, q_x2 = boid_quads(s, x, y, z)
 
+    # --- X Component ---
+    val_x1 = f[q_x1] # West
+    val_x2 = f[q_x2] # East
+    
+    local_X = zero(FT)
+    local_X += ifelse(x == 1, FT(1.0), FT(0.5)) * val_x1
+    local_X += ifelse(x == nxb(s), FT(1.0), FT(0.5)) * val_x2
+    
+    # --- Y Component ---
+    val_y1 = f[q_y1] # South
+    val_y2 = f[q_y2] # North
 
+    local_Y = zero(FT)
+    local_Y += ifelse(y == 1, FT(1.0), FT(0.5)) * val_y1
+    local_Y += ifelse(y == nxb(s), FT(1.0), FT(0.5)) * val_y2
 
+    # --- Z Component ---
+    val_z1 = f[q_z1] # Down
+    val_z2 = f[q_z2] # Up
+
+    local_Z = zero(FT)
+    local_Z += ifelse(z == 1, FT(1.0), FT(0.5)) * val_z1
+    local_Z += ifelse(z == nxb(s), FT(1.0), FT(0.5)) * val_z2
+
+    @inbounds begin
+        X[idx] = local_X / dx(s)
+        Y[idx] = local_Y / dy(s)
+        Z[idx] = local_Z / dz(s)
+    end
 end
+
+@kernel function kernel_flat_dp!(res, s, @Const(X), @Const(Y), @Const(Z))
+    idx = @index(Global)
+    x, y, z, align = edge_to_coord(s, idx)
+    FT = eltype(res)
+
+    b_indices, b_valid = edge_boids(s, x, y, z, align)
+    
+    total_val = zero(FT)
+    valid_boids = 0
+
+    V = if align == X_ALIGN
+        X
+    elseif align == Y_ALIGN
+        Y
+    else # Z_ALIGN
+        Z
+    end
+
+    # Sum the relevant vector component from all valid adjacent boids
+    if b_valid[1]; total_val += V[b_indices[1]]; valid_boids += 1; end
+    if b_valid[2]; total_val += V[b_indices[2]]; valid_boids += 1; end
+    if b_valid[3]; total_val += V[b_indices[3]]; valid_boids += 1; end
+    if b_valid[4]; total_val += V[b_indices[4]]; valid_boids += 1; end
+
+    # Calculate the average and multiply by the edge length
+    avg_val = valid_boids > 0 ? total_val / valid_boids : zero(FT)
+    
+    @inbounds res[idx] = avg_val * edge_len(s, align)
+end
+
+function sharp_dd!(X, Y, Z, s::UniformCubicalComplex3D, f; workgroup_size = 256)
+    backend = get_backend(X)
+    kernel = kernel_sharp_dd!(backend, workgroup_size)
+    kernel(X, Y, Z, s, f, ndrange=size(X))
+end
+
+function sharp_dd(s::UniformCubicalComplex3D, f; workgroup_size = 256)
+    backend = get_backend(f)
+    FT = eltype(f)
+    
+    # The resulting vector field lives on the dual vertices, which correspond
+    # to the primal boids.
+    X = KernelAbstractions.zeros(backend, FT, nboids(s))
+    Y = KernelAbstractions.zeros(backend, FT, nboids(s))
+    Z = KernelAbstractions.zeros(backend, FT, nboids(s))
+
+    sharp_dd!(X, Y, Z, s, f; workgroup_size=workgroup_size)
+    return (X, Y, Z)
+end
+
+function flat_dp!(res, s::UniformCubicalComplex3D, X, Y, Z; workgroup_size = 256)
+    backend = get_backend(res)
+    kernel = kernel_flat_dp!(backend, workgroup_size)
+    kernel(res, s, X, Y, Z, ndrange=size(res))
+end
+
+function flat_dp(s::UniformCubicalComplex3D, X, Y, Z; workgroup_size = 256)
+    backend = get_backend(X)
+    FT = eltype(X)
+    
+    # The result is a primal 1-form, which lives on the primal edges.
+    res = KernelAbstractions.zeros(backend, FT, ne(s))
+
+    flat_dp!(res, s, X, Y, Z; workgroup_size=workgroup_size)
+    return res
+end
+
