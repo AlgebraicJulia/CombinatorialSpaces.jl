@@ -633,15 +633,15 @@ function primal_boundary_vertices(s::AbstractCubicalComplex3D, side::GridSide)
     if side == EASTWEST
         west = [coord_to_quad(s, 1, y, z, X_ALIGN) for y in 1:nyb(s), z in 1:nzb(s)][:]
         east = [coord_to_quad(s, nx(s), y, z, X_ALIGN) for y in 1:nyb(s), z in 1:nzb(s)][:]
-        return (west, east)
+        return (east, west)
     elseif side == NORTHSOUTH
         south = [coord_to_quad(s, x, 1, z, Y_ALIGN) for x in 1:nxb(s), z in 1:nzb(s)][:]
         north = [coord_to_quad(s, x, ny(s), z, Y_ALIGN) for x in 1:nxb(s), z in 1:nzb(s)][:]
-        return (south, north)
+        return (north, south)
     else # side == UPDOWN
         down = [coord_to_quad(s, x, y, 1, Z_ALIGN) for x in 1:nxb(s), y in 1:nyb(s)][:]
         up = [coord_to_quad(s, x, y, nz(s), Z_ALIGN) for x in 1:nxb(s), y in 1:nyb(s)][:]
-        return (down, up)
+        return (up, down)
     end
   end
   
