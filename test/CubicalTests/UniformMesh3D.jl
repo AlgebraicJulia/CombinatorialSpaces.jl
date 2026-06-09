@@ -419,6 +419,33 @@ end
     @test edge_quads(s, x, y, z, Z_ALIGN) == ((21, 32, 22, 35), (true, true, true, true))
 end
 
+@testset "Edge to Incident Boids" begin
+    # Small mesh for index testing
+    s = UniformCubicalComplex3D(3, 3, 3, 1.0, 1.0, 1.0)
+    
+    idx, valid = edge_boids(s, 2, 2, 2, Z_ALIGN)
+    @test valid == (true, true, true, true)
+    @test idx[1] == coord_to_boid(s, 1, 1, 2)
+    @test idx[2] == coord_to_boid(s, 2, 1, 2)
+    @test idx[3] == coord_to_boid(s, 2, 2, 2)
+    @test idx[4] == coord_to_boid(s, 1, 2, 2)
+
+    idx, valid = edge_boids(s, 2, 1, 2, X_ALIGN)
+    @test valid == (false, true, true, false)
+    @test idx[1] == 0
+    @test idx[2] == coord_to_boid(s, 2, 1, 1)
+    @test idx[3] == coord_to_boid(s, 2, 1, 2)
+    @test idx[4] == 0
+
+    idx, valid = edge_boids(s, 1, 2, 1, Y_ALIGN)
+    @test valid == (false, false, false, true)
+    @test idx[1] == 0
+    @test idx[2] == 0
+    @test idx[3] == 0
+    @test idx[4] == coord_to_boid(s, 1, 2, 1)
+end
+
+
 # TODO: Check this code to make sure it is working as intended
 @testset "Vertex to Incident Edges (Explicit Indices)" begin
     s = UniformCubicalComplex3D(3, 3, 3, 10.0, 10.0, 10.0)
@@ -456,15 +483,15 @@ end
     down_q_expected = [1]
     up_q_expected = [2]
     
-    west_q, east_q = primal_boundary_quads(s, EASTWEST)
+    east_q, west_q= primal_boundary_quads(s, EASTWEST)
     @test west_q == west_q_expected
     @test east_q == east_q_expected
 
-    south_q, north_q = primal_boundary_quads(s, NORTHSOUTH)
+    north_q, south_q= primal_boundary_quads(s, NORTHSOUTH)
     @test south_q == south_q_expected
     @test north_q == north_q_expected
 
-    down_q, up_q = primal_boundary_quads(s, UPDOWN)
+    up_q, down_q = primal_boundary_quads(s, UPDOWN)
     @test down_q == down_q_expected
     @test up_q == up_q_expected
 
