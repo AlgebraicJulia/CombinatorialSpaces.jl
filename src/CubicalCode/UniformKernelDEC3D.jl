@@ -24,8 +24,6 @@ end
     @inbounds res[idx] = f[q1] - f[q2] + f[q3] - f[q4] + f[q5] - f[q6]
 end
 
-# TODO: Change all these to get_backend
-
 function exterior_derivative!(res, ::Val{0}, s::UniformCubicalComplex3D, f; workgroup_size = 256)
     backend = get_backend(res)
     kernel = kernel_exterior_derivative_zero!(backend, workgroup_size)
@@ -102,8 +100,6 @@ end
     ratio = 1.0 / boid_volume(s)
     @inbounds res[idx] = f[b_idx] * ratio
 end
-
-# TODO: Change all these to get_backend
 
 function hodge_star!(res, ::Val{0}, s::UniformCubicalComplex3D, f; workgroup_size = 256)
     backend = get_backend(res)
@@ -193,8 +189,6 @@ end
     ratio = boid_volume(s)
     @inbounds res[idx] = f[v_idx] * ratio
 end
-
-# TODO: Change all these to get_backend
 
 function inv_hodge_star!(res, ::Val{0}, s::UniformCubicalComplex3D, f; workgroup_size = 256)
     backend = get_backend(res)
@@ -291,8 +285,6 @@ end
 
     @inbounds res[idx] = val1 - val2 + val3 - val4 + val5 - val6
 end
-
-# TODO: Change all these to get_backend
 
 function dual_derivative!(res, ::Val{0}, s::UniformCubicalComplex3D, f; workgroup_size = 256)
     backend = get_backend(res)
@@ -417,8 +409,6 @@ wedge_product(::Val{2}, ::Val{1}, s::UniformCubicalComplex3D, a, b; workgroup_si
     @inbounds res[idx] = f_val * a[idx]
 end
 
-# TODO: Change all these to get_backend
-
 function wedge_product_dd!(res, ::Val{0}, ::Val{1}, s::UniformCubicalComplex3D, f, a; workgroup_size = 256)
     backend = get_backend(res)
     kernel = kernel_wedge_product_dd_01!(backend, workgroup_size)
@@ -456,7 +446,7 @@ end
 
     local_Y = zero(FT)
     local_Y += ifelse(y == 1, FT(1.0), FT(0.5)) * val_y1
-    local_Y += ifelse(y == nxb(s), FT(1.0), FT(0.5)) * val_y2
+    local_Y += ifelse(y == nyb(s), FT(1.0), FT(0.5)) * val_y2
 
     # --- Z Component ---
     val_z1 = f[q_z1] # Down
@@ -464,7 +454,7 @@ end
 
     local_Z = zero(FT)
     local_Z += ifelse(z == 1, FT(1.0), FT(0.5)) * val_z1
-    local_Z += ifelse(z == nxb(s), FT(1.0), FT(0.5)) * val_z2
+    local_Z += ifelse(z == nzb(s), FT(1.0), FT(0.5)) * val_z2
 
     @inbounds begin
         X[idx] = local_X / dx(s)

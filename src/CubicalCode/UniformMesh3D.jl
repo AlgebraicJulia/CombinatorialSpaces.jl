@@ -77,6 +77,7 @@ nquads(s::AbstractCubicalComplex3D) = nxyquads(s) + nxzquads(s) + nyzquads(s)
 
 hxq(s::AbstractCubicalComplex3D) = hx(s)
 hyq(s::AbstractCubicalComplex3D) = hy(s)
+hzq(s::AbstractCubicalComplex3D) = hz(s)
 hzquads(s::AbstractCubicalComplex3D) = hz(s)
 
 # Rectangular cuboids
@@ -264,7 +265,7 @@ function point(s::UniformCubicalComplex3D, x::Int, y::Int, z::Int)
 end
 point(s::UniformCubicalComplex3D, v::Int) = point(s, vert_to_coord(s, v)...)
 
-real_point(s::AbstractCubicalComplex2D, x::Int, y::Int, z::Int) = point(s, x + hx(s), y + hy(s), z + hz(s))
+real_point(s::AbstractCubicalComplex3D, x::Int, y::Int, z::Int) = point(s, x + hx(s), y + hy(s), z + hz(s))
 
 points(s::AbstractCubicalComplex3D) = map(v -> point(s, v), vertices(s))
 
@@ -661,3 +662,52 @@ function primal_boundary_vertices(s::AbstractCubicalComplex3D, side::GridSide)
     end
   end
   
+  # ── Ghost Boid Region Extraction ──────────────────────────────────────────────
+#
+# For a given side (EASTWEST, NORTHSOUTH, UPDOWN) and role, returns the flat
+# vector of boid indices in that ghost/send slab.
+#
+# role:
+#   :recv_low  – halo layer on the LOW  side (written by incoming MPI data)
+#   :send_low  – real layer to send TO  the LOW  neighbour
+#   :send_high – real layer to send TO  the HIGH neighbour
+#   :recv_high – halo layer on the HIGH side (written by incoming MPI data)
+
+function _boid_axis_info(s::AbstractCubicalComplex3D, side::GridSide)
+    if side == EASTWEST
+        return (nxb(s), nyb(s), nzb(s), hx(s),
+                (ax, ay, az) -> coord_to_boid(s, ax, ay, az))
+    elseif side == NORTHSOUTH
+        return (nyb(s), nxb(s), nzb(s), hy(s),
+                (ax, ay, az) -> coord_to_boid(s, ay, ax, az))
+    else # UPDOWN
+        return (nzb(s), nxb(s), nyb(s), hz(s),
+                (ax, ay, az) -> coord_to_boid(s, ay, az, ax))
+    end
+end
+
+function ghost_boids(s::AbstractCubicalComplex3D, side::GridSide, role::Symbol)
+    # n_ax  : extent of the sliced axis
+    # n_b   : extent of the first transverse axis
+    # n_c   : extent of the second transverse axis
+    # h     : halo depth on this axis
+    # to_idx: coord_to_boid with axes permuted so ax is always the sliced one
+    n_ax, n_b, n_c, h, to_idx = _boid_axis_info(s, side)
+
+    h == 0 && return Int[]
+
+    ax_range = if role == :recv_low
+        1:h
+    elseif role == :send_low
+        (h + 1):(2h)
+    elseif role == :send_high
+        (n_ax - 2h + 1):(n_ax - h)
+    elseif role == :recv_high
+        (n_ax - h + 1):n_ax
+    else
+        error("Unknown ghost role $(repr(role)). " *
+              "Valid roles: :recv_low, :send_low, :send_high, :recv_high")
+    end
+
+    return [to_idx(ax, b, c) for ax in ax_range, b in 1:n_b, c in 1:n_c][:]
+end
