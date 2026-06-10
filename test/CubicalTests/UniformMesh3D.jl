@@ -213,6 +213,94 @@ end
     @test quad_to_coord(s, nquads(s)) == (4, 6, 7, X_ALIGN)
 end
 
+@testset "coord_to_quad Round-Trip and Stride Correctness" begin
+
+    # --- Cubic grid (existing coverage, baseline) ---
+    s = UniformCubicalComplex3D(3, 3, 3, 1.0, 1.0, 1.0)
+
+    # Z_ALIGN: stride is nxb(s)=2, nxyb(s)=4
+    @test coord_to_quad(s, 1, 1, 1, Z_ALIGN) == 1
+    @test coord_to_quad(s, 2, 1, 1, Z_ALIGN) == 2
+    @test coord_to_quad(s, 1, 2, 1, Z_ALIGN) == 3
+    @test coord_to_quad(s, 1, 1, 2, Z_ALIGN) == 5
+    @test quad_to_coord(s, coord_to_quad(s, 2, 2, 2, Z_ALIGN)) == (2, 2, 2, Z_ALIGN)
+
+    # Y_ALIGN: stride is nxb(s)=2, ny(s)=3
+    @test coord_to_quad(s, 1, 1, 1, Y_ALIGN) == nxyquads(s) + 1
+    @test coord_to_quad(s, 2, 1, 1, Y_ALIGN) == nxyquads(s) + 2
+    @test coord_to_quad(s, 1, 2, 1, Y_ALIGN) == nxyquads(s) + 3
+    @test coord_to_quad(s, 1, 1, 2, Y_ALIGN) == nxyquads(s) + nxb(s) * ny(s) + 1
+    @test quad_to_coord(s, coord_to_quad(s, 2, 2, 2, Y_ALIGN)) == (2, 2, 2, Y_ALIGN)
+
+    # X_ALIGN: stride is nx(s)=3, nyb(s)=2
+    @test coord_to_quad(s, 1, 1, 1, X_ALIGN) == nxyquads(s) + nxzquads(s) + 1
+    @test coord_to_quad(s, 2, 1, 1, X_ALIGN) == nxyquads(s) + nxzquads(s) + 2
+    @test coord_to_quad(s, 3, 1, 1, X_ALIGN) == nxyquads(s) + nxzquads(s) + 3
+    @test coord_to_quad(s, 1, 2, 1, X_ALIGN) == nxyquads(s) + nxzquads(s) + nx(s) + 1
+    @test coord_to_quad(s, 1, 1, 2, X_ALIGN) == nxyquads(s) + nxzquads(s) + nx(s) * nyb(s) + 1
+    @test quad_to_coord(s, coord_to_quad(s, 2, 2, 2, X_ALIGN)) == (2, 2, 2, X_ALIGN)
+
+    s2 = UniformCubicalComplex3D(3, 4, 5, 1.0, 1.0, 1.0)
+
+    # Z_ALIGN
+    @test quad_to_coord(s2, 1)             == (1, 1, 1, Z_ALIGN)
+    @test quad_to_coord(s2, nxyquads(s2))  == (nxb(s2), nyb(s2), nz(s2), Z_ALIGN)
+    @test quad_to_coord(s2, coord_to_quad(s2, 2, 3, 4, Z_ALIGN)) == (2, 3, 4, Z_ALIGN)
+
+    # Y_ALIGN
+    @test quad_to_coord(s2, nxyquads(s2) + 1)              == (1, 1, 1, Y_ALIGN)
+    @test quad_to_coord(s2, nxyquads(s2) + nxzquads(s2))   == (nxb(s2), ny(s2), nzb(s2), Y_ALIGN)
+    @test quad_to_coord(s2, coord_to_quad(s2, 2, 3, 4, Y_ALIGN)) == (2, 3, 4, Y_ALIGN)
+
+    # X_ALIGN
+    @test quad_to_coord(s2, nxyquads(s2) + nxzquads(s2) + 1)        == (1, 1, 1, X_ALIGN)
+    @test quad_to_coord(s2, nquads(s2))                               == (nx(s2), nyb(s2), nzb(s2), X_ALIGN)
+    @test quad_to_coord(s2, coord_to_quad(s2, 2, 3, 4, X_ALIGN))     == (2, 3, 4, X_ALIGN)
+    @test quad_to_coord(s2, coord_to_quad(s2, 3, 1, 1, X_ALIGN))     == (3, 1, 1, X_ALIGN)
+    @test quad_to_coord(s2, coord_to_quad(s2, 1, 3, 1, X_ALIGN))     == (1, 3, 1, X_ALIGN)
+    @test quad_to_coord(s2, coord_to_quad(s2, 1, 1, 4, X_ALIGN))     == (1, 1, 4, X_ALIGN)
+
+    q_x1 = coord_to_quad(s2, 1, 1, 1, X_ALIGN)
+    q_x2 = coord_to_quad(s2, 2, 1, 1, X_ALIGN)
+    q_x3 = coord_to_quad(s2, 3, 1, 1, X_ALIGN)
+    @test q_x2 - q_x1 == 1
+    @test q_x3 - q_x2 == 1
+
+    q_y1 = coord_to_quad(s2, 1, 1, 1, X_ALIGN)
+    q_y2 = coord_to_quad(s2, 1, 2, 1, X_ALIGN)
+    @test q_y2 - q_y1 == nx(s2)
+
+    # Full round trip tests for all quads
+    for z in 1:nzb(s2), y in 1:nyb(s2), x in 1:nx(s2)
+        idx = coord_to_quad(s2, x, y, z, X_ALIGN)
+        @test quad_to_coord(s2, idx) == (x, y, z, X_ALIGN)
+    end
+    for z in 1:nz(s2), y in 1:nyb(s2), x in 1:nxb(s2)
+        idx = coord_to_quad(s2, x, y, z, Z_ALIGN)
+        @test quad_to_coord(s2, idx) == (x, y, z, Z_ALIGN)
+    end
+    for z in 1:nzb(s2), y in 1:ny(s2), x in 1:nxb(s2)
+        idx = coord_to_quad(s2, x, y, z, Y_ALIGN)
+        @test quad_to_coord(s2, idx) == (x, y, z, Y_ALIGN)
+    end
+
+    # --- Halo mesh: ensures strides hold with halo padding ---
+    s3 = UniformCubicalComplex3D(3, 4, 5, 1.0, 1.0, 1.0; halo_x=1, halo_y=1, halo_z=1)
+
+    for z in 1:nzb(s3), y in 1:nyb(s3), x in 1:nx(s3)
+        idx = coord_to_quad(s3, x, y, z, X_ALIGN)
+        @test quad_to_coord(s3, idx) == (x, y, z, X_ALIGN)
+    end
+    for z in 1:nz(s3), y in 1:nyb(s3), x in 1:nxb(s3)
+        idx = coord_to_quad(s3, x, y, z, Z_ALIGN)
+        @test quad_to_coord(s3, idx) == (x, y, z, Z_ALIGN)
+    end
+    for z in 1:nzb(s3), y in 1:ny(s3), x in 1:nxb(s3)
+        idx = coord_to_quad(s3, x, y, z, Y_ALIGN)
+        @test quad_to_coord(s3, idx) == (x, y, z, Y_ALIGN)
+    end
+end
+
 @testset "Incidence Relations" begin
     s = UniformCubicalComplex3D(2, 2, 2, 10.0, 10.0, 10.0)
 
@@ -509,4 +597,124 @@ end
     down_b, up_b = primal_boundary_boids(s, UPDOWN)
     @test down_b == boid_expected
     @test up_b == boid_expected
+end
+
+@testset "Ghost Boid Extraction" begin
+
+    s = UniformCubicalComplex3D(3, 4, 5, 1.0, 1.0, 1.0; halo_x=1, halo_y=1, halo_z=1)
+
+    function check_ghost_boids(s, side, role, expected_coords)
+        indices = ghost_boids(s, side, role)
+        expected_indices = [coord_to_boid(s, x, y, z) for (x, y, z) in expected_coords][:]
+        @test sort(indices) == sort(expected_indices)
+    end
+
+    @testset "UPDOWN" begin
+        check_ghost_boids(s, UPDOWN, :recv_low,
+            [(x, y, 1) for y in 1:nyb(s), x in 1:nxb(s)])
+
+        check_ghost_boids(s, UPDOWN, :send_low,
+            [(x, y, 2) for y in 1:nyb(s), x in 1:nxb(s)])
+
+        check_ghost_boids(s, UPDOWN, :send_high,
+            [(x, y, 5) for y in 1:nyb(s), x in 1:nxb(s)])
+
+        check_ghost_boids(s, UPDOWN, :recv_high,
+            [(x, y, 6) for y in 1:nyb(s), x in 1:nxb(s)])
+
+        @test length(ghost_boids(s, UPDOWN, :send_low))  == length(ghost_boids(s, UPDOWN, :recv_low))
+        @test length(ghost_boids(s, UPDOWN, :send_high)) == length(ghost_boids(s, UPDOWN, :recv_high))
+    end
+
+    @testset "NORTHSOUTH" begin
+        check_ghost_boids(s, NORTHSOUTH, :recv_low,
+            [(x, 1, z) for z in 1:nzb(s), x in 1:nxb(s)])
+
+        check_ghost_boids(s, NORTHSOUTH, :send_low,
+            [(x, 2, z) for z in 1:nzb(s), x in 1:nxb(s)])
+
+        check_ghost_boids(s, NORTHSOUTH, :send_high,
+            [(x, 4, z) for z in 1:nzb(s), x in 1:nxb(s)])
+
+        check_ghost_boids(s, NORTHSOUTH, :recv_high,
+            [(x, 5, z) for z in 1:nzb(s), x in 1:nxb(s)])
+
+        @test length(ghost_boids(s, NORTHSOUTH, :recv_low))  == length(ghost_boids(s, NORTHSOUTH, :send_low))
+        @test length(ghost_boids(s, NORTHSOUTH, :send_high)) == length(ghost_boids(s, NORTHSOUTH, :recv_high))
+    end
+
+    @testset "EASTWEST" begin
+        check_ghost_boids(s, EASTWEST, :recv_low,
+            [(1, y, z) for z in 1:nzb(s), y in 1:nyb(s)])
+
+        check_ghost_boids(s, EASTWEST, :send_low,
+            [(2, y, z) for z in 1:nzb(s), y in 1:nyb(s)])
+
+        check_ghost_boids(s, EASTWEST, :send_high,
+            [(3, y, z) for z in 1:nzb(s), y in 1:nyb(s)])
+
+        check_ghost_boids(s, EASTWEST, :recv_high,
+            [(4, y, z) for z in 1:nzb(s), y in 1:nyb(s)])
+
+        @test length(ghost_boids(s, EASTWEST, :recv_low))  == length(ghost_boids(s, EASTWEST, :send_low))
+        @test length(ghost_boids(s, EASTWEST, :send_high)) == length(ghost_boids(s, EASTWEST, :recv_high))
+    end
+
+    @testset "No overlap between roles" begin
+        for side in (UPDOWN, NORTHSOUTH, EASTWEST)
+            rl = Set(ghost_boids(s, side, :recv_low))
+            sl = Set(ghost_boids(s, side, :send_low))
+            sh = Set(ghost_boids(s, side, :send_high))
+            rh = Set(ghost_boids(s, side, :recv_high))
+
+            @test isempty(intersect(rl, sl))
+            @test isempty(intersect(sl, sh))
+            @test isempty(intersect(sh, rh))
+            @test isempty(intersect(rl, rh))
+        end
+    end
+
+    @testset "Send regions within valid boid range" begin
+        all_boids = Set(1:nboids(s))
+        for side in (UPDOWN, NORTHSOUTH, EASTWEST)
+            @test issubset(Set(ghost_boids(s, side, :send_low)),  all_boids)
+            @test issubset(Set(ghost_boids(s, side, :send_high)), all_boids)
+            @test issubset(Set(ghost_boids(s, side, :recv_low)),  all_boids)
+            @test issubset(Set(ghost_boids(s, side, :recv_high)), all_boids)
+        end
+    end
+
+    @testset "Zero halo returns empty" begin
+        s0 = UniformCubicalComplex3D(3, 4, 5, 1.0, 1.0, 1.0)  # no halo
+        for side in (UPDOWN, NORTHSOUTH, EASTWEST)
+            for role in (:recv_low, :send_low, :send_high, :recv_high)
+                @test ghost_boids(s0, side, role) == Int[]
+            end
+        end
+    end
+
+    @testset "Halo depth 2" begin
+        s2 = UniformCubicalComplex3D(4, 4, 4, 1.0, 1.0, 1.0; halo_x=2, halo_y=2, halo_z=2)
+
+        rl = ghost_boids(s2, UPDOWN, :recv_low)
+        sl = ghost_boids(s2, UPDOWN, :send_low)
+        sh = ghost_boids(s2, UPDOWN, :send_high)
+        rh = ghost_boids(s2, UPDOWN, :recv_high)
+
+        @test length(rl) == nxb(s2) * nyb(s2) * 2
+        @test length(sl) == nxb(s2) * nyb(s2) * 2
+        @test length(sh) == nxb(s2) * nyb(s2) * 2
+        @test length(rh) == nxb(s2) * nyb(s2) * 2
+
+        check_ghost_boids(s2, UPDOWN, :recv_low,
+            [(x, y, z) for z in 1:2, y in 1:nyb(s2), x in 1:nxb(s2)])
+
+        check_ghost_boids(s2, UPDOWN, :send_low,
+            [(x, y, z) for z in 3:4, y in 1:nyb(s2), x in 1:nxb(s2)])
+    end
+
+    @testset "Unknown role errors" begin
+        @test_throws ErrorException ghost_boids(s, UPDOWN, :bad_role)
+    end
+
 end
