@@ -7,23 +7,25 @@ struct MPITopology
     neighbors :: NamedTuple{(:west, :east, :south, :north, :down, :up), NTuple{6, Int}}
 end
 
-function MPITopology(comm::MPI.Comm)
+function MPITopology(comm::MPI.Comm;
+                     periodic :: NTuple{3, Bool} = (false, false, false),
+                     dims     :: NTuple{3, Int}  = (0, 0, 0))
     rank   = MPI.Comm_rank(comm)
     nranks = MPI.Comm_size(comm)
-    dims   = Cint[0, 0, 0]
-    MPI.Dims_create!(nranks, dims)
-    periods   = Cint[0, 0, 0]
-    cart_comm = MPI.Cart_create(comm, dims, periods, false)
-    coords    = MPI.Cart_coords(cart_comm)
-    
-    neighbor(dim, disp) = MPI.Cart_shift(cart_comm, dim, disp)
 
-    west,  east  = neighbor(0, 1)
-    south, north = neighbor(1, 1)
-    down,  up    = neighbor(2, 1)
+    cdims = Cint[dims[1], dims[2], dims[3]]
+    MPI.Dims_create!(nranks, cdims)
+
+    periods   = Cint[periodic[1], periodic[2], periodic[3]]
+    cart_comm = MPI.Cart_create(comm, cdims, periods, false)
+
+    west,  east  = MPI.Cart_shift(cart_comm, 0, 1)
+    south, north = MPI.Cart_shift(cart_comm, 1, 1)
+    down,  up    = MPI.Cart_shift(cart_comm, 2, 1)
 
     MPITopology(cart_comm, rank, nranks,
-                (west=west, east=east, south=south, north=north, down=down, up=up))
+                (west=west, east=east, south=south,
+                 north=north, down=down, up=up))
 end
 
 const SIDE_TO_AXIS = Dict(
