@@ -22,6 +22,9 @@ struct UniformCubicalComplex2D{FT} <: AbstractCubicalComplex2D{FT}
 
   halo_x::Int
   halo_y::Int
+
+  base_x::FT
+  base_y::FT
 end
 
 @enum Align X_ALIGN Y_ALIGN Z_ALIGN
@@ -30,6 +33,9 @@ end
 
 # Base point of real mesh will be (halo_x + 1, halo_y + 1)
 # End point of real mesh will be (halo_x + nxr, halo_y + nyr)
+
+base_x(s::UniformCubicalComplex2D) = s.base_x
+base_y(s::UniformCubicalComplex2D) = s.base_y
 
 # This grabs the number of real points in the x and y directions, excluding halo points
 nxr(s::AbstractCubicalComplex2D) = s.nx
@@ -65,7 +71,9 @@ nquads(s::AbstractCubicalComplex2D) = nxq(s) * nyq(s)
 hxq(s::AbstractCubicalComplex2D) = hx(s)
 hyq(s::AbstractCubicalComplex2D) = hy(s)
 
-nquadsr(s::AbstractCubicalComplex2D) = (nxq(s) - 2 * hxq(s)) * (nyq(s) - 2 * hyq(s))
+nxqr(s::AbstractCubicalComplex2D) = nxq(s) - 2 * hxq(s)
+nyqr(s::AbstractCubicalComplex2D) = nyq(s) - 2 * hyq(s)
+nquadsr(s::AbstractCubicalComplex2D) = nxqr(s) * nyqr(s)
 
 vertices(s::AbstractCubicalComplex2D) = 1:nv(s)
 edges(s::AbstractCubicalComplex2D) = 1:ne(s)
@@ -143,8 +151,8 @@ function quad_to_coord(s::AbstractCubicalComplex2D, q::Int)
 end
 
 function point(s::UniformCubicalComplex2D, x::Int, y::Int)
-  px = (x - 1) * dx(s) - hx(s) * dx(s)
-  py = (y - 1) * dy(s) - hy(s) * dy(s)
+  px = base_x(s) + (x - 1) * dx(s) - hx(s) * dx(s)
+  py = base_y(s) + (y - 1) * dy(s) - hy(s) * dy(s)
   return Point3(px, py, 0.0)
 end
 point(s::UniformCubicalComplex2D, v::Int) = point(s, vert_to_coord(s, v)...)
@@ -161,18 +169,20 @@ end
 spacing(len::FT, np::Int) where FT <: AbstractFloat = return len / (np - 1)
 
 # The interval given (lx, ly) is the size of the real domain, excluding halo points. So the total size of the mesh will be (lx + 2 * halo_x * dx, ly + 2 * halo_y * dy)
-function UniformCubicalComplex2D(nxr::Int, nyr::Int, lx::FT, ly::FT; halo_x::Int = 0, halo_y::Int = 0) where FT <: AbstractFloat
-  dx = spacing(lx, nxr)
-  dy = spacing(ly, nyr)
-
-  UniformCubicalComplex2D{FT}(nxr, nyr, dx, dy, halo_x, halo_y)
+function UniformCubicalComplex2D(nxr::Int, nyr::Int, lx::FT, ly::FT;
+                                  halo_x::Int = 0, halo_y::Int = 0,
+                                  base_x::FT  = zero(FT),
+                                  base_y::FT  = zero(FT)) where FT <: AbstractFloat
+    dx = spacing(lx, nxr)
+    dy = spacing(ly, nyr)
+    UniformCubicalComplex2D{FT}(nxr, nyr, dx, dy, halo_x, halo_y, base_x, base_y)
 end
-
 # Basic show method for uniform mesh
 function Base.show(io::IO, s::UniformCubicalComplex2D)
   println(io, "UniformCubicalComplex2D with dimensions: $(nx(s)) x $(ny(s))")
   println(io, "Spacing: dx = $(dx(s)), dy = $(dy(s))")
   println(io, "Halo: halo_x = $(s.halo_x), halo_y = $(s.halo_y)")
+  println(io, "Base point: ($(base_x(s)), $(base_y(s)))")
 end
 
 # Get the index of the source point of an edge
@@ -242,8 +252,8 @@ end
 quad_area(s::AbstractCubicalComplex2D) = dx(s) * dy(s)
 
 function dual_point(s::UniformCubicalComplex2D, x::Int, y::Int)
-  px = (x - 0.5) * dx(s) - hx(s) * dx(s)
-  py = (y - 0.5) * dy(s) - hy(s) * dy(s)
+  px = base_x(s) + (x - 0.5) * dx(s) - hx(s) * dx(s)
+  py = base_y(s) + (y - 0.5) * dy(s) - hy(s) * dy(s)
   return Point3(px, py, 0.0)
 end
 
@@ -347,4 +357,25 @@ function vert_quads(s::AbstractCubicalComplex2D, x::Int, y::Int)
   q3 = coord_to_quad(s, x, y)
   q4 = coord_to_quad(s, x - 1, y)
   return q1, q2, q3, q4
+end
+
+function ghost_quads(s::AbstractCubicalComplex2D)
+  function slabs(n_ax, n_b, h, to_idx)
+      h == 0 && return (Int[], Int[], Int[], Int[])
+      recv_low  = [to_idx(ax, b) for ax in 1:h,              b in 1:n_b][:]
+      send_low  = [to_idx(ax, b) for ax in (h+1):(2h),       b in 1:n_b][:]
+      send_high = [to_idx(ax, b) for ax in (n_ax-2h+1):(n_ax-h), b in 1:n_b][:]
+      recv_high = [to_idx(ax, b) for ax in (n_ax-h+1):n_ax,  b in 1:n_b][:]
+      return recv_low, send_low, send_high, recv_high
+  end
+
+  rl_ew, sl_ew, sh_ew, rh_ew = slabs(nxq(s), nyq(s), hx(s), (ax, b) -> coord_to_quad(s, ax, b))
+  rl_ns, sl_ns, sh_ns, rh_ns = slabs(nyq(s), nxq(s), hy(s), (ax, b) -> coord_to_quad(s, b, ax))
+
+  return (
+      west  = (send = sl_ew, recv = rl_ew),
+      east  = (send = sh_ew, recv = rh_ew),
+      south = (send = sl_ns, recv = rl_ns),
+      north = (send = sh_ns, recv = rh_ns),
+  )
 end

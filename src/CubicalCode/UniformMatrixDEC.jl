@@ -151,8 +151,8 @@ end
 
 function interior(::Val{2}, f::AbstractVector, s::UniformCubicalComplex2D)
   tmp = reshape(f, (nxq(s), nyq(s)))
-  real_x_range = (hx(s) + 1):(nxq(s) - hx(s))
-  real_y_range = (hy(s) + 1):(nyq(s) - hy(s))
+  real_x_range = (hx(s) + 1):(hx(s) + nxqr(s))
+  real_y_range = (hy(s) + 1):(hy(s) + nyqr(s))
   return reshape(tmp[real_x_range, real_y_range], nquadsr(s))
 end
 

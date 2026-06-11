@@ -1,19 +1,12 @@
-using MPI
+include(joinpath("@__DIR__", "UniformMPI2D.jl"))
 
-struct MPITopology
-    comm      :: MPI.Comm
-    rank      :: Int
-    nranks    :: Int
-    neighbors :: NamedTuple{(:west, :east, :south, :north, :down, :up), NTuple{6, Int}}
-end
-
-function MPITopology(comm::MPI.Comm;
-                     periodic :: NTuple{3, Bool} = (false, false, false),
-                     dims     :: NTuple{3, Int}  = (0, 0, 0))
+function MPITopology{3}(comm::MPI.Comm;
+                        periodic :: NTuple{3, Bool} = (false, false, false),
+                        dims     :: NTuple{3, Int}  = (0, 0, 0))
     rank   = MPI.Comm_rank(comm)
     nranks = MPI.Comm_size(comm)
 
-    cdims = Cint[dims[1], dims[2], dims[3]]
+    cdims   = Cint[dims[1], dims[2], dims[3]]
     MPI.Dims_create!(nranks, cdims)
 
     periods   = Cint[periodic[1], periodic[2], periodic[3]]
@@ -23,9 +16,9 @@ function MPITopology(comm::MPI.Comm;
     south, north = MPI.Cart_shift(cart_comm, 1, 1)
     down,  up    = MPI.Cart_shift(cart_comm, 2, 1)
 
-    MPITopology(cart_comm, rank, nranks,
-                (west=west, east=east, south=south,
-                 north=north, down=down, up=up))
+    return MPITopology{3}(cart_comm, rank, nranks,
+                          (west=west, east=east, south=south,
+                           north=north, down=down, up=up))
 end
 
 const SIDE_TO_AXIS = Dict(

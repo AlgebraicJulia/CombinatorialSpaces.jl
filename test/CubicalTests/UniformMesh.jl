@@ -171,3 +171,54 @@ end
   @test is_top_edge(s, 1, 2, X_ALIGN) == true
   @test is_bottom_edge(s, 1, 2, X_ALIGN) == false
 end
+
+@testset "Ghost Quads" begin
+  s  = UniformCubicalComplex2D(4, 4, 1.0, 1.0; halo_x=1, halo_y=1)
+  g  = ghost_quads(s)
+
+  # ── Correct slab sizes ────────────────────────────────────────────────
+  # EASTWEST slabs slice along x → transverse extent is nyq(s)
+  @test length(g.west.send) == 1 * nyq(s)
+  @test length(g.west.recv) == 1 * nyq(s)
+  @test length(g.east.send) == 1 * nyq(s)
+  @test length(g.east.recv) == 1 * nyq(s)
+
+  # NORTHSOUTH slabs slice along y → transverse extent is nxq(s)
+  @test length(g.south.send) == nxq(s) * 1
+  @test length(g.south.recv) == nxq(s) * 1
+  @test length(g.north.send) == nxq(s) * 1
+  @test length(g.north.recv) == nxq(s) * 1
+
+  # ── No overlap between any pair of slabs ──────────────────────────────
+  recv_slabs = [g.west.recv, g.east.recv, g.south.recv, g.north.recv]
+  send_slabs = [g.west.send, g.east.send, g.south.send, g.north.send]
+  for (recv, send) in zip(recv_slabs, send_slabs)
+    @test isempty(Set(recv) ∩ Set(send))
+  end
+
+  # ── All indices in bounds ─────────────────────────────────────────────
+  for slab in vcat(recv_slabs, send_slabs)
+      @test all(i -> 1 <= i <= nquads(s), slab)
+  end
+
+  # ── Specific indices: all four recv slabs ─────────────────────────────
+  
+  @test sort(g.west.recv)  == sort([coord_to_quad(s, 1,      y) for y in 1:nyq(s)])
+  @test sort(g.east.recv)  == sort([coord_to_quad(s, nxq(s), y) for y in 1:nyq(s)])
+  @test sort(g.south.recv) == sort([coord_to_quad(s, x,      1) for x in 1:nxq(s)])
+  @test sort(g.north.recv) == sort([coord_to_quad(s, x, nyq(s)) for x in 1:nxq(s)])
+
+  # ── Specific indices: all four send slabs ─────────────────────────────
+  @test sort(g.west.send)  == sort([coord_to_quad(s, 2,          y) for y in 1:nyq(s)])
+  @test sort(g.east.send)  == sort([coord_to_quad(s, nxq(s) - 1, y) for y in 1:nyq(s)])
+  @test sort(g.south.send) == sort([coord_to_quad(s, x,          2) for x in 1:nxq(s)])
+  @test sort(g.north.send) == sort([coord_to_quad(s, x, nyq(s) - 1) for x in 1:nxq(s)])
+
+  # ── halo=0 returns empty slabs ────────────────────────────────────────
+  s0 = UniformCubicalComplex2D(4, 4, 1.0, 1.0; halo_x=0, halo_y=0)
+  g0 = ghost_quads(s0)
+  for dir in (:west, :east, :south, :north)
+      @test isempty(g0[dir].send)
+      @test isempty(g0[dir].recv)
+  end
+end

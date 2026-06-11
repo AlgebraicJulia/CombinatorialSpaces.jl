@@ -12,6 +12,8 @@ include("../../src/CubicalCode/UniformKernelDEC3D.jl")
 include("../../src/CubicalCode/UniformMPI3D.jl")
 include("../../src/CubicalCode/UniformPlotting.jl")
 
+# TODO: This should be updated with all the changes in the 2D sim
+
 # ── MPI Setup ─────────────────────────────────────────────────────────────────
 MPI.Init()
 
@@ -20,7 +22,7 @@ rank  = MPI.Comm_rank(comm)
 nproc = MPI.Comm_size(comm)
 
 # ── Cartesian topology ────────────────────────────────────────────────────────
-topo = MPITopology(comm; periodic=(true, true, true), dims=(0, 0, 1))
+topo = MPITopology{3}(comm; periodic=(true, true, true), dims=(0, 0, 1))
 coords = MPI.Cart_coords(topo.comm)
 dims, _   = MPI.Cart_get(topo.comm)
 
