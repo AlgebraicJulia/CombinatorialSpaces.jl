@@ -119,7 +119,7 @@ end
 
     @testset "Numerical Checks" begin
         f0_dual = [i for i in boids(s)]
-        f1_dual = dual_exterior_derivative(Val(0), s, f0_dual)
+        f1_dual = dual_derivative(Val(0), s, f0_dual)
 
         # Interior only
         @test all(f1_dual[5:8] .== 4)
@@ -132,7 +132,7 @@ end
         # XY-quads (Z_ALIGN)
         f1_dual_xy = zeros(nquads(s))
         f1_dual_xy[5] = 1.0; f1_dual_xy[[6,7]] .= 2.0; f1_dual_xy[8] = 3.0
-        f2_dual_xy = dual_exterior_derivative(Val(1), s, f1_dual_xy)
+        f2_dual_xy = dual_derivative(Val(1), s, f1_dual_xy)
         @test f2_dual_xy[9] == 1.0
         @test f2_dual_xy[10] == 1.0
 
@@ -142,7 +142,7 @@ end
         # XZ-quads (Y_ALIGN)
         f1_dual_xz = zeros(FT, nquads(s))
         f1_dual_xz[15] = 1.0; f1_dual_xz[[16, 21]] .= 2.0; f1_dual_xz[22] = 3.0
-        f2_dual_xz = dual_exterior_derivative(Val(1), s, f1_dual_xz)
+        f2_dual_xz = dual_derivative(Val(1), s, f1_dual_xz)
         
         @test f2_dual_xz[9] == -1.0
         @test f2_dual_xz[10] == -1.0
@@ -153,7 +153,7 @@ end
         # YZ-quads (X_ALIGN)
         f1_dual_yz = zeros(FT, nquads(s))
         f1_dual_yz[26] = 1.0; f1_dual_yz[[29, 32]] .= 2.0; f1_dual_yz[35] = 3.0
-        f2_dual_yz = dual_exterior_derivative(Val(1), s, f1_dual_yz)
+        f2_dual_yz = dual_derivative(Val(1), s, f1_dual_yz)
         
         @test f2_dual_yz[26] == 1.0
         @test f2_dual_yz[29] == 1.0
@@ -166,13 +166,13 @@ end
 
     @testset "dd == 0" begin
         f0_dual = rand(FT, nboids(s))
-        f1_dual = dual_exterior_derivative(Val(0), s, f0_dual)
-        f2_dual = dual_exterior_derivative(Val(1), s, f1_dual)
+        f1_dual = dual_derivative(Val(0), s, f0_dual)
+        f2_dual = dual_derivative(Val(1), s, f1_dual)
         @test all(isapprox.(f2_dual[[9, 10, 25, 28, 39, 48]], 0, atol=1e-12))
 
         f1_dual = rand(FT, nquads(s))
-        f2_dual = dual_exterior_derivative(Val(1), s, f1_dual)
-        f3_dual = dual_exterior_derivative(Val(2), s, f2_dual)
+        f2_dual = dual_derivative(Val(1), s, f1_dual)
+        f3_dual = dual_derivative(Val(2), s, f2_dual)
         @test all(isapprox.(f3_dual, 0, atol=1e-12))        
     end
 end
