@@ -110,8 +110,6 @@ hxb(s::AbstractCubicalComplex3D) = hx(s)
 hyb(s::AbstractCubicalComplex3D) = hy(s)
 hzb(s::AbstractCubicalComplex3D) = hz(s)
 
-nboidsr(s::AbstractCubicalComplex3D) = nxr(s) * nyr(s) * nzr(s) 
-
 vertices(s::AbstractCubicalComplex3D) = 1:nv(s)
 edges(s::AbstractCubicalComplex3D) = 1:ne(s)
 quads(s::AbstractCubicalComplex3D) = 1:nquads(s)
