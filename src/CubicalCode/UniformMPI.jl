@@ -1,5 +1,8 @@
 using MPI
 
+include("UniformMesh.jl")
+include("UniformMesh3D.jl")
+
 # ── Abstract base ──────────────────────────────────────────────────────────────
 
 abstract type AbstractMPITopology{N} end
@@ -14,6 +17,8 @@ struct WorkerTopology{N} <: AbstractMPITopology{N}
     cart_rank   :: Int
     cart_nranks :: Int
     neighbors   :: NamedTuple
+    local_mesh_sizes :: NTuple{N, Int}
+    local_mesh_offsets :: NTuple{N, Int}
 end
 
 struct OutputTopology{N} <: AbstractMPITopology{N}
@@ -25,6 +30,9 @@ struct OutputTopology{N} <: AbstractMPITopology{N}
     cart_nranks     :: Int
     data_ranges     :: NTuple{N, UnitRange{Int}}
     local_tile_dims :: NTuple{N, Int}
+    worker_meshdims    :: NTuple{N, Vector{Int}}   # per-worker mesh point count per axis
+    worker_meshoffsets   :: NTuple{N, Vector{Int}}   # per-worker global offset per axis
+    output_mesh_dims :: NTuple{N, Int}
 end
 
 output(topo::AbstractMPITopology) = topo.is_output
@@ -33,11 +41,73 @@ worker(topo::AbstractMPITopology) = !output(topo)
 output_leader(topo::AbstractMPITopology) = output(topo) && topo.cart_rank == 0
 worker_leader(topo::AbstractMPITopology) = worker(topo) && topo.cart_rank == 0
 
-function build_worker_output_topology(worker_dims::NTuple{N, Int},
-                                       output_dims::NTuple{N, Int};
-                                       periods::NTuple{N, Bool} = ntuple(_ -> false, N)) where N
+function build_worker_output_topology(mesh_dims::NTuple{N, Int},
+                                      worker_dims::NTuple{N, Int},
+                                      output_dims::NTuple{N, Int};
+                                      periods::NTuple{N, Bool} = ntuple(_ -> false, N)) where N
 
     
+    world_comm, cart_comm, is_output = _build_comms(worker_dims, output_dims, periods)
+    intercomm, base_tiles, rems = _build_intercomm(world_comm, cart_comm, is_output, worker_dims, output_dims, N)
+
+    cart_rank = MPI.Comm_rank(cart_comm)
+    cart_nranks = MPI.Comm_size(cart_comm)
+    cart_coords = MPI.Cart_coords(cart_comm)
+
+    size_ref = Ref{Cint}(0)
+    MPI.API.MPI_Comm_remote_size(intercomm, size_ref)
+    remote_size = Int(size_ref[])
+    
+    if is_output
+        worker_meshdims, worker_meshoffsets = _recv_mesh_metadata(intercomm, remote_size, N)
+
+        local_tile_dims = ntuple(i -> tile_size(cart_coords[i], base_tiles[i], rems[i]), N)
+        local_tile_origins = ntuple(i -> tile_offset(cart_coords[i], base_tiles[i], rems[i]), N)
+        ranges = ntuple(i -> data_range(local_tile_origins[i], local_tile_dims[i]), N)
+
+        # TODO: Check that this logic works
+        # Build a reference Cart comm over the local tile to convert coords to linear index
+        tile_cart = MPI.Cart_create(MPI.COMM_SELF, collect(Cint, local_tile_dims),
+        collect(Cint, ntuple(_ -> false, N)), false)
+
+        # For each axis, sum worker_meshdims along all coords in that axis
+        output_mesh_dims = ntuple(N) do i
+            sum(0:local_tile_dims[i]-1) do coord
+                # Build a representative coord tuple with this axis varying, others fixed at 0
+                coords = ntuple(j -> j == i ? coord : 0, N)
+                idx = MPI.Cart_rank(tile_cart, coords) + 1   # 1-indexed
+                topo.worker_meshdims[i][idx]
+            end
+        end
+    
+        return OutputTopology{N}(
+            world_comm, cart_comm, intercomm,
+            true,
+            cart_rank, cart_nranks,
+            ranges, local_tile_dims,
+            worker_meshdims, worker_meshoffsets,
+            output_mesh_dims,
+        )
+    else
+        mesh_quad_dims = mesh_dims .- 1
+        local_mesh_sizes, local_mesh_offsets = _send_mesh_metadata(intercomm, cart_coords, mesh_quad_dims, worker_dims, N)
+
+        neighbors = build_neighbors(cart_comm, Val(N))
+    
+        return WorkerTopology{N}(
+            world_comm, cart_comm, intercomm,
+            false,
+            cart_rank, cart_nranks,
+            neighbors,
+            local_mesh_sizes, local_mesh_offsets,
+        )
+    end
+end
+
+function _build_comms(worker_dims::NTuple{N, Int}, output_dims::NTuple{N, Int}, periods::NTuple{N, Bool}) where N
+
+    MPI.Init()
+
     world_comm = MPI.COMM_WORLD
     world_rank = MPI.Comm_rank(world_comm)
     world_size = MPI.Comm_size(world_comm)
@@ -49,57 +119,39 @@ function build_worker_output_topology(worker_dims::NTuple{N, Int},
     @assert noutput  > 0 "Need at least 1 output process"
     @assert world_size == nworkers + noutput "world_size must equal nworkers + noutput"
 
-    # ── Split into worker / output groups ─────────────────────────────────────
-    is_output = world_rank >= nworkers
-    color     = is_output ? 1 : 0
+    is_output  = world_rank >= nworkers
+    group_comm = MPI.Comm_split(world_comm, is_output ? 1 : 0, world_rank)
 
-    group_comm = MPI.Comm_split(world_comm, color, world_rank)
-
-    worker_leader = 0
-    output_leader = nworkers
-
-    # ── Cartesian topology within each group ──────────────────────────────────
     dims      = is_output ? output_dims : worker_dims
     cart_comm = MPI.Cart_create(group_comm, collect(Cint, dims),
                                 collect(Cint, periods), false)
-    cart_rank   = MPI.Comm_rank(cart_comm)
-    cart_nranks = MPI.Comm_size(cart_comm)
-    cart_coords = MPI.Cart_coords(cart_comm)  # 0-indexed, length N
 
     MPI.Barrier(world_comm)
 
-    # ── Broadcast both sets of dims to all processes ───────────────────────────
-    worker_dims = Vector{Cint}(is_output ? zeros(Int, N) : collect(dims))
-    output_dims = Vector{Cint}(is_output ? collect(dims) : zeros(Int, N))
+    return (world_comm, cart_comm, is_output)
+end
 
-    MPI.Bcast!(worker_dims, worker_leader, world_comm)
-    MPI.Bcast!(output_dims, output_leader, world_comm)
+function _build_intercomm(world_comm, cart_comm, is_output, w_dims, o_dims, N)
 
-    # ── Per-axis tiling arithmetic ─────────────────────────────────────────────
-    base_tiles = ntuple(i -> worker_dims[i] ÷ output_dims[i], N)
-    rems       = ntuple(i -> worker_dims[i] % output_dims[i], N)
-    
-    # pair_color is simply the local output rank. Workers need to derive this
+    world_rank  = MPI.Comm_rank(world_comm)
+    cart_coords = MPI.Cart_coords(cart_comm)
+
+    base_tiles = ntuple(i -> w_dims[i] ÷ o_dims[i], N)
+    rems       = ntuple(i -> w_dims[i] % o_dims[i], N)
+
+    cart_rank  = MPI.Comm_rank(cart_comm)
+
     pair_color = if is_output
         cart_rank
     else
-        # Map worker cart coord to output cart coord
-        o_coords = ntuple(i -> owning_output_coord(cart_coords[i], base_tiles[i], rems[i], output_dims[i]), N)
-
-        # TODO: May just want to use MPI for this but we don't have output's cart_comm here
-        # 2D: oy + ox * Oy  3D: ox * Oy * Oz + oy * Oz + oz 
-        o_coord_to_idx(o_coords, output_dims)
+        o_coords = ntuple(i -> owning_output_coord(cart_coords[i], base_tiles[i], rems[i], o_dims[i]), N)
+        foldl((acc, (oc, od)) -> acc * od + oc, zip(o_coords, o_dims); init = 0)
     end
 
-    # ── Sub-communicators per pair ─────────────────────────────────────────────
     pair_comm      = MPI.Comm_split(world_comm, pair_color, world_rank)
     pair_size      = MPI.Comm_size(pair_comm)
+    pair_side_comm = MPI.Comm_split(pair_comm, is_output ? 1 : 0, world_rank)
 
-    pair_side_color = is_output ? 1 : 0
-    pair_side_comm  = MPI.Comm_split(pair_comm, pair_side_color, world_rank)
-
-    # ── Intercomm ──────────────────────────────────────────────────────────────
-    # Output process is highest world_rank in the pair → highest pair_rank
     output_pair_rank = pair_size - 1
     local_leader     = 0
     remote_leader    = is_output ? 0 : output_pair_rank
@@ -108,37 +160,63 @@ function build_worker_output_topology(worker_dims::NTuple{N, Int},
     MPI.API.MPI_Intercomm_create(
         pair_side_comm, local_leader,
         pair_comm,      remote_leader,
-        pair_color,     # unique tag per output process
+        pair_color,
         intercomm_ref
     )
     intercomm = MPI.Comm(intercomm_ref[])
 
     MPI.Barrier(world_comm)
 
-    # ── Construct and return the appropriate topology type ────────────────────
-    if is_output
-        local_tile_dims = ntuple(i -> tile_size(cart_coords[i], base_tiles[i], rems[i]), N)
-        local_tile_origins = ntuple(i -> tile_offset(cart_coords[i], base_tiles[i], rems[i]), N)
-        ranges = ntuple(i -> data_range(local_tile_origins[i], local_tile_dims[i]), N)
-
-        return OutputTopology{N}(
-            world_comm, cart_comm, intercomm,
-            true,
-            cart_rank, cart_nranks,
-            ranges, local_tile_dims
-        )
-    else
-        neighbors = build_neighbors(cart_comm, N)
-
-        return WorkerTopology{N}(
-            world_comm, cart_comm, intercomm,
-            false,
-            cart_rank, cart_nranks,
-            neighbors
-        )
-    end
+    return (intercomm, base_tiles, rems)
 end
- 
+
+# Worker generates local mesh sizes can communicates to partner output
+function _send_mesh_metadata(intercomm::MPI.Comm, cart_coords, mesh_quad_dims, worker_dims, N)
+    local_mesh_sizes   = ntuple(i -> tile_size(cart_coords[i],
+                                               mesh_quad_dims[i] ÷ worker_dims[i],
+                                               mesh_quad_dims[i] % worker_dims[i]), N) .+ 1
+    local_mesh_offsets = ntuple(i -> tile_offset(cart_coords[i],
+                                                  mesh_quad_dims[i] ÷ worker_dims[i],
+                                                  mesh_quad_dims[i] % worker_dims[i]), N)
+
+    MPI.API.MPI_Gather(
+        collect(Int32, local_mesh_sizes),   Cint(N), MPI.Datatype(Int32),
+        C_NULL,                             Cint(0), MPI.Datatype(Int32),
+        Cint(0), intercomm
+    )
+    MPI.API.MPI_Gather(
+        collect(Int32, local_mesh_offsets), Cint(N), MPI.Datatype(Int32),
+        C_NULL,                             Cint(0), MPI.Datatype(Int32),
+        Cint(0), intercomm
+    )
+
+    return local_mesh_sizes, local_mesh_offsets
+end
+
+# Output waits for workers to report local mesh sizes
+function _recv_mesh_metadata(intercomm::MPI.Comm, remote_size::Int, N)
+    mpi_root = Ref{Cint}(MPI.API.MPI_ROOT[])
+
+    sizes_flat   = zeros(Int32, remote_size * N)
+    offsets_flat = zeros(Int32, remote_size * N)
+
+    MPI.API.MPI_Gather(
+        C_NULL, Cint(0), MPI.Datatype(Int32),
+        sizes_flat,   Cint(N), MPI.Datatype(Int32),
+        mpi_root[], intercomm
+    )
+    MPI.API.MPI_Gather(
+        C_NULL, Cint(0), MPI.Datatype(Int32),
+        offsets_flat, Cint(N), MPI.Datatype(Int32),
+        mpi_root[], intercomm
+    )
+
+    worker_meshdims  = ntuple(i -> Int.(sizes_flat[i:N:end]),   N)
+    worker_meshoffsets = ntuple(i -> Int.(offsets_flat[i:N:end]), N)
+
+    return worker_meshdims, worker_meshoffsets
+end
+
 # ── Worker helpers ────────────────────────────────────────────────────────────
 
 const AXIS_NAMES_2D = (:west, :east, :south, :north)
