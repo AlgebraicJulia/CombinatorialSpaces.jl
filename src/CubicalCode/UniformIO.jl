@@ -1,6 +1,10 @@
 using MPI
 using HDF5
 
+include("UniformMesh.jl")
+include("UniformMesh3D.jl")
+include("UniformMPI.jl")
+
 # More types can be added later on
 abstract type AbstractMeshType end
 struct Vert <: AbstractMeshType end
@@ -15,12 +19,22 @@ struct Datum{M <: AbstractMeshType, N}
     entrytype :: DataType
 end
 
+Datum{M, N}() where {M <: AbstractMeshType, N} = Datum{M, N}("", "", Float64)
+
+Datum{Boid, 2}(args...) = 
+    error("Datum{Boid, 2} is invalid: Boid is a 3-cell and only exists in 3D. " * 
+    "Did you mean Datum{Quad, 2} or Datum{Boid, 3}?")
+
+
 # This logically represnts a stream of data either meant to be read out or saved
 struct DataStream
     tag::String
     filepath::String
     data::AbstractVector{Datum}
 end
+
+DataStream(datum::Datum) = DataStream("", "", [datum])
+DataStream(data::AbstractVector{Datum}) = DataStream("", "", data)
 
 # ^ The two above are totally user created
 
@@ -30,79 +44,69 @@ mutable struct GathervCache{T}
     displs::Vector{Cint}
 end
 
-
-function GathervCache(datum::Datum{Quad, 2}, cache::OutputCache{2})
+function GathervCache(datum::Datum, cache::OutputCache{N}) where N
     T = datum.entrytype
 
-    recv_counts = Cint[
-        (wc.lm_dims[1] - 1) * (wc.lm_dims[2] - 1)
-        for wc in cache.worker_caches
-    ]
-
-    displs = Cint[0; cumsum(recv_counts)[1:end-1]]
-
-    total = Int(sum(recv_counts))
-    recv_buffer = Vector{T}(undef, total)
+    recv_counts = Cint[mesh_count(datum, wc.mesh) for wc in cache.worker_caches]
+    displs      = Cint[0; cumsum(recv_counts)[1:end-1]]
+    recv_buffer = Vector{T}(undef, Int(sum(recv_counts)))
 
     return GathervCache{T}(recv_buffer, recv_counts, displs)
 end
 
-# This is meant has the actual data handler. When passed into a function, it'll
-# handle the actual operation of reading/writing the data in the proper way
-# It'll be in charge of all communication from worker to output
-# There will be a init phase where the worker's will output data into the WorkerCache
-# This'll be used to populate the OutputCache which will be used to be able to process the data correctly
-# Normally, the DataHandler will busy wait until a command arrives from the workers
-# This'll allow it to decide which action to take open/close/read/write
-# For a write, it'll loop over the data in datastream and activate the buffers
-# It'll do the gather and then pass the data into the buffer which will handle proper loading and arrangement
-# The buffer, once the data is arranged, will allow the handler to simply write the data into the HDF5
-# TODO: This could use the "tag" of the datastream to have a Dict of multiple datastreams
-
 mutable struct DataHandler{N}
     stream        :: DataStream
-    topo          :: MPITopology{OutputCache}
+    topo          :: MPITopology{OutputCache{N}}
     gatherv_caches:: AbstractVector{GathervCache}
     tile_buffers  :: AbstractVector{AbstractArray} # Temp holding for data from Gatherv
-    time_step     :: Int
+    save_step     :: Int
 end
+
+out_cache(h::DataHandler)      = h.topo.cache
+out_cart_comm(h::DataHandler)  = h.topo.cart_comm
+intercomm(h::DataHandler)  = h.topo.intercomm
+is_output(h::DataHandler)  = h.topo.is_output
+om_mesh(h::DataHandler)    = out_cache(h).om_mesh
+om_gm_offsets(h::DataHandler) = out_cache(h).om_gm_offsets
+worker_caches(h::DataHandler) = out_cache(h).worker_caches
+lm_om_offsets(h::DataHandler) = out_cache(h).lm_om_offsets
+metadata(h::DataHandler) = h.save_step
 
 function DataHandler(stream::DataStream, topo::MPITopology{OutputCache{N}}) where N
     cache = topo.cache
 
-    gatherv_caches = map(stream.data) do datum
-        T = datum.entrytype
-        recv_counts = Cint[mesh_count(datum, wc.lm_dims) for wc in cache.worker_caches]
-        displs = Cint[0; cumsum(recv_counts)[1:end-1]]
-        recv_buffer = Vector{T}(undef, Int(sum(recv_counts)))
-        GathervCache{T}(recv_buffer, recv_counts, displs)
-    end
+    gatherv_caches = map(datum -> GathervCache(datum, cache), stream.data)
+    tile_buffers = map(datum -> tile_buffer(datum, cache.om_mesh), stream.data)
 
-    tile_buffers = map(datum -> tile_buffer(datum, cache.om_dims), stream.data)
-
-    return DataHandler{N}(stream, topo, gatherv_caches, tile_buffers, -Inf)
+    return DataHandler{N}(stream, topo, gatherv_caches, tile_buffers, 1)
 end
 
-function create_hdf5!(handler::DataHandler{N}) where N
-    h5open(handler.stream.filepath, "w", cart_comm, MPI.Info()) do h5
+function DataHandler(stream::DataStream, cache::OutputCache{N}) where N
+    topo = MPITopology(cache, true)
+    return DataHandler(stream, topo)
+end
 
+function _build_gatherv_counts(datum::Datum, worker_caches::Vector{OutputWorkerCache{N}}) where N
+    recv_counts = Cint[mesh_count(datum, wc.mesh) for wc in worker_caches]
+    displs      = Cint[0; cumsum(recv_counts)[1:end-1]]
+    return recv_counts, displs
+end
+
+function create_hdf5!(handler::DataHandler{N}, gm_dims::NTuple{N, Int}) where N
+    gm = PseudoCubicalMesh(gm_dims...)
+    h5open(handler.stream.filepath, "w", out_cart_comm(handler), MPI.Info()) do h5
         for datum in handler.stream.data
-
             if !haskey(h5, datum.groupname)
                 create_group(h5, datum.groupname)
             end
             grp = h5[datum.groupname]
 
-            all_dims = global_datum_dims(datum, gm_dims)
+            for (name, spatial_dims) in zip(datum_dset_names(datum), datum_dims(datum, gm))
+                dims    = tuple(1, spatial_dims...)
+                maxdims = tuple(-1, spatial_dims...)
+                chunk   = tuple(1, spatial_dims...)
 
-            for (i, spatial_dims) in enumerate(all_dims)
-                dims    = (1,              spatial_dims...)
-                maxdims = (HDF5.UNLIMITED, spatial_dims...)
-                chunk   = (1,              spatial_dims...)
-
-                dset_name = length(all_dims) == 1 ? datum.name : datum.name * "_$i"
-
-                HDF5.create_dataset(grp, dset_name, datum.entrytype,
+                HDF5.create_dataset(grp, name, datum.entrytype,
                     HDF5.dataspace(dims, max_dims=maxdims);
                     chunk=chunk,
                     dxpl_mpio=:collective)
@@ -111,29 +115,46 @@ function create_hdf5!(handler::DataHandler{N}) where N
     end
 end
 
-function write_output!(handler::DataHandler{N}, time_step::Int) where N
-    cache = handler.topo.cache
-
-    # 1. Fire all Gatherv! operations as fast as possible
+function write_output!(handler::DataHandler{N}) where N
     gather!(handler)
 
-    # 2. Scatter each recv_buffer into its structured tile_buffers
-    for (datum, gcache, tbufs) in zip(handler.stream.data, handler.gatherv_caches, handler.tile_buffers)
-        scatter_to_tile!(datum, gcache, tbufs, cache)
+    for (datum, gcache, tbuf) in zip(handler.stream.data, handler.gatherv_caches, handler.tile_buffers)
+        scatter_to_tile!(datum, gcache, tbuf, handler)
     end
 
-    # 3. Open HDF5 file in collective mode and write all tile buffers
-    h5open(handler.stream.filepath, "r+", topo.cart_comm, MPI.Info()) do h5
-        for (datum, tbufs) in zip(handler.stream.data, handler.tile_buffers)
-            write_tile!(h5, datum, tbufs, cache, time_step)
+    h5open(handler.stream.filepath, "r+", out_cart_comm(handler), MPI.Info()) do h5
+        for (datum, datum_tbufs) in zip(handler.stream.data, handler.tile_buffers)
+            dsets = open_dsets(h5, datum)
+            for (dset, tbuf) in zip(dsets, datum_tbufs)
+                extent_dims, _ = HDF5.get_extent_dims(HDF5.dataspace(dset))
+                time_dim, spatial_dims... = extent_dims
+                if time_dim < handler.save_step
+                    HDF5.set_extent_dims(dset, tuple(handler.save_step, spatial_dims...))
+                end
+                write_tile!(dset, tbuf, handler)
+            end
         end
     end
 
-    handler.time_step = time_step # TODO: Deal with this time step better
+    handler.save_step += 1
 end
 
-function write_output!(data_arrays::Vector{<:AbstractVector}, stream::DataStream,
-                       topo::MPITopology{WorkerCache{N}}) where N
+nfamilies(::Datum{Vert, N}) where N = 1
+nfamilies(::Datum{Boid, N}) where N = 1
+nfamilies(::Datum{Quad, 2})         = 1
+nfamilies(::Datum{Quad, 3})         = 3
+nfamilies(::Datum{Edge, N}) where N = N
+
+function datum_dset_names(datum::Datum)
+    n = nfamilies(datum)
+    return n == 1 ? [datum.name] :
+                    [datum.name * "_$i" for i in 1:n]
+end
+
+datum_dset_paths(datum::Datum) = (datum.groupname * "/") .* datum_dset_names(datum)
+open_dsets(h5loc, datum::Datum) = [h5loc[path] for path in datum_dset_paths(datum)]
+
+function write_output!(data_arrays::Vector{<:AbstractVector}, stream::DataStream, topo::MPITopology{WorkerCache{N}}) where N
     for (data, datum) in zip(data_arrays, stream.data)
         gather!(data, datum, topo)
     end
@@ -163,96 +184,65 @@ function gather!(data::AbstractVector{T}, datum::Datum{M, N}, topo::MPITopology{
     end
 end
 
-# Quad 2D: dual in both dims, single tile buffer
-function scatter_to_tile!(datum::Datum{Quad, 2}, gcache::GathervCache, tbufs::Vector, cache::OutputCache{2})
-    for (wc, wc_offset, src_start) in zip(cache.worker_caches, cache.lm_om_offsets,
-                                           [0; cumsum([mesh_count(datum, wc.lm_dims) for wc in cache.worker_caches])[1:end-1]])
-        dims   = wc.lm_dims .- 1
-        n      = prod(dims)
-        ranges = ntuple(i -> wc_offset[i]+1 : wc_offset[i]+dims[i], 2)
-        tbufs[1][ranges...] .= reshape(gcache.recv_buffer[src_start+1 : src_start+n], dims)
+function scatter_to_tile!(datum::Datum, gcache::GathervCache, tbufs::Vector, handler::DataHandler{N}) where N
+    src_starts = [0; cumsum([mesh_count(datum, wc.mesh) for wc in worker_caches(handler)])[1:end-1]]
+
+    for (wc, wc_offset, src_start) in zip(worker_caches(handler), lm_om_offsets(handler), src_starts)
+        for (tbuf, dims) in zip(tbufs, datum_dims(datum, wc.mesh))
+            _scatter_worker_chunk!(tbuf, gcache.recv_buffer, wc_offset, src_start, dims)
+        end
     end
 end
 
-# Quad{2}, Boid: dual-sized, same vertex origin offset
-function write_tile!(h5loc, datum::Union{Datum{Quad, 2}, Datum{Boid, N}},
-                     tbufs::Vector, cache::OutputCache{N}, time_step::Int) where N
+function _scatter_worker_chunk!(tbuf::AbstractArray, recv_buffer::AbstractVector, wc_offset::NTuple{N, Int},
+                                 src_start::Int, dims::NTuple{N, Int}) where N
+    n      = prod(dims)
+    ranges = ntuple(i -> wc_offset[i]+1 : wc_offset[i]+dims[i], N)
+    tbuf[ranges...] .= reshape(recv_buffer[src_start+1 : src_start+n], dims)
+end
+
+function write_tile!(dset, tbuf::Array, handler::DataHandler{N}) where N
+    ranges = _hyperslab_ranges(out_cache(handler), size(tbuf))
+    dset[handler.save_step, ranges...] = tbuf
+    return dset
+end
+
+function _hyperslab_ranges(cache::OutputCache{N}, count::NTuple{N,Int}) where N
     offset = cache.om_gm_offsets
-    count  = size(tbufs[1])
-    ranges = (time_step:time_step, ntuple(j -> offset[j]+1 : offset[j]+count[j], N)...)
-    h5loc[datum.groupname * "/" * datum.name][ranges...] = tbufs[1]
+    return ntuple(j -> offset[j]+1 : offset[j]+count[j], N)
 end
 
-# TODO: This could probably use mesh functionality and be cleaner
+# ── datum_dims ────────────────────────────────────────────────────────────────
+# This returns a vector to handle aligned elements seperatly (edges in 2D/3D, or quads in 3D)
 
-# Vertices: vertex-sized in all dims
-mesh_count(::Datum{Vert, N}, om_dims::NTuple{N, Int}) where N =
-    prod(om_dims)
+datum_dims(::Datum{Vert, 2}, m::AbstractCubicalComplex2D) = [(nx(m), ny(m))]
+datum_dims(::Datum{Vert, 3}, m::AbstractCubicalComplex3D) = [(nx(m), ny(m), nz(m))]
 
-# Boids: dual in all dims
-mesh_count(::Datum{Boid, N}, om_dims::NTuple{N, Int}) where N =
-    prod(om_dims .- 1)
+datum_dims(::Datum{Edge, 2}, m::AbstractCubicalComplex2D) =
+    [(nxe(m), ny(m)),   # X family
+     (nx(m),  nye(m))]  # Y family
+datum_dims(::Datum{Edge, 3}, m::AbstractCubicalComplex3D) =
+    [(nxe(m), ny(m),  nz(m)),   # X family
+     (nx(m),  nye(m), nz(m)),   # Y family
+     (nx(m),  ny(m),  nze(m))]  # Z family
 
-# Edges: dual in 1 dim, vertex in the rest → N families
-mesh_count(::Datum{Edge, N}, om_dims::NTuple{N, Int}) where N =
-    sum(1:N) do i
-        prod(ntuple(j -> j == i ? om_dims[j] - 1 : om_dims[j], N))
-    end
+datum_dims(::Datum{Quad, 2}, m::AbstractCubicalComplex2D) = [(nxq(m), nyq(m))]
+datum_dims(::Datum{Quad, 3}, m::AbstractCubicalComplex3D) =
+    [(nxq(m), nyq(m), nz(m)),   # XY family
+     (nxq(m), ny(m),  nzq(m)),  # XZ family
+     (nx(m),  nyq(m), nzq(m))]  # YZ family
 
-# Quads in 2D: dual in both dims
-mesh_count(::Datum{Quad, 2}, om_dims::NTuple{2, Int}) =
-    prod(om_dims .- 1)
+datum_dims(::Datum{Boid, 2}, m::AbstractCubicalComplex2D) = [(nxq(m), nyq(m))]
+datum_dims(::Datum{Boid, 3}, m::AbstractCubicalComplex3D) = [(nxb(m), nyb(m), nzb(m))]
 
-# Quads in 3D: dual in 2 dims, vertex in 1 → 3 families
-mesh_count(::Datum{Quad, 3}, om_dims::NTuple{3, Int}) =
-    sum(1:3) do i
-        prod(ntuple(j -> j == i ? om_dims[j] : om_dims[j] - 1, 3))
-    end
+# ── tile_buffer ───────────────────────────────────────────────────────────────
 
-# Vert: single N-D array of vertex-sized dims
-tile_buffer(datum::Datum{Vert, N}, om_dims::NTuple{N, Int}) where N =
-    [Array{datum.entrytype}(undef, om_dims...)]
-
-# Boid: single N-D array of dual-sized dims
-tile_buffer(datum::Datum{Boid, N}, om_dims::NTuple{N, Int}) where N =
-    [Array{datum.entrytype}(undef, (om_dims .- 1)...)]
-
-# Quad 2D: single dual-sized 2D array
-tile_buffer(datum::Datum{Quad, 2}, om_dims::NTuple{2, Int}) =
-    [Array{datum.entrytype}(undef, (om_dims .- 1)...)]
-
-# Quad 3D: one array per axis-aligned face family (XY, XZ, YZ)
-tile_buffer(datum::Datum{Quad, 3}, om_dims::NTuple{3, Int}) =
-    [Array{datum.entrytype}(undef, ntuple(j -> j == i ? om_dims[j] : om_dims[j] - 1, 3)...)
-     for i in 1:3]
-
-# Edge 2D: one array per axis-aligned edge family
-tile_buffer(datum::Datum{Edge, 2}, om_dims::NTuple{2, Int}) =
-    [Array{datum.entrytype}(undef, ntuple(j -> j == i ? om_dims[j] - 1 : om_dims[j], 2)...)
-     for i in 1:2]
-
-# Edge 3D: one array per axis-aligned edge family
-tile_buffer(datum::Datum{Edge, 3}, om_dims::NTuple{3, Int}) =
-    [Array{datum.entrytype}(undef, ntuple(j -> j == i ? om_dims[j] - 1 : om_dims[j], 3)...)
-     for i in 1:3]
-
-# Returns a Vector of dimension tuples, one per family
-function global_datum_dims(::Datum{Vert, N}, gm_dims::NTuple{N, Int}) where N
-    [gm_dims]
+function tile_buffer(datum::Datum, m::AbstractCubicalComplex)
+    [Array{datum.entrytype}(undef, dims...) for dims in datum_dims(datum, m)]
 end
 
-function global_datum_dims(::Datum{Boid, N}, gm_dims::NTuple{N, Int}) where N
-    [gm_dims .- 1]
-end
+# ── mesh_count ────────────────────────────────────────────────────────────────
 
-function global_datum_dims(::Datum{Quad, 2}, gm_dims::NTuple{2, Int})
-    [gm_dims .- 1]
-end
-
-function global_datum_dims(::Datum{Quad, 3}, gm_dims::NTuple{3, Int})
-    [ntuple(j -> j == i ? gm_dims[j] : gm_dims[j] - 1, 3) for i in 1:3]
-end
-
-function global_datum_dims(::Datum{Edge, N}, gm_dims::NTuple{N, Int}) where N
-    [ntuple(j -> j == i ? gm_dims[j] - 1 : gm_dims[j], N) for i in 1:N]
+function mesh_count(datum::Datum, m::AbstractCubicalComplex)
+    sum(prod(dims) for dims in datum_dims(datum, m))
 end

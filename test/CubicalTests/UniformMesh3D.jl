@@ -718,3 +718,89 @@ end
     end
 
 end
+
+@testset "PseudoCubicalMesh3D Element Counting" begin
+
+    s    = PseudoCubicalMesh3D(10, 8, 6)
+    s_h  = PseudoCubicalMesh3D(10, 8, 6; halo_x=2, halo_y=3, halo_z=1)
+
+    # ── Real counts ───────────────────────────────────────────────────────────
+    @test nxr(s) == 10
+    @test nyr(s) == 8
+    @test nzr(s) == 6
+    @test nxr(s_h) == 10
+    @test nyr(s_h) == 8
+    @test nzr(s_h) == 6
+
+    # ── Halo accessors ────────────────────────────────────────────────────────
+    @test hx(s)   == 0
+    @test hy(s)   == 0
+    @test hz(s)   == 0
+    @test hx(s_h) == 2
+    @test hy(s_h) == 3
+    @test hz(s_h) == 1
+
+    # ── Total (halo-inclusive) counts ─────────────────────────────────────────
+    @test nx(s)   == 10
+    @test ny(s)   == 8
+    @test nz(s)   == 6
+    @test nx(s_h) == 14
+    @test ny(s_h) == 14
+    @test nz(s_h) == 8
+
+    # ── Vertex counts ─────────────────────────────────────────────────────────
+    @test nv(s)    == 10 * 8 * 6
+    @test nvr(s)   == 10 * 8 * 6
+    @test nv(s_h)  == 14 * 14 * 8
+    @test nvr(s_h) == 10 * 8 * 6
+
+    # ── Edge counts ───────────────────────────────────────────────────────────
+    @test nxedges(s) == 9 * 8 * 6
+    @test nyedges(s) == 10 * 7 * 6
+    @test nzedges(s) == 10 * 8 * 5
+    @test ne(s)      == nxedges(s) + nyedges(s) + nzedges(s)
+
+    @test nxedges(s_h) == 13 * 14 * 8
+    @test nyedges(s_h) == 14 * 13 * 8
+    @test nzedges(s_h) == 14 * 14 * 7
+    @test ne(s_h)      == nxedges(s_h) + nyedges(s_h) + nzedges(s_h)
+
+    # ── Quad counts ───────────────────────────────────────────────────────────
+    @test nxyquads(s) == 9 * 7 * 6
+    @test nxzquads(s) == 9 * 8 * 5
+    @test nyzquads(s) == 10 * 7 * 5
+    @test nquads(s)   == nxyquads(s) + nxzquads(s) + nyzquads(s)
+
+    @test nxyquads(s_h) == 13 * 13 * 8
+    @test nxzquads(s_h) == 13 * 14 * 7
+    @test nyzquads(s_h) == 14 * 13 * 7
+    @test nquads(s_h)   == nxyquads(s_h) + nxzquads(s_h) + nyzquads(s_h)
+
+    # ── Boid counts ───────────────────────────────────────────────────────────
+    @test nboids(s)   == 9 * 7 * 5
+    @test nboidsr(s)  == 9 * 7 * 5
+    @test nboids(s_h) == 13 * 13 * 7
+    @test nboidsr(s_h) == 9 * 7 * 5
+
+    # ── Indexing ──────────────────────────────────────────────────────────────
+    @test coord_to_vert(s, 1, 1, 1) == 1
+    @test coord_to_vert(s, 10, 8, 6) == nv(s)
+
+    @test coord_to_boid(s, 1, 1, 1) == 1
+    @test coord_to_boid(s, 9, 7, 5) == nboids(s)
+
+    @test coord_to_edge(s, 1, 1, 1, X_ALIGN) == 1
+    @test coord_to_edge(s, 1, 1, 1, Y_ALIGN) == nxedges(s) + 1
+    @test coord_to_edge(s, 1, 1, 1, Z_ALIGN) == nxedges(s) + nyedges(s) + 1
+
+    @test coord_to_quad(s, 1, 1, 1, Z_ALIGN) == 1
+    @test coord_to_quad(s, 1, 1, 1, Y_ALIGN) == nxyquads(s) + 1
+    @test coord_to_quad(s, 1, 1, 1, X_ALIGN) == nxyquads(s) + nxzquads(s) + 1
+
+    # ── Halo flags ────────────────────────────────────────────────────────────
+    @test valid_boid(s_h, 1, 1, 1)   == true
+    @test valid_boid(s_h, 13, 13, 7) == true
+    @test valid_boid(s_h, 14, 1, 1)  == false
+    @test valid_boid(s_h, 1, 14, 1)  == false
+    @test valid_boid(s_h, 1, 1, 8)   == false
+end

@@ -1,8 +1,10 @@
 using GeometryBasics
 
-abstract type AbstractCubicalComplex3D{FT <: AbstractFloat} <: AbstractCubicalComplex end
+abstract type AbstractCubicalComplex3D <: AbstractCubicalComplex end
 
-struct UniformCubicalComplex3D{FT} <: AbstractCubicalComplex3D{FT}
+abstract type AbstractEmbeddedCubicalComplex3D{FT <: AbstractFloat} <: AbstractCubicalComplex3D end
+
+struct UniformCubicalComplex3D{FT} <: AbstractEmbeddedCubicalComplex3D{FT}
     nx::Int
     ny::Int
     nz::Int
@@ -19,6 +21,21 @@ struct UniformCubicalComplex3D{FT} <: AbstractCubicalComplex3D{FT}
     base_y::FT
     base_z::FT
 end
+
+struct PseudoCubicalMesh3D <: AbstractCubicalComplex3D
+    nx::Int
+    ny::Int
+    nz::Int
+  
+    halo_x::Int
+    halo_y::Int
+    halo_z::Int
+  end
+  
+PseudoCubicalMesh3D(nx::Int, ny::Int, nz::Int; 
+    halo_x::Int = 0, halo_y::Int = 0, halo_z::Int = 0) = PseudoCubicalMesh3D(nx, ny, nz, halo_x, halo_y, halo_z)
+    
+PseudoCubicalMesh(nx::Int, ny::Int, nz::Int) = PseudoCubicalMesh3D(nx, ny, nz)
 
 base_x(s::UniformCubicalComplex3D) = s.base_x
 base_y(s::UniformCubicalComplex3D) = s.base_y
@@ -746,6 +763,17 @@ function ghost_boids(s::AbstractCubicalComplex3D, side::GridSide, role::Symbol)
     end
 
     return [to_idx(ax, b, c) for ax in ax_range, b in 1:n_b, c in 1:n_c][:]
+end
+
+function ghost_boids(s::AbstractCubicalComplex3D)
+    return (
+        west  = (send = ghost_boids(s, EASTWEST,   :send_low),  recv = ghost_boids(s, EASTWEST,   :recv_low)),
+        east  = (send = ghost_boids(s, EASTWEST,   :send_high), recv = ghost_boids(s, EASTWEST,   :recv_high)),
+        south = (send = ghost_boids(s, NORTHSOUTH, :send_low),  recv = ghost_boids(s, NORTHSOUTH, :recv_low)),
+        north = (send = ghost_boids(s, NORTHSOUTH, :send_high), recv = ghost_boids(s, NORTHSOUTH, :recv_high)),
+        down  = (send = ghost_boids(s, UPDOWN,     :send_low),  recv = ghost_boids(s, UPDOWN,     :recv_low)),
+        up    = (send = ghost_boids(s, UPDOWN,     :send_high), recv = ghost_boids(s, UPDOWN,     :recv_high)),
+    )
 end
 
 function interior(::Val{3}, f::AbstractVector, s::AbstractCubicalComplex3D)

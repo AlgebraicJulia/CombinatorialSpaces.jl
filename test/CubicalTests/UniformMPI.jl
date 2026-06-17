@@ -1,6 +1,6 @@
 using Test
 
-include(joinpath(@__DIR__, "..", "..", "src", "CubicalCode", "UniformMPI.jl"))
+include(joinpath(SRC_PATH, "UniformMPI.jl"))
 
 @testset "Tile Offset" begin
     base, rem = 2, 0
@@ -153,7 +153,7 @@ end
 @testset "OutputWorkerCache Serialization" begin
     # Test for N=2 (2D case)
     let N = 2
-        original_cache = OutputWorkerCache{N}((10, 20), (5, 8))
+        original_cache = OutputWorkerCache((10, 20), (5, 8))
         
         # Serialize the cache
         serialized_buf = serialize(original_cache)
@@ -174,7 +174,7 @@ end
 
     # Test for N=3 (3D case)
     let N = 3
-        original_cache = OutputWorkerCache{N}((12, 12, 12), (11, 23, 35))
+        original_cache = OutputWorkerCache((12, 12, 12), (11, 23, 35))
         
         serialized_buf = serialize(original_cache)
         
@@ -191,10 +191,10 @@ end
     # Test a 2x2 worker tile in 2D (Y-major ordering)
     let N = 2
         worker_caches = [
-            OutputWorkerCache{N}((10, 20), (0,0)),   # W(0,0)
-            OutputWorkerCache{N}((10, 22), (0,20)),  # W(0,1)
-            OutputWorkerCache{N}((11, 20), (10,0)),  # W(1,0)
-            OutputWorkerCache{N}((11, 22), (10,20))  # W(1,1)
+            OutputWorkerCache((10, 20), (0,0)),   # W(0,0)
+            OutputWorkerCache((10, 22), (0,20)),  # W(0,1)
+            OutputWorkerCache((11, 20), (10,0)),  # W(1,0)
+            OutputWorkerCache((11, 22), (10,20))  # W(1,1)
         ]
         lt_dims = (2, 2)
         om_dims = output_mesh_dimensions(worker_caches, lt_dims)
@@ -204,12 +204,12 @@ end
     # Test a 2x1x3 worker tile in 3D (Z-Y-X major ordering)
     let N = 3
         worker_caches = [
-            OutputWorkerCache{N}((10, 5, 8), (0,0,0)),    # W(0,0,0)
-            OutputWorkerCache{N}((10, 5, 9), (0,0,8)),    # W(0,0,1)
-            OutputWorkerCache{N}((10, 5, 7), (0,0,17)),   # W(0,0,2)
-            OutputWorkerCache{N}((12, 5, 8), (10,0,0)),   # W(1,0,0)
-            OutputWorkerCache{N}((12, 5, 9), (10,0,8)),   # W(1,0,1)
-            OutputWorkerCache{N}((12, 5, 7), (10,0,17))   # W(1,0,2)
+            OutputWorkerCache((10, 5, 8), (0,0,0)),    # W(0,0,0)
+            OutputWorkerCache((10, 5, 9), (0,0,8)),    # W(0,0,1)
+            OutputWorkerCache((10, 5, 7), (0,0,17)),   # W(0,0,2)
+            OutputWorkerCache((12, 5, 8), (10,0,0)),   # W(1,0,0)
+            OutputWorkerCache((12, 5, 9), (10,0,8)),   # W(1,0,1)
+            OutputWorkerCache((12, 5, 7), (10,0,17))   # W(1,0,2)
         ]
         lt_dims = (2, 1, 3)
         om_dims = output_mesh_dimensions(worker_caches, lt_dims)
@@ -218,7 +218,7 @@ end
 
     # Edge Case: Tile is a single worker
     let N = 2
-        worker_caches = [OutputWorkerCache{N}((15, 25), (0,0))]
+        worker_caches = [OutputWorkerCache((15, 25), (0,0))]
         lt_dims = (1, 1)
         om_dims = output_mesh_dimensions(worker_caches, lt_dims)
         @test om_dims == (15, 25)
@@ -227,10 +227,10 @@ end
     # Edge Case: Long, thin tile (4x1)
     let N = 2
         worker_caches = [
-            OutputWorkerCache{N}((10, 50), (0,0)),
-            OutputWorkerCache{N}((11, 50), (10,0)),
-            OutputWorkerCache{N}((9, 50), (21,0)),
-            OutputWorkerCache{N}((12, 50), (30,0))
+            OutputWorkerCache((10, 50), (0,0)),
+            OutputWorkerCache((11, 50), (10,0)),
+            OutputWorkerCache((9, 50), (21,0)),
+            OutputWorkerCache((12, 50), (30,0))
         ]
         lt_dims = (4, 1)
         om_dims = output_mesh_dimensions(worker_caches, lt_dims)
@@ -242,10 +242,10 @@ end
     # 2D Case
     let N = 2
         worker_caches = [
-            OutputWorkerCache{N}((10, 20), (15, 30)),   # W(0,0) - Origin of output mesh
-            OutputWorkerCache{N}((10, 22), (15, 50)),   # W(0,1)
-            OutputWorkerCache{N}((11, 20), (25, 30)),   # W(1,0)
-            OutputWorkerCache{N}((11, 22), (25, 50))    # W(1,1)
+            OutputWorkerCache((10, 20), (15, 30)),   # W(0,0) - Origin of output mesh
+            OutputWorkerCache((10, 22), (15, 50)),   # W(0,1)
+            OutputWorkerCache((11, 20), (25, 30)),   # W(1,0)
+            OutputWorkerCache((11, 22), (25, 50))    # W(1,1)
         ]
         
         # Test output_mesh_offsets (should be the global offset of the first cache)
@@ -264,10 +264,10 @@ end
     # 3D Case
     let N = 3
         worker_caches = [
-            OutputWorkerCache{N}((5, 5, 5), (100, 200, 300)),  # W(0,0,0) - Origin
-            OutputWorkerCache{N}((5, 5, 8), (100, 200, 305)),  # W(0,0,1)
-            OutputWorkerCache{N}((5, 7, 5), (100, 205, 300)),  # W(0,1,0)
-            OutputWorkerCache{N}((6, 5, 5), (105, 200, 300)),  # W(1,0,0)
+            OutputWorkerCache((5, 5, 5), (100, 200, 300)),  # W(0,0,0) - Origin
+            OutputWorkerCache((5, 5, 8), (100, 200, 305)),  # W(0,0,1)
+            OutputWorkerCache((5, 7, 5), (100, 205, 300)),  # W(0,1,0)
+            OutputWorkerCache((6, 5, 5), (105, 200, 300)),  # W(1,0,0)
         ]
 
         # Test output_mesh_offsets
@@ -280,7 +280,7 @@ end
     
     # Edge Case: Only 1 worker
     let N = 2
-        worker_caches = [OutputWorkerCache{N}((15, 25), (7, 14))]
+        worker_caches = [OutputWorkerCache((15, 25), (7, 14))]
         
         @test output_mesh_offsets(worker_caches) == (7, 14)
         @test local_mesh_worker_offsets(worker_caches) == [(0, 0)]
@@ -297,15 +297,15 @@ end
 
         # 2. Create and serialize mock worker caches
         wc_list = [
-            OutputWorkerCache{N}((10, 20), (0, 0)),    # W(0,0)
-            OutputWorkerCache{N}((10, 22), (0, 19)),   # W(0,1)
-            OutputWorkerCache{N}((11, 20), (9, 0)),    # W(1,0)
-            OutputWorkerCache{N}((11, 22), (9, 19))    # W(1,1)
+            OutputWorkerCache((10, 20), (0, 0)),    # W(0,0)
+            OutputWorkerCache((10, 22), (0, 19)),   # W(0,1)
+            OutputWorkerCache((11, 20), (9, 0)),    # W(1,0)
+            OutputWorkerCache((11, 22), (9, 19))    # W(1,1)
         ]
         test_arr = vcat(serialize.(wc_list)...)
 
         # 3. Call constructor with test_arr
-        cache = OutputCache{N}(nothing, cart_coords, base_tiles, rems, test_arr=test_arr)
+        cache = OutputCache{N}(nothing, cart_coords, base_tiles, rems, test_arr)
 
         # 4. Validate fields
         @test cache isa OutputCache{N}
@@ -326,12 +326,12 @@ end
         nworkers = 2
 
         wc_list = [
-            OutputWorkerCache{N}((5, 6, 7), (10, 20, 30)),
-            OutputWorkerCache{N}((5, 6, 8), (10, 20, 36))
+            OutputWorkerCache((5, 6, 7), (10, 20, 30)),
+            OutputWorkerCache((5, 6, 8), (10, 20, 36))
         ]
         test_arr = vcat(serialize.(wc_list)...)
         
-        cache = OutputCache{N}(nothing, cart_coords, base_tiles, rems, test_arr=test_arr)
+        cache = OutputCache{N}(nothing, cart_coords, base_tiles, rems, test_arr)
 
         @test cache.nworkers == nworkers
         @test cache.worker_caches == wc_list
@@ -418,5 +418,39 @@ end
         # Output 0 cells: 14. Output 1 cells (workers 2,3): 14. Output 2 cells: 6.
         # Total: 14 + 14 + 6 = 34 cells.
         @test 14 + 14 + 6 == m_dim - 1
+    end
+end
+
+@testset "WorkerCache to OutputWorkerCache" begin
+    wc2 = WorkerCache{2}(nothing, (1, 2), (33, 33), (2, 4))
+    owc2 = OutputWorkerCache(wc2)
+    @test owc2 isa OutputWorkerCache{2}
+    @test owc2.lm_dims       == wc2.lm_dims
+    @test owc2.lm_gm_offsets == wc2.lm_gm_offsets
+
+    wc3 = WorkerCache{3}(nothing, (0, 2, 1), (65, 65, 65), (4, 4, 4))
+    owc3 = OutputWorkerCache(wc3)
+    @test owc3 isa OutputWorkerCache{3}
+    @test owc3.lm_dims       == wc3.lm_dims
+    @test owc3.lm_gm_offsets == wc3.lm_gm_offsets
+end
+@testset "_compute_pair_color" begin
+    base_tiles = (2, 2)
+    rems       = (1, 0)
+    o_dims     = (3, 2)
+
+    # is_output::Bool, cart_rank::Int, cart_coords, base_tiles, rems, o_dims, N
+    @test _compute_pair_color(true, 4, (0, 1), base_tiles, rems, o_dims, 2) == 4
+
+    @test _compute_pair_color(false, 0, (0, 0), base_tiles, rems, o_dims, 2) == 0
+    @test _compute_pair_color(false, 0, (2, 1), base_tiles, rems, o_dims, 2) ==
+          o_coord_to_idx(ntuple(i -> owning_output_coord(((2,1))[i], base_tiles[i], rems[i], o_dims[i]), 2), o_dims)
+
+    # Test that base point in each output tile is linked with output
+    for ox in 0:o_dims[1]-1, oy in 0:o_dims[2]-1
+        expected = o_coord_to_idx((ox, oy), o_dims)
+        w_start  = (tile_offset(ox, base_tiles[1], rems[1]),
+                    tile_offset(oy, base_tiles[2], rems[2]))
+        @test _compute_pair_color(false, 0, w_start, base_tiles, rems, o_dims, 2) == expected
     end
 end

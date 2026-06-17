@@ -11,9 +11,11 @@ import Base: show
 
 abstract type AbstractCubicalComplex end
 
-abstract type AbstractCubicalComplex2D{FT <: AbstractFloat} <: AbstractCubicalComplex end
+abstract type AbstractCubicalComplex2D <: AbstractCubicalComplex end
 
-struct UniformCubicalComplex2D{FT} <: AbstractCubicalComplex2D{FT}
+abstract type AbstractEmbeddedCubicalComplex2D{FT <: AbstractFloat} <: AbstractCubicalComplex2D end
+
+struct UniformCubicalComplex2D{FT} <: AbstractEmbeddedCubicalComplex2D{FT}
   nx::Int
   ny::Int
 
@@ -26,6 +28,18 @@ struct UniformCubicalComplex2D{FT} <: AbstractCubicalComplex2D{FT}
   base_x::FT
   base_y::FT
 end
+
+struct PseudoCubicalMesh2D <: AbstractCubicalComplex2D
+  nx::Int
+  ny::Int
+
+  halo_x::Int
+  halo_y::Int
+end
+
+PseudoCubicalMesh2D(nx::Int, ny::Int; halo_x::Int = 0, halo_y::Int = 0) = PseudoCubicalMesh2D(nx, ny, halo_x, halo_y)
+
+PseudoCubicalMesh(nx::Int, ny::Int) = PseudoCubicalMesh2D(nx, ny)
 
 @enum Align X_ALIGN Y_ALIGN Z_ALIGN
 
@@ -273,7 +287,7 @@ end
 
 # This function computes the length of the dual edge corresponding to the given primal edge
 # This the same as the primal edges except on the boundary, where the dual edge is half the length of the primal edge
-function dual_edge_len(s::AbstractCubicalComplex2D{FT}, x::Int, y::Int, align::Align) where FT <: AbstractFloat
+function dual_edge_len(s::UniformCubicalComplex2D{FT}, x::Int, y::Int, align::Align) where FT <: AbstractFloat
   if align == X_ALIGN
     if y == 1 || y == ny(s)
       return 0.5 * dy(s)
@@ -298,7 +312,7 @@ dual_quad(s::AbstractCubicalComplex2D, x::Int, y::Int) = coord_to_vert(s, x, y)
 # This function computes the area of the dual quad corresponding to the given primal vertex
 # This is the same as the primal quad area except on the boundary, where the dual quad area is half the area of the primal quad
 # Also on the corners, the dual quad area is one quarter the area of the primal quad
-function dual_quad_area(s::AbstractCubicalComplex2D, x::Int, y::Int)
+function dual_quad_area(s::UniformCubicalComplex2D, x::Int, y::Int)
   if (x == 1 || x == nx(s)) && (y == 1 || y == ny(s))
     return 0.25 * quad_area(s)
   elseif x == 1 || x == nx(s) || y == 1 || y == ny(s)

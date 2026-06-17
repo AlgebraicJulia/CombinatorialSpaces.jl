@@ -222,3 +222,76 @@ end
       @test isempty(g0[dir].recv)
   end
 end
+
+@testset "PseudoCubicalMesh2D Element Counting" begin
+
+  s    = PseudoCubicalMesh2D(10, 8)
+  s_h  = PseudoCubicalMesh2D(10, 8; halo_x=2, halo_y=3)
+
+  # ── Real counts ───────────────────────────────────────────────────────────
+  @test nxr(s) == 10
+  @test nyr(s) == 8
+  @test nxr(s_h) == 10
+  @test nyr(s_h) == 8
+
+  # ── Halo accessors ────────────────────────────────────────────────────────
+  @test hx(s)   == 0
+  @test hy(s)   == 0
+  @test hx(s_h) == 2
+  @test hy(s_h) == 3
+
+  # ── Total (halo-inclusive) counts ─────────────────────────────────────────
+  @test nx(s)   == 10
+  @test ny(s)   == 8
+  @test nx(s_h) == 14
+  @test ny(s_h) == 14
+
+  # ── Vertex counts ─────────────────────────────────────────────────────────
+  @test nv(s)   == 10 * 8
+  @test nvr(s)  == 10 * 8
+  @test nv(s_h) == 14 * 14
+  @test nvr(s_h) == 10 * 8
+
+  # ── Edge counts ───────────────────────────────────────────────────────────
+  @test nxedges(s) == 9 * 8
+  @test nyedges(s) == 10 * 7
+  @test ne(s)      == nxedges(s) + nyedges(s)
+
+  @test nxedges(s_h) == 13 * 14
+  @test nyedges(s_h) == 14 * 13
+  @test ne(s_h)      == nxedges(s_h) + nyedges(s_h)
+
+  # ── Quad counts ───────────────────────────────────────────────────────────
+  @test nxq(s)     == 9
+  @test nyq(s)     == 7
+  @test nquads(s)  == 9 * 7
+
+  @test nxq(s_h)    == 13
+  @test nyq(s_h)    == 13
+  @test nquads(s_h) == 13 * 13
+
+  # ── Real quad counts ──────────────────────────────────────────────────────
+  @test nxqr(s)    == 9
+  @test nyqr(s)    == 7
+  @test nquadsr(s) == 9 * 7
+
+  @test nxqr(s_h)    == 9
+  @test nyqr(s_h)    == 7
+  @test nquadsr(s_h) == 9 * 7
+
+  # ── Indexing ──────────────────────────────────────────────────────────────
+  @test coord_to_vert(s, 1, 1) == 1
+  @test coord_to_vert(s, 10, 8) == nv(s)
+
+  @test coord_to_quad(s, 1, 1) == 1
+  @test coord_to_quad(s, 9, 7) == nquads(s)
+
+  @test coord_to_edge(s, 1, 1, X_ALIGN) == 1
+  @test coord_to_edge(s, 1, 1, Y_ALIGN) == nxedges(s) + 1
+
+  # ── Halo flags ────────────────────────────────────────────────────────────
+  @test is_halo_vert(s_h, 1, 5) == true
+  @test is_halo_vert(s_h, 3, 5) == false
+  @test is_halo_quad(s_h, 2, 4) == true
+  @test is_halo_quad(s_h, 3, 4) == false
+end

@@ -7,9 +7,9 @@ include("UniformMesh3D.jl")
 
 ### MPI_TOPOLOGY ###
 struct MPITopology{C}
-    world_comm::MPI.Comm
-    cart_comm::MPI.Comm
-    intercomm::MPI.Comm
+    world_comm::Union{MPI.Comm, Nothing}
+    cart_comm::Union{MPI.Comm, Nothing}
+    intercomm::Union{MPI.Comm, Nothing}
     cart_rank::Int
     is_output::Bool
     cache::C # Will be either WorkerCache or OutputCache
@@ -29,13 +29,21 @@ struct WorkerCache{N}
     lm_gm_offsets::NTuple{N, Int} # Global offset of this worker's partition
 end
 
-function WorkerCache{N}(cart_comm::MPI.Comm, cart_coords, m_dims, w_dims) where N
+function WorkerCache{N}(cart_comm::Union{MPI.Comm, Nothing}, cart_coords, m_dims, w_dims) where N
     lm_dims   = ntuple(i -> worker_mesh_size(cart_coords[i], m_dims[i], w_dims[i]), N)
     lm_gm_offsets = ntuple(i -> worker_mesh_offset(cart_coords[i], m_dims[i], w_dims[i]), N)
-    neighbors = build_neighbors(cart_comm, Val(N))
+
+    # For testing only
+    if isnothing(cart_comm)
+        cart_nranks = -1
+        neighbors = NamedTuple()
+    else
+        cart_nranks = MPI.Comm_size(cart_comm)
+        neighbors = build_neighbors(cart_comm, Val(N))
+    end
 
     return WorkerCache{N}(
-        MPI.Comm_size(cart_comm),
+        cart_nranks,
         neighbors,
         lm_dims,
         lm_gm_offsets,
@@ -58,8 +66,9 @@ end
 
 ### OUTPUT CACHE ###
 struct OutputWorkerCache{N}
-    lm_dims   :: NTuple{N, Int}
+    lm_dims       :: NTuple{N, Int}
     lm_gm_offsets :: NTuple{N, Int}
+    mesh          :: AbstractCubicalComplex
 end
 
 struct OutputCache{N}
@@ -70,22 +79,21 @@ struct OutputCache{N}
     lt_dims :: NTuple{N, Int} # Number of workers in each dim
     om_dims :: NTuple{N, Int} # Number of vertices in each dim
     om_gm_offsets :: NTuple{N, Int} # Offset of mesh from global mesh origin in vertices
+    om_mesh       :: AbstractCubicalComplex
 end
 
-# TODO: Add back test_arr as a nothing default kwarg
-function OutputCache{N}(intercomm::MPI.Comm, cart_coords, base_tiles, rems) where N
+function OutputCache{N}(intercomm::Union{MPI.Comm, Nothing}, cart_coords, base_tiles, rems, test_arr = nothing) where N
 
     lt_dims = ntuple(i -> tile_size(cart_coords[i], base_tiles[i], rems[i]), N)
     nworkers = prod(lt_dims)
     len = length(OutputWorkerCache{N})
 
-    # Avoid MPI use for testing
-    test_arr = nothing
-    flat = if isnothing(test_arr) 
-        gather_workercaches(intercomm, nworkers, len)
-    else 
+    # For testing only
+    flat = if isnothing(intercomm) 
         @assert nworkers * len == length(test_arr) "Test_arr should be $nworkers x $len, or $(nworkers * len)"
         test_arr
+    else 
+        gather_workercaches(intercomm, nworkers, len)
     end
 
     worker_caches = [deserialize(OutputWorkerCache{N}, flat[(w-1)*len+1 : w*len]) for w in 1:nworkers]
@@ -102,6 +110,7 @@ function OutputCache{N}(intercomm::MPI.Comm, cart_coords, base_tiles, rems) wher
         lt_dims,
         om_dims,
         om_gm_offsets,
+        PseudoCubicalMesh(om_dims...),
     )
 end
 
@@ -135,8 +144,10 @@ function local_mesh_worker_offsets(worker_caches::Vector{OutputWorkerCache{N}}) 
 end
 
 ### OUTPUT WORKER CACHE
-OutputWorkerCache(cache::WorkerCache{N}) where N =
-    OutputWorkerCache{N}(cache.lm_dims, cache.lm_gm_offsets)
+OutputWorkerCache(lm_dims:: NTuple{N, Int}, lm_gm_offsets:: NTuple{N, Int}) where N =
+    OutputWorkerCache{N}(lm_dims, lm_gm_offsets, PseudoCubicalMesh(lm_dims...))
+
+OutputWorkerCache(cache::WorkerCache) = OutputWorkerCache(cache.lm_dims, cache.lm_gm_offsets)
 
 Base.length(::Type{OutputWorkerCache{N}}) where N = 2N
 Base.length(::OutputWorkerCache{N}) where N = 2N
@@ -148,7 +159,7 @@ end
 function deserialize(::Type{OutputWorkerCache{N}}, buf::AbstractVector{Int32}) where N
     sizes   = ntuple(i -> Int(buf[i]),     N)
     offsets = ntuple(i -> Int(buf[N + i]), N)
-    return OutputWorkerCache{N}(sizes, offsets)
+    return OutputWorkerCache{N}(sizes, offsets, PseudoCubicalMesh(sizes...))
 end
 
 function _send_mesh_metadata(intercomm::MPI.Comm, cache::WorkerCache{N}) where N
@@ -163,7 +174,9 @@ end
 
 ### BUILD THE MPI_TOPOLOGY ###
 
-function build_worker_output_topology(m_dims::NTuple{N, Int}, w_dims::NTuple{N, Int}, o_dims::NTuple{N, Int}; 
+# TODO: This could probably be cleaned up with a struct that stores all dimensions
+# and computes base_sizes and rems for mesh/worker and output/worker combos
+function MPITopology(m_dims::NTuple{N, Int}, w_dims::NTuple{N, Int}, o_dims::NTuple{N, Int}; 
                                       periods::NTuple{N, Bool} = ntuple(_ -> false, N)) where N
                                       
     # TODO: Fix these, non-boolean?
@@ -190,10 +203,9 @@ function build_worker_output_topology(m_dims::NTuple{N, Int}, w_dims::NTuple{N, 
     return MPITopology(world_comm, cart_comm, intercomm, cart_rank, is_output, cache)
 end
 
+MPITopology(cache, is_output::Bool) = MPITopology(nothing, nothing, nothing, -1, is_output, cache)
+
 function _build_comms(w_dims::NTuple{N, Int}, o_dims::NTuple{N, Int}, periods::NTuple{N, Bool}) where N
-
-    MPI.Init()
-
     world_comm = MPI.COMM_WORLD
     world_rank = MPI.Comm_rank(world_comm)
     world_size = MPI.Comm_size(world_comm)
@@ -220,19 +232,14 @@ end
 function _build_intercomm(world_comm, cart_comm, is_output, w_dims, o_dims, N)
 
     world_rank  = MPI.Comm_rank(world_comm)
+
+    cart_rank  = MPI.Comm_rank(cart_comm)
     cart_coords = MPI.Cart_coords(cart_comm)
 
     base_tiles = ntuple(i -> w_dims[i] ÷ o_dims[i], N)
     rems       = ntuple(i -> w_dims[i] % o_dims[i], N)
 
-    cart_rank  = MPI.Comm_rank(cart_comm)
-
-    pair_color = if is_output
-        cart_rank
-    else
-        o_coords = ntuple(i -> owning_output_coord(cart_coords[i], base_tiles[i], rems[i], o_dims[i]), N)
-        foldl((acc, (oc, od)) -> acc * od + oc, zip(o_coords, o_dims); init = 0)
-    end
+    pair_color = _compute_pair_color(is_output, cart_rank, cart_coords, base_tiles, rems, o_dims, N)
 
     pair_comm      = MPI.Comm_split(world_comm, pair_color, world_rank)
     pair_size      = MPI.Comm_size(pair_comm)
@@ -256,6 +263,15 @@ function _build_intercomm(world_comm, cart_comm, is_output, w_dims, o_dims, N)
     return (intercomm, base_tiles, rems)
 end
 
+function _compute_pair_color(is_output::Bool, cart_rank::Int, cart_coords, base_tiles, rems, o_dims, N)
+    if is_output
+        return cart_rank
+    else
+        o_coords = ntuple(i -> owning_output_coord(cart_coords[i], base_tiles[i], rems[i], o_dims[i]), N)
+        return o_coord_to_idx(o_coords, o_dims)
+    end
+end
+
 ### WORKER HELPERS ### 
 
 const AXIS_NAMES_2D = (:west, :east, :south, :north)
@@ -276,40 +292,100 @@ end
 
 build_neighbors(cart_comm::MPI.Comm, N::Int) = build_neighbors(cart_comm, Val(N))
 
-# TODO: Update this to use the new topology
-# function exchange_quads!(f::AbstractVector, ghosts::NamedTuple,
-#                          topo::WorkerTopology{2}, side::GridSide)
-#     if side == EASTWEST
-#         low, high = :west, :east
-#     elseif side == NORTHSOUTH
-#         low, high = :south, :north
-#     else
-#         error("exchange_quads!: GridSide $(repr(side)) is not valid for a 2D mesh. " *
-#               "Valid sides: EASTWEST, NORTHSOUTH")
-#     end
+# ── Halo Exchange ─────────────────────────────────────────────────────────────
 
-#     send_low  = f[ghosts[low].send]
-#     send_high = f[ghosts[high].send]
-#     recv_low  = similar(send_low)
-#     recv_high = similar(send_high)
+function exchange_quads!(f::AbstractVector, ghosts::NamedTuple,
+                         topo::MPITopology{WorkerCache{N}}, side::GridSide) where N
+    if side == EASTWEST
+        low, high = :west, :east
+    elseif side == NORTHSOUTH
+        low, high = :south, :north
+    else
+        error("exchange_quads!: GridSide $(repr(side)) is not valid for a 2D mesh. " *
+              "Valid sides: EASTWEST, NORTHSOUTH")
+    end
 
-#     MPI.Sendrecv!(send_low,  topo.neighbors[low],  0,
-#                   recv_high, topo.neighbors[high], 0,
-#                   topo.cart_comm)
-#     MPI.Sendrecv!(send_high, topo.neighbors[high], 1,
-#                   recv_low,  topo.neighbors[low],  1,
-#                   topo.cart_comm)
+    neighbors = topo.cache.neighbors
 
-#     f[ghosts[low].recv]  .= recv_low
-#     f[ghosts[high].recv] .= recv_high
+    send_low  = f[ghosts[low].send]
+    send_high = f[ghosts[high].send]
+    recv_low  = similar(send_low)
+    recv_high = similar(send_high)
 
-#     return nothing
-# end
+    MPI.Sendrecv!(send_low,  neighbors[low],  0,
+                  recv_high, neighbors[high], 0,
+                  topo.cart_comm)
+    MPI.Sendrecv!(send_high, neighbors[high], 1,
+                  recv_low,  neighbors[low],  1,
+                  topo.cart_comm)
 
-# function exchange_quads_all!(f::AbstractVector, ghosts::NamedTuple, topo::WorkerTopology{2})
-#     exchange_quads!(f, ghosts, topo, EASTWEST)
-#     exchange_quads!(f, ghosts, topo, NORTHSOUTH)
-# end
+    f[ghosts[low].recv]  .= recv_low
+    f[ghosts[high].recv] .= recv_high
+
+    return nothing
+end
+
+function exchange_quads!(f::AbstractVector, ghosts::NamedTuple, topo::MPITopology{<:OutputCache}, side::GridSide)
+    error("exchange_quads! called on output process")
+end
+
+function exchange_quads_all!(f::AbstractVector, ghosts::NamedTuple,
+                              topo::MPITopology{WorkerCache{N}}) where N
+    exchange_quads!(f, ghosts, topo, EASTWEST)
+    exchange_quads!(f, ghosts, topo, NORTHSOUTH)
+end
+
+function exchange_quads_all!(f::AbstractVector, ghosts::NamedTuple, topo::MPITopology{<:OutputCache})
+    error("exchange_quads_all! called on output process")
+end
+
+function exchange_boids!(f::AbstractVector, ghosts::NamedTuple,
+                         topo::MPITopology{WorkerCache{N}}, side::GridSide) where N
+    if side == EASTWEST
+        low, high = :west, :east
+    elseif side == NORTHSOUTH
+        low, high = :south, :north
+    elseif side == UPDOWN
+        low, high = :down, :up
+    else
+        error("exchange_boids!: GridSide $(repr(side)) is not valid. " *
+              "Valid sides: EASTWEST, NORTHSOUTH, UPDOWN")
+    end
+
+    neighbors = topo.cache.neighbors
+
+    send_low  = f[ghosts[low].send]
+    send_high = f[ghosts[high].send]
+    recv_low  = similar(send_low)
+    recv_high = similar(send_high)
+
+    MPI.Sendrecv!(send_low,  neighbors[low],  0,
+                  recv_high, neighbors[high], 0,
+                  topo.cart_comm)
+    MPI.Sendrecv!(send_high, neighbors[high], 1,
+                  recv_low,  neighbors[low],  1,
+                  topo.cart_comm)
+
+    f[ghosts[low].recv]  .= recv_low
+    f[ghosts[high].recv] .= recv_high
+
+    return nothing
+end
+
+function exchange_boids!(f::AbstractVector, ghosts::NamedTuple, topo::MPITopology{<:OutputCache}, side::GridSide)
+    error("exchange_boids! called on output process")
+end
+
+function exchange_boids_all!(f::AbstractVector, ghosts::NamedTuple,
+                              topo::MPITopology{WorkerCache{N}}) where N
+    exchange_boids!(f, ghosts, topo, EASTWEST)
+    exchange_boids!(f, ghosts, topo, NORTHSOUTH)
+    exchange_boids!(f, ghosts, topo, UPDOWN)
+end
+
+function exchange_boids_all!(f::AbstractVector, ghosts::NamedTuple, topo::MPITopology{<:OutputCache})
+    error("exchange_boids_all! called on output process")
+end
 
 # ── Output helpers ────────────────────────────────────────────────────────────
 
