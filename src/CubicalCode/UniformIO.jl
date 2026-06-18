@@ -97,15 +97,16 @@ abstract type AbstractMetaData end  # stub, filled later
 end
 
 function worker_to_output(tag::SignalTag, topo::MPITopology{<:WorkerCache})
-    worker_leader(topo) || return nothing
     buf = Ref{Int32}(Int32(tag))
-    MPI.Send(buf, topo.intercomm; dest=0)
+    MPI.Send(buf, topo.intercomm; dest = 0)
+    # println("WORKER $(MPI.Comm_rank(topo.cart_comm)) sent $(SignalTag(buf[]))")
     return nothing
 end
 
 function output_from_worker(topo::MPITopology{<:OutputCache})
     buf = Ref{Int32}(Int32(0))
-    MPI.Recv!(buf, topo.intercomm; source=0)
+    MPI.Recv!(buf, topo.intercomm; source = 0)
+    # println("OUTPUT $(MPI.Comm_rank(topo.cart_comm)) got $(SignalTag(buf[]))")
     return SignalTag(buf[])
 end
 
@@ -119,7 +120,7 @@ function GathervCache(datum::Datum, cache::OutputCache{N}) where {N}
     T = datum.entrytype
 
     recv_counts = Cint[mesh_count(datum, wc.mesh) for wc in cache.worker_caches]
-    displs = Cint[0; cumsum(recv_counts)[1:(end-1)]]
+    displs = Cint[0; cumsum(recv_counts)[1:(end - 1)]]
     recv_buffer = Vector{T}(undef, Int(sum(recv_counts)))
 
     return GathervCache{T}(recv_buffer, recv_counts, displs)
@@ -158,7 +159,7 @@ end
 
 function _build_gatherv_counts(datum::Datum, worker_caches::Vector{OutputWorkerCache{N}}) where {N}
     recv_counts = Cint[mesh_count(datum, wc.mesh) for wc in worker_caches]
-    displs = Cint[0; cumsum(recv_counts)[1:(end-1)]]
+    displs = Cint[0; cumsum(recv_counts)[1:(end - 1)]]
     return recv_counts, displs
 end
 
@@ -178,9 +179,9 @@ function create_hdf5!(handler::DataHandler{N}, gm_dims::NTuple{N,Int}) where {N}
                     grp,
                     name,
                     datum.entrytype,
-                    HDF5.dataspace(dims; max_dims=maxdims);
-                    chunk=chunk,
-                    dxpl_mpio=:collective,
+                    HDF5.dataspace(dims; max_dims = maxdims);
+                    chunk = chunk,
+                    dxpl_mpio = :collective,
                 )
             end
         end
@@ -267,7 +268,7 @@ function scatter_to_tile!(
     handler::DataHandler{N},
 ) where {N}
     src_starts =
-        [0; cumsum([mesh_count(datum, wc.mesh) for wc in worker_caches(handler)])[1:(end-1)]]
+        [0; cumsum([mesh_count(datum, wc.mesh) for wc in worker_caches(handler)])[1:(end - 1)]]
 
     for (wc, wc_offset, src_start) in
         zip(worker_caches(handler), lm_om_offsets(handler), src_starts)
@@ -285,8 +286,8 @@ function _scatter_worker_chunk!(
     dims::NTuple{N,Int},
 ) where {N}
     n = prod(dims)
-    ranges = ntuple(i -> (wc_offset[i]+1):(wc_offset[i]+dims[i]), N)
-    return tbuf[ranges...] .= reshape(recv_buffer[(src_start+1):(src_start+n)], dims)
+    ranges = ntuple(i -> (wc_offset[i] + 1):(wc_offset[i] + dims[i]), N)
+    return tbuf[ranges...] .= reshape(recv_buffer[(src_start + 1):(src_start + n)], dims)
 end
 
 function write_tile!(dset, tbuf::Array, step::Int, handler::DataHandler{N}) where {N}
@@ -296,5 +297,5 @@ end
 
 function _hyperslab_ranges(cache::OutputCache{N}, count::NTuple{N,Int}) where {N}
     offset = cache.om_gm_offsets
-    return ntuple(j -> (offset[j]+1):(offset[j]+count[j]), N)
+    return ntuple(j -> (offset[j] + 1):(offset[j] + count[j]), N)
 end

@@ -39,11 +39,13 @@ include("../../src/CubicalCode/UniformMesh3D.jl")
 end
 
 @testset "Rectangular Prism" begin
-    nx_ = 2; ny_ = 5; nz_ = 6;
+    nx_ = 2
+    ny_ = 5
+    nz_ = 6
     s = UniformCubicalComplex3D(nx_, ny_, nz_, 10.0, 40.0, 50.0)
 
     @test nv(s) == 60
-    
+
     @test nxe(s) == 1
     @test nye(s) == 4
     @test nze(s) == 5
@@ -51,7 +53,7 @@ end
     @test nxedges(s) == 30
     @test nyedges(s) == 48
     @test nzedges(s) == 50
-    
+
     @test ne(s) == 128
 
     @test dx(s) == dy(s) == dz(s) == 10.0
@@ -70,7 +72,7 @@ end
 
 @testset "Rectangular Prism with Halo" begin
     # Using a different constructor signature
-    s = UniformCubicalComplex3D(2, 5, 6, 10.0, 40.0, 50.0; halo_x=1, halo_y=1, halo_z=1)
+    s = UniformCubicalComplex3D(2, 5, 6, 10.0, 40.0, 50.0; halo_x = 1, halo_y = 1, halo_z = 1)
 
     # Halo tests
     @test hx(s) == 1 && hy(s) == 1 && hz(s) == 1
@@ -153,25 +155,23 @@ end
     # Halo padding adds +2 to each dimension: 
     # Total sizes: nx=4, ny=7, nz=8
     # Boid dimensions: nxb=3, nyb=6, nzb=7
-    s = UniformCubicalComplex3D(2, 5, 6, 10.0, 40.0, 50.0; halo_x=1, halo_y=1, halo_z=1)
+    s = UniformCubicalComplex3D(2, 5, 6, 10.0, 40.0, 50.0; halo_x = 1, halo_y = 1, halo_z = 1)
 
     # --- Vertices (Total: 4 * 7 * 8 = 224) ---
     @test vert_to_coord(s, 1) == (1, 1, 1)
     @test vert_to_coord(s, nv(s)) == (4, 7, 8)
-    
+
     # Check intermediate index for (2, 3, 4)
     # index = (4 - 1) * (4 * 7) + (3 - 1) * 4 + 2 = 84 + 8 + 2 = 94
     @test vert_to_coord(s, 94) == (2, 3, 4)
 
-
     # --- Boids (Total: 3 * 6 * 7 = 126) ---
     @test boid_to_coord(s, 1) == (1, 1, 1)
     @test boid_to_coord(s, nboids(s)) == (3, 6, 7)
-    
+
     # Check intermediate index for (2, 3, 4)
     # index = (4 - 1) * (3 * 6) + (3 - 1) * 3 + 2 = 54 + 6 + 2 = 62
     @test boid_to_coord(s, 62) == (2, 3, 4)
-
 
     # --- Edges (Total: 168 X-edges, 192 Y-edges, 196 Z-edges = 556) ---
     # 1. X-aligned (Grid: nxe=3, ny=7, nz=8. Total: 168)
@@ -179,7 +179,7 @@ end
     # Intermediate index for (2, 3, 4): (4-1)*(3*7) + (3-1)*3 + 2 = 63 + 6 + 2 = 71
     @test edge_to_coord(s, 71) == (2, 3, 4, X_ALIGN)
     @test edge_to_coord(s, 168) == (3, 7, 8, X_ALIGN)
-    
+
     # 2. Y-aligned (Grid: nx=4, nye=6, nz=8. Total: 192. Starts at 169)
     @test edge_to_coord(s, 169) == (1, 1, 1, Y_ALIGN)
     # Intermediate index for (2, 3, 4): 168 + [(4-1)*(4*6) + (3-1)*4 + 2] = 168 + 82 = 250
@@ -191,7 +191,6 @@ end
     # Intermediate index for (2, 3, 4): 360 + [(4-1)*(4*7) + (3-1)*4 + 2] = 360 + 94 = 454
     @test edge_to_coord(s, 454) == (2, 3, 4, Z_ALIGN)
     @test edge_to_coord(s, ne(s)) == (4, 7, 7, Z_ALIGN)
-
 
     # --- Quads (Total: 144 Z-quads, 147 Y-quads, 168 X-quads = 459) ---
     # 1. Z-aligned (Grid: nxb=3, nyb=6, nz=8. Total: 144)
@@ -243,22 +242,22 @@ end
     s2 = UniformCubicalComplex3D(3, 4, 5, 1.0, 1.0, 1.0)
 
     # Z_ALIGN
-    @test quad_to_coord(s2, 1)             == (1, 1, 1, Z_ALIGN)
-    @test quad_to_coord(s2, nxyquads(s2))  == (nxb(s2), nyb(s2), nz(s2), Z_ALIGN)
+    @test quad_to_coord(s2, 1) == (1, 1, 1, Z_ALIGN)
+    @test quad_to_coord(s2, nxyquads(s2)) == (nxb(s2), nyb(s2), nz(s2), Z_ALIGN)
     @test quad_to_coord(s2, coord_to_quad(s2, 2, 3, 4, Z_ALIGN)) == (2, 3, 4, Z_ALIGN)
 
     # Y_ALIGN
-    @test quad_to_coord(s2, nxyquads(s2) + 1)              == (1, 1, 1, Y_ALIGN)
-    @test quad_to_coord(s2, nxyquads(s2) + nxzquads(s2))   == (nxb(s2), ny(s2), nzb(s2), Y_ALIGN)
+    @test quad_to_coord(s2, nxyquads(s2) + 1) == (1, 1, 1, Y_ALIGN)
+    @test quad_to_coord(s2, nxyquads(s2) + nxzquads(s2)) == (nxb(s2), ny(s2), nzb(s2), Y_ALIGN)
     @test quad_to_coord(s2, coord_to_quad(s2, 2, 3, 4, Y_ALIGN)) == (2, 3, 4, Y_ALIGN)
 
     # X_ALIGN
-    @test quad_to_coord(s2, nxyquads(s2) + nxzquads(s2) + 1)        == (1, 1, 1, X_ALIGN)
-    @test quad_to_coord(s2, nquads(s2))                               == (nx(s2), nyb(s2), nzb(s2), X_ALIGN)
-    @test quad_to_coord(s2, coord_to_quad(s2, 2, 3, 4, X_ALIGN))     == (2, 3, 4, X_ALIGN)
-    @test quad_to_coord(s2, coord_to_quad(s2, 3, 1, 1, X_ALIGN))     == (3, 1, 1, X_ALIGN)
-    @test quad_to_coord(s2, coord_to_quad(s2, 1, 3, 1, X_ALIGN))     == (1, 3, 1, X_ALIGN)
-    @test quad_to_coord(s2, coord_to_quad(s2, 1, 1, 4, X_ALIGN))     == (1, 1, 4, X_ALIGN)
+    @test quad_to_coord(s2, nxyquads(s2) + nxzquads(s2) + 1) == (1, 1, 1, X_ALIGN)
+    @test quad_to_coord(s2, nquads(s2)) == (nx(s2), nyb(s2), nzb(s2), X_ALIGN)
+    @test quad_to_coord(s2, coord_to_quad(s2, 2, 3, 4, X_ALIGN)) == (2, 3, 4, X_ALIGN)
+    @test quad_to_coord(s2, coord_to_quad(s2, 3, 1, 1, X_ALIGN)) == (3, 1, 1, X_ALIGN)
+    @test quad_to_coord(s2, coord_to_quad(s2, 1, 3, 1, X_ALIGN)) == (1, 3, 1, X_ALIGN)
+    @test quad_to_coord(s2, coord_to_quad(s2, 1, 1, 4, X_ALIGN)) == (1, 1, 4, X_ALIGN)
 
     q_x1 = coord_to_quad(s2, 1, 1, 1, X_ALIGN)
     q_x2 = coord_to_quad(s2, 2, 1, 1, X_ALIGN)
@@ -285,7 +284,7 @@ end
     end
 
     # --- Halo mesh: ensures strides hold with halo padding ---
-    s3 = UniformCubicalComplex3D(3, 4, 5, 1.0, 1.0, 1.0; halo_x=1, halo_y=1, halo_z=1)
+    s3 = UniformCubicalComplex3D(3, 4, 5, 1.0, 1.0, 1.0; halo_x = 1, halo_y = 1, halo_z = 1)
 
     for z in 1:nzb(s3), y in 1:nyb(s3), x in 1:nx(s3)
         idx = coord_to_quad(s3, x, y, z, X_ALIGN)
@@ -374,10 +373,10 @@ end
     # Z-aligned (XY plane) = 2.5 * 5.0 = 12.5
     @test quad_area(s, Z_ALIGN) == 12.5
     @test quad_area(s, Z_ALIGN) == 12.5
-    
+
     # Y-aligned (XZ plane) = 2.5 * 10.0 = 25.0
     @test quad_area(s, Y_ALIGN) == 25.0
-    
+
     # X-aligned (YZ plane) = 5.0 * 10.0 = 50.0
     @test quad_area(s, X_ALIGN) == 50.0
 
@@ -435,9 +434,8 @@ end
     @test dual_boid_volume(s, 1, 1, 1) == 750.0
     @test dual_boid_volume(s, nx(s), ny(s), nz(s)) == 750.0
 
-
     # --- Dual Quad Areas ---
-    
+
     # X-Aligned Edge (Dual quad in YZ plane, Full area = 20 * 30 = 600)
     # Note: Edge's 'x' coordinate doesn't affect YZ area
     @test dual_quad_area(s, 2, 2, 2, X_ALIGN) == 600.0 # Interior
@@ -472,7 +470,6 @@ end
     # Boundary (top): z=3 (No higher boid)
     @test quad_boids(s, 1, 1, 3, Z_ALIGN) == ((5, 0), (true, false))
 
-
     # --- Y-Aligned (XZ) Quads ---
     # Interior: y=2 (Higher boid index 3, Lower boid index 1)
     @test quad_boids(s, 1, 2, 1, Y_ALIGN) == ((1, 3), (true, true))
@@ -482,7 +479,6 @@ end
 
     # Boundary (front): y=3 (No higher boid)
     @test quad_boids(s, 1, 3, 1, Y_ALIGN) == ((3, 0), (true, false))
-
 
     # --- X-Aligned (YZ) Quads ---
     # Interior: x=2 (Higher boid index 2, Lower boid index 1)
@@ -510,7 +506,7 @@ end
 @testset "Edge to Incident Boids" begin
     # Small mesh for index testing
     s = UniformCubicalComplex3D(3, 3, 3, 1.0, 1.0, 1.0)
-    
+
     idx, valid = edge_boids(s, 2, 2, 2, Z_ALIGN)
     @test valid == (true, true, true, true)
     @test idx[1] == coord_to_boid(s, 1, 1, 2)
@@ -533,11 +529,11 @@ end
     @test idx[4] == coord_to_boid(s, 1, 2, 1)
 end
 
-
 # TODO: Check this code to make sure it is working as intended
 @testset "Vertex to Incident Edges (Explicit Indices)" begin
     s = UniformCubicalComplex3D(3, 3, 3, 10.0, 10.0, 10.0)
-    @test vertex_edges(s, 2, 2, 2) == ((41, 50, 26, 29, 9, 10), (true, true, true, true, true, true))
+    @test vertex_edges(s, 2, 2, 2) ==
+          ((41, 50, 26, 29, 9, 10), (true, true, true, true, true, true))
 end
 
 @testset "Primal Boundary Extraction" begin
@@ -570,12 +566,12 @@ end
     north_q_expected = [4]
     down_q_expected = [1]
     up_q_expected = [2]
-    
-    east_q, west_q= primal_boundary_quads(s, EASTWEST)
+
+    east_q, west_q = primal_boundary_quads(s, EASTWEST)
     @test west_q == west_q_expected
     @test east_q == east_q_expected
 
-    north_q, south_q= primal_boundary_quads(s, NORTHSOUTH)
+    north_q, south_q = primal_boundary_quads(s, NORTHSOUTH)
     @test south_q == south_q_expected
     @test north_q == north_q_expected
 
@@ -600,8 +596,7 @@ end
 end
 
 @testset "Ghost Boid Extraction" begin
-
-    s = UniformCubicalComplex3D(3, 4, 5, 1.0, 1.0, 1.0; halo_x=1, halo_y=1, halo_z=1)
+    s = UniformCubicalComplex3D(3, 4, 5, 1.0, 1.0, 1.0; halo_x = 1, halo_y = 1, halo_z = 1)
 
     function check_ghost_boids(s, side, role, expected_coords)
         indices = ghost_boids(s, side, role)
@@ -610,54 +605,47 @@ end
     end
 
     @testset "UPDOWN" begin
-        check_ghost_boids(s, UPDOWN, :recv_low,
-            [(x, y, 1) for y in 1:nyb(s), x in 1:nxb(s)])
+        check_ghost_boids(s, UPDOWN, :recv_low, [(x, y, 1) for y in 1:nyb(s), x in 1:nxb(s)])
 
-        check_ghost_boids(s, UPDOWN, :send_low,
-            [(x, y, 2) for y in 1:nyb(s), x in 1:nxb(s)])
+        check_ghost_boids(s, UPDOWN, :send_low, [(x, y, 2) for y in 1:nyb(s), x in 1:nxb(s)])
 
-        check_ghost_boids(s, UPDOWN, :send_high,
-            [(x, y, 5) for y in 1:nyb(s), x in 1:nxb(s)])
+        check_ghost_boids(s, UPDOWN, :send_high, [(x, y, 5) for y in 1:nyb(s), x in 1:nxb(s)])
 
-        check_ghost_boids(s, UPDOWN, :recv_high,
-            [(x, y, 6) for y in 1:nyb(s), x in 1:nxb(s)])
+        check_ghost_boids(s, UPDOWN, :recv_high, [(x, y, 6) for y in 1:nyb(s), x in 1:nxb(s)])
 
-        @test length(ghost_boids(s, UPDOWN, :send_low))  == length(ghost_boids(s, UPDOWN, :recv_low))
-        @test length(ghost_boids(s, UPDOWN, :send_high)) == length(ghost_boids(s, UPDOWN, :recv_high))
+        @test length(ghost_boids(s, UPDOWN, :send_low)) == length(ghost_boids(s, UPDOWN, :recv_low))
+        @test length(ghost_boids(s, UPDOWN, :send_high)) ==
+              length(ghost_boids(s, UPDOWN, :recv_high))
     end
 
     @testset "NORTHSOUTH" begin
-        check_ghost_boids(s, NORTHSOUTH, :recv_low,
-            [(x, 1, z) for z in 1:nzb(s), x in 1:nxb(s)])
+        check_ghost_boids(s, NORTHSOUTH, :recv_low, [(x, 1, z) for z in 1:nzb(s), x in 1:nxb(s)])
 
-        check_ghost_boids(s, NORTHSOUTH, :send_low,
-            [(x, 2, z) for z in 1:nzb(s), x in 1:nxb(s)])
+        check_ghost_boids(s, NORTHSOUTH, :send_low, [(x, 2, z) for z in 1:nzb(s), x in 1:nxb(s)])
 
-        check_ghost_boids(s, NORTHSOUTH, :send_high,
-            [(x, 4, z) for z in 1:nzb(s), x in 1:nxb(s)])
+        check_ghost_boids(s, NORTHSOUTH, :send_high, [(x, 4, z) for z in 1:nzb(s), x in 1:nxb(s)])
 
-        check_ghost_boids(s, NORTHSOUTH, :recv_high,
-            [(x, 5, z) for z in 1:nzb(s), x in 1:nxb(s)])
+        check_ghost_boids(s, NORTHSOUTH, :recv_high, [(x, 5, z) for z in 1:nzb(s), x in 1:nxb(s)])
 
-        @test length(ghost_boids(s, NORTHSOUTH, :recv_low))  == length(ghost_boids(s, NORTHSOUTH, :send_low))
-        @test length(ghost_boids(s, NORTHSOUTH, :send_high)) == length(ghost_boids(s, NORTHSOUTH, :recv_high))
+        @test length(ghost_boids(s, NORTHSOUTH, :recv_low)) ==
+              length(ghost_boids(s, NORTHSOUTH, :send_low))
+        @test length(ghost_boids(s, NORTHSOUTH, :send_high)) ==
+              length(ghost_boids(s, NORTHSOUTH, :recv_high))
     end
 
     @testset "EASTWEST" begin
-        check_ghost_boids(s, EASTWEST, :recv_low,
-            [(1, y, z) for z in 1:nzb(s), y in 1:nyb(s)])
+        check_ghost_boids(s, EASTWEST, :recv_low, [(1, y, z) for z in 1:nzb(s), y in 1:nyb(s)])
 
-        check_ghost_boids(s, EASTWEST, :send_low,
-            [(2, y, z) for z in 1:nzb(s), y in 1:nyb(s)])
+        check_ghost_boids(s, EASTWEST, :send_low, [(2, y, z) for z in 1:nzb(s), y in 1:nyb(s)])
 
-        check_ghost_boids(s, EASTWEST, :send_high,
-            [(3, y, z) for z in 1:nzb(s), y in 1:nyb(s)])
+        check_ghost_boids(s, EASTWEST, :send_high, [(3, y, z) for z in 1:nzb(s), y in 1:nyb(s)])
 
-        check_ghost_boids(s, EASTWEST, :recv_high,
-            [(4, y, z) for z in 1:nzb(s), y in 1:nyb(s)])
+        check_ghost_boids(s, EASTWEST, :recv_high, [(4, y, z) for z in 1:nzb(s), y in 1:nyb(s)])
 
-        @test length(ghost_boids(s, EASTWEST, :recv_low))  == length(ghost_boids(s, EASTWEST, :send_low))
-        @test length(ghost_boids(s, EASTWEST, :send_high)) == length(ghost_boids(s, EASTWEST, :recv_high))
+        @test length(ghost_boids(s, EASTWEST, :recv_low)) ==
+              length(ghost_boids(s, EASTWEST, :send_low))
+        @test length(ghost_boids(s, EASTWEST, :send_high)) ==
+              length(ghost_boids(s, EASTWEST, :recv_high))
     end
 
     @testset "No overlap between roles" begin
@@ -677,9 +665,9 @@ end
     @testset "Send regions within valid boid range" begin
         all_boids = Set(1:nboids(s))
         for side in (UPDOWN, NORTHSOUTH, EASTWEST)
-            @test issubset(Set(ghost_boids(s, side, :send_low)),  all_boids)
+            @test issubset(Set(ghost_boids(s, side, :send_low)), all_boids)
             @test issubset(Set(ghost_boids(s, side, :send_high)), all_boids)
-            @test issubset(Set(ghost_boids(s, side, :recv_low)),  all_boids)
+            @test issubset(Set(ghost_boids(s, side, :recv_low)), all_boids)
             @test issubset(Set(ghost_boids(s, side, :recv_high)), all_boids)
         end
     end
@@ -694,7 +682,7 @@ end
     end
 
     @testset "Halo depth 2" begin
-        s2 = UniformCubicalComplex3D(4, 4, 4, 1.0, 1.0, 1.0; halo_x=2, halo_y=2, halo_z=2)
+        s2 = UniformCubicalComplex3D(4, 4, 4, 1.0, 1.0, 1.0; halo_x = 2, halo_y = 2, halo_z = 2)
 
         rl = ghost_boids(s2, UPDOWN, :recv_low)
         sl = ghost_boids(s2, UPDOWN, :send_low)
@@ -706,23 +694,88 @@ end
         @test length(sh) == nxb(s2) * nyb(s2) * 2
         @test length(rh) == nxb(s2) * nyb(s2) * 2
 
-        check_ghost_boids(s2, UPDOWN, :recv_low,
-            [(x, y, z) for z in 1:2, y in 1:nyb(s2), x in 1:nxb(s2)])
+        check_ghost_boids(
+            s2,
+            UPDOWN,
+            :recv_low,
+            [(x, y, z) for z in 1:2, y in 1:nyb(s2), x in 1:nxb(s2)],
+        )
 
-        check_ghost_boids(s2, UPDOWN, :send_low,
-            [(x, y, z) for z in 3:4, y in 1:nyb(s2), x in 1:nxb(s2)])
+        check_ghost_boids(
+            s2,
+            UPDOWN,
+            :send_low,
+            [(x, y, z) for z in 3:4, y in 1:nyb(s2), x in 1:nxb(s2)],
+        )
     end
 
     @testset "Unknown role errors" begin
         @test_throws ErrorException ghost_boids(s, UPDOWN, :bad_role)
     end
+end
+
+@testset "interior" begin
+    nx_r, ny_r, nz_r = 3, 3, 3
+    h = 1
+    s = UniformCubicalComplex3D(nx_r, ny_r, nz_r, 1.0, 1.0, 1.0; halo_x = h, halo_y = h, halo_z = h)
+
+    function real_sentinel(allocator, indexer, real_ranges, halo_check)
+        f = zeros(Float64, allocator(s))
+        for idx in real_ranges(s)
+            f[indexer(s, idx...)] = 1.0
+        end
+        return f
+    end
+
+    @testset "Boids" begin
+        # Size checks
+        @test nboids(s) == (nx_r + 2h - 1) * (ny_r + 2h - 1) * (nz_r + 2h - 1)
+        @test nxbr(s) == nx_r - 1
+        @test nybr(s) == ny_r - 1
+        @test nzbr(s) == nz_r - 1
+
+        # Allocate: real boids = 1, halo = 0
+        u = zeros(Float64, nboids(s))
+        for rz in 1:nzbr(s), ry in 1:nybr(s), rx in 1:nxbr(s)
+            u[coord_to_boid(s, rx + hx(s), ry + hy(s), rz + hz(s))] = 1.0
+        end
+
+        result = interior(Val(3), u, s)
+
+        @test length(result) == nxbr(s) * nybr(s) * nzbr(s)  # 8, not 27 or 125
+        @test all(result .== 1.0)   # only real boids extracted
+        @test !any(result .== 0.0)  # no halo leaked in
+    end
+
+    # ── Val(2): primal 2-forms (quads) ────────────────────────────────────────
+    # TODO: three quad families in 3D (XY, XZ, YZ) — interior should strip
+    # halo quads from each family separately and return the concatenation.
+    # Expected real counts per family:
+    #   XY (z-aligned): nxq(s) * nyq(s) * nzr(s)  →  2 * 2 * 3 = 12
+    #   XZ (y-aligned): nxq(s) * nyr(s) * nzq(s)  →  2 * 3 * 2 = 12
+    #   YZ (x-aligned): nxr(s) * nyq(s) * nzq(s)  →  3 * 2 * 2 = 12
+    # Total: 36
+    # @testset "Val(2) quads" begin ... end
+
+    # ── Val(1): primal 1-forms (edges) ────────────────────────────────────────
+    # TODO: three edge families (X, Y, Z) — interior strips halo edges from each.
+    # Expected real counts per family:
+    #   X-edges: nxe(s) * nyr(s) * nzr(s)  →  2 * 3 * 3 = 18
+    #   Y-edges: nxr(s) * nye(s) * nzr(s)  →  3 * 2 * 3 = 18
+    #   Z-edges: nxr(s) * nyr(s) * nze(s)  →  3 * 3 * 2 = 18
+    # Total: 54
+    # @testset "Val(1) edges" begin ... end
+
+    # ── Val(0): primal 0-forms (vertices) ─────────────────────────────────────
+    # TODO: single family — interior strips halo vertices.
+    # Expected real count: nxr(s) * nyr(s) * nzr(s)  →  3 * 3 * 3 = 27
+    # @testset "Val(0) vertices" begin ... end
 
 end
 
 @testset "PseudoCubicalMesh3D Element Counting" begin
-
-    s    = PseudoCubicalMesh3D(10, 8, 6)
-    s_h  = PseudoCubicalMesh3D(10, 8, 6; halo_x=2, halo_y=3, halo_z=1)
+    s = PseudoCubicalMesh3D(10, 8, 6)
+    s_h = PseudoCubicalMesh3D(10, 8, 6; halo_x = 2, halo_y = 3, halo_z = 1)
 
     # ── Real counts ───────────────────────────────────────────────────────────
     @test nxr(s) == 10
@@ -733,52 +786,52 @@ end
     @test nzr(s_h) == 6
 
     # ── Halo accessors ────────────────────────────────────────────────────────
-    @test hx(s)   == 0
-    @test hy(s)   == 0
-    @test hz(s)   == 0
+    @test hx(s) == 0
+    @test hy(s) == 0
+    @test hz(s) == 0
     @test hx(s_h) == 2
     @test hy(s_h) == 3
     @test hz(s_h) == 1
 
     # ── Total (halo-inclusive) counts ─────────────────────────────────────────
-    @test nx(s)   == 10
-    @test ny(s)   == 8
-    @test nz(s)   == 6
+    @test nx(s) == 10
+    @test ny(s) == 8
+    @test nz(s) == 6
     @test nx(s_h) == 14
     @test ny(s_h) == 14
     @test nz(s_h) == 8
 
     # ── Vertex counts ─────────────────────────────────────────────────────────
-    @test nv(s)    == 10 * 8 * 6
-    @test nvr(s)   == 10 * 8 * 6
-    @test nv(s_h)  == 14 * 14 * 8
+    @test nv(s) == 10 * 8 * 6
+    @test nvr(s) == 10 * 8 * 6
+    @test nv(s_h) == 14 * 14 * 8
     @test nvr(s_h) == 10 * 8 * 6
 
     # ── Edge counts ───────────────────────────────────────────────────────────
     @test nxedges(s) == 9 * 8 * 6
     @test nyedges(s) == 10 * 7 * 6
     @test nzedges(s) == 10 * 8 * 5
-    @test ne(s)      == nxedges(s) + nyedges(s) + nzedges(s)
+    @test ne(s) == nxedges(s) + nyedges(s) + nzedges(s)
 
     @test nxedges(s_h) == 13 * 14 * 8
     @test nyedges(s_h) == 14 * 13 * 8
     @test nzedges(s_h) == 14 * 14 * 7
-    @test ne(s_h)      == nxedges(s_h) + nyedges(s_h) + nzedges(s_h)
+    @test ne(s_h) == nxedges(s_h) + nyedges(s_h) + nzedges(s_h)
 
     # ── Quad counts ───────────────────────────────────────────────────────────
     @test nxyquads(s) == 9 * 7 * 6
     @test nxzquads(s) == 9 * 8 * 5
     @test nyzquads(s) == 10 * 7 * 5
-    @test nquads(s)   == nxyquads(s) + nxzquads(s) + nyzquads(s)
+    @test nquads(s) == nxyquads(s) + nxzquads(s) + nyzquads(s)
 
     @test nxyquads(s_h) == 13 * 13 * 8
     @test nxzquads(s_h) == 13 * 14 * 7
     @test nyzquads(s_h) == 14 * 13 * 7
-    @test nquads(s_h)   == nxyquads(s_h) + nxzquads(s_h) + nyzquads(s_h)
+    @test nquads(s_h) == nxyquads(s_h) + nxzquads(s_h) + nyzquads(s_h)
 
     # ── Boid counts ───────────────────────────────────────────────────────────
-    @test nboids(s)   == 9 * 7 * 5
-    @test nboidsr(s)  == 9 * 7 * 5
+    @test nboids(s) == 9 * 7 * 5
+    @test nboidsr(s) == 9 * 7 * 5
     @test nboids(s_h) == 13 * 13 * 7
     @test nboidsr(s_h) == 9 * 7 * 5
 
@@ -798,9 +851,9 @@ end
     @test coord_to_quad(s, 1, 1, 1, X_ALIGN) == nxyquads(s) + nxzquads(s) + 1
 
     # ── Halo flags ────────────────────────────────────────────────────────────
-    @test valid_boid(s_h, 1, 1, 1)   == true
+    @test valid_boid(s_h, 1, 1, 1) == true
     @test valid_boid(s_h, 13, 13, 7) == true
-    @test valid_boid(s_h, 14, 1, 1)  == false
-    @test valid_boid(s_h, 1, 14, 1)  == false
-    @test valid_boid(s_h, 1, 1, 8)   == false
+    @test valid_boid(s_h, 14, 1, 1) == false
+    @test valid_boid(s_h, 1, 14, 1) == false
+    @test valid_boid(s_h, 1, 1, 8) == false
 end

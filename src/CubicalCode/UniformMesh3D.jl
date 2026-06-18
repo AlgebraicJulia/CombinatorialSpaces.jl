@@ -2,7 +2,7 @@ using GeometryBasics
 
 abstract type AbstractCubicalComplex3D <: AbstractCubicalComplex end
 
-abstract type AbstractEmbeddedCubicalComplex3D{FT <: AbstractFloat} <: AbstractCubicalComplex3D end
+abstract type AbstractEmbeddedCubicalComplex3D{FT<:AbstractFloat} <: AbstractCubicalComplex3D end
 
 struct UniformCubicalComplex3D{FT} <: AbstractEmbeddedCubicalComplex3D{FT}
     nx::Int
@@ -22,19 +22,57 @@ struct UniformCubicalComplex3D{FT} <: AbstractEmbeddedCubicalComplex3D{FT}
     base_z::FT
 end
 
+function UniformCubicalComplex(
+    nx::Int,
+    ny::Int,
+    nz::Int,
+    lx::Real,
+    ly::Real,
+    lz::Real;
+    halo_x::Int = 0,
+    halo_y::Int = 0,
+    halo_z::Int = 0,
+    base_x::Real = 0.0,
+    base_y::Real = 0.0,
+    base_z::Real = 0.0,
+)
+    return UniformCubicalComplex3D(
+        nx,
+        ny,
+        nz,
+        lx,
+        ly,
+        lz;
+        halo_x = halo_x,
+        halo_y = halo_y,
+        halo_z = halo_z,
+        base_x = base_x,
+        base_y = base_y,
+        base_z = base_z,
+    )
+end
+
 struct PseudoCubicalMesh3D <: AbstractCubicalComplex3D
     nx::Int
     ny::Int
     nz::Int
-  
+
     halo_x::Int
     halo_y::Int
     halo_z::Int
-  end
-  
-PseudoCubicalMesh3D(nx::Int, ny::Int, nz::Int; 
-    halo_x::Int = 0, halo_y::Int = 0, halo_z::Int = 0) = PseudoCubicalMesh3D(nx, ny, nz, halo_x, halo_y, halo_z)
-    
+end
+
+function PseudoCubicalMesh3D(
+    nx::Int,
+    ny::Int,
+    nz::Int;
+    halo_x::Int = 0,
+    halo_y::Int = 0,
+    halo_z::Int = 0,
+)
+    return PseudoCubicalMesh3D(nx, ny, nz, halo_x, halo_y, halo_z)
+end
+
 PseudoCubicalMesh(nx::Int, ny::Int, nz::Int) = PseudoCubicalMesh3D(nx, ny, nz)
 
 base_x(s::UniformCubicalComplex3D) = s.base_x
@@ -132,34 +170,65 @@ edges(s::AbstractCubicalComplex3D) = 1:ne(s)
 quads(s::AbstractCubicalComplex3D) = 1:nquads(s)
 boids(s::AbstractCubicalComplex3D) = 1:nboids(s)
 
-valid_xedge(s::AbstractCubicalComplex3D, x, y, z) = (1 <= x <= nxe(s)) && (1 <= y <= ny(s)) && (1 <= z <= nz(s))
-valid_yedge(s::AbstractCubicalComplex3D, x, y, z) = (1 <= x <= nx(s)) && (1 <= y <= nye(s)) && (1 <= z <= nz(s))
-valid_zedge(s::AbstractCubicalComplex3D, x, y, z) = (1 <= x <= nx(s)) && (1 <= y <= ny(s)) && (1 <= z <= nze(s))
+function valid_xedge(s::AbstractCubicalComplex3D, x, y, z)
+    return (1 <= x <= nxe(s)) && (1 <= y <= ny(s)) && (1 <= z <= nz(s))
+end
+function valid_yedge(s::AbstractCubicalComplex3D, x, y, z)
+    return (1 <= x <= nx(s)) && (1 <= y <= nye(s)) && (1 <= z <= nz(s))
+end
+function valid_zedge(s::AbstractCubicalComplex3D, x, y, z)
+    return (1 <= x <= nx(s)) && (1 <= y <= ny(s)) && (1 <= z <= nze(s))
+end
 
-valid_xyquad(s::AbstractCubicalComplex3D, x, y, z) = (1 <= x <= nxq(s)) && (1 <= y <= nyq(s)) && (1 <= z <= nz(s))
-valid_xzquad(s::AbstractCubicalComplex3D, x, y, z) = (1 <= x <= nxq(s)) && (1 <= y <= ny(s)) && (1 <= z <= nzq(s))
-valid_yzquad(s::AbstractCubicalComplex3D, x, y, z) = (1 <= x <= nx(s)) && (1 <= y <= nyq(s)) && (1 <= z <= nzq(s))
+function valid_xyquad(s::AbstractCubicalComplex3D, x, y, z)
+    return (1 <= x <= nxq(s)) && (1 <= y <= nyq(s)) && (1 <= z <= nz(s))
+end
+function valid_xzquad(s::AbstractCubicalComplex3D, x, y, z)
+    return (1 <= x <= nxq(s)) && (1 <= y <= ny(s)) && (1 <= z <= nzq(s))
+end
+function valid_yzquad(s::AbstractCubicalComplex3D, x, y, z)
+    return (1 <= x <= nx(s)) && (1 <= y <= nyq(s)) && (1 <= z <= nzq(s))
+end
 
-valid_boid(s::AbstractCubicalComplex3D, x, y, z) = (1 <= x <= nxb(s)) && (1 <= y <= nyb(s)) && (1 <= z <= nzb(s))
+function valid_boid(s::AbstractCubicalComplex3D, x, y, z)
+    return (1 <= x <= nxb(s)) && (1 <= y <= nyb(s)) && (1 <= z <= nzb(s))
+end
 
 lx(s::UniformCubicalComplex3D) = nxe(s) * dx(s)
 ly(s::UniformCubicalComplex3D) = nye(s) * dy(s)
 lz(s::UniformCubicalComplex3D) = nze(s) * dz(s)
 
-function UniformCubicalComplex3D(nxr::Int, nyr::Int, nzr::Int,
-                                 lx::FT, ly::FT, lz::FT;
-                                 halo_x::Int=0, halo_y::Int=0, halo_z::Int=0,
-                                 base_x::FT=zero(FT), base_y::FT=zero(FT), base_z::FT=zero(FT)
-                                 ) where FT <: AbstractFloat
-
+function UniformCubicalComplex3D(
+    nxr::Int,
+    nyr::Int,
+    nzr::Int,
+    lx::FT,
+    ly::FT,
+    lz::FT;
+    halo_x::Int = 0,
+    halo_y::Int = 0,
+    halo_z::Int = 0,
+    base_x::FT = zero(FT),
+    base_y::FT = zero(FT),
+    base_z::FT = zero(FT),
+) where {FT<:AbstractFloat}
     dx = spacing(lx, nxr)
     dy = spacing(ly, nyr)
     dz = spacing(lz, nzr)
-    UniformCubicalComplex3D(
-    nxr, nyr, nzr,
-    dx, dy, dz,
-    halo_x, halo_y, halo_z,
-    base_x, base_y, base_z)
+    return UniformCubicalComplex3D(
+        nxr,
+        nyr,
+        nzr,
+        dx,
+        dy,
+        dz,
+        halo_x,
+        halo_y,
+        halo_z,
+        base_x,
+        base_y,
+        base_z,
+    )
 end
 
 function Base.show(io::IO, s::UniformCubicalComplex3D)
@@ -172,10 +241,12 @@ function Base.show(io::IO, s::UniformCubicalComplex3D)
     lx = (nxr(s) - 1) * dx(s)
     ly = (nyr(s) - 1) * dy(s)
     lz = (nzr(s) - 1) * dz(s)
-    println(io, "Physical domain: lx = $(lx), ly = $(ly), lz = $(lz)")
+    return println(io, "Physical domain: lx = $(lx), ly = $(ly), lz = $(lz)")
 end
 
-coord_to_vert(s::AbstractCubicalComplex3D, x::Int, y::Int, z::Int) = x + (y - 1) * nx(s) + (z - 1) * nx(s) * ny(s)
+function coord_to_vert(s::AbstractCubicalComplex3D, x::Int, y::Int, z::Int)
+    return x + (y - 1) * nx(s) + (z - 1) * nx(s) * ny(s)
+end
 
 # First x-aligned, then y-aligned, then z-aligned
 function coord_to_edge(s::AbstractCubicalComplex3D, x::Int, y::Int, z::Int, align::Align)
@@ -184,7 +255,7 @@ function coord_to_edge(s::AbstractCubicalComplex3D, x::Int, y::Int, z::Int, alig
     elseif align == Y_ALIGN
         return x + (y - 1) * nx(s) + (z - 1) * nx(s) * nye(s) + nxedges(s)
     else # align == Z_ALIGN
-        return  x + (y - 1) * nx(s) + (z - 1) * nx(s) * ny(s) + nxedges(s) + nyedges(s)
+        return x + (y - 1) * nx(s) + (z - 1) * nx(s) * ny(s) + nxedges(s) + nyedges(s)
     end
 end
 
@@ -198,7 +269,9 @@ function coord_to_quad(s::AbstractCubicalComplex3D, x::Int, y::Int, z::Int, alig
     end
 end
 
-coord_to_boid(s::AbstractCubicalComplex3D, x::Int, y::Int, z::Int) = x + (y - 1) * nxb(s) + (z - 1) * nxyb(s)
+function coord_to_boid(s::AbstractCubicalComplex3D, x::Int, y::Int, z::Int)
+    return x + (y - 1) * nxb(s) + (z - 1) * nxyb(s)
+end
 
 is_edge_X_aligned(e::Int, s::AbstractCubicalComplex3D) = e <= nxedges(s)
 is_edge_Y_aligned(e::Int, s::AbstractCubicalComplex3D) = nxedges(s) < e <= nxedges(s) + nyedges(s)
@@ -207,12 +280,12 @@ is_edge_Z_aligned(e::Int, s::AbstractCubicalComplex3D) = e > nxedges(s) + nyedge
 function vert_to_coord(s::UniformCubicalComplex3D, idx::Int)
     idx0 = idx - 1
     nxy = nx(s) * ny(s)
-    
+
     z = (idx0 ÷ nxy) + 1
     rem_z = idx0 % nxy
     y = (rem_z ÷ nx(s)) + 1
     x = (rem_z % nx(s)) + 1
-    
+
     return (x, y, z)
 end
 
@@ -222,35 +295,35 @@ function edge_to_coord(s::UniformCubicalComplex3D, idx::Int)
         idx0 = idx - 1
         nxe_val = nxe(s)
         nxy_e = nxe_val * ny(s)
-        
+
         z = (idx0 ÷ nxy_e) + 1
         rem_z = idx0 % nxy_e
         y = (rem_z ÷ nxe_val) + 1
         x = (rem_z % nxe_val) + 1
-        
+
     elseif idx <= nxedges(s) + nyedges(s)
         align = Y_ALIGN
         idx0 = idx - nxedges(s) - 1
         nxe_val = nx(s)
         nxy_e = nxe_val * nye(s)
-        
+
         z = (idx0 ÷ nxy_e) + 1
         rem_z = idx0 % nxy_e
         y = (rem_z ÷ nxe_val) + 1
         x = (rem_z % nxe_val) + 1
-        
+
     else
         align = Z_ALIGN
         idx0 = idx - nxedges(s) - nyedges(s) - 1
         nxe_val = nx(s)
         nxy_e = nxe_val * ny(s)
-        
+
         z = (idx0 ÷ nxy_e) + 1
         rem_z = idx0 % nxy_e
         y = (rem_z ÷ nxe_val) + 1
         x = (rem_z % nxe_val) + 1
     end
-    
+
     return (x, y, z, align)
 end
 
@@ -260,47 +333,47 @@ function quad_to_coord(s::UniformCubicalComplex3D, idx::Int)
         idx0 = idx - 1
         nx_q = nxb(s)
         nxy_q = nxb(s) * nyb(s)
-        
+
         z = (idx0 ÷ nxy_q) + 1
         rem_z = idx0 % nxy_q
         y = (rem_z ÷ nx_q) + 1
         x = (rem_z % nx_q) + 1
-        
+
     elseif idx <= nxyquads(s) + nxzquads(s)
         align = Y_ALIGN
         idx0 = idx - nxyquads(s) - 1
         nx_q = nxb(s)
         nxy_q = nxb(s) * ny(s)
-        
+
         z = (idx0 ÷ nxy_q) + 1
         rem_z = idx0 % nxy_q
         y = (rem_z ÷ nx_q) + 1
         x = (rem_z % nx_q) + 1
-        
+
     else
         align = X_ALIGN
         idx0 = idx - nxyquads(s) - nxzquads(s) - 1
         nx_q = nx(s)
         nxy_q = nx(s) * nyb(s)
-        
+
         z = (idx0 ÷ nxy_q) + 1
         rem_z = idx0 % nxy_q
         y = (rem_z ÷ nx_q) + 1
         x = (rem_z % nx_q) + 1
     end
-    
+
     return (x, y, z, align)
 end
 
 function boid_to_coord(s::UniformCubicalComplex3D, idx::Int)
     idx0 = idx - 1
     nxy_b = nxb(s) * nyb(s)
-    
+
     z = (idx0 ÷ nxy_b) + 1
     rem_z = idx0 % nxy_b
     y = (rem_z ÷ nxb(s)) + 1
     x = (rem_z % nxb(s)) + 1
-    
+
     return (x, y, z)
 end
 
@@ -312,7 +385,9 @@ function point(s::UniformCubicalComplex3D, x::Int, y::Int, z::Int)
 end
 point(s::UniformCubicalComplex3D, v::Int) = point(s, vert_to_coord(s, v)...)
 
-real_point(s::AbstractCubicalComplex3D, x::Int, y::Int, z::Int) = point(s, x + hx(s), y + hy(s), z + hz(s))
+function real_point(s::AbstractCubicalComplex3D, x::Int, y::Int, z::Int)
+    return point(s, x + hx(s), y + hy(s), z + hz(s))
+end
 
 points(s::AbstractCubicalComplex3D) = map(v -> point(s, v), vertices(s))
 
@@ -351,12 +426,20 @@ end
 edge_len(s::UniformCubicalComplex3D, x::Int, y::Int, z::Int, align::Align) = edge_len(s, align)
 
 xedges(s::AbstractCubicalComplex3D, arr::AbstractVector) = @view arr[1:nxedges(s)]
-yedges(s::AbstractCubicalComplex3D, arr::AbstractVector) = @view arr[nxedges(s)+1:nxedges(s)+nyedges(s)]
-zedges(s::AbstractCubicalComplex3D, arr::AbstractVector) = @view arr[nxedges(s)+nyedges(s)+1:end]
+function yedges(s::AbstractCubicalComplex3D, arr::AbstractVector)
+    @view arr[(nxedges(s) + 1):(nxedges(s) + nyedges(s))]
+end
+function zedges(s::AbstractCubicalComplex3D, arr::AbstractVector)
+    @view arr[(nxedges(s) + nyedges(s) + 1):end]
+end
 
 xyquads(s::AbstractCubicalComplex3D, arr::AbstractVector) = @view arr[1:nxyquads(s)]
-xzquads(s::AbstractCubicalComplex3D, arr::AbstractVector) = @view arr[nxyquads(s)+1:nxyquads(s)+nxzquads(s)]
-yzquads(s::AbstractCubicalComplex3D, arr::AbstractVector) = @view arr[nxyquads(s)+nxzquads(s)+1:end]
+function xzquads(s::AbstractCubicalComplex3D, arr::AbstractVector)
+    @view arr[(nxyquads(s) + 1):(nxyquads(s) + nxzquads(s))]
+end
+function yzquads(s::AbstractCubicalComplex3D, arr::AbstractVector)
+    @view arr[(nxyquads(s) + nxzquads(s) + 1):end]
+end
 
 # This returns the vertices counterclockwise
 # The ccw direction is determined by the perpendicular axis going from negative to positive
@@ -487,8 +570,9 @@ function real_dual_point(s::UniformCubicalComplex3D, rx::Int, ry::Int, rz::Int)
     return dual_point(s, rx + hx(s), ry + hy(s), rz + hz(s))
 end
 
-real_coord_to_boid(s::AbstractCubicalComplex3D, rx::Int, ry::Int, rz::Int) =
-    coord_to_boid(s, rx + hx(s), ry + hy(s), rz + hz(s))
+function real_coord_to_boid(s::AbstractCubicalComplex3D, rx::Int, ry::Int, rz::Int)
+    return coord_to_boid(s, rx + hx(s), ry + hy(s), rz + hz(s))
+end
 
 function dual_edge_length(s::UniformCubicalComplex3D, x::Int, y::Int, z::Int, align::Align)
     if align == Z_ALIGN
@@ -538,7 +622,7 @@ function dual_boid_volume(s::UniformCubicalComplex3D, x::Int, y::Int, z::Int)
     lx = (x == 1 || x == nx(s)) ? dx(s) / 2.0 : dx(s)
     ly = (y == 1 || y == ny(s)) ? dy(s) / 2.0 : dy(s)
     lz = (z == 1 || z == nz(s)) ? dz(s) / 2.0 : dz(s)
-    
+
     return lx * ly * lz
 end
 
@@ -555,18 +639,18 @@ Ordering rules:
 - Y-ALIGN (XZ-quad): South boid first, then north boid.
 - X-ALIGN (YZ-quad): West boid first, then east boid.
 """
-function quad_boids(s::UniformCubicalComplex3D, x::Int, y::Int, z::Int, align::Align)    
+function quad_boids(s::UniformCubicalComplex3D, x::Int, y::Int, z::Int, align::Align)
     if align == Z_ALIGN
         b_lower_valid = valid_boid(s, x, y, z - 1)
         b_higher_valid = valid_boid(s, x, y, z)
         b_lower = b_lower_valid ? coord_to_boid(s, x, y, z - 1) : 0
         b_higher = b_higher_valid ? coord_to_boid(s, x, y, z) : 0
-        
+
     elseif align == Y_ALIGN
         b_lower_valid = valid_boid(s, x, y - 1, z)
         b_higher_valid = valid_boid(s, x, y, z)
         b_lower = b_lower_valid ? coord_to_boid(s, x, y - 1, z) : 0
-        b_higher = b_higher_valid ? coord_to_boid(s, x, y, z) : 0  
+        b_higher = b_higher_valid ? coord_to_boid(s, x, y, z) : 0
 
     else # align == X_ALIGN
         b_lower_valid = valid_boid(s, x - 1, y, z)
@@ -597,44 +681,68 @@ Ordering rules:
 """
 function edge_quads(s::UniformCubicalComplex3D, x::Int, y::Int, z::Int, align::Align)
     if align == X_ALIGN
-        v1 = valid_xyquad(s, x, y - 1, z); q1 = v1 ? coord_to_quad(s, x, y - 1, z, Z_ALIGN) : 0
-        v2 = valid_xzquad(s, x, y, z - 1); q2 = v2 ? coord_to_quad(s, x, y, z - 1, Y_ALIGN) : 0
-        v3 = valid_xyquad(s, x, y, z);     q3 = v3 ? coord_to_quad(s, x, y, z, Z_ALIGN) : 0
-        v4 = valid_xzquad(s, x, y, z);     q4 = v4 ? coord_to_quad(s, x, y, z, Y_ALIGN) : 0
+        v1 = valid_xyquad(s, x, y - 1, z)
+        q1 = v1 ? coord_to_quad(s, x, y - 1, z, Z_ALIGN) : 0
+        v2 = valid_xzquad(s, x, y, z - 1)
+        q2 = v2 ? coord_to_quad(s, x, y, z - 1, Y_ALIGN) : 0
+        v3 = valid_xyquad(s, x, y, z)
+        q3 = v3 ? coord_to_quad(s, x, y, z, Z_ALIGN) : 0
+        v4 = valid_xzquad(s, x, y, z)
+        q4 = v4 ? coord_to_quad(s, x, y, z, Y_ALIGN) : 0
     elseif align == Y_ALIGN
-        v1 = valid_yzquad(s, x, y, z - 1); q1 = v1 ? coord_to_quad(s, x, y, z - 1, X_ALIGN) : 0
-        v2 = valid_xyquad(s, x - 1, y, z); q2 = v2 ? coord_to_quad(s, x - 1, y, z, Z_ALIGN) : 0
-        v3 = valid_yzquad(s, x, y, z);     q3 = v3 ? coord_to_quad(s, x, y, z, X_ALIGN) : 0
-        v4 = valid_xyquad(s, x, y, z);     q4 = v4 ? coord_to_quad(s, x, y, z, Z_ALIGN) : 0       
+        v1 = valid_yzquad(s, x, y, z - 1)
+        q1 = v1 ? coord_to_quad(s, x, y, z - 1, X_ALIGN) : 0
+        v2 = valid_xyquad(s, x - 1, y, z)
+        q2 = v2 ? coord_to_quad(s, x - 1, y, z, Z_ALIGN) : 0
+        v3 = valid_yzquad(s, x, y, z)
+        q3 = v3 ? coord_to_quad(s, x, y, z, X_ALIGN) : 0
+        v4 = valid_xyquad(s, x, y, z)
+        q4 = v4 ? coord_to_quad(s, x, y, z, Z_ALIGN) : 0
     else # align == Z_ALIGN
-        v1 = valid_xzquad(s, x - 1, y, z); q1 = v1 ? coord_to_quad(s, x - 1, y, z, Y_ALIGN) : 0
-        v2 = valid_yzquad(s, x, y - 1, z); q2 = v2 ? coord_to_quad(s, x, y - 1, z, X_ALIGN) : 0
-        v3 = valid_xzquad(s, x, y, z);     q3 = v3 ? coord_to_quad(s, x, y, z, Y_ALIGN) : 0
-        v4 = valid_yzquad(s, x, y, z);     q4 = v4 ? coord_to_quad(s, x, y, z, X_ALIGN) : 0
+        v1 = valid_xzquad(s, x - 1, y, z)
+        q1 = v1 ? coord_to_quad(s, x - 1, y, z, Y_ALIGN) : 0
+        v2 = valid_yzquad(s, x, y - 1, z)
+        q2 = v2 ? coord_to_quad(s, x, y - 1, z, X_ALIGN) : 0
+        v3 = valid_xzquad(s, x, y, z)
+        q3 = v3 ? coord_to_quad(s, x, y, z, Y_ALIGN) : 0
+        v4 = valid_yzquad(s, x, y, z)
+        q4 = v4 ? coord_to_quad(s, x, y, z, X_ALIGN) : 0
     end
 
-    return ((q1, q2, q3, q4), (v1, v2, v3, v4)) 
+    return ((q1, q2, q3, q4), (v1, v2, v3, v4))
 end
 
 function edge_boids(s::UniformCubicalComplex3D, x::Int, y::Int, z::Int, align::Align)
     if align == X_ALIGN
         # Boids around an X-aligned edge (y,z plane)
-        v1 = valid_boid(s, x, y - 1, z - 1); b1_idx = v1 ? coord_to_boid(s, x, y - 1, z - 1) : 0
-        v2 = valid_boid(s, x, y,     z - 1); b2_idx = v2 ? coord_to_boid(s, x, y,     z - 1) : 0
-        v3 = valid_boid(s, x, y,     z);     b3_idx = v3 ? coord_to_boid(s, x, y,     z) : 0
-        v4 = valid_boid(s, x, y - 1, z);     b4_idx = v4 ? coord_to_boid(s, x, y - 1, z) : 0
+        v1 = valid_boid(s, x, y - 1, z - 1)
+        b1_idx = v1 ? coord_to_boid(s, x, y - 1, z - 1) : 0
+        v2 = valid_boid(s, x, y, z - 1)
+        b2_idx = v2 ? coord_to_boid(s, x, y, z - 1) : 0
+        v3 = valid_boid(s, x, y, z)
+        b3_idx = v3 ? coord_to_boid(s, x, y, z) : 0
+        v4 = valid_boid(s, x, y - 1, z)
+        b4_idx = v4 ? coord_to_boid(s, x, y - 1, z) : 0
     elseif align == Y_ALIGN
         # Boids around a Y-aligned edge (x,z plane)
-        v1 = valid_boid(s, x,     y, z - 1); b1_idx = v1 ? coord_to_boid(s, x,     y, z - 1) : 0
-        v2 = valid_boid(s, x - 1, y, z - 1); b2_idx = v2 ? coord_to_boid(s, x - 1, y, z - 1) : 0
-        v3 = valid_boid(s, x - 1, y, z);     b3_idx = v3 ? coord_to_boid(s, x - 1, y, z) : 0
-        v4 = valid_boid(s, x,     y, z);     b4_idx = v4 ? coord_to_boid(s, x,     y, z) : 0
+        v1 = valid_boid(s, x, y, z - 1)
+        b1_idx = v1 ? coord_to_boid(s, x, y, z - 1) : 0
+        v2 = valid_boid(s, x - 1, y, z - 1)
+        b2_idx = v2 ? coord_to_boid(s, x - 1, y, z - 1) : 0
+        v3 = valid_boid(s, x - 1, y, z)
+        b3_idx = v3 ? coord_to_boid(s, x - 1, y, z) : 0
+        v4 = valid_boid(s, x, y, z)
+        b4_idx = v4 ? coord_to_boid(s, x, y, z) : 0
     else # align == Z_ALIGN
         # Boids around a Z-aligned edge (x,y plane)
-        v1 = valid_boid(s, x - 1, y - 1, z); b1_idx = v1 ? coord_to_boid(s, x - 1, y - 1, z) : 0
-        v2 = valid_boid(s, x,     y - 1, z); b2_idx = v2 ? coord_to_boid(s, x,     y - 1, z) : 0
-        v3 = valid_boid(s, x,     y,     z); b3_idx = v3 ? coord_to_boid(s, x,     y,     z) : 0
-        v4 = valid_boid(s, x - 1, y,     z); b4_idx = v4 ? coord_to_boid(s, x - 1, y,     z) : 0
+        v1 = valid_boid(s, x - 1, y - 1, z)
+        b1_idx = v1 ? coord_to_boid(s, x - 1, y - 1, z) : 0
+        v2 = valid_boid(s, x, y - 1, z)
+        b2_idx = v2 ? coord_to_boid(s, x, y - 1, z) : 0
+        v3 = valid_boid(s, x, y, z)
+        b3_idx = v3 ? coord_to_boid(s, x, y, z) : 0
+        v4 = valid_boid(s, x - 1, y, z)
+        b4_idx = v4 ? coord_to_boid(s, x - 1, y, z) : 0
     end
 
     indices = (b1_idx, b2_idx, b3_idx, b4_idx)
@@ -655,12 +763,18 @@ Ordering rules:
 3. X-aligned (west, east): X-edge at x-1 (West), then X-edge at x (East).
 """
 function vertex_edges(s::UniformCubicalComplex3D, x::Int, y::Int, z::Int)
-    v_low = valid_zedge(s, x, y, z - 1); e_low = v_low ? coord_to_edge(s, x, y, z - 1, Z_ALIGN) : 0
-    v_high = valid_zedge(s, x, y, z); e_high = v_high ? coord_to_edge(s, x, y, z, Z_ALIGN) : 0
-    v_south = valid_yedge(s, x, y - 1, z); e_south = v_south ? coord_to_edge(s, x, y - 1, z, Y_ALIGN) : 0
-    v_north = valid_yedge(s, x, y, z); e_north = v_north ? coord_to_edge(s, x, y, z, Y_ALIGN) : 0
-    v_west = valid_xedge(s, x - 1, y, z); e_west = v_west ? coord_to_edge(s, x - 1, y, z, X_ALIGN) : 0
-    v_east = valid_xedge(s, x, y, z); e_east = v_east ? coord_to_edge(s, x, y, z, X_ALIGN) : 0
+    v_low = valid_zedge(s, x, y, z - 1)
+    e_low = v_low ? coord_to_edge(s, x, y, z - 1, Z_ALIGN) : 0
+    v_high = valid_zedge(s, x, y, z)
+    e_high = v_high ? coord_to_edge(s, x, y, z, Z_ALIGN) : 0
+    v_south = valid_yedge(s, x, y - 1, z)
+    e_south = v_south ? coord_to_edge(s, x, y - 1, z, Y_ALIGN) : 0
+    v_north = valid_yedge(s, x, y, z)
+    e_north = v_north ? coord_to_edge(s, x, y, z, Y_ALIGN) : 0
+    v_west = valid_xedge(s, x - 1, y, z)
+    e_west = v_west ? coord_to_edge(s, x - 1, y, z, X_ALIGN) : 0
+    v_east = valid_xedge(s, x, y, z)
+    e_east = v_east ? coord_to_edge(s, x, y, z, X_ALIGN) : 0
 
     indices = (e_low, e_high, e_south, e_north, e_west, e_east)
     validity = (v_low, v_high, v_south, v_north, v_west, v_east)
@@ -681,9 +795,9 @@ function primal_boundary_vertices(s::AbstractCubicalComplex3D, side::GridSide)
         up = [coord_to_vert(s, x, y, nz(s)) for x in 1:nx(s), y in 1:ny(s)][:]
         return (down, up)
     end
-  end
-  
-  function primal_boundary_quads(s::AbstractCubicalComplex3D, side::GridSide)
+end
+
+function primal_boundary_quads(s::AbstractCubicalComplex3D, side::GridSide)
     if side == EASTWEST
         west = [coord_to_quad(s, 1, y, z, X_ALIGN) for y in 1:nyb(s), z in 1:nzb(s)][:]
         east = [coord_to_quad(s, nx(s), y, z, X_ALIGN) for y in 1:nyb(s), z in 1:nzb(s)][:]
@@ -697,9 +811,9 @@ function primal_boundary_vertices(s::AbstractCubicalComplex3D, side::GridSide)
         up = [coord_to_quad(s, x, y, nz(s), Z_ALIGN) for x in 1:nxb(s), y in 1:nyb(s)][:]
         return (up, down)
     end
-  end
-  
-  function primal_boundary_boids(s::AbstractCubicalComplex3D, side::GridSide)
+end
+
+function primal_boundary_boids(s::AbstractCubicalComplex3D, side::GridSide)
     if side == EASTWEST
         west = [coord_to_boid(s, 1, y, z) for y in 1:nyb(s), z in 1:nzb(s)][:]
         east = [coord_to_boid(s, nxb(s), y, z) for y in 1:nyb(s), z in 1:nzb(s)][:]
@@ -713,9 +827,9 @@ function primal_boundary_vertices(s::AbstractCubicalComplex3D, side::GridSide)
         up = [coord_to_boid(s, x, y, nzb(s)) for x in 1:nxb(s), y in 1:nyb(s)][:]
         return (down, up)
     end
-  end
-  
-  # ── Ghost Boid Region Extraction ──────────────────────────────────────────────
+end
+
+# ── Ghost Boid Region Extraction ──────────────────────────────────────────────
 #
 # For a given side (EASTWEST, NORTHSOUTH, UPDOWN) and role, returns the flat
 # vector of boid indices in that ghost/send slab.
@@ -728,14 +842,11 @@ function primal_boundary_vertices(s::AbstractCubicalComplex3D, side::GridSide)
 
 function _boid_axis_info(s::AbstractCubicalComplex3D, side::GridSide)
     if side == EASTWEST
-        return (nxb(s), nyb(s), nzb(s), hx(s),
-                (ax, ay, az) -> coord_to_boid(s, ax, ay, az))
+        return (nxb(s), nyb(s), nzb(s), hx(s), (ax, ay, az) -> coord_to_boid(s, ax, ay, az))
     elseif side == NORTHSOUTH
-        return (nyb(s), nxb(s), nzb(s), hy(s),
-                (ax, ay, az) -> coord_to_boid(s, ay, ax, az))
+        return (nyb(s), nxb(s), nzb(s), hy(s), (ax, ay, az) -> coord_to_boid(s, ay, ax, az))
     else # UPDOWN
-        return (nzb(s), nxb(s), nyb(s), hz(s),
-                (ax, ay, az) -> coord_to_boid(s, ay, az, ax))
+        return (nzb(s), nxb(s), nyb(s), hz(s), (ax, ay, az) -> coord_to_boid(s, ay, az, ax))
     end
 end
 
@@ -758,8 +869,10 @@ function ghost_boids(s::AbstractCubicalComplex3D, side::GridSide, role::Symbol)
     elseif role == :recv_high
         (n_ax - h + 1):n_ax
     else
-        error("Unknown ghost role $(repr(role)). " *
-              "Valid roles: :recv_low, :send_low, :send_high, :recv_high")
+        error(
+            "Unknown ghost role $(repr(role)). " *
+            "Valid roles: :recv_low, :send_low, :send_high, :recv_high",
+        )
     end
 
     return [to_idx(ax, b, c) for ax in ax_range, b in 1:n_b, c in 1:n_c][:]
@@ -767,19 +880,31 @@ end
 
 function ghost_boids(s::AbstractCubicalComplex3D)
     return (
-        west  = (send = ghost_boids(s, EASTWEST,   :send_low),  recv = ghost_boids(s, EASTWEST,   :recv_low)),
-        east  = (send = ghost_boids(s, EASTWEST,   :send_high), recv = ghost_boids(s, EASTWEST,   :recv_high)),
-        south = (send = ghost_boids(s, NORTHSOUTH, :send_low),  recv = ghost_boids(s, NORTHSOUTH, :recv_low)),
-        north = (send = ghost_boids(s, NORTHSOUTH, :send_high), recv = ghost_boids(s, NORTHSOUTH, :recv_high)),
-        down  = (send = ghost_boids(s, UPDOWN,     :send_low),  recv = ghost_boids(s, UPDOWN,     :recv_low)),
-        up    = (send = ghost_boids(s, UPDOWN,     :send_high), recv = ghost_boids(s, UPDOWN,     :recv_high)),
+        west = (
+            send = ghost_boids(s, EASTWEST, :send_low),
+            recv = ghost_boids(s, EASTWEST, :recv_low),
+        ),
+        east = (
+            send = ghost_boids(s, EASTWEST, :send_high),
+            recv = ghost_boids(s, EASTWEST, :recv_high),
+        ),
+        south = (
+            send = ghost_boids(s, NORTHSOUTH, :send_low),
+            recv = ghost_boids(s, NORTHSOUTH, :recv_low),
+        ),
+        north = (
+            send = ghost_boids(s, NORTHSOUTH, :send_high),
+            recv = ghost_boids(s, NORTHSOUTH, :recv_high),
+        ),
+        down = (send = ghost_boids(s, UPDOWN, :send_low), recv = ghost_boids(s, UPDOWN, :recv_low)),
+        up = (send = ghost_boids(s, UPDOWN, :send_high), recv = ghost_boids(s, UPDOWN, :recv_high)),
     )
 end
 
 function interior(::Val{3}, f::AbstractVector, s::AbstractCubicalComplex3D)
-    indices = [coord_to_boid(s, x, y, z)
-               for z in (hz(s)+1):(hz(s)+nzr(s)),
-                   y in (hy(s)+1):(hy(s)+nyr(s)),
-                   x in (hx(s)+1):(hx(s)+nxr(s))][:]
+    indices = [
+        coord_to_boid(s, x, y, z) for z in (hz(s) + 1):(hz(s) + nzbr(s)),
+        y in (hy(s) + 1):(hy(s) + nybr(s)), x in (hx(s) + 1):(hx(s) + nxbr(s))
+    ][:]
     return f[indices]
 end
