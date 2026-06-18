@@ -191,8 +191,6 @@ else
 
     # ── RHS and callbacks ─────────────────────────────────────────────────────
 
-    step_counter = Ref(0)
-
     function heat_rhs_mpi!(du, u, p, t)
         _, k, _, dd0, ihs1, d1, hs2 = p
         grad_u = dd0 * u
@@ -205,17 +203,20 @@ else
 
     p = (s, K_DIFFUSION, topo, dd0, ihs1, d1, hs2)
 
-    progress_cb =
-        FunctionCallingCallback(; func_everystep = true, func_start = false) do u, t, integrator
-            step_counter[] += 1
-            if step_counter[] % PRINT_EVERY_N_STEPS == 0
-                pct = 100.0 * integrator.t / integrator.sol.prob.tspan[2]
+    progress_cb = FunctionCallingCallback(
+        (u, t, integrator) -> begin
+            step = integrator.stats.naccept
+            if step % PRINT_EVERY_N_STEPS == 0
+                pct = 100.0 * t / integrator.sol.prob.tspan[2]
                 println(
-                    "Worker $cart_rank | step $(step_counter[]) | t = $(round(integrator.t, digits=4)) ($(round(pct, digits=1))%)",
+                    "Worker $cart_rank | step $step | t = $(round(t, digits=4)) ($(round(pct, digits=1))%)",
                 )
                 flush(stdout)
             end
-        end
+        end;
+        func_everystep = true,
+        func_start = false,
+    )
 
     exchange_cb = DiscreteCallback(
         (u, t, integrator) -> true,
@@ -224,13 +225,12 @@ else
         save_positions = (false, false),
     )
 
-    # Save callback: fires at each saveat point, signals output then gathers.
-    save_cb = SavingCallback(
+    save_cb = FunctionCallingCallback(
         (u, t, integrator) -> begin
             data = reshape(interior(Val(2), u, s), nxqr(s), nyqr(s))[:]
             send_output!([data], stream, topo)
         end;
-        saveat = T_START:SAVEAT:T_END,
+        funcat = collect(T_START:SAVEAT:T_END),
     )
 
     cb = CallbackSet(exchange_cb, save_cb, progress_cb)
