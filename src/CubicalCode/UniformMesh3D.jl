@@ -850,6 +850,7 @@ function _boid_axis_info(s::AbstractCubicalComplex3D, side::GridSide)
     end
 end
 
+# TODO: Techinically this could be more efficient since we're resending corner data several times
 function ghost_boids(s::AbstractCubicalComplex3D, side::GridSide, role::Symbol)
     # n_ax  : extent of the sliced axis
     # n_b   : extent of the first transverse axis

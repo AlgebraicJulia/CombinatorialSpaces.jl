@@ -57,7 +57,7 @@ const T_START = 0.0
 const T_END = 0.1
 const DT = 0.001
 const SAVEAT = 0.025
-const HALO = 1
+const HALO = 5
 const PRINT_EVERY_N_STEPS = 50
 
 const FT = Float64
@@ -151,7 +151,6 @@ println("PAST FIRST BARRIER AS RANK $world_rank")
 #             end
 #         end
 #     end
-# In the output branch, replace the HDF5 plotting block with this:
 
 if output(topo)
     handler = DataHandler(stream, topo)
@@ -263,32 +262,32 @@ else # Worker branch
     local_max = maximum(interior(Val(3), u0, s))
     global_max = MPI.Allreduce(local_max, max, cart_comm)
 
-    function plot_rank_slice(s, u, title_str, fname)
-        slice_z = max(1, nzbr(s) ÷ 2)
-        fig = plot_dual_zeroform_slice(
-            s,
-            u,
-            Z_ALIGN,
-            slice_z;
-            figure_kwargs = (size = (600, 500),),
-            heatmap_kwargs = (colorrange = (0.0, global_max + eps()),),
-        )
-        return save(fname, fig)
-    end
+    # function plot_rank_slice(s, u, title_str, fname)
+    #     slice_z = max(1, nzbr(s) ÷ 2)
+    #     fig = plot_dual_zeroform_slice(
+    #         s,
+    #         u,
+    #         Z_ALIGN,
+    #         slice_z;
+    #         figure_kwargs = (size = (600, 500),),
+    #         heatmap_kwargs = (colorrange = (0.0, global_max + eps()),),
+    #     )
+    #     return save(fname, fig)
+    # end
 
-    let title = "Rank $cart_rank | coords=$(cart_coords) | t=0.0"
-        fname = joinpath(
-            IMGDIR,
-            @sprintf(
-                "rank%03d_coords%d-%d-%d_IC_slice.png",
-                cart_rank,
-                cart_coords[1],
-                cart_coords[2],
-                cart_coords[3]
-            )
-        )
-        plot_rank_slice(s, u0, title, fname)
-    end
+    # let title = "Rank $cart_rank | coords=$(cart_coords) | t=0.0"
+    #     fname = joinpath(
+    #         IMGDIR,
+    #         @sprintf(
+    #             "rank%03d_coords%d-%d-%d_IC_slice.png",
+    #             cart_rank,
+    #             cart_coords[1],
+    #             cart_coords[2],
+    #             cart_coords[3]
+    #         )
+    #     )
+    #     plot_rank_slice(s, u0, title, fname)
+    # end
 
     MPI.Barrier(cart_comm)
 
@@ -355,19 +354,19 @@ else # Worker branch
 
     # ── Per-rank final plots ──────────────────────────────────────────────────
 
-    let title = "Rank $cart_rank | coords=$(cart_coords) | t=$(T_END)"
-        fname = joinpath(
-            IMGDIR,
-            @sprintf(
-                "rank%03d_coords%d-%d-%d_final_slice.png",
-                cart_rank,
-                cart_coords[1],
-                cart_coords[2],
-                cart_coords[3]
-            )
-        )
-        plot_rank_slice(s, sol[end], title, fname)
-    end
+    # let title = "Rank $cart_rank | coords=$(cart_coords) | t=$(T_END)"
+    #     fname = joinpath(
+    #         IMGDIR,
+    #         @sprintf(
+    #             "rank%03d_coords%d-%d-%d_final_slice.png",
+    #             cart_rank,
+    #             cart_coords[1],
+    #             cart_coords[2],
+    #             cart_coords[3]
+    #         )
+    #     )
+    #     plot_rank_slice(s, sol[end], title, fname)
+    # end
 
     println("LEAVING WORKER RANK $world_rank")
     MPI.Barrier(cart_comm)
