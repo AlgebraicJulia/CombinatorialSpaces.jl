@@ -13,6 +13,17 @@
 #
 # Periodicity handled by halo exchange via DiscreteCallback before each RHS evaluation.
 
+length(ARGS) == 7 ||
+    error("Usage: mpiexecjl -n N julia New_Heat_3D_MPI.jl wy wx wz oy ox oz run_tag")
+
+const w_dims = (parse(Int, ARGS[1]), parse(Int, ARGS[2]), parse(Int, ARGS[3]))
+const o_dims = (parse(Int, ARGS[4]), parse(Int, ARGS[5]), parse(Int, ARGS[6]))
+const RUN_TAG = ARGS[7]
+
+const OUTDIR = joinpath(@__DIR__, "output", RUN_TAG)
+const OUTFILE = joinpath(OUTDIR, "heat3D.h5")
+const IMGDIR = joinpath(@__DIR__, "imgs", RUN_TAG)
+
 using MPI
 using HDF5
 using OrdinaryDiffEqTsit5
@@ -21,12 +32,12 @@ using KernelAbstractions
 using DiffEqCallbacks
 using Printf
 
-include("../../src/CubicalCode/UniformMesh.jl")
-include("../../src/CubicalCode/UniformMesh3D.jl")
-include("../../src/CubicalCode/UniformKernelDEC3D.jl")
-include("../../src/CubicalCode/UniformMPI.jl")
-include("../../src/CubicalCode/UniformIO.jl")
-include("../../src/CubicalCode/UniformPlotting.jl")
+include("../../../src/CubicalCode/UniformMesh.jl")
+include("../../../src/CubicalCode/UniformMesh3D.jl")
+include("../../../src/CubicalCode/UniformKernelDEC3D.jl")
+include("../../../src/CubicalCode/UniformMPI.jl")
+include("../../../src/CubicalCode/UniformIO.jl")
+include("../../../src/CubicalCode/UniformPlotting.jl")
 
 # ── Global problem parameters ─────────────────────────────────────────────────
 
@@ -49,11 +60,7 @@ const SAVEAT = 0.025
 const HALO = 1
 const PRINT_EVERY_N_STEPS = 50
 
-const OUTDIR = "output_heat3D_mpi"
-const OUTFILE = joinpath(OUTDIR, "heat3D.h5")
-const IMGDIR = "imgs/Heat3D_MPI"
-
-FT = Float64
+const FT = Float64
 
 # ── DataStream ────────────────────────────────────────────────────────────────
 
@@ -61,9 +68,6 @@ const datum = Datum{Boid,3}("snapshots", "fields", FT)
 const stream = DataStream("heat3D", OUTFILE, [datum])
 
 # ── Build topology ────────────────────────────────────────────────────────────
-
-const w_dims = (2, 1, 1)
-const o_dims = (1, 1, 1)
 
 MPI.Init()
 topo = MPITopology(m_dims, w_dims, o_dims; periods = (true, true, true))
@@ -77,7 +81,79 @@ println("ENTERING FIRST BARRIER AS RANK $world_rank")
 MPI.Barrier(world_comm)
 println("PAST FIRST BARRIER AS RANK $world_rank")
 
-if output(topo) # Output branch
+# if output(topo) # Output branch
+#     handler = DataHandler(stream, topo)
+
+#     output_leader(topo) && rm(OUTDIR; recursive = true, force = true)
+#     MPI.Barrier(cart_comm)
+#     output_leader(topo) && mkpath(OUTDIR)
+#     MPI.Barrier(cart_comm)
+
+#     create_hdf5!(handler, m_dims)
+#     MPI.Barrier(cart_comm)
+
+#     if output_leader(topo)
+#         wc = out_cache(handler).worker_caches[1]
+#         println("wc.mesh type:   ", typeof(wc.mesh))
+#         println("wc.mesh dims:   ", (nx(wc.mesh), ny(wc.mesh), nz(wc.mesh)))
+#         println("datum_dims:     ", datum_dims(datum, wc.mesh))
+#         println("lm_dims:        ", wc.lm_dims)
+#     end
+
+#     while true
+#         tag = output_from_worker(topo)
+#         tag == SIGNAL_DONE && break
+#         tag == SIGNAL_WRITE && write_output!(handler)
+#     end
+#     MPI.Barrier(cart_comm)
+
+#     # plot global IC and final z-slices from HDF5
+#     if output_leader(topo)
+#         mkpath(IMGDIR)
+#         z_mid = NZB_GLOBAL ÷ 2
+
+#         h5open(OUTFILE, "r") do h5
+#             dset = h5["fields/snapshots"]
+#             ic_data = dset[1, :, :, z_mid]      # (NXB_GLOBAL, NYB_GLOBAL)
+#             final_data = dset[end, :, :, z_mid]
+#             cr = (0.0, maximum(ic_data) + eps())
+
+#             for (data, label) in ((ic_data, "IC"), (final_data, "final"))
+#                 fig = Figure(; size = (700, 600))
+#                 ax = Axis(
+#                     fig[1, 1];
+#                     title = "Global z=$(z_mid) slice | $label",
+#                     xlabel = "x",
+#                     ylabel = "y",
+#                 )
+#                 hm = heatmap!(ax, data; colorrange = cr)
+#                 Colorbar(fig[1, 2], hm)
+#                 save(joinpath(IMGDIR, "global_$(lowercase(label))_zslice.png"), fig)
+#                 println("Output leader | global $label slice saved.")
+#             end
+
+#             let
+#                 gif_path = joinpath(IMGDIR, "global_heat3D_zslice.gif")
+#                 extent, _ = HDF5.get_extent_dims(HDF5.dataspace(dset))
+#                 ntimes = extent[1]
+#                 frame_obs = Observable(dset[1, :, :, z_mid])
+
+#                 fig = Figure(; size = (700, 600))
+#                 ax = Axis(fig[1, 1]; xlabel = "x", ylabel = "y")
+#                 hm = heatmap!(ax, frame_obs; colorrange = cr)
+#                 Colorbar(fig[1, 2], hm)
+
+#                 record(fig, gif_path, 1:ntimes; framerate = 10) do i
+#                     frame_obs[] = dset[i, :, :, z_mid]
+#                     return ax.title[] = "Global z=$(z_mid) slice | t = $(round((i-1) * SAVEAT, digits=3))"
+#                 end
+#                 println("Output leader | global gif saved.")
+#             end
+#         end
+#     end
+# In the output branch, replace the HDF5 plotting block with this:
+
+if output(topo)
     handler = DataHandler(stream, topo)
 
     output_leader(topo) && rm(OUTDIR; recursive = true, force = true)
@@ -88,65 +164,59 @@ if output(topo) # Output branch
     create_hdf5!(handler, m_dims)
     MPI.Barrier(cart_comm)
 
-    if output_leader(topo)
-        wc = out_cache(handler).worker_caches[1]
-        println("wc.mesh type:   ", typeof(wc.mesh))
-        println("wc.mesh dims:   ", (nx(wc.mesh), ny(wc.mesh), nz(wc.mesh)))
-        println("datum_dims:     ", datum_dims(datum, wc.mesh))
-        println("lm_dims:        ", wc.lm_dims)
-    end
+    save_count = Ref(0)
 
     while true
         tag = output_from_worker(topo)
         tag == SIGNAL_DONE && break
-        tag == SIGNAL_WRITE && write_output!(handler)
-    end
-    MPI.Barrier(cart_comm)
+        if tag == SIGNAL_WRITE
+            write_output!(handler)
+            save_count[] += 1
 
-    # plot global IC and final z-slices from HDF5
-    if output_leader(topo)
-        mkpath(IMGDIR)
-        z_mid = NZB_GLOBAL ÷ 2
+            if output_leader(topo)
+                tbuf = handler.tile_buffers[1][1]
 
-        h5open(OUTFILE, "r") do h5
-            dset = h5["fields/snapshots"]
-            ic_data = dset[1, :, :, z_mid]      # (NXB_GLOBAL, NYB_GLOBAL)
-            final_data = dset[end, :, :, z_mid]
-            cr = (0.0, maximum(ic_data) + eps())
+                nx_t, ny_t, nz_t = size(tbuf)
+                x_mid = nx_t ÷ 2
+                y_mid = ny_t ÷ 2
+                z_mid = nz_t ÷ 2
 
-            for (data, label) in ((ic_data, "IC"), (final_data, "final"))
-                fig = Figure(; size = (700, 600))
-                ax = Axis(
-                    fig[1, 1];
-                    title = "Global z=$(z_mid) slice | $label",
-                    xlabel = "x",
-                    ylabel = "y",
+                println("tbuf shape    : $(size(tbuf))")
+                println("tbuf min/max  : $(minimum(tbuf)) / $(maximum(tbuf))")
+                println("tbuf nonzeros : $(count(!iszero, tbuf))")
+                println("tbuf sum      : $(sum(tbuf))")
+                println("  x-slice nonzeros (x=$(x_mid)): $(count(!iszero, tbuf[x_mid, :, :]))")
+                println("  y-slice nonzeros (y=$(y_mid)): $(count(!iszero, tbuf[:, y_mid, :]))")
+                println("  z-slice nonzeros (z=$(z_mid)): $(count(!iszero, tbuf[:, :, z_mid]))")
+                flush(stdout)
+
+                mkpath(IMGDIR)
+                cr = (0.0, maximum(tbuf) + eps())
+
+                slices = (
+                    (tbuf[x_mid, :, :], "x=$(x_mid)", "y", "z"),
+                    (tbuf[:, y_mid, :], "y=$(y_mid)", "x", "z"),
+                    (tbuf[:, :, z_mid], "z=$(z_mid)", "x", "y"),
                 )
-                hm = heatmap!(ax, data; colorrange = cr)
-                Colorbar(fig[1, 2], hm)
-                save(joinpath(IMGDIR, "global_$(lowercase(label))_zslice.png"), fig)
-                println("Output leader | global $label slice saved.")
-            end
 
-            let
-                gif_path = joinpath(IMGDIR, "global_heat3D_zslice.gif")
-                extent, _ = HDF5.get_extent_dims(HDF5.dataspace(dset))
-                ntimes = extent[1]
-                frame_obs = Observable(dset[1, :, :, z_mid])
-
-                fig = Figure(; size = (700, 600))
-                ax = Axis(fig[1, 1]; xlabel = "x", ylabel = "y")
-                hm = heatmap!(ax, frame_obs; colorrange = cr)
-                Colorbar(fig[1, 2], hm)
-
-                record(fig, gif_path, 1:ntimes; framerate = 10) do i
-                    frame_obs[] = dset[i, :, :, z_mid]
-                    return ax.title[] = "Global z=$(z_mid) slice | t = $(round((i-1) * SAVEAT, digits=3))"
+                fig = Figure(; size = (600, 1800))
+                for (row, (slice_data, plane_label, xlabel, ylabel)) in enumerate(slices)
+                    ax = Axis(
+                        fig[row, 1];
+                        title = "tbuf $(plane_label) slice | save $(save_count[])",
+                        xlabel = xlabel,
+                        ylabel = ylabel,
+                    )
+                    hm = heatmap!(ax, slice_data; colorrange = cr)
+                    Colorbar(fig[row, 2], hm)  # colorbar to the right of each heatmap
                 end
-                println("Output leader | global gif saved.")
+
+                save(joinpath(IMGDIR, @sprintf("tbuf_save%03d_allslices.png", save_count[])), fig)
+                println("Output leader | combined slice figure saved (save $(save_count[])).")
             end
         end
     end
+    MPI.Barrier(cart_comm)
 
 else # Worker branch
     cache = topo.cache
@@ -247,7 +317,7 @@ else # Worker branch
 
     save_cb = FunctionCallingCallback(
         (u, t, integrator) -> begin
-            data = reshape(interior(Val(3), u, s), nxbr(s), nybr(s), nzbr(s))[:]
+            data = interior(Val(3), u, s)
             send_output!([data], stream, topo)
         end;
         funcat = collect(T_START:SAVEAT:T_END),
@@ -279,6 +349,7 @@ else # Worker branch
 
     mass_f = global_integral(sol[end], s, cart_comm)
     cart_rank == 0 && println("Final mass: $(mass_f)")
+    cart_rank == 0 && println("Mass drift: $(round(100.0 * (mass_f - mass_0) / mass_0, digits=6))%")
 
     worker_to_output(SIGNAL_DONE, topo)
 

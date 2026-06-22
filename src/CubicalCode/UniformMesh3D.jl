@@ -903,8 +903,8 @@ end
 
 function interior(::Val{3}, f::AbstractVector, s::AbstractCubicalComplex3D)
     indices = [
-        coord_to_boid(s, x, y, z) for z in (hz(s) + 1):(hz(s) + nzbr(s)),
-        y in (hy(s) + 1):(hy(s) + nybr(s)), x in (hx(s) + 1):(hx(s) + nxbr(s))
-    ][:]
+        coord_to_boid(s, x, y, z) for z in (hz(s) + 1):(hz(s) + nzbr(s)) for
+        y in (hy(s) + 1):(hy(s) + nybr(s)) for x in (hx(s) + 1):(hx(s) + nxbr(s))
+    ]
     return f[indices]
 end

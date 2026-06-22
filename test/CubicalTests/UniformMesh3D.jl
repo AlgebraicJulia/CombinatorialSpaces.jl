@@ -719,14 +719,6 @@ end
     h = 1
     s = UniformCubicalComplex3D(nx_r, ny_r, nz_r, 1.0, 1.0, 1.0; halo_x = h, halo_y = h, halo_z = h)
 
-    function real_sentinel(allocator, indexer, real_ranges, halo_check)
-        f = zeros(Float64, allocator(s))
-        for idx in real_ranges(s)
-            f[indexer(s, idx...)] = 1.0
-        end
-        return f
-    end
-
     @testset "Boids" begin
         # Size checks
         @test nboids(s) == (nx_r + 2h - 1) * (ny_r + 2h - 1) * (nz_r + 2h - 1)
@@ -734,43 +726,180 @@ end
         @test nybr(s) == ny_r - 1
         @test nzbr(s) == nz_r - 1
 
-        # Allocate: real boids = 1, halo = 0
+        # Halo exclusion: real boids = 1, halo = 0
         u = zeros(Float64, nboids(s))
         for rz in 1:nzbr(s), ry in 1:nybr(s), rx in 1:nxbr(s)
             u[coord_to_boid(s, rx + hx(s), ry + hy(s), rz + hz(s))] = 1.0
         end
-
         result = interior(Val(3), u, s)
 
-        @test length(result) == nxbr(s) * nybr(s) * nzbr(s)  # 8, not 27 or 125
-        @test all(result .== 1.0)   # only real boids extracted
-        @test !any(result .== 0.0)  # no halo leaked in
+        @test size(result) == (nxbr(s), nybr(s), nzbr(s))
+        @test all(result .== 1.0)
+        @test !any(result .== 0.0)
+
+        # Axis ordering: encode position so any axis swap is unambiguous
+        u_ord = zeros(Float64, nboids(s))
+        for rz in 1:nzbr(s), ry in 1:nybr(s), rx in 1:nxbr(s)
+            u_ord[coord_to_boid(s, rx + hx(s), ry + hy(s), rz + hz(s))] = rx + 100 * ry + 10000 * rz
+        end
+        result_ord = interior(Val(3), u_ord, s)
+
+        for rz in 1:nzbr(s), ry in 1:nybr(s), rx in 1:nxbr(s)
+            @test result_ord[rx, ry, rz] == rx + 100 * ry + 10000 * rz
+        end
     end
 
-    # ── Val(2): primal 2-forms (quads) ────────────────────────────────────────
-    # TODO: three quad families in 3D (XY, XZ, YZ) — interior should strip
-    # halo quads from each family separately and return the concatenation.
-    # Expected real counts per family:
-    #   XY (z-aligned): nxq(s) * nyq(s) * nzr(s)  →  2 * 2 * 3 = 12
-    #   XZ (y-aligned): nxq(s) * nyr(s) * nzq(s)  →  2 * 3 * 2 = 12
-    #   YZ (x-aligned): nxr(s) * nyq(s) * nzq(s)  →  3 * 2 * 2 = 12
-    # Total: 36
-    # @testset "Val(2) quads" begin ... end
+    # TODO: First implement and then check these tests
+    # @testset "Val(2) quads" begin
+    #     # Expected real counts per family:
+    #     #   XY (z-aligned): nxq * nyq * nzr = 2 * 2 * 3 = 12
+    #     #   XZ (y-aligned): nxq * nyr * nzq = 2 * 3 * 2 = 12
+    #     #   YZ (x-aligned): nxr * nyq * nzq = 3 * 2 * 2 = 12
+    #     #   Total: 36
 
-    # ── Val(1): primal 1-forms (edges) ────────────────────────────────────────
-    # TODO: three edge families (X, Y, Z) — interior strips halo edges from each.
-    # Expected real counts per family:
-    #   X-edges: nxe(s) * nyr(s) * nzr(s)  →  2 * 3 * 3 = 18
-    #   Y-edges: nxr(s) * nye(s) * nzr(s)  →  3 * 2 * 3 = 18
-    #   Z-edges: nxr(s) * nyr(s) * nze(s)  →  3 * 3 * 2 = 18
-    # Total: 54
-    # @testset "Val(1) edges" begin ... end
+    #     # Halo exclusion: real quads = 1, halo = 0
+    #     q = zeros(Float64, nquads(s))
+    #     for rz in 1:nzbr(s)+1, ry in 1:nybr(s), rx in 1:nxbr(s)  # XY family
+    #         q[coord_to_quad(s, rx + hx(s), ry + hy(s), rz + hz(s), Z_ALIGN)] = 1.0
+    #     end
+    #     for rz in 1:nzbr(s), ry in 1:nybr(s)+1, rx in 1:nxbr(s)  # XZ family
+    #         q[coord_to_quad(s, rx + hx(s), ry + hy(s), rz + hz(s), Y_ALIGN)] = 1.0
+    #     end
+    #     for rz in 1:nzbr(s), ry in 1:nybr(s), rx in 1:nxbr(s)+1  # YZ family
+    #         q[coord_to_quad(s, rx + hx(s), ry + hy(s), rz + hz(s), X_ALIGN)] = 1.0
+    #     end
+    #     result = interior(Val(2), q, s)
 
-    # ── Val(0): primal 0-forms (vertices) ─────────────────────────────────────
-    # TODO: single family — interior strips halo vertices.
-    # Expected real count: nxr(s) * nyr(s) * nzr(s)  →  3 * 3 * 3 = 27
-    # @testset "Val(0) vertices" begin ... end
+    #     @test length(result) == 36
+    #     @test all(result .== 1.0)
+    #     @test !any(result .== 0.0)
 
+    #     # Axis ordering per family — encode with rx + 100*ry + 10000*rz
+    #     q_ord = zeros(Float64, nquads(s))
+    #     for rz in 1:nzbr(s)+1, ry in 1:nybr(s), rx in 1:nxbr(s)
+    #         q_ord[coord_to_quad(s, rx + hx(s), ry + hy(s), rz + hz(s), Z_ALIGN)] =
+    #             rx + 100*ry + 10000*rz
+    #     end
+    #     for rz in 1:nzbr(s), ry in 1:nybr(s)+1, rx in 1:nxbr(s)
+    #         q_ord[coord_to_quad(s, rx + hx(s), ry + hy(s), rz + hz(s), Y_ALIGN)] =
+    #             rx + 100*ry + 10000*rz
+    #     end
+    #     for rz in 1:nzbr(s), ry in 1:nybr(s), rx in 1:nxbr(s)+1
+    #         q_ord[coord_to_quad(s, rx + hx(s), ry + hy(s), rz + hz(s), X_ALIGN)] =
+    #             rx + 100*ry + 10000*rz
+    #     end
+    #     result_ord = interior(Val(2), q_ord, s)
+
+    #     # XY family: dims (nxbr, nybr, nzbr+1)
+    #     xy = result_ord[1 : nxbr(s)*nybr(s)*(nzbr(s)+1)]
+    #     xy_3d = reshape(xy, nxbr(s), nybr(s), nzbr(s)+1)
+    #     for rz in 1:nzbr(s)+1, ry in 1:nybr(s), rx in 1:nxbr(s)
+    #         @test xy_3d[rx, ry, rz] == rx + 100*ry + 10000*rz
+    #     end
+
+    #     # XZ family: dims (nxbr, nybr+1, nzbr)
+    #     xz_offset = nxbr(s)*nybr(s)*(nzbr(s)+1)
+    #     xz = result_ord[xz_offset+1 : xz_offset + nxbr(s)*(nybr(s)+1)*nzbr(s)]
+    #     xz_3d = reshape(xz, nxbr(s), nybr(s)+1, nzbr(s))
+    #     for rz in 1:nzbr(s), ry in 1:nybr(s)+1, rx in 1:nxbr(s)
+    #         @test xz_3d[rx, ry, rz] == rx + 100*ry + 10000*rz
+    #     end
+
+    #     # YZ family: dims (nxbr+1, nybr, nzbr)
+    #     yz_offset = xz_offset + nxbr(s)*(nybr(s)+1)*nzbr(s)
+    #     yz = result_ord[yz_offset+1 : end]
+    #     yz_3d = reshape(yz, nxbr(s)+1, nybr(s), nzbr(s))
+    #     for rz in 1:nzbr(s), ry in 1:nybr(s), rx in 1:nxbr(s)+1
+    #         @test yz_3d[rx, ry, rz] == rx + 100*ry + 10000*rz
+    #     end
+    # end
+
+    # @testset "Val(1) edges" begin
+    #     # Expected real counts per family:
+    #     #   X-edges: nxe * nyr * nzr = 2 * 3 * 3 = 18
+    #     #   Y-edges: nxr * nye * nzr = 3 * 2 * 3 = 18
+    #     #   Z-edges: nxr * nyr * nze = 3 * 3 * 2 = 18
+    #     #   Total: 54
+
+    #     # Halo exclusion: real edges = 1, halo = 0
+    #     e = zeros(Float64, ne(s))
+    #     for rz in 1:nzbr(s)+1, ry in 1:nybr(s)+1, rx in 1:nxbr(s)  # X-edges
+    #         e[coord_to_edge(s, rx + hx(s), ry + hy(s), rz + hz(s), X_ALIGN)] = 1.0
+    #     end
+    #     for rz in 1:nzbr(s)+1, ry in 1:nybr(s), rx in 1:nxbr(s)+1  # Y-edges
+    #         e[coord_to_edge(s, rx + hx(s), ry + hy(s), rz + hz(s), Y_ALIGN)] = 1.0
+    #     end
+    #     for rz in 1:nzbr(s), ry in 1:nybr(s)+1, rx in 1:nxbr(s)+1  # Z-edges
+    #         e[coord_to_edge(s, rx + hx(s), ry + hy(s), rz + hz(s), Z_ALIGN)] = 1.0
+    #     end
+    #     result = interior(Val(1), e, s)
+
+    #     @test length(result) == 54
+    #     @test all(result .== 1.0)
+    #     @test !any(result .== 0.0)
+
+    #     # Axis ordering per family
+    #     e_ord = zeros(Float64, ne(s))
+    #     for rz in 1:nzbr(s)+1, ry in 1:nybr(s)+1, rx in 1:nxbr(s)
+    #         e_ord[coord_to_edge(s, rx + hx(s), ry + hy(s), rz + hz(s), X_ALIGN)] =
+    #             rx + 100*ry + 10000*rz
+    #     end
+    #     for rz in 1:nzbr(s)+1, ry in 1:nybr(s), rx in 1:nxbr(s)+1
+    #         e_ord[coord_to_edge(s, rx + hx(s), ry + hy(s), rz + hz(s), Y_ALIGN)] =
+    #             rx + 100*ry + 10000*rz
+    #     end
+    #     for rz in 1:nzbr(s), ry in 1:nybr(s)+1, rx in 1:nxbr(s)+1
+    #         e_ord[coord_to_edge(s, rx + hx(s), ry + hy(s), rz + hz(s), Z_ALIGN)] =
+    #             rx + 100*ry + 10000*rz
+    #     end
+    #     result_ord = interior(Val(1), e_ord, s)
+
+    #     x_count = nxbr(s) * (nybr(s)+1) * (nzbr(s)+1)
+    #     y_count = (nxbr(s)+1) * nybr(s) * (nzbr(s)+1)
+    #     z_count = (nxbr(s)+1) * (nybr(s)+1) * nzbr(s)
+
+    #     x_3d = reshape(result_ord[1:x_count], nxbr(s), nybr(s)+1, nzbr(s)+1)
+    #     for rz in 1:nzbr(s)+1, ry in 1:nybr(s)+1, rx in 1:nxbr(s)
+    #         @test x_3d[rx, ry, rz] == rx + 100*ry + 10000*rz
+    #     end
+
+    #     y_3d = reshape(result_ord[x_count+1 : x_count+y_count], nxbr(s)+1, nybr(s), nzbr(s)+1)
+    #     for rz in 1:nzbr(s)+1, ry in 1:nybr(s), rx in 1:nxbr(s)+1
+    #         @test y_3d[rx, ry, rz] == rx + 100*ry + 10000*rz
+    #     end
+
+    #     z_3d = reshape(result_ord[x_count+y_count+1 : end], nxbr(s)+1, nybr(s)+1, nzbr(s))
+    #     for rz in 1:nzbr(s), ry in 1:nybr(s)+1, rx in 1:nxbr(s)+1
+    #         @test z_3d[rx, ry, rz] == rx + 100*ry + 10000*rz
+    #     end
+    # end
+
+    # @testset "Val(0) vertices" begin
+    #     # Expected real count: nxr * nyr * nzr = 3 * 3 * 3 = 27
+
+    #     # Halo exclusion: real vertices = 1, halo = 0
+    #     v = zeros(Float64, nv(s))
+    #     for rz in 1:nzbr(s)+1, ry in 1:nybr(s)+1, rx in 1:nxbr(s)+1
+    #         v[coord_to_vert(s, rx + hx(s), ry + hy(s), rz + hz(s))] = 1.0
+    #     end
+    #     result = interior(Val(0), v, s)
+
+    #     @test size(result) == (nxbr(s)+1, nybr(s)+1, nzbr(s)+1)
+    #     @test all(result .== 1.0)
+    #     @test !any(result .== 0.0)
+
+    #     # Axis ordering
+    #     v_ord = zeros(Float64, nv(s))
+    #     for rz in 1:nzbr(s)+1, ry in 1:nybr(s)+1, rx in 1:nxbr(s)+1
+    #         v_ord[coord_to_vert(s, rx + hx(s), ry + hy(s), rz + hz(s))] =
+    #             rx + 100*ry + 10000*rz
+    #     end
+    #     result_ord = interior(Val(0), v_ord, s)
+
+    #     for rz in 1:nzbr(s)+1, ry in 1:nybr(s)+1, rx in 1:nxbr(s)+1
+    #         @test result_ord[rx, ry, rz] == rx + 100*ry + 10000*rz
+    #     end
+    # end
 end
 
 @testset "PseudoCubicalMesh3D Element Counting" begin

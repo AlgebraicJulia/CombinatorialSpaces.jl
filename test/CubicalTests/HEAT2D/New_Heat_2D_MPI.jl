@@ -1,16 +1,30 @@
-# Advection_Dual2D_MPI.jl
+# Heat_Dual2D_MPI.jl
 #
-# 2D constant-velocity advection on dual 0-forms (quads), MPI-parallel with HDF5 output.
-# Uses the MPITopology worker/output split from UniformMPI.jl and the
+# 2D heat equation on dual 0-forms (quads), MPI-parallel with HDF5 output.
+# Uses the new MPITopology worker/output split from UniformMPI.jl and the
 # DataHandler pipeline from UniformIO.jl.
 #
-# Physics pipeline (u = dual 0-form on quads, v = dual 1-form on edges):
-#   w   = wedge_product_dd(Val(0), Val(1), s, u, v)   dual 0 ∧ dual 1 → dual 1
-#   du/dt = -dual_codifferential(Val(1), s, w)
-#         = -(hs2 * d1 * ihs1) * w                    dual 1 → dual 0
+# Physics pipeline (u = dual 0-form on quads):
+#   grad_u      = dual_derivative(Val(0), s, u)     quad → edge
+#   flux_dual   = -k * grad_u
+#   flux_primal = inv_hodge_star(Val(1), s, flux)   dual 1 → primal 1
+#   div_flux    = exterior_derivative(Val(1), s, ..) primal 1 → primal 2
+#   laplacian_u = hodge_star(Val(2), s, div_flux)   primal 2 → dual 0
 #
-# Velocity: uniform x-direction, v_x = V_X * dual_edge_length_x, v_y = 0
-# Periodicity handled by halo exchange via DiscreteCallback before each RHS evaluation.
+# Periodicity handled by halo exchange before each RHS evaluation.
+
+# New_Heat_2D_MPI.jl — reads config from ARGS
+# Usage: mpiexecjl -n N julia New_Heat_2D_MPI.jl wy wx oy ox run_tag
+
+length(ARGS) == 6 || error("Usage: mpiexecjl -n N julia New_Heat_2D_MPI.jl wy wx oy ox run_tag")
+
+const w_dims = (parse(Int, ARGS[1]), parse(Int, ARGS[2]))
+const o_dims = (parse(Int, ARGS[3]), parse(Int, ARGS[4]))
+const RUN_TAG = ARGS[5]
+
+const OUTDIR = joinpath(@__DIR__, "output", RUN_TAG)
+const OUTFILE = joinpath(OUTDIR, "heat2D.h5")
+const IMGDIR = joinpath(@__DIR__, "imgs", RUN_TAG)
 
 using MPI
 using HDF5
@@ -21,11 +35,11 @@ using DiffEqCallbacks
 using Printf
 using CairoMakie
 
-include("../../src/CubicalCode/UniformMesh.jl")
-include("../../src/CubicalCode/UniformMatrixDEC.jl")
-include("../../src/CubicalCode/UniformKernelDEC.jl")
-include("../../src/CubicalCode/UniformMPI.jl")
-include("../../src/CubicalCode/UniformIO.jl")
+include("../../../src/CubicalCode/UniformMesh.jl")
+include("../../../src/CubicalCode/UniformMatrixDEC.jl")
+include("../../../src/CubicalCode/UniformKernelDEC.jl")
+include("../../../src/CubicalCode/UniformMPI.jl")
+include("../../../src/CubicalCode/UniformIO.jl")
 
 # ── Global problem parameters ─────────────────────────────────────────────────
 
@@ -37,30 +51,23 @@ const m_dims = (NX_GLOBAL, NY_GLOBAL)
 
 const LX = 5.0
 const LY = 5.0
-const V_X = 1.0      # advection speed in x
-const V_Y = 1.0
+const K_DIFFUSION = 0.5
 const T_START = 0.0
-const T_END = 5.0    # one full period: LX / V_X = 5.0
+const T_END = 1.0
 const DT = 0.001
-const SAVEAT = 0.1
+const SAVEAT = 0.025
 const HALO = 5
 const PRINT_EVERY_N_STEPS = 250
 
-const OUTDIR = "output_advection2D_mpi"
-const OUTFILE = joinpath(OUTDIR, "advection2D.h5")
-const IMGDIR = "imgs/Advection2D_MPI"
-
-FT = Float64
+const FT = Float64
 
 # ── DataStream ────────────────────────────────────────────────────────────────
 
 const datum = Datum{Quad,2}("snapshots", "fields", FT)
-const stream = DataStream("advection2D", OUTFILE, [datum])
+const stream = DataStream("heat2D", OUTFILE, [datum])
 
 # ── Build topology ────────────────────────────────────────────────────────────
-
-const w_dims = (4, 4)
-const o_dims = (2, 2)
+# Worker/output split: workers run the PDE, outputs handle HDF5.
 
 MPI.Init()
 topo = MPITopology(m_dims, w_dims, o_dims; periods = (true, true))
@@ -87,6 +94,7 @@ if output(topo)
     create_hdf5!(handler, m_dims)
     MPI.Barrier(cart_comm)
 
+    # Busy-wait loop: receive a signal from paired worker leader over intercomm.
     while true
         tag = output_from_worker(topo)
         tag == SIGNAL_DONE && break
@@ -114,9 +122,9 @@ if output(topo)
                 println("Output leader | global $label plot saved.")
             end
 
-            # ── GIF ───────────────────────────────────────────────────────────
+            # ── GIF ───────────────────────────────────────────────────────────────────
             let
-                gif_path = joinpath(IMGDIR, "global_advection2D.gif")
+                gif_path = joinpath(IMGDIR, "global_heat2D.gif")
                 frame_obs = Observable(dset[1, :, :])
 
                 fig = Figure(; size = (700, 600))
@@ -150,34 +158,17 @@ else
 
     # ── DEC operators ─────────────────────────────────────────────────────────
 
+    dd0 = dual_derivative(Val(0), s)
     ihs1 = inv_hodge_star(Val(1), s)
     d1 = exterior_derivative(Val(1), s)
     hs2 = hodge_star(Val(2), s)
-
-    # ── Constant velocity dual 1-form ─────────────────────────────────────────
-    # v is a dual 1-form on edges: x-edges carry V_X * dx_dual, y-edges are zero.
-    # dx_dual = lx(s) / nxq(s) is the dual edge length in x on a uniform mesh.
-    # Edges are laid out as [x-family..., y-family...] [3].
-
-    v = zeros(FT, ne(s))
-
-    # x-aligned dual edges live in the y-aligned primal edge index range [3]
-    for y in 1:nye(s), x in 1:nx(s)
-        e = coord_to_edge(s, x, y, Y_ALIGN)
-        v[e] = V_X * dual_edge_len(s, x, y, X_ALIGN)
-    end
-
-    for y in 1:ny(s), x in 1:nxe(s)
-        e = coord_to_edge(s, x, y, X_ALIGN)
-        v[e] = V_Y * dual_edge_len(s, x, y, Y_ALIGN)
-    end
 
     # ── Initial condition ─────────────────────────────────────────────────────
 
     u0 = zeros(FT, nquads(s))
 
     center = [LX / 2, LY / 2]
-    covariance = [0.5, 0.5]
+    covariance = [0.5, 0.1]
     dist = MvNormal(center, covariance)
 
     for ry in 1:nyqr(s), rx in 1:nxqr(s)
@@ -220,17 +211,19 @@ else
 
     MPI.Barrier(cart_comm)
 
-    # ── RHS ───────────────────────────────────────────────────────────────────
+    # ── RHS and callbacks ─────────────────────────────────────────────────────
 
-    function advection_rhs_mpi!(du, u, p, t)
-        _, v, ihs1, d1, hs2 = p
-        w = wedge_product_dd(Val(0), Val(1), s, u, v)
-        return du .= -(hs2 * d1 * ihs1) * w
+    function heat_rhs_mpi!(du, u, p, t)
+        _, k, _, dd0, ihs1, d1, hs2 = p
+        grad_u = dd0 * u
+        flux_dual = k .* grad_u
+        flux_primal = ihs1 * flux_dual
+        div_flux = d1 * flux_primal
+        laplacian_u = hs2 * div_flux
+        return du .= laplacian_u
     end
 
-    p = (s, v, ihs1, d1, hs2)
-
-    # ── Callbacks ─────────────────────────────────────────────────────────────
+    p = (s, K_DIFFUSION, topo, dd0, ihs1, d1, hs2)
 
     progress_cb = FunctionCallingCallback(
         (u, t, integrator) -> begin
@@ -266,27 +259,19 @@ else
 
     # ── ODE solve ─────────────────────────────────────────────────────────────
 
-    prob = ODEProblem(advection_rhs_mpi!, u0, (T_START, T_END), p)
+    prob = ODEProblem(heat_rhs_mpi!, u0, (T_START, T_END), p)
     cart_rank == 0 && println("Solving...")
     sol = solve(prob, Tsit5(); saveat = SAVEAT, adaptive = false, dt = DT, callback = cb)
     cart_rank == 0 && println("Solve complete.")
 
     mass_f = global_integral(sol[end], s, cart_comm)
     cart_rank == 0 && println("Final mass: $(mass_f)")
+    cart_rank == 0 && println("Mass drift: $(round(100.0 * (mass_f - mass_0) / mass_0, digits=6))%")
 
     worker_to_output(SIGNAL_DONE, topo)
     MPI.Barrier(cart_comm)
 
     # ── Per-rank final plots ───────────────────────────────────────────────────
-
-    let title = "Rank $cart_rank | coords=$(cart_coords) | t=$(T_END / 2)"
-        fname = joinpath(
-            IMGDIR,
-            @sprintf("rank%03d_coords%d-%d_half.png", cart_rank, cart_coords[1], cart_coords[2])
-        )
-        half_idx = length(sol.t) ÷ 2
-        plot_rank_slice(s, sol[half_idx], title, fname)
-    end
 
     let title = "Rank $cart_rank | coords=$(cart_coords) | t=$(T_END)"
         fname = joinpath(

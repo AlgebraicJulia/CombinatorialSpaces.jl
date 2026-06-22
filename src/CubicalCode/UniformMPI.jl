@@ -59,6 +59,15 @@ function worker_mesh_offset(cart_coord::Int, m_dim::Int, w_dim::Int)
     return tile_offset(cart_coord, base_m_dim, rem)
 end
 
+function Base.show(io::IO, c::WorkerCache{N}) where {N}
+    println(io, "WorkerCache{$N}")
+    println(io, "  cart_nranks : $(c.cart_nranks)")
+    println(io, "  lm_dims     : $(c.lm_dims)  ($(prod(c.lm_dims .- 1)) dual cells)")
+    println(io, "  lm_gm_offsets: $(c.lm_gm_offsets)")
+    println(io, "  gm_dims     : $(c.gm_dims)  ($(prod(c.gm_dims .- 1)) global dual cells)")
+    return print(io, "  neighbors   : $(keys(c.neighbors))")
+end
+
 # ── Worker mesh construction ──────────────────────────────────────────────────
 
 function worker_mesh(
@@ -199,6 +208,27 @@ function local_mesh_worker_offsets(worker_caches::Vector{OutputWorkerCache{N}}) 
     return map(cache -> cache.lm_gm_offsets .- om_gm_offsets, worker_caches)
 end
 
+function Base.show(io::IO, c::OutputCache{N}) where {N}
+    println(io, "OutputCache{$N}")
+    println(io, "  nworkers     : $(c.nworkers)")
+    println(io, "  lt_dims      : $(c.lt_dims)  (worker grid per output)")
+    println(io, "  om_dims      : $(c.om_dims)  ($(prod(c.om_dims .- 1)) dual cells)")
+    println(io, "  om_gm_offsets: $(c.om_gm_offsets)")
+    println(io, "  worker_caches:")
+    for (i, wc) in enumerate(c.worker_caches)
+        lo = c.lm_om_offsets[i]
+        hi = lo .+ (wc.lm_dims .- 1)
+        println(
+            io,
+            "    [$i] lm_dims=$(wc.lm_dims)  gm_offset=$(wc.lm_gm_offsets)  om_range=$(lo).→.$(hi)",
+        )
+    end
+    return print(
+        io,
+        "  om_gm_offsets cover: $(c.om_gm_offsets) → $(c.om_gm_offsets .+ c.om_dims .- 1)",
+    )
+end
+
 ### OUTPUT WORKER CACHE
 function OutputWorkerCache(lm_dims::NTuple{N,Int}, lm_gm_offsets::NTuple{N,Int}) where {N}
     return OutputWorkerCache{N}(lm_dims, lm_gm_offsets, PseudoCubicalMesh(lm_dims...))
@@ -232,6 +262,12 @@ function _send_mesh_metadata(intercomm::MPI.Comm, cache::WorkerCache{N}) where {
         Cint(0),
         intercomm,
     )
+end
+
+function Base.show(io::IO, c::OutputWorkerCache{N}) where {N}
+    println(io, "OutputWorkerCache{$N}")
+    println(io, "  lm_dims      : $(c.lm_dims)  ($(prod(c.lm_dims .- 1)) dual cells)")
+    return print(io, "  lm_gm_offsets: $(c.lm_gm_offsets)")
 end
 
 ### BUILD THE MPI_TOPOLOGY ###
