@@ -272,12 +272,17 @@ function scatter_to_tile!(
 
     for (wc, wc_offset, src_start) in
         zip(worker_caches(handler), lm_om_offsets(handler), src_starts)
+        family_offset = src_start # For when a Datum has multiple buffers (e.g. Edge in 2D/3D, Quad in 3D)
         for (tbuf, dims) in zip(tbufs, datum_dims(datum, wc.mesh))
-            _scatter_worker_chunk!(tbuf, gcache.recv_buffer, wc_offset, src_start, dims)
+            _scatter_worker_chunk!(tbuf, gcache.recv_buffer, wc_offset, family_offset, dims)
+            family_offset += prod(dims)
         end
     end
 end
 
+# TODO: Currently, wc_offset works in vertex offset from origin.
+# While this offset should work for any element, this is based on a design
+# choice and may need to be generalized if behavior changes.
 function _scatter_worker_chunk!(
     tbuf::AbstractArray,
     recv_buffer::AbstractVector,

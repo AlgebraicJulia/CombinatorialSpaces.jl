@@ -4,10 +4,7 @@ const PROJECT_DIR = dirname(dirname(dirname(@__DIR__)))
 const SCRIPT = joinpath(@__DIR__, "New_Adv_3D_MPI.jl")
 const LOGDIR = joinpath(@__DIR__, "logs")
 
-const CONFIGS = [
-    (4, 4, 4),
-    # (2, 1, 1), (1, 2, 1), (1, 1, 2)
-]
+const CONFIGS = [(4, 4, 4), (8, 8, 1), (8, 1, 8), (1, 8, 8)]
 
 mkpath(LOGDIR)
 
