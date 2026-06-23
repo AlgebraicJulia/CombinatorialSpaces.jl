@@ -12,11 +12,11 @@
 # Velocity: uniform x-direction, v_x = V_X * dual_edge_length_x, v_y = 0
 # Periodicity handled by halo exchange via DiscreteCallback before each RHS evaluation.
 
-length(ARGS) == 6 || error("Usage: mpiexecjl -n N julia New_Adv_2D_MPI.jl wy wx oy ox run_tag")
+length(ARGS) == 5 || error("Usage: mpiexecjl -n N julia New_Adv_2D_MPI.jl wy wx oy ox run_tag")
 
 const w_dims = (parse(Int, ARGS[1]), parse(Int, ARGS[2]))
 const o_dims = (parse(Int, ARGS[3]), parse(Int, ARGS[4]))
-const RUN_TAG = ARGS[6]
+const RUN_TAG = ARGS[5]
 
 const OUTDIR = joinpath(@__DIR__, "output", RUN_TAG)
 const OUTFILE = joinpath(OUTDIR, "advection2D.h5")
@@ -143,12 +143,13 @@ else
     cart_coords = MPI.Cart_coords(cart_comm)
     cart_dims, _, _ = MPI.Cart_get(cart_comm)
 
-    s, ghosts = worker_mesh(topo, (LX, LY); halo = (HALO, HALO))
+    s = worker_mesh(topo, (LX, LY); halo = (HALO, HALO))
+
+    ex_stream = DataStream(Datum[Datum{Quad,2}("u", "fields", FT)])
+    ex_handler = ExchangeHandler(ex_stream, topo, s)
 
     cart_rank == 0 && println("Worker Cartesian grid: $(cart_dims[1])×$(cart_dims[2])")
-    println(
-        "Worker rank $cart_rank | coords=$(cart_coords) | local real mesh: $(cache.lm_dims[1])×$(cache.lm_dims[2])",
-    )
+    println("Worker rank $cart_rank | coords=$(cart_coords) | local real mesh: $(cache.lm_dims[1])×$(cache.lm_dims[2])")
     MPI.Barrier(cart_comm)
 
     # ── DEC operators ─────────────────────────────────────────────────────────
@@ -214,10 +215,7 @@ else
     end
 
     let title = "Rank $cart_rank | coords=$(cart_coords) | t=0.0"
-        fname = joinpath(
-            IMGDIR,
-            @sprintf("rank%03d_coords%d-%d_IC.png", cart_rank, cart_coords[1], cart_coords[2])
-        )
+        fname = joinpath(IMGDIR, @sprintf("rank%03d_coords%d-%d_IC.png", cart_rank, cart_coords[1], cart_coords[2]))
         plot_rank_slice(s, u0, title, fname)
     end
 
@@ -240,9 +238,7 @@ else
             step = integrator.stats.naccept
             if step % PRINT_EVERY_N_STEPS == 0
                 pct = 100.0 * t / integrator.sol.prob.tspan[2]
-                println(
-                    "Worker $cart_rank | step $step | t = $(round(t, digits=4)) ($(round(pct, digits=1))%)",
-                )
+                println("Worker $cart_rank | step $step | t = $(round(t, digits=4)) ($(round(pct, digits=1))%)")
                 flush(stdout)
             end
         end;
@@ -252,18 +248,15 @@ else
 
     exchange_cb = DiscreteCallback(
         (u, t, integrator) -> true,
-        integrator -> exchange_quads_all!(integrator.u, ghosts, topo);
-        initialize = (c, u, t, integrator) -> exchange_quads_all!(u, ghosts, topo),
+        integrator -> exchange!(ex_handler, (u = integrator.u,));
+        initialize = (c, u, t, integrator) -> exchange!(ex_handler, (u = u,)),
         save_positions = (false, false),
     )
 
-    save_cb = FunctionCallingCallback(
-        (u, t, integrator) -> begin
-            data = reshape(interior(Val(2), u, s), nxqr(s), nyqr(s))[:]
-            send_output!([data], stream, topo)
-        end;
-        funcat = collect(T_START:SAVEAT:T_END),
-    )
+    save_cb = FunctionCallingCallback((u, t, integrator) -> begin
+        data = reshape(interior(Val(2), u, s), nxqr(s), nyqr(s))[:]
+        send_output!([data], stream, topo)
+    end; funcat = collect(T_START:SAVEAT:T_END))
 
     cb = CallbackSet(exchange_cb, save_cb, progress_cb)
 
@@ -283,22 +276,17 @@ else
     # ── Per-rank final plots ───────────────────────────────────────────────────
 
     let title = "Rank $cart_rank | coords=$(cart_coords) | t=$(T_END / 2)"
-        fname = joinpath(
-            IMGDIR,
-            @sprintf("rank%03d_coords%d-%d_half.png", cart_rank, cart_coords[1], cart_coords[2])
-        )
+        fname = joinpath(IMGDIR, @sprintf("rank%03d_coords%d-%d_half.png", cart_rank, cart_coords[1], cart_coords[2]))
         half_idx = length(sol.t) ÷ 2
         plot_rank_slice(s, sol[half_idx], title, fname)
     end
 
     let title = "Rank $cart_rank | coords=$(cart_coords) | t=$(T_END)"
-        fname = joinpath(
-            IMGDIR,
-            @sprintf("rank%03d_coords%d-%d_final.png", cart_rank, cart_coords[1], cart_coords[2])
-        )
+        fname = joinpath(IMGDIR, @sprintf("rank%03d_coords%d-%d_final.png", cart_rank, cart_coords[1], cart_coords[2]))
         plot_rank_slice(s, sol[end], title, fname)
     end
 
+    close!(ex_handler)
     println("LEAVING WORKER RANK $world_rank")
     MPI.Barrier(cart_comm)
 end

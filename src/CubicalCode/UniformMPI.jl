@@ -85,9 +85,7 @@ function worker_mesh(
     lengths = ntuple(i -> FT(lm_dims[i] - 1) * L[i] / gm_dual[i], N)
     bases = ntuple(i -> FT(offsets[i]) * L[i] / gm_dual[i], N)
 
-    s = UniformCubicalComplex(lm_dims..., lengths...; _mesh_kwargs(Val(N), halos, bases)...)
-    ghosts = _build_ghosts(Val(N), s)
-    return s, ghosts
+    return UniformCubicalComplex(lm_dims..., lengths...; _mesh_kwargs(Val(N), halos, bases)...)
 end
 
 function _mesh_kwargs(::Val{2}, halos, bases)
@@ -390,9 +388,6 @@ end
 
 ### WORKER HELPERS ### 
 
-const AXIS_NAMES_2D = (:west, :east, :south, :north)
-const AXIS_NAMES_3D = (:west, :east, :south, :north, :down, :up)
-
 function build_neighbors(cart_comm::MPI.Comm, ::Val{2})
     west, east = MPI.Cart_shift(cart_comm, 0, 1)
     south, north = MPI.Cart_shift(cart_comm, 1, 1)
@@ -458,7 +453,8 @@ function exchange_quads_all!(
     topo::MPITopology{WorkerCache{N}},
 ) where {N}
     exchange_quads!(f, ghosts, topo, EASTWEST)
-    return exchange_quads!(f, ghosts, topo, NORTHSOUTH)
+    exchange_quads!(f, ghosts, topo, NORTHSOUTH)
+    return nothing
 end
 
 function exchange_quads_all!(

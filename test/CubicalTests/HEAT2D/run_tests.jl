@@ -3,18 +3,9 @@
 const PROJECT_DIR = joinpath(@__DIR__, "..", "..", "..")
 const SCRIPT = joinpath(@__DIR__, "New_Heat_2D_MPI.jl")
 const SIM_NAME = "HEAT2D"
-const LOGDIR = joinpath(@__DIR__, SIM_NAME, "logs")
+const LOGDIR = joinpath(@__DIR__, "logs")
 
-const CONFIGS = [
-    ((1, 1), (1, 1)),
-    ((1, 4), (1, 1)),
-    ((2, 2), (1, 1)),
-    ((4, 1), (1, 1)),
-    ((2, 2), (1, 2)),
-    ((4, 4), (3, 3)),
-    ((5, 5), (2, 2)),
-    ((5, 4), (2, 3)),
-]
+const CONFIGS = [((1, 1), (1, 1)), ((1, 4), (1, 1)), ((2, 2), (1, 1)), ((4, 1), (1, 1)), ((2, 2), (1, 2)), ((4, 4), (3, 3)), ((5, 5), (2, 2)), ((5, 4), (2, 3))]
 
 mkpath(LOGDIR)
 
@@ -26,7 +17,7 @@ for (w_dims, o_dims) in CONFIGS
     cmd = `mpiexecjl -n $nprocs julia --project=$PROJECT_DIR $SCRIPT \
                $(w_dims[1]) $(w_dims[2]) \
                $(o_dims[1]) $(o_dims[2]) \
-               $SIM_NAME $tag`
+               $tag`
 
     print("[$tag] ($nprocs ranks) running... ")
     flush(stdout)

@@ -22,10 +22,7 @@ end
 Datum{M,N}() where {M<:AbstractMeshType,N} = Datum{M,N}("", "", Float64)
 
 function Datum{Boid,2}(args...)
-    return error(
-        "Datum{Boid, 2} is invalid: Boid is a 3-cell and only exists in 3D. " *
-        "Did you mean Datum{Quad, 2} or Datum{Boid, 3}?",
-    )
+    return error("Datum{Boid, 2} is invalid: Boid is a 3-cell and only exists in 3D. " * "Did you mean Datum{Quad, 2} or Datum{Boid, 3}?")
 end
 
 nfamilies(::Datum{Vert,N}) where {N} = 1
@@ -175,14 +172,7 @@ function create_hdf5!(handler::DataHandler{N}, gm_dims::NTuple{N,Int}) where {N}
                 dims = tuple(0, spatial_dims...)
                 maxdims = tuple(-1, spatial_dims...)
                 chunk = tuple(1, spatial_dims...)
-                HDF5.create_dataset(
-                    grp,
-                    name,
-                    datum.entrytype,
-                    HDF5.dataspace(dims; max_dims = maxdims);
-                    chunk = chunk,
-                    dxpl_mpio = :collective,
-                )
+                HDF5.create_dataset(grp, name, datum.entrytype, HDF5.dataspace(dims; max_dims = maxdims); chunk = chunk, dxpl_mpio = :collective)
             end
         end
     end
@@ -192,8 +182,7 @@ end
 function write_output!(handler::DataHandler{N}) where {N}
     gather!(handler)
 
-    for (datum, gcache, tbuf) in
-        zip(handler.stream.data, handler.gatherv_caches, handler.tile_buffers)
+    for (datum, gcache, tbuf) in zip(handler.stream.data, handler.gatherv_caches, handler.tile_buffers)
         scatter_to_tile!(datum, gcache, tbuf, handler)
     end
 
@@ -210,11 +199,7 @@ function write_output!(handler::DataHandler{N}) where {N}
 end
 
 # Worker-side
-function send_output!(
-    data_arrays::Vector{<:AbstractVector},
-    stream::DataStream,
-    topo::MPITopology{<:WorkerCache},
-)
+function send_output!(data_arrays::Vector{<:AbstractVector}, stream::DataStream, topo::MPITopology{<:WorkerCache})
     worker_to_output(SIGNAL_WRITE, topo)
     for (data, datum) in zip(data_arrays, stream.data)
         gather!(data, datum, topo)
@@ -241,37 +226,16 @@ function gather!(handler::DataHandler{N}) where {N}
     end
 end
 
-function gather!(
-    data::AbstractVector{T},
-    datum::Datum{M,N},
-    topo::MPITopology{WorkerCache{N}},
-) where {T,M,N}
+function gather!(data::AbstractVector{T}, datum::Datum{M,N}, topo::MPITopology{WorkerCache{N}}) where {T,M,N}
     GC.@preserve data begin
-        MPI.API.MPI_Gatherv(
-            data,
-            Cint(length(data)),
-            MPI.Datatype(datum.entrytype),
-            C_NULL,
-            C_NULL,
-            C_NULL,
-            MPI.Datatype(datum.entrytype),
-            Cint(0),
-            topo.intercomm,
-        )
+        MPI.API.MPI_Gatherv(data, Cint(length(data)), MPI.Datatype(datum.entrytype), C_NULL, C_NULL, C_NULL, MPI.Datatype(datum.entrytype), Cint(0), topo.intercomm)
     end
 end
 
-function scatter_to_tile!(
-    datum::Datum,
-    gcache::GathervCache,
-    tbufs::Vector,
-    handler::DataHandler{N},
-) where {N}
-    src_starts =
-        [0; cumsum([mesh_count(datum, wc.mesh) for wc in worker_caches(handler)])[1:(end - 1)]]
+function scatter_to_tile!(datum::Datum, gcache::GathervCache, tbufs::Vector, handler::DataHandler{N}) where {N}
+    src_starts = [0; cumsum([mesh_count(datum, wc.mesh) for wc in worker_caches(handler)])[1:(end - 1)]]
 
-    for (wc, wc_offset, src_start) in
-        zip(worker_caches(handler), lm_om_offsets(handler), src_starts)
+    for (wc, wc_offset, src_start) in zip(worker_caches(handler), lm_om_offsets(handler), src_starts)
         family_offset = src_start # For when a Datum has multiple buffers (e.g. Edge in 2D/3D, Quad in 3D)
         for (tbuf, dims) in zip(tbufs, datum_dims(datum, wc.mesh))
             _scatter_worker_chunk!(tbuf, gcache.recv_buffer, wc_offset, family_offset, dims)
@@ -283,13 +247,7 @@ end
 # TODO: Currently, wc_offset works in vertex offset from origin.
 # While this offset should work for any element, this is based on a design
 # choice and may need to be generalized if behavior changes.
-function _scatter_worker_chunk!(
-    tbuf::AbstractArray,
-    recv_buffer::AbstractVector,
-    wc_offset::NTuple{N,Int},
-    src_start::Int,
-    dims::NTuple{N,Int},
-) where {N}
+function _scatter_worker_chunk!(tbuf::AbstractArray, recv_buffer::AbstractVector, wc_offset::NTuple{N,Int}, src_start::Int, dims::NTuple{N,Int}) where {N}
     n = prod(dims)
     ranges = ntuple(i -> (wc_offset[i] + 1):(wc_offset[i] + dims[i]), N)
     return tbuf[ranges...] .= reshape(recv_buffer[(src_start + 1):(src_start + n)], dims)
@@ -303,4 +261,139 @@ end
 function _hyperslab_ranges(cache::OutputCache{N}, count::NTuple{N,Int}) where {N}
     offset = cache.om_gm_offsets
     return ntuple(j -> (offset[j] + 1):(offset[j] + count[j]), N)
+end
+
+struct ExchangeHandler{N,TN,FT}
+    topo::MPITopology{WorkerCache{N}}
+    stream::DataStream
+    ghosts::NamedTuple
+
+    # 2N send and recv buffers ordered: west/east/south/north[/down/up]
+    send_bufs::NTuple{TN,Vector{FT}}
+    recv_bufs::NTuple{TN,Vector{FT}}
+
+    # 2N persistent send and recv requests
+    send_reqs::NTuple{TN,MPI.Request}
+    recv_reqs::NTuple{TN,MPI.Request}
+end
+
+const AXIS_NAMES_2D = (:west, :east, :south, :north)
+const AXIS_NAMES_3D = (:west, :east, :south, :north, :down, :up)
+
+function ExchangeHandler(stream::DataStream, topo::MPITopology{WorkerCache{N}}, s::AbstractCubicalComplex) where {N}
+    @assert !isempty(stream.data) "ExchangeHandler: stream must contain at least one datum"
+
+    FT = stream.data[1].entrytype
+    @assert all(d.entrytype == FT for d in stream.data) "ExchangeHandler: all datums must share the same entrytype, got $(unique(d.entrytype for d in stream.data))"
+
+    # TODO: This will have to change to just check the element dimension
+    valid_type = N == 2 ? Datum{Quad,2} : Datum{Boid,3}
+    @assert all(d isa valid_type for d in stream.data) "ExchangeHandler: all datums must be $(valid_type) for a $(N)D mesh"
+
+    ghosts = _build_ghosts(Val(N), s)
+
+    face_names = N == 2 ? AXIS_NAMES_2D : AXIS_NAMES_3D   # NTuple{2N, Symbol}
+
+    # TODO: This assumes that we're dealing with the same datums
+    # This code will have to change when dealing with multi-datum types
+    n_vars = length(stream.data)
+    buf_sizes = ntuple(i -> length(ghosts[face_names[i]].send) * n_vars, 2N) # 2N for each pair of faces (e.g. west/east)
+
+    send_bufs = ntuple(i -> Vector{FT}(undef, buf_sizes[i]), 2N)
+    recv_bufs = ntuple(i -> Vector{FT}(undef, buf_sizes[i]), 2N)
+
+    # W -> 0, E -> 1, S -> 2, N -> 3, D -> 4, U -> 5
+    nb = topo.cache.neighbors
+    send_reqs = ntuple(2N) do i
+        axis = (i - 1) ÷ 2
+        tag = isodd(i) ? 2 * axis : 2 * axis + 1
+        return MPI.Send_init(send_bufs[i], nb[face_names[i]], tag, topo.cart_comm)
+    end
+
+    # W -> 1, E -> 0, S -> 3, N -> 2, D -> 5, U -> 4
+    recv_reqs = ntuple(2N) do i
+        axis = (i - 1) ÷ 2
+        tag = isodd(i) ? 2 * axis + 1 : 2 * axis
+        return MPI.Recv_init(recv_bufs[i], nb[face_names[i]], tag, topo.cart_comm)
+    end
+    return ExchangeHandler{N,2N,FT}(topo, stream, ghosts, send_bufs, recv_bufs, send_reqs, recv_reqs)
+end
+
+function exchange!(handler::ExchangeHandler{N,TN,FT}, vars::NamedTuple) where {N,TN,FT}
+    face_names = N == 2 ? AXIS_NAMES_2D : AXIS_NAMES_3D
+
+    fields = ntuple(j -> vars[Symbol(handler.stream.data[j].name)], length(handler.stream.data))
+    send_slabs = ntuple(i -> handler.ghosts[face_names[i]].send, 2N)
+    recv_slabs = ntuple(i -> handler.ghosts[face_names[i]].recv, 2N)
+
+    _exchange_axis!(handler, fields, send_slabs, recv_slabs, 1)
+    _exchange_axis!(handler, fields, send_slabs, recv_slabs, 2)
+    N == 3 && _exchange_axis!(handler, fields, send_slabs, recv_slabs, 3)
+
+    return nothing
+end
+
+function _exchange_axis!(handler::ExchangeHandler, fields::NTuple, send_slabs::NTuple, recv_slabs::NTuple, axis::Int)
+    low_idx = 2 * axis - 1
+    high_idx = 2 * axis
+
+    low_send = handler.send_bufs[low_idx]
+    high_send = handler.send_bufs[high_idx]
+    low_recv = handler.recv_bufs[low_idx]
+    high_recv = handler.recv_bufs[high_idx]
+
+    low_send_req = handler.send_reqs[low_idx]
+    high_send_req = handler.send_reqs[high_idx]
+    low_recv_req = handler.recv_reqs[low_idx]
+    high_recv_req = handler.recv_reqs[high_idx]
+
+    MPI.Start(low_recv_req)
+    MPI.Start(high_recv_req)
+
+    _pack_face!(low_send, send_slabs[low_idx], fields)
+    _pack_face!(high_send, send_slabs[high_idx], fields)
+
+    MPI.Start(low_send_req)
+    MPI.Start(high_send_req)
+
+    MPI.Wait(low_recv_req)
+    MPI.Wait(high_recv_req)
+    MPI.Wait(low_send_req)
+    MPI.Wait(high_send_req)
+
+    _unpack_face!(low_recv, recv_slabs[low_idx], fields)
+    _unpack_face!(high_recv, recv_slabs[high_idx], fields)
+
+    return nothing
+end
+
+function _pack_face!(buf::Vector, slab::Vector, fields::NTuple)
+    n_cell = length(slab)
+    for (j, field) in enumerate(fields)
+        offset = (j - 1) * n_cell
+        for k in 1:n_cell
+            buf[offset + k] = field[slab[k]]
+        end
+    end
+    return nothing
+end
+
+function _unpack_face!(buf::Vector, slab::Vector, fields::NTuple)
+    n_cell = length(slab)
+    for (j, field) in enumerate(fields)
+        offset = (j - 1) * n_cell
+        for k in 1:n_cell
+            field[slab[k]] = buf[offset + k]
+        end
+    end
+    return nothing
+end
+
+function close!(handler::ExchangeHandler{N,TN,FT}) where {N,TN,FT}
+    ntuple(2N) do i
+        MPI.free(handler.send_reqs[i])
+        MPI.free(handler.recv_reqs[i])
+        return nothing
+    end
+    return nothing
 end

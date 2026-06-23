@@ -123,22 +123,14 @@ if output(topo)
 
             # ── Static IC and final plots for all three slices ────────────────────
 
-            for (slice_fn, axis_label, idx, ax1_label, ax2_label) in (
-                (i -> dset[i, x_mid, :, :], "x", x_mid, "y", "z"),
-                (i -> dset[i, :, y_mid, :], "y", y_mid, "x", "z"),
-                (i -> dset[i, :, :, z_mid], "z", z_mid, "x", "y"),
-            )
+            for (slice_fn, axis_label, idx, ax1_label, ax2_label) in
+                ((i -> dset[i, x_mid, :, :], "x", x_mid, "y", "z"), (i -> dset[i, :, y_mid, :], "y", y_mid, "x", "z"), (i -> dset[i, :, :, z_mid], "z", z_mid, "x", "y"))
                 ic_data = slice_fn(1)
                 fn_data = slice_fn(ntimes)
 
                 for (data, label) in ((ic_data, "IC"), (fn_data, "final"))
                     fig = Figure(; size = (700, 600))
-                    ax = Axis(
-                        fig[1, 1];
-                        title = "Global $(axis_label)=$(idx) slice | $label",
-                        xlabel = ax1_label,
-                        ylabel = ax2_label,
-                    )
+                    ax = Axis(fig[1, 1]; title = "Global $(axis_label)=$(idx) slice | $label", xlabel = ax1_label, ylabel = ax2_label)
                     hm = heatmap!(ax, data; colorrange = cr)
                     Colorbar(fig[1, 2], hm)
                     save(joinpath(IMGDIR, "global_$(lowercase(label))_$(axis_label)slice.png"), fig)
@@ -169,14 +161,13 @@ else
     cart_coords = MPI.Cart_coords(cart_comm)
     cart_dims, _, _ = MPI.Cart_get(cart_comm)
 
-    s, ghosts = worker_mesh(topo, (LX, LY, LZ); halo = (HALO, HALO, HALO))
+    s = worker_mesh(topo, (LX, LY, LZ); halo = (HALO, HALO, HALO))
 
-    cart_rank == 0 &&
-        println("Worker Cartesian grid: $(cart_dims[1])×$(cart_dims[2])×$(cart_dims[3])")
-    println(
-        "Worker rank $cart_rank | coords=$(cart_coords) | " *
-        "local real mesh: $(cache.lm_dims[1])×$(cache.lm_dims[2])×$(cache.lm_dims[3])",
-    )
+    ex_stream = DataStream(Datum[Datum{Boid,3}("u", "fields", FT)])
+    ex_handler = ExchangeHandler(ex_stream, topo, s)
+
+    cart_rank == 0 && println("Worker Cartesian grid: $(cart_dims[1])×$(cart_dims[2])×$(cart_dims[3])")
+    println("Worker rank $cart_rank | coords=$(cart_coords) | " * "local real mesh: $(cache.lm_dims[1])×$(cache.lm_dims[2])×$(cache.lm_dims[3])")
     MPI.Barrier(cart_comm)
 
     # ── Constant velocity dual 1-form on quads ────────────────────────────────
@@ -292,9 +283,7 @@ else
             step = integrator.stats.naccept
             if step % PRINT_EVERY_N_STEPS == 0
                 pct = 100.0 * t / integrator.sol.prob.tspan[2]
-                println(
-                    "Worker $cart_rank | step $step | t = $(round(t, digits=4)) ($(round(pct, digits=1))%)",
-                )
+                println("Worker $cart_rank | step $step | t = $(round(t, digits=4)) ($(round(pct, digits=1))%)")
                 flush(stdout)
             end
         end;
@@ -304,17 +293,14 @@ else
 
     exchange_cb = DiscreteCallback(
         (u, t, integrator) -> true,
-        integrator -> exchange_boids_all!(integrator.u, ghosts, topo);
-        initialize = (c, u, t, integrator) -> exchange_boids_all!(u, ghosts, topo),
+        integrator -> exchange!(ex_handler, (u = integrator.u,));
+        initialize = (c, u, t, integrator) -> exchange!(ex_handler, (u = u,)),
         save_positions = (false, false),
     )
 
     save_cb = FunctionCallingCallback(
         (u, t, integrator) -> begin
-            data = [
-                u[coord_to_boid(s, rx + hx(s), ry + hy(s), rz + hz(s))] for
-                rx in 1:nxbr(s), ry in 1:nybr(s), rz in 1:nzbr(s)
-            ][:]
+            data = [u[coord_to_boid(s, rx + hx(s), ry + hy(s), rz + hz(s))] for rx in 1:nxbr(s), ry in 1:nybr(s), rz in 1:nzbr(s)][:]
             send_output!([data], stream, topo)
         end;
         funcat = collect(T_START:SAVEAT:T_END),
@@ -331,8 +317,7 @@ else
 
     mass_f = global_integral(sol[end], s, cart_comm)
     cart_rank == 0 && println("Final mass:  $(mass_f)")
-    cart_rank == 0 &&
-        println("Mass drift:  $(round(100.0 * (mass_f - mass_0) / mass_0, digits=6))%")
+    cart_rank == 0 && println("Mass drift:  $(round(100.0 * (mass_f - mass_0) / mass_0, digits=6))%")
 
     worker_to_output(SIGNAL_DONE, topo)
     MPI.Barrier(cart_comm)
@@ -366,6 +351,7 @@ else
     #     plot_rank_slices(s, sol[end], "t=$(T_END)", fname)
     # end
 
+    close!(ex_handler)
     println("LEAVING WORKER RANK $world_rank")
     MPI.Barrier(cart_comm)
 end
