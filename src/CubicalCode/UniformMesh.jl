@@ -37,26 +37,8 @@ struct PseudoCubicalMesh2D <: AbstractCubicalComplex2D
     halo_y::Int
 end
 
-function UniformCubicalComplex(
-    nx::Int,
-    ny::Int,
-    lx::Real,
-    ly::Real;
-    halo_x::Int = 0,
-    halo_y::Int = 0,
-    base_x::Real = 0.0,
-    base_y::Real = 0.0,
-)
-    return UniformCubicalComplex2D(
-        nx,
-        ny,
-        lx,
-        ly;
-        halo_x = halo_x,
-        halo_y = halo_y,
-        base_x = base_x,
-        base_y = base_y,
-    )
+function UniformCubicalComplex(nx::Int, ny::Int, lx::Real, ly::Real; halo_x::Int = 0, halo_y::Int = 0, base_x::Real = 0.0, base_y::Real = 0.0)
+    return UniformCubicalComplex2D(nx, ny, lx, ly; halo_x = halo_x, halo_y = halo_y, base_x = base_x, base_y = base_y)
 end
 
 function PseudoCubicalMesh2D(nx::Int, ny::Int; halo_x::Int = 0, halo_y::Int = 0)
@@ -217,16 +199,7 @@ end
 spacing(len::FT, np::Int) where {FT<:AbstractFloat} = return len / (np - 1)
 
 # The interval given (lx, ly) is the size of the real domain, excluding halo points. So the total size of the mesh will be (lx + 2 * halo_x * dx, ly + 2 * halo_y * dy)
-function UniformCubicalComplex2D(
-    nxr::Int,
-    nyr::Int,
-    lx::FT,
-    ly::FT;
-    halo_x::Int = 0,
-    halo_y::Int = 0,
-    base_x::FT = zero(FT),
-    base_y::FT = zero(FT),
-) where {FT<:AbstractFloat}
+function UniformCubicalComplex2D(nxr::Int, nyr::Int, lx::FT, ly::FT; halo_x::Int = 0, halo_y::Int = 0, base_x::FT = zero(FT), base_y::FT = zero(FT)) where {FT<:AbstractFloat}
     dx = spacing(lx, nxr)
     dy = spacing(ly, nyr)
     return UniformCubicalComplex2D{FT}(nxr, nyr, dx, dy, halo_x, halo_y, base_x, base_y)
@@ -327,12 +300,7 @@ end
 
 # This function computes the length of the dual edge corresponding to the given primal edge
 # This the same as the primal edges except on the boundary, where the dual edge is half the length of the primal edge
-function dual_edge_len(
-    s::UniformCubicalComplex2D{FT},
-    x::Int,
-    y::Int,
-    align::Align,
-) where {FT<:AbstractFloat}
+function dual_edge_len(s::UniformCubicalComplex2D{FT}, x::Int, y::Int, align::Align) where {FT<:AbstractFloat}
     if align == X_ALIGN
         if y == 1 || y == ny(s)
             return 0.5 * dy(s)
@@ -387,10 +355,7 @@ function is_top_edge(s::AbstractCubicalComplex2D, x::Int, y::Int, align::Align)
     return align == X_ALIGN && y == ny(s)
 end
 function is_boundary_edge(s::AbstractCubicalComplex2D, x::Int, y::Int, align::Align)
-    return is_left_edge(s, x, y, align) ||
-           is_right_edge(s, x, y, align) ||
-           is_bottom_edge(s, x, y, align) ||
-           is_top_edge(s, x, y, align)
+    return is_left_edge(s, x, y, align) || is_right_edge(s, x, y, align) || is_bottom_edge(s, x, y, align) || is_top_edge(s, x, y, align)
 end
 
 # This function returns the two quads that are adjacent to the given edge, ordered with the quad on the left of the edge coming first
@@ -439,10 +404,5 @@ function ghost_quads(s::AbstractCubicalComplex2D)
     rl_ew, sl_ew, sh_ew, rh_ew = slabs(nxq(s), nyq(s), hx(s), (ax, b) -> coord_to_quad(s, ax, b))
     rl_ns, sl_ns, sh_ns, rh_ns = slabs(nyq(s), nxq(s), hy(s), (ax, b) -> coord_to_quad(s, b, ax))
 
-    return (
-        west = (send = sl_ew, recv = rl_ew),
-        east = (send = sh_ew, recv = rh_ew),
-        south = (send = sl_ns, recv = rl_ns),
-        north = (send = sh_ns, recv = rh_ns),
-    )
+    return (west = (send = sl_ew, recv = rl_ew), east = (send = sh_ew, recv = rh_ew), south = (send = sl_ns, recv = rl_ns), north = (send = sh_ns, recv = rh_ns))
 end

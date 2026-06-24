@@ -1,6 +1,4 @@
 using GeometryBasics
-import GeometryBasics.Mesh
-
 using Makie
 import Makie: convert_arguments
 
@@ -20,10 +18,7 @@ function GeometryBasics.Mesh(s::UniformCubicalComplex2D)
     return GeometryBasics.Mesh(ps, qs)
 end
 
-function convert_arguments(
-    P::Union{Type{<:Makie.Wireframe},Type{<:Makie.Mesh},Type{<:Makie.Scatter}},
-    s::UniformCubicalComplex2D,
-)
+function convert_arguments(P::Union{Type{<:Makie.Wireframe},Type{<:Makie.Mesh},Type{<:Makie.Scatter}}, s::UniformCubicalComplex2D)
     return convert_arguments(P, GeometryBasics.Mesh(s))
 end
 
@@ -43,14 +38,7 @@ function plot_wireframe(
     return fig
 end
 
-function plot_zeroform(
-    s::UniformCubicalComplex2D,
-    f;
-    figure_kwargs = (;),
-    axis_kwargs = (;),
-    mesh_kwargs = (;),
-    colorbar_kwargs = (;),
-)
+function plot_zeroform(s::UniformCubicalComplex2D, f; figure_kwargs = (;), axis_kwargs = (;), mesh_kwargs = (;), colorbar_kwargs = (;))
     fig = Figure(; figure_kwargs...)
     ax = CairoMakie.Axis(fig[1, 1]; axis_kwargs...)
     mesh_defaults = (color = interior(Val(0), f, s), colormap = :jet)
@@ -60,16 +48,7 @@ function plot_zeroform(
 end
 
 # Plot only the interior of a 1-form, since the halo values are not meaningful for visualization
-function plot_oneform(
-    s::UniformCubicalComplex2D,
-    alpha;
-    lengthscale = 1,
-    normalize = true,
-    figure_kwargs = (;),
-    axis_kwargs = (;),
-    wireframe_kwargs = (;),
-    arrows_kwargs = (;),
-)
+function plot_oneform(s::UniformCubicalComplex2D, alpha; lengthscale = 1, normalize = true, figure_kwargs = (;), axis_kwargs = (;), wireframe_kwargs = (;), arrows_kwargs = (;))
     dps = dual_points(s)
     interdps = interior(Val(2), dps, s)
     x = map(a -> a[1], interdps)
@@ -85,8 +64,7 @@ function plot_oneform(
     fig = Figure(; figure_kwargs...)
     ax = CairoMakie.Axis(fig[1, 1]; axis_kwargs...)
     wireframe_defaults = (alpha = 0.5,)
-    arrows_defaults =
-        (color = color, colormap = :jet, lengthscale = lengthscale, normalize = normalize)
+    arrows_defaults = (color = color, colormap = :jet, lengthscale = lengthscale, normalize = normalize)
     wireframe!(ax, s; merge(wireframe_defaults, wireframe_kwargs)...)
     arrows2d!(ax, x, y, X, Y; merge(arrows_defaults, arrows_kwargs)...)
     return fig
@@ -129,14 +107,7 @@ function plot_xy_oneform(
     return fig
 end
 
-function plot_twoform(
-    s::UniformCubicalComplex2D,
-    f;
-    figure_kwargs = (;),
-    axis_kwargs = (;),
-    heatmap_kwargs = (;),
-    colorbar_kwargs = (;),
-)
+function plot_twoform(s::UniformCubicalComplex2D, f; figure_kwargs = (;), axis_kwargs = (;), heatmap_kwargs = (;), colorbar_kwargs = (;))
     fig = Figure(; figure_kwargs...)
     ax = CairoMakie.Axis(fig[1, 1]; axis_kwargs...)
 
@@ -146,13 +117,7 @@ function plot_twoform(
     y = map(a -> a[2], interdps)
 
     heatmap_defaults = (colormap = :jet,)
-    msh = CairoMakie.heatmap!(
-        ax,
-        x,
-        y,
-        interior(Val(2), f, s);
-        merge(heatmap_defaults, heatmap_kwargs)...,
-    )
+    msh = CairoMakie.heatmap!(ax, x, y, interior(Val(2), f, s); merge(heatmap_defaults, heatmap_kwargs)...)
     Colorbar(fig[1, 2], msh; colorbar_kwargs...)
     return fig
 end
@@ -176,11 +141,7 @@ function create_gif(
 
     fig = Figure(; figure_kwargs...)
     ax = CairoMakie.Axis(fig[1, 1]; axis_kwargs...)
-    mesh_defaults = (
-        color = interior(Val(0), first(solution), s),
-        colormap = :jet,
-        colorrange = extrema(first(solution)),
-    )
+    mesh_defaults = (color = interior(Val(0), first(solution), s), colormap = :jet, colorrange = extrema(first(solution)))
     msh = CairoMakie.mesh!(ax, s; merge(mesh_defaults, mesh_kwargs)...)
     Colorbar(fig[1, 2], msh; colorbar_kwargs...)
     CairoMakie.record(fig, file_name, 1:frames; framerate = framerate, record_kwargs...) do t
@@ -189,14 +150,7 @@ function create_gif(
 end
 
 # TODO: Check this is getting plot the right way (check for-loop order)
-function plot_dual_zeroform_slice(
-    s::AbstractCubicalComplex3D,
-    f::AbstractVector,
-    align::Align,
-    slice_idx::Int;
-    figure_kwargs = (;),
-    heatmap_kwargs = (;),
-)
+function plot_dual_zeroform_slice(s::AbstractCubicalComplex3D, f::AbstractVector, align::Align, slice_idx::Int; figure_kwargs = (;), heatmap_kwargs = (;))
     if align == Z_ALIGN
         data = [f[real_coord_to_boid(s, rx, ry, slice_idx)] for rx in 1:nxbr(s), ry in 1:nybr(s)]
         x_pts = [real_dual_point(s, rx, 1, 1)[1] for rx in 1:nxbr(s)]

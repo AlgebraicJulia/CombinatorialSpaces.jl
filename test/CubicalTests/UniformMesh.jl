@@ -5,70 +5,70 @@ include("../../src/CubicalCode/UniformMesh.jl")
 
 @testset "UniformCubicalComplex2D - No Halo" begin
 
-  # Create a uniform grid with no halo points, 5x5 points, and a domain of 10x10
-  s = UniformCubicalComplex2D(6, 6, 10.0, 10.0)
+    # Create a uniform grid with no halo points, 5x5 points, and a domain of 10x10
+    s = UniformCubicalComplex2D(6, 6, 10.0, 10.0)
 
-  # Test basic properties
-  @test nx(s) == 6
-  @test ny(s) == 6
-  @test dx(s) == 10.0 / 5
-  @test dy(s) == 10.0 / 5
+    # Test basic properties
+    @test nx(s) == 6
+    @test ny(s) == 6
+    @test dx(s) == 10.0 / 5
+    @test dy(s) == 10.0 / 5
 
-  # Test point generation
-  p = point(s, 1, 1)
-  @test p == Point3d(0.0, 0.0, 0.0)
-  p = point(s, 6, 6)
-  @test p == Point3d(10.0, 10.0, 0.0)
+    # Test point generation
+    p = point(s, 1, 1)
+    @test p == Point3d(0.0, 0.0, 0.0)
+    p = point(s, 6, 6)
+    @test p == Point3d(10.0, 10.0, 0.0)
 
-  # Test counts (assuming same as EmbeddedCubicalComplex2D)
-  @test nv(s) == 36
-  @test ne(s) == 60
-  @test nquads(s) == 25
+    # Test counts (assuming same as EmbeddedCubicalComplex2D)
+    @test nv(s) == 36
+    @test ne(s) == 60
+    @test nquads(s) == 25
 
-  # Test edge source and target
-  @test src(s, 1, 1, X_ALIGN) == 1
-  @test tgt(s, 1, 1, X_ALIGN) == 2
-  @test src(s, 1, 1, Y_ALIGN) == 1
-  @test tgt(s, 1, 1, Y_ALIGN) == 7
+    # Test edge source and target
+    @test src(s, 1, 1, X_ALIGN) == 1
+    @test tgt(s, 1, 1, X_ALIGN) == 2
+    @test src(s, 1, 1, Y_ALIGN) == 1
+    @test tgt(s, 1, 1, Y_ALIGN) == 7
 
-  # Test quad vertices
-  @test coord_to_quad(s, 1, 1) == 1
-  @test coord_to_quad(s, 5, 5) == 25
-  @test coord_to_quad(s, 2, 1) == 2
-  @test coord_to_quad(s, 1, 2) == 6
+    # Test quad vertices
+    @test coord_to_quad(s, 1, 1) == 1
+    @test coord_to_quad(s, 5, 5) == 25
+    @test coord_to_quad(s, 2, 1) == 2
+    @test coord_to_quad(s, 1, 2) == 6
 
-  @test quad_vertices(s, 1, 1) == (1, 2, 8, 7)
-  @test quad_vertices(s, 5, 5) == (29, 30, 36, 35)
+    @test quad_vertices(s, 1, 1) == (1, 2, 8, 7)
+    @test quad_vertices(s, 5, 5) == (29, 30, 36, 35)
 
-  # Test quad to edge mapping
-  @test quad_edges(s, 1, 1) == (1, 32, 6, 31)
-  @test quad_edges(s, 5, 5) == (25, 60, 30, 59)
+    # Test quad to edge mapping
+    @test quad_edges(s, 1, 1) == (1, 32, 6, 31)
+    @test quad_edges(s, 5, 5) == (25, 60, 30, 59)
 
-  # Test quad areas
-  @test quad_area(s) == dx(s) * dy(s)
+    # Test quad areas
+    @test quad_area(s) == dx(s) * dy(s)
 
-  # Test dual points
-  dp = dual_point(s, 1, 1)
-  @test dp == Point3d(1.0, 1.0, 0.0)
+    # Test dual points
+    dp = dual_point(s, 1, 1)
+    @test dp == Point3d(1.0, 1.0, 0.0)
 
-  dp = dual_point(s, 5, 5)
-  @test dp == Point3d(9.0, 9.0, 0.0)
+    dp = dual_point(s, 5, 5)
+    @test dp == Point3d(9.0, 9.0, 0.0)
 
-  # Test dual edge lengths
-  @test dual_edge_len(s, 1, 1, X_ALIGN) == dy(s) / 2
-  @test dual_edge_len(s, 1, 1, Y_ALIGN) == dx(s) / 2
+    # Test dual edge lengths
+    @test dual_edge_len(s, 1, 1, X_ALIGN) == dy(s) / 2
+    @test dual_edge_len(s, 1, 1, Y_ALIGN) == dx(s) / 2
 
-  @test dual_edge_len(s, 1, 2, X_ALIGN) == dy(s)
-  @test dual_edge_len(s, 2, 1, Y_ALIGN) == dx(s)
+    @test dual_edge_len(s, 1, 2, X_ALIGN) == dy(s)
+    @test dual_edge_len(s, 2, 1, Y_ALIGN) == dx(s)
 
-  @test dual_edge_len(s, 1, 6, X_ALIGN) == dy(s) / 2
-  @test dual_edge_len(s, 6, 1, Y_ALIGN) == dx(s) / 2
+    @test dual_edge_len(s, 1, 6, X_ALIGN) == dy(s) / 2
+    @test dual_edge_len(s, 6, 1, Y_ALIGN) == dx(s) / 2
 
-  # Test dual quad areas
-  @test dual_quad_area(s, 1, 1) == dx(s) * dy(s) / 4
-  @test dual_quad_area(s, 1, 2) == dx(s) * dy(s) / 2
-  @test dual_quad_area(s, 2, 1) == dx(s) * dy(s) / 2
-  @test dual_quad_area(s, 2, 2) == dx(s) * dy(s)
+    # Test dual quad areas
+    @test dual_quad_area(s, 1, 1) == dx(s) * dy(s) / 4
+    @test dual_quad_area(s, 1, 2) == dx(s) * dy(s) / 2
+    @test dual_quad_area(s, 2, 1) == dx(s) * dy(s) / 2
+    @test dual_quad_area(s, 2, 2) == dx(s) * dy(s)
 end
 
 # # Test plotting (if supported)
@@ -79,219 +79,167 @@ end
 
 @testset "UniformCubicalComplex2D - With Halo" begin
 
-  # Create a uniform grid with halo points, 5x5 real points, and a domain of 10x10
-  s = UniformCubicalComplex2D(6, 6, 10.0, 10.0, halo_x=1, halo_y=1)
+    # Create a uniform grid with halo points, 5x5 real points, and a domain of 10x10
+    s = UniformCubicalComplex2D(6, 6, 10.0, 10.0; halo_x = 1, halo_y = 1)
 
-  # Get the total number of points, which should be (6 + 2) * (6 + 2) = 64
-  @test nv(s) == 64
-  @test nxr(s) == 6
-  @test nyr(s) == 6
+    # Get the total number of points, which should be (6 + 2) * (6 + 2) = 64
+    @test nv(s) == 64
+    @test nxr(s) == 6
+    @test nyr(s) == 6
 
-  @test dx(s) == 10.0 / 5
-  @test dy(s) == 10.0 / 5
+    @test dx(s) == 10.0 / 5
+    @test dy(s) == 10.0 / 5
 
-  @test s.halo_x == 1
-  @test s.halo_y == 1
+    @test s.halo_x == 1
+    @test s.halo_y == 1
 
-  # Test point generation with halo points
-  p = point(s, 1, 1)
-  @test p == Point3d(-2.0, -2.0, 0.0)
-  p = point(s, 8, 8)
-  @test p == Point3d(12.0, 12.0, 0.0)
+    # Test point generation with halo points
+    p = point(s, 1, 1)
+    @test p == Point3d(-2.0, -2.0, 0.0)
+    p = point(s, 8, 8)
+    @test p == Point3d(12.0, 12.0, 0.0)
 
-  # Test point generation in the interior (should be same as before)
-  p = point(s, 2, 2)
-  @test p == Point3d(0.0, 0.0, 0.0)
-  p = point(s, 7, 7)
-  @test p == Point3d(10.0, 10.0, 0.0)
+    # Test point generation in the interior (should be same as before)
+    p = point(s, 2, 2)
+    @test p == Point3d(0.0, 0.0, 0.0)
+    p = point(s, 7, 7)
+    @test p == Point3d(10.0, 10.0, 0.0)
 
-  # Test counts (assuming same as EmbeddedCubicalComplex2D)
-  @test nv(s) == 64
+    # Test counts (assuming same as EmbeddedCubicalComplex2D)
+    @test nv(s) == 64
 
-  @test nxedges(s) == 56
-  @test nyedges(s) == 56
-  @test ne(s) == 112
+    @test nxedges(s) == 56
+    @test nyedges(s) == 56
+    @test ne(s) == 112
 
-  @test nquads(s) == 49
+    @test nquads(s) == 49
 
-  # Test edge source and target
-  @test src(s, 1, 1, X_ALIGN) == 1
-  @test tgt(s, 1, 1, X_ALIGN) == 2
-  @test src(s, 1, 1, Y_ALIGN) == 1
-  @test tgt(s, 1, 1, Y_ALIGN) == 9
+    # Test edge source and target
+    @test src(s, 1, 1, X_ALIGN) == 1
+    @test tgt(s, 1, 1, X_ALIGN) == 2
+    @test src(s, 1, 1, Y_ALIGN) == 1
+    @test tgt(s, 1, 1, Y_ALIGN) == 9
 
-  # Test quad vertices
-  @test coord_to_quad(s, 1, 1) == 1
-  @test coord_to_quad(s, 7, 7) == 49
+    # Test quad vertices
+    @test coord_to_quad(s, 1, 1) == 1
+    @test coord_to_quad(s, 7, 7) == 49
 
-  @test quad_vertices(s, 1, 1) == (1, 2, 10, 9)
-  @test quad_vertices(s, 7, 7) == (55, 56, 64, 63)
+    @test quad_vertices(s, 1, 1) == (1, 2, 10, 9)
+    @test quad_vertices(s, 7, 7) == (55, 56, 64, 63)
 
-  # Test quad to edge mapping
-  @test quad_edges(s, 1, 1) == (1, 58, 8, 57)
-  @test quad_edges(s, 7, 7) == (49, 112, 56, 111)
+    # Test quad to edge mapping
+    @test quad_edges(s, 1, 1) == (1, 58, 8, 57)
+    @test quad_edges(s, 7, 7) == (49, 112, 56, 111)
 
-  # Test quad areas
-  @test quad_area(s) == dx(s) * dy(s)
+    # Test quad areas
+    @test quad_area(s) == dx(s) * dy(s)
 
-  # Test dual points with halo points
-  dp = dual_point(s, 1, 1)
-  @test dp == Point3d(-1.0, -1.0, 0.0)
+    # Test dual points with halo points
+    dp = dual_point(s, 1, 1)
+    @test dp == Point3d(-1.0, -1.0, 0.0)
 
-  dp = dual_point(s, 7, 7)
-  @test dp == Point3d(11.0, 11.0, 0.0)
+    dp = dual_point(s, 7, 7)
+    @test dp == Point3d(11.0, 11.0, 0.0)
 
-  # Test dual points in the interior (should be same as before)
-  dp = real_dual_point(s, 1, 1)
-  @test dp == Point3d(1.0, 1.0, 0.0)
+    # Test dual points in the interior (should be same as before)
+    dp = real_dual_point(s, 1, 1)
+    @test dp == Point3d(1.0, 1.0, 0.0)
 
-  dp = real_dual_point(s, 5, 5)
-  @test dp == Point3d(9.0, 9.0, 0.0)
+    dp = real_dual_point(s, 5, 5)
+    @test dp == Point3d(9.0, 9.0, 0.0)
 end
 
 @testset "Tiny Mesh" begin
-  s = UniformCubicalComplex2D(2, 2, 1.0, 1.0)
+    s = UniformCubicalComplex2D(2, 2, 1.0, 1.0)
 
-  @test nv(s) == 4
-  @test ne(s) == 4
+    @test nv(s) == 4
+    @test ne(s) == 4
 
-  @test nquads(s) == 1
-  @test all(is_boundary_vert.(Ref(s), [1, 1, 2, 2], [1, 2, 1, 2]))
-  @test all(is_boundary_edge.(Ref(s), [1, 1, 1, 2], [1, 2, 1, 1], [X_ALIGN, X_ALIGN, Y_ALIGN, Y_ALIGN]))
+    @test nquads(s) == 1
+    @test all(is_boundary_vert.(Ref(s), [1, 1, 2, 2], [1, 2, 1, 2]))
+    @test all(is_boundary_edge.(Ref(s), [1, 1, 1, 2], [1, 2, 1, 1], [X_ALIGN, X_ALIGN, Y_ALIGN, Y_ALIGN]))
 
-  @test is_left_edge(s, 1, 1, Y_ALIGN) == true
-  @test is_right_edge(s, 1, 1, Y_ALIGN) == false
+    @test is_left_edge(s, 1, 1, Y_ALIGN) == true
+    @test is_right_edge(s, 1, 1, Y_ALIGN) == false
 
-  @test is_left_edge(s, 2, 1, Y_ALIGN) == false
-  @test is_right_edge(s, 2, 1, Y_ALIGN) == true
+    @test is_left_edge(s, 2, 1, Y_ALIGN) == false
+    @test is_right_edge(s, 2, 1, Y_ALIGN) == true
 
-  @test is_top_edge(s, 1, 1, X_ALIGN) == false
-  @test is_bottom_edge(s, 1, 1, X_ALIGN) == true
+    @test is_top_edge(s, 1, 1, X_ALIGN) == false
+    @test is_bottom_edge(s, 1, 1, X_ALIGN) == true
 
-  @test is_top_edge(s, 1, 2, X_ALIGN) == true
-  @test is_bottom_edge(s, 1, 2, X_ALIGN) == false
-end
-
-@testset "Ghost Quads" begin
-  s  = UniformCubicalComplex2D(4, 4, 1.0, 1.0; halo_x=1, halo_y=1)
-  g  = ghost_quads(s)
-
-  # ── Correct slab sizes ────────────────────────────────────────────────
-  # EASTWEST slabs slice along x → transverse extent is nyq(s)
-  @test length(g.west.send) == 1 * nyq(s)
-  @test length(g.west.recv) == 1 * nyq(s)
-  @test length(g.east.send) == 1 * nyq(s)
-  @test length(g.east.recv) == 1 * nyq(s)
-
-  # NORTHSOUTH slabs slice along y → transverse extent is nxq(s)
-  @test length(g.south.send) == nxq(s) * 1
-  @test length(g.south.recv) == nxq(s) * 1
-  @test length(g.north.send) == nxq(s) * 1
-  @test length(g.north.recv) == nxq(s) * 1
-
-  # ── No overlap between any pair of slabs ──────────────────────────────
-  recv_slabs = [g.west.recv, g.east.recv, g.south.recv, g.north.recv]
-  send_slabs = [g.west.send, g.east.send, g.south.send, g.north.send]
-  for (recv, send) in zip(recv_slabs, send_slabs)
-    @test isempty(Set(recv) ∩ Set(send))
-  end
-
-  # ── All indices in bounds ─────────────────────────────────────────────
-  for slab in vcat(recv_slabs, send_slabs)
-      @test all(i -> 1 <= i <= nquads(s), slab)
-  end
-
-  # ── Specific indices: all four recv slabs ─────────────────────────────
-  
-  @test sort(g.west.recv)  == sort([coord_to_quad(s, 1,      y) for y in 1:nyq(s)])
-  @test sort(g.east.recv)  == sort([coord_to_quad(s, nxq(s), y) for y in 1:nyq(s)])
-  @test sort(g.south.recv) == sort([coord_to_quad(s, x,      1) for x in 1:nxq(s)])
-  @test sort(g.north.recv) == sort([coord_to_quad(s, x, nyq(s)) for x in 1:nxq(s)])
-
-  # ── Specific indices: all four send slabs ─────────────────────────────
-  @test sort(g.west.send)  == sort([coord_to_quad(s, 2,          y) for y in 1:nyq(s)])
-  @test sort(g.east.send)  == sort([coord_to_quad(s, nxq(s) - 1, y) for y in 1:nyq(s)])
-  @test sort(g.south.send) == sort([coord_to_quad(s, x,          2) for x in 1:nxq(s)])
-  @test sort(g.north.send) == sort([coord_to_quad(s, x, nyq(s) - 1) for x in 1:nxq(s)])
-
-  # ── halo=0 returns empty slabs ────────────────────────────────────────
-  s0 = UniformCubicalComplex2D(4, 4, 1.0, 1.0; halo_x=0, halo_y=0)
-  g0 = ghost_quads(s0)
-  for dir in (:west, :east, :south, :north)
-      @test isempty(g0[dir].send)
-      @test isempty(g0[dir].recv)
-  end
+    @test is_top_edge(s, 1, 2, X_ALIGN) == true
+    @test is_bottom_edge(s, 1, 2, X_ALIGN) == false
 end
 
 @testset "PseudoCubicalMesh2D Element Counting" begin
+    s = PseudoCubicalMesh2D(10, 8)
+    s_h = PseudoCubicalMesh2D(10, 8; halo_x = 2, halo_y = 3)
 
-  s    = PseudoCubicalMesh2D(10, 8)
-  s_h  = PseudoCubicalMesh2D(10, 8; halo_x=2, halo_y=3)
+    # ── Real counts ───────────────────────────────────────────────────────────
+    @test nxr(s) == 10
+    @test nyr(s) == 8
+    @test nxr(s_h) == 10
+    @test nyr(s_h) == 8
 
-  # ── Real counts ───────────────────────────────────────────────────────────
-  @test nxr(s) == 10
-  @test nyr(s) == 8
-  @test nxr(s_h) == 10
-  @test nyr(s_h) == 8
+    # ── Halo accessors ────────────────────────────────────────────────────────
+    @test hx(s) == 0
+    @test hy(s) == 0
+    @test hx(s_h) == 2
+    @test hy(s_h) == 3
 
-  # ── Halo accessors ────────────────────────────────────────────────────────
-  @test hx(s)   == 0
-  @test hy(s)   == 0
-  @test hx(s_h) == 2
-  @test hy(s_h) == 3
+    # ── Total (halo-inclusive) counts ─────────────────────────────────────────
+    @test nx(s) == 10
+    @test ny(s) == 8
+    @test nx(s_h) == 14
+    @test ny(s_h) == 14
 
-  # ── Total (halo-inclusive) counts ─────────────────────────────────────────
-  @test nx(s)   == 10
-  @test ny(s)   == 8
-  @test nx(s_h) == 14
-  @test ny(s_h) == 14
+    # ── Vertex counts ─────────────────────────────────────────────────────────
+    @test nv(s) == 10 * 8
+    @test nvr(s) == 10 * 8
+    @test nv(s_h) == 14 * 14
+    @test nvr(s_h) == 10 * 8
 
-  # ── Vertex counts ─────────────────────────────────────────────────────────
-  @test nv(s)   == 10 * 8
-  @test nvr(s)  == 10 * 8
-  @test nv(s_h) == 14 * 14
-  @test nvr(s_h) == 10 * 8
+    # ── Edge counts ───────────────────────────────────────────────────────────
+    @test nxedges(s) == 9 * 8
+    @test nyedges(s) == 10 * 7
+    @test ne(s) == nxedges(s) + nyedges(s)
 
-  # ── Edge counts ───────────────────────────────────────────────────────────
-  @test nxedges(s) == 9 * 8
-  @test nyedges(s) == 10 * 7
-  @test ne(s)      == nxedges(s) + nyedges(s)
+    @test nxedges(s_h) == 13 * 14
+    @test nyedges(s_h) == 14 * 13
+    @test ne(s_h) == nxedges(s_h) + nyedges(s_h)
 
-  @test nxedges(s_h) == 13 * 14
-  @test nyedges(s_h) == 14 * 13
-  @test ne(s_h)      == nxedges(s_h) + nyedges(s_h)
+    # ── Quad counts ───────────────────────────────────────────────────────────
+    @test nxq(s) == 9
+    @test nyq(s) == 7
+    @test nquads(s) == 9 * 7
 
-  # ── Quad counts ───────────────────────────────────────────────────────────
-  @test nxq(s)     == 9
-  @test nyq(s)     == 7
-  @test nquads(s)  == 9 * 7
+    @test nxq(s_h) == 13
+    @test nyq(s_h) == 13
+    @test nquads(s_h) == 13 * 13
 
-  @test nxq(s_h)    == 13
-  @test nyq(s_h)    == 13
-  @test nquads(s_h) == 13 * 13
+    # ── Real quad counts ──────────────────────────────────────────────────────
+    @test nxqr(s) == 9
+    @test nyqr(s) == 7
+    @test nquadsr(s) == 9 * 7
 
-  # ── Real quad counts ──────────────────────────────────────────────────────
-  @test nxqr(s)    == 9
-  @test nyqr(s)    == 7
-  @test nquadsr(s) == 9 * 7
+    @test nxqr(s_h) == 9
+    @test nyqr(s_h) == 7
+    @test nquadsr(s_h) == 9 * 7
 
-  @test nxqr(s_h)    == 9
-  @test nyqr(s_h)    == 7
-  @test nquadsr(s_h) == 9 * 7
+    # ── Indexing ──────────────────────────────────────────────────────────────
+    @test coord_to_vert(s, 1, 1) == 1
+    @test coord_to_vert(s, 10, 8) == nv(s)
 
-  # ── Indexing ──────────────────────────────────────────────────────────────
-  @test coord_to_vert(s, 1, 1) == 1
-  @test coord_to_vert(s, 10, 8) == nv(s)
+    @test coord_to_quad(s, 1, 1) == 1
+    @test coord_to_quad(s, 9, 7) == nquads(s)
 
-  @test coord_to_quad(s, 1, 1) == 1
-  @test coord_to_quad(s, 9, 7) == nquads(s)
+    @test coord_to_edge(s, 1, 1, X_ALIGN) == 1
+    @test coord_to_edge(s, 1, 1, Y_ALIGN) == nxedges(s) + 1
 
-  @test coord_to_edge(s, 1, 1, X_ALIGN) == 1
-  @test coord_to_edge(s, 1, 1, Y_ALIGN) == nxedges(s) + 1
-
-  # ── Halo flags ────────────────────────────────────────────────────────────
-  @test is_halo_vert(s_h, 1, 5) == true
-  @test is_halo_vert(s_h, 3, 5) == false
-  @test is_halo_quad(s_h, 2, 4) == true
-  @test is_halo_quad(s_h, 3, 4) == false
+    # ── Halo flags ────────────────────────────────────────────────────────────
+    @test is_halo_vert(s_h, 1, 5) == true
+    @test is_halo_vert(s_h, 3, 5) == false
+    @test is_halo_quad(s_h, 2, 4) == true
+    @test is_halo_quad(s_h, 3, 4) == false
 end

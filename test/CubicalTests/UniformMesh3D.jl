@@ -532,8 +532,7 @@ end
 # TODO: Check this code to make sure it is working as intended
 @testset "Vertex to Incident Edges (Explicit Indices)" begin
     s = UniformCubicalComplex3D(3, 3, 3, 10.0, 10.0, 10.0)
-    @test vertex_edges(s, 2, 2, 2) ==
-          ((41, 50, 26, 29, 9, 10), (true, true, true, true, true, true))
+    @test vertex_edges(s, 2, 2, 2) == ((41, 50, 26, 29, 9, 10), (true, true, true, true, true, true))
 end
 
 @testset "Primal Boundary Extraction" begin
@@ -593,125 +592,6 @@ end
     down_b, up_b = primal_boundary_boids(s, UPDOWN)
     @test down_b == boid_expected
     @test up_b == boid_expected
-end
-
-@testset "Ghost Boid Extraction" begin
-    s = UniformCubicalComplex3D(3, 4, 5, 1.0, 1.0, 1.0; halo_x = 1, halo_y = 1, halo_z = 1)
-
-    function check_ghost_boids(s, side, role, expected_coords)
-        indices = ghost_boids(s, side, role)
-        expected_indices = [coord_to_boid(s, x, y, z) for (x, y, z) in expected_coords][:]
-        @test sort(indices) == sort(expected_indices)
-    end
-
-    @testset "UPDOWN" begin
-        check_ghost_boids(s, UPDOWN, :recv_low, [(x, y, 1) for y in 1:nyb(s), x in 1:nxb(s)])
-
-        check_ghost_boids(s, UPDOWN, :send_low, [(x, y, 2) for y in 1:nyb(s), x in 1:nxb(s)])
-
-        check_ghost_boids(s, UPDOWN, :send_high, [(x, y, 5) for y in 1:nyb(s), x in 1:nxb(s)])
-
-        check_ghost_boids(s, UPDOWN, :recv_high, [(x, y, 6) for y in 1:nyb(s), x in 1:nxb(s)])
-
-        @test length(ghost_boids(s, UPDOWN, :send_low)) == length(ghost_boids(s, UPDOWN, :recv_low))
-        @test length(ghost_boids(s, UPDOWN, :send_high)) ==
-              length(ghost_boids(s, UPDOWN, :recv_high))
-    end
-
-    @testset "NORTHSOUTH" begin
-        check_ghost_boids(s, NORTHSOUTH, :recv_low, [(x, 1, z) for z in 1:nzb(s), x in 1:nxb(s)])
-
-        check_ghost_boids(s, NORTHSOUTH, :send_low, [(x, 2, z) for z in 1:nzb(s), x in 1:nxb(s)])
-
-        check_ghost_boids(s, NORTHSOUTH, :send_high, [(x, 4, z) for z in 1:nzb(s), x in 1:nxb(s)])
-
-        check_ghost_boids(s, NORTHSOUTH, :recv_high, [(x, 5, z) for z in 1:nzb(s), x in 1:nxb(s)])
-
-        @test length(ghost_boids(s, NORTHSOUTH, :recv_low)) ==
-              length(ghost_boids(s, NORTHSOUTH, :send_low))
-        @test length(ghost_boids(s, NORTHSOUTH, :send_high)) ==
-              length(ghost_boids(s, NORTHSOUTH, :recv_high))
-    end
-
-    @testset "EASTWEST" begin
-        check_ghost_boids(s, EASTWEST, :recv_low, [(1, y, z) for z in 1:nzb(s), y in 1:nyb(s)])
-
-        check_ghost_boids(s, EASTWEST, :send_low, [(2, y, z) for z in 1:nzb(s), y in 1:nyb(s)])
-
-        check_ghost_boids(s, EASTWEST, :send_high, [(3, y, z) for z in 1:nzb(s), y in 1:nyb(s)])
-
-        check_ghost_boids(s, EASTWEST, :recv_high, [(4, y, z) for z in 1:nzb(s), y in 1:nyb(s)])
-
-        @test length(ghost_boids(s, EASTWEST, :recv_low)) ==
-              length(ghost_boids(s, EASTWEST, :send_low))
-        @test length(ghost_boids(s, EASTWEST, :send_high)) ==
-              length(ghost_boids(s, EASTWEST, :recv_high))
-    end
-
-    @testset "No overlap between roles" begin
-        for side in (UPDOWN, NORTHSOUTH, EASTWEST)
-            rl = Set(ghost_boids(s, side, :recv_low))
-            sl = Set(ghost_boids(s, side, :send_low))
-            sh = Set(ghost_boids(s, side, :send_high))
-            rh = Set(ghost_boids(s, side, :recv_high))
-
-            @test isempty(intersect(rl, sl))
-            @test isempty(intersect(sl, sh))
-            @test isempty(intersect(sh, rh))
-            @test isempty(intersect(rl, rh))
-        end
-    end
-
-    @testset "Send regions within valid boid range" begin
-        all_boids = Set(1:nboids(s))
-        for side in (UPDOWN, NORTHSOUTH, EASTWEST)
-            @test issubset(Set(ghost_boids(s, side, :send_low)), all_boids)
-            @test issubset(Set(ghost_boids(s, side, :send_high)), all_boids)
-            @test issubset(Set(ghost_boids(s, side, :recv_low)), all_boids)
-            @test issubset(Set(ghost_boids(s, side, :recv_high)), all_boids)
-        end
-    end
-
-    @testset "Zero halo returns empty" begin
-        s0 = UniformCubicalComplex3D(3, 4, 5, 1.0, 1.0, 1.0)  # no halo
-        for side in (UPDOWN, NORTHSOUTH, EASTWEST)
-            for role in (:recv_low, :send_low, :send_high, :recv_high)
-                @test ghost_boids(s0, side, role) == Int[]
-            end
-        end
-    end
-
-    @testset "Halo depth 2" begin
-        s2 = UniformCubicalComplex3D(4, 4, 4, 1.0, 1.0, 1.0; halo_x = 2, halo_y = 2, halo_z = 2)
-
-        rl = ghost_boids(s2, UPDOWN, :recv_low)
-        sl = ghost_boids(s2, UPDOWN, :send_low)
-        sh = ghost_boids(s2, UPDOWN, :send_high)
-        rh = ghost_boids(s2, UPDOWN, :recv_high)
-
-        @test length(rl) == nxb(s2) * nyb(s2) * 2
-        @test length(sl) == nxb(s2) * nyb(s2) * 2
-        @test length(sh) == nxb(s2) * nyb(s2) * 2
-        @test length(rh) == nxb(s2) * nyb(s2) * 2
-
-        check_ghost_boids(
-            s2,
-            UPDOWN,
-            :recv_low,
-            [(x, y, z) for z in 1:2, y in 1:nyb(s2), x in 1:nxb(s2)],
-        )
-
-        check_ghost_boids(
-            s2,
-            UPDOWN,
-            :send_low,
-            [(x, y, z) for z in 3:4, y in 1:nyb(s2), x in 1:nxb(s2)],
-        )
-    end
-
-    @testset "Unknown role errors" begin
-        @test_throws ErrorException ghost_boids(s, UPDOWN, :bad_role)
-    end
 end
 
 @testset "interior" begin

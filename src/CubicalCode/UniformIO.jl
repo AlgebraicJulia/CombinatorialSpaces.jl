@@ -263,18 +263,143 @@ function _hyperslab_ranges(cache::OutputCache{N}, count::NTuple{N,Int}) where {N
     return ntuple(j -> (offset[j] + 1):(offset[j] + count[j]), N)
 end
 
-struct ExchangeHandler{N,TN,FT}
+### GhostRegion ###
+
+ghost_index(::Datum{Vert,N}) where {N} = 1
+ghost_index(::Datum{Edge,N}) where {N} = 2
+ghost_index(::Datum{Quad,N}) where {N} = 3
+ghost_index(::Datum{Boid,N}) where {N} = 4
+
+meshtype_index(::Val{1}) = Vert
+meshtype_index(::Val{2}) = Edge
+meshtype_index(::Val{3}) = Quad
+meshtype_index(::Val{4}) = Boid
+
+struct GhostRegion{M<:AbstractMeshType,N}
+    send::AbstractVector{AbstractVector{Int32}}
+    recv::AbstractVector{AbstractVector{Int32}}
+end
+
+function GhostRegion(::Type{Datum{Quad,2}}, s::AbstractCubicalComplex2D)
+    hx_ = hxq(s)
+    hy_ = hyq(s)
+    nxq_ = nxq(s)
+    nyq_ = nyq(s)
+    nxqr_ = nxqr(s)
+    nyqr_ = nyqr(s)
+
+    # X-axis: transverse range is interior y only (no y-halo)
+    rl_x = Int32[coord_to_quad(s, ax, b) for ax in 1:hx_, b in (hy_ + 1):(hy_ + nyqr_)][:]
+    sl_x = Int32[coord_to_quad(s, ax, b) for ax in (hx_ + 1):(2hx_), b in (hy_ + 1):(hy_ + nyqr_)][:]
+
+    sh_x = Int32[coord_to_quad(s, ax, b) for ax in (nxq_ - 2hx_ + 1):(nxq_ - hx_), b in (hy_ + 1):(hy_ + nyqr_)][:]
+    rh_x = Int32[coord_to_quad(s, ax, b) for ax in (nxq_ - hx_ + 1):nxq_, b in (hy_ + 1):(hy_ + nyqr_)][:]
+
+    # Y-axis: transverse range is full x including x-halo (corners now covered)
+    rl_y = Int32[coord_to_quad(s, b, ax) for ax in 1:hy_, b in 1:nxq_][:]
+    sl_y = Int32[coord_to_quad(s, b, ax) for ax in (hy_ + 1):(2hy_), b in 1:nxq_][:]
+
+    sh_y = Int32[coord_to_quad(s, b, ax) for ax in (nyq_ - 2hy_ + 1):(nyq_ - hy_), b in 1:nxq_][:]
+    rh_y = Int32[coord_to_quad(s, b, ax) for ax in (nyq_ - hy_ + 1):nyq_, b in 1:nxq_][:]
+
+    send = [sl_x, sh_x, sl_y, sh_y]
+    recv = [rl_x, rh_x, rl_y, rh_y]
+
+    return GhostRegion{Quad,2}(send, recv)
+end
+
+function GhostRegion(::Type{Datum{Boid,3}}, s::AbstractCubicalComplex3D)
+    hx_ = hxb(s)
+    hy_ = hyb(s)
+    hz_ = hzb(s)
+    nxb_ = nxb(s)
+    nyb_ = nyb(s)
+    nzb_ = nzb(s)
+    nxbr_ = nxbr(s)
+    nybr_ = nybr(s)
+    nzbr_ = nzbr(s)
+
+    # X-axis: transverse is real y and real z only
+    rl_x = Int32[coord_to_boid(s, ax, b, c) for ax in 1:hx_, b in (hy_ + 1):(hy_ + nybr_), c in (hz_ + 1):(hz_ + nzbr_)][:]
+    sl_x = Int32[coord_to_boid(s, ax, b, c) for ax in (hx_ + 1):(2hx_), b in (hy_ + 1):(hy_ + nybr_), c in (hz_ + 1):(hz_ + nzbr_)][:]
+    sh_x = Int32[coord_to_boid(s, ax, b, c) for ax in (nxb_ - 2hx_ + 1):(nxb_ - hx_), b in (hy_ + 1):(hy_ + nybr_), c in (hz_ + 1):(hz_ + nzbr_)][:]
+    rh_x = Int32[coord_to_boid(s, ax, b, c) for ax in (nxb_ - hx_ + 1):nxb_, b in (hy_ + 1):(hy_ + nybr_), c in (hz_ + 1):(hz_ + nzbr_)][:]
+
+    # Y-axis: transverse is full x (x-halo filled), real z only
+    rl_y = Int32[coord_to_boid(s, b, ax, c) for ax in 1:hy_, b in 1:nxb_, c in (hz_ + 1):(hz_ + nzbr_)][:]
+    sl_y = Int32[coord_to_boid(s, b, ax, c) for ax in (hy_ + 1):(2hy_), b in 1:nxb_, c in (hz_ + 1):(hz_ + nzbr_)][:]
+    sh_y = Int32[coord_to_boid(s, b, ax, c) for ax in (nyb_ - 2hy_ + 1):(nyb_ - hy_), b in 1:nxb_, c in (hz_ + 1):(hz_ + nzbr_)][:]
+    rh_y = Int32[coord_to_boid(s, b, ax, c) for ax in (nyb_ - hy_ + 1):nyb_, b in 1:nxb_, c in (hz_ + 1):(hz_ + nzbr_)][:]
+
+    # Z-axis: transverse is full x and full y (both halos filled)
+    rl_z = Int32[coord_to_boid(s, b, c, ax) for ax in 1:hz_, b in 1:nxb_, c in 1:nyb_][:]
+    sl_z = Int32[coord_to_boid(s, b, c, ax) for ax in (hz_ + 1):(2hz_), b in 1:nxb_, c in 1:nyb_][:]
+    sh_z = Int32[coord_to_boid(s, b, c, ax) for ax in (nzb_ - 2hz_ + 1):(nzb_ - hz_), b in 1:nxb_, c in 1:nyb_][:]
+    rh_z = Int32[coord_to_boid(s, b, c, ax) for ax in (nzb_ - hz_ + 1):nzb_, b in 1:nxb_, c in 1:nyb_][:]
+
+    send = [sl_x, sh_x, sl_y, sh_y, sl_z, sh_z]
+    recv = [rl_x, rh_x, rl_y, rh_y, rl_z, rh_z]
+
+    return GhostRegion{Boid,3}(send, recv)
+end
+
+@enum Face begin
+    WEST = 1
+    EAST = 2
+    SOUTH = 3
+    NORTH = 4
+    DOWN = 5
+    UP = 6
+end
+
+low_face(side::GridSide) = Face(2 * (Int(side) + 1) - 1)
+high_face(side::GridSide) = Face(2 * (Int(side) + 1))
+
+GhostRegion(::Type{Datum{Vert,N}}, s) where {N} = GhostRegion{Vert,N}(Int32[], Int32[])   # stub
+GhostRegion(::Type{Datum{Edge,N}}, s) where {N} = GhostRegion{Edge,N}(Int32[], Int32[])   # stub
+GhostRegion(::Type{Datum{Quad,3}}, s) where {} = GhostRegion{Quad,3}(Int32[], Int32[])   # stub
+
+send_slab(g::GhostRegion, face::Face) = send_slab(g, Int(face))
+recv_slab(g::GhostRegion, face::Face) = recv_slab(g, Int(face))
+
+send_slab(g::GhostRegion, i::Int) = g.send[i]
+recv_slab(g::GhostRegion, i::Int) = g.recv[i]
+
+### ExchangeHandler ###
+
+# Vector over each Datum
+struct FaceBuffer
+    slabs::Vector{Vector{Int32}}
+    cell_lens::Vector{Int}
+end
+
+function FaceBuffer(ghosts::AbstractVector, stream::DataStream, face::Face, sendrecv::Symbol)
+    get_slab = (sendrecv == :recv ? recv_slab : send_slab)
+    slabs = Vector{Int32}[]
+    cell_lens = Int[]
+    for datum in stream.data
+        g = ghosts[ghost_index(datum)]
+        slab = get_slab(g, face)
+        push!(slabs, slab)
+        push!(cell_lens, length(slab))
+    end
+    return FaceBuffer(slabs, cell_lens)
+end
+
+struct ExchangeHandler{N,FT}
     topo::MPITopology{WorkerCache{N}}
     stream::DataStream
-    ghosts::NamedTuple
+    ghosts::Vector{GhostRegion} # length N + 1
 
-    # 2N send and recv buffers ordered: west/east/south/north[/down/up]
-    send_bufs::NTuple{TN,Vector{FT}}
-    recv_bufs::NTuple{TN,Vector{FT}}
+    # One for each face
+    send_face::Vector{FaceBuffer}   # length 2N
+    recv_face::Vector{FaceBuffer}   # length 2N
 
-    # 2N persistent send and recv requests
-    send_reqs::NTuple{TN,MPI.Request}
-    recv_reqs::NTuple{TN,MPI.Request}
+    send_bufs::Vector{Vector{FT}}   # length 2N
+    recv_bufs::Vector{Vector{FT}}   # length 2N
+
+    send_reqs::Vector{MPI.Request}  # length 2N
+    recv_reqs::Vector{MPI.Request}  # length 2N
 end
 
 const AXIS_NAMES_2D = (:west, :east, :south, :north)
@@ -286,114 +411,115 @@ function ExchangeHandler(stream::DataStream, topo::MPITopology{WorkerCache{N}}, 
     FT = stream.data[1].entrytype
     @assert all(d.entrytype == FT for d in stream.data) "ExchangeHandler: all datums must share the same entrytype, got $(unique(d.entrytype for d in stream.data))"
 
-    # TODO: This will have to change to just check the element dimension
-    valid_type = N == 2 ? Datum{Quad,2} : Datum{Boid,3}
-    @assert all(d isa valid_type for d in stream.data) "ExchangeHandler: all datums must be $(valid_type) for a $(N)D mesh"
+    ghosts = map(1:(N + 1)) do i
+        elemtype = meshtype_index(Val(i))
+        return GhostRegion(Datum{elemtype,N}, s)  # lower slots stubbed
+    end
 
-    ghosts = _build_ghosts(Val(N), s)
+    face_names = N == 2 ? AXIS_NAMES_2D : AXIS_NAMES_3D
+    faces = Face.(1:(2N))
 
-    face_names = N == 2 ? AXIS_NAMES_2D : AXIS_NAMES_3D   # NTuple{2N, Symbol}
+    # FaceBuffer for each face (info for packing/unpacking) (all datums covered)
+    send_face = [FaceBuffer(ghosts, stream, face, :send) for face in faces]
+    recv_face = [FaceBuffer(ghosts, stream, face, :recv) for face in faces]
 
-    # TODO: This assumes that we're dealing with the same datums
-    # This code will have to change when dealing with multi-datum types
-    n_vars = length(stream.data)
-    buf_sizes = ntuple(i -> length(ghosts[face_names[i]].send) * n_vars, 2N) # 2N for each pair of faces (e.g. west/east)
+    # Buffer size for each face
+    buf_sizes = [sum(fb.cell_lens) for fb in send_face]
 
-    send_bufs = ntuple(i -> Vector{FT}(undef, buf_sizes[i]), 2N)
-    recv_bufs = ntuple(i -> Vector{FT}(undef, buf_sizes[i]), 2N)
+    # Send and recv buffers for each face
+    send_bufs = map(i -> Vector{FT}(undef, buf_sizes[i]), 1:(2N))
+    recv_bufs = map(i -> Vector{FT}(undef, buf_sizes[i]), 1:(2N))
 
     # W -> 0, E -> 1, S -> 2, N -> 3, D -> 4, U -> 5
     nb = topo.cache.neighbors
-    send_reqs = ntuple(2N) do i
+    send_reqs = map(1:(2N)) do i
         axis = (i - 1) ÷ 2
         tag = isodd(i) ? 2 * axis : 2 * axis + 1
         return MPI.Send_init(send_bufs[i], nb[face_names[i]], tag, topo.cart_comm)
     end
 
     # W -> 1, E -> 0, S -> 3, N -> 2, D -> 5, U -> 4
-    recv_reqs = ntuple(2N) do i
+    recv_reqs = map(1:(2N)) do i
         axis = (i - 1) ÷ 2
         tag = isodd(i) ? 2 * axis + 1 : 2 * axis
         return MPI.Recv_init(recv_bufs[i], nb[face_names[i]], tag, topo.cart_comm)
     end
-    return ExchangeHandler{N,2N,FT}(topo, stream, ghosts, send_bufs, recv_bufs, send_reqs, recv_reqs)
+    return ExchangeHandler{N,FT}(topo, stream, ghosts, send_face, recv_face, send_bufs, recv_bufs, send_reqs, recv_reqs)
 end
 
-function exchange!(handler::ExchangeHandler{N,TN,FT}, vars::NamedTuple) where {N,TN,FT}
-    face_names = N == 2 ? AXIS_NAMES_2D : AXIS_NAMES_3D
+face_index(f::Face) = Int(f)
 
-    fields = ntuple(j -> vars[Symbol(handler.stream.data[j].name)], length(handler.stream.data))
-    send_slabs = ntuple(i -> handler.ghosts[face_names[i]].send, 2N)
-    recv_slabs = ntuple(i -> handler.ghosts[face_names[i]].recv, 2N)
+send_buf(handler::ExchangeHandler, f::Face) = handler.send_bufs[face_index(f)]
+recv_buf(handler::ExchangeHandler, f::Face) = handler.recv_bufs[face_index(f)]
+send_req(handler::ExchangeHandler, f::Face) = handler.send_reqs[face_index(f)]
+recv_req(handler::ExchangeHandler, f::Face) = handler.recv_reqs[face_index(f)]
+send_face(handler::ExchangeHandler, f::Face) = handler.send_face[face_index(f)]
+recv_face(handler::ExchangeHandler, f::Face) = handler.recv_face[face_index(f)]
 
-    _exchange_axis!(handler, fields, send_slabs, recv_slabs, 1)
-    _exchange_axis!(handler, fields, send_slabs, recv_slabs, 2)
-    N == 3 && _exchange_axis!(handler, fields, send_slabs, recv_slabs, 3)
+nfaces(::ExchangeHandler{N,FT}) where {N,FT} = 2 * N
+faces(::ExchangeHandler{N,FT}) where {N,FT} = 1:(2N)
+facenames(handler::ExchangeHandler) = Face.(faces(handler))
+
+function exchange!(handler::ExchangeHandler{N,FT}, vars::NamedTuple) where {N,FT}
+    fields = map(datum -> vars[Symbol(datum.name)], handler.stream.data)
+
+    _exchange_axis!(handler, fields, EASTWEST)
+    _exchange_axis!(handler, fields, NORTHSOUTH)
+    N == 3 && _exchange_axis!(handler, fields, UPDOWN)
 
     return nothing
 end
 
-function _exchange_axis!(handler::ExchangeHandler, fields::NTuple, send_slabs::NTuple, recv_slabs::NTuple, axis::Int)
-    low_idx = 2 * axis - 1
-    high_idx = 2 * axis
+function _exchange_axis!(handler::ExchangeHandler, fields::AbstractVector, side::GridSide)
+    low = low_face(side)
+    high = high_face(side)
 
-    low_send = handler.send_bufs[low_idx]
-    high_send = handler.send_bufs[high_idx]
-    low_recv = handler.recv_bufs[low_idx]
-    high_recv = handler.recv_bufs[high_idx]
+    MPI.Start(recv_req(handler, low))
+    MPI.Start(recv_req(handler, high))
 
-    low_send_req = handler.send_reqs[low_idx]
-    high_send_req = handler.send_reqs[high_idx]
-    low_recv_req = handler.recv_reqs[low_idx]
-    high_recv_req = handler.recv_reqs[high_idx]
+    _pack_face!(send_buf(handler, low), send_face(handler, low), fields)
+    _pack_face!(send_buf(handler, high), send_face(handler, high), fields)
 
-    MPI.Start(low_recv_req)
-    MPI.Start(high_recv_req)
+    MPI.Start(send_req(handler, low))
+    MPI.Start(send_req(handler, high))
 
-    _pack_face!(low_send, send_slabs[low_idx], fields)
-    _pack_face!(high_send, send_slabs[high_idx], fields)
+    MPI.Wait(recv_req(handler, low))
+    MPI.Wait(recv_req(handler, high))
+    MPI.Wait(send_req(handler, low))
+    MPI.Wait(send_req(handler, high))
 
-    MPI.Start(low_send_req)
-    MPI.Start(high_send_req)
-
-    MPI.Wait(low_recv_req)
-    MPI.Wait(high_recv_req)
-    MPI.Wait(low_send_req)
-    MPI.Wait(high_send_req)
-
-    _unpack_face!(low_recv, recv_slabs[low_idx], fields)
-    _unpack_face!(high_recv, recv_slabs[high_idx], fields)
+    _unpack_face!(recv_buf(handler, low), recv_face(handler, low), fields)
+    _unpack_face!(recv_buf(handler, high), recv_face(handler, high), fields)
 
     return nothing
 end
 
-function _pack_face!(buf::Vector, slab::Vector, fields::NTuple)
-    n_cell = length(slab)
-    for (j, field) in enumerate(fields)
-        offset = (j - 1) * n_cell
-        for k in 1:n_cell
+function _pack_face!(buf::Vector, fb::FaceBuffer, fields::AbstractVector)
+    offset = 0
+    for (field, slab, cell_len) in zip(fields, fb.slabs, fb.cell_lens)
+        for k in 1:cell_len
             buf[offset + k] = field[slab[k]]
         end
+        offset += cell_len
     end
     return nothing
 end
 
-function _unpack_face!(buf::Vector, slab::Vector, fields::NTuple)
-    n_cell = length(slab)
-    for (j, field) in enumerate(fields)
-        offset = (j - 1) * n_cell
-        for k in 1:n_cell
+function _unpack_face!(buf::Vector, fb::FaceBuffer, fields::AbstractVector)
+    offset = 0
+    for (field, slab, cell_len) in zip(fields, fb.slabs, fb.cell_lens)
+        for k in 1:cell_len
             field[slab[k]] = buf[offset + k]
         end
+        offset += cell_len
     end
     return nothing
 end
 
-function close!(handler::ExchangeHandler{N,TN,FT}) where {N,TN,FT}
-    ntuple(2N) do i
+function close!(handler::ExchangeHandler{N,FT}) where {N,FT}
+    for i in faces(handler)
         MPI.free(handler.send_reqs[i])
         MPI.free(handler.recv_reqs[i])
-        return nothing
     end
     return nothing
 end
