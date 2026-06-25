@@ -83,6 +83,7 @@ end
 
 DataStream(datum::Datum) = DataStream("", "", [datum])
 DataStream(data::AbstractVector{Datum}) = DataStream("", "", data)
+DataStream(data::AbstractVector) = DataStream("", "", Vector{Datum}(data)) # Convenience for users
 
 abstract type AbstractMetaData end  # stub, filled later
 
@@ -280,6 +281,7 @@ struct GhostRegion{M<:AbstractMeshType,N}
     recv::AbstractVector{AbstractVector{Int32}}
 end
 
+# TODO: Pretty sure we can remove the [:] if we use multiple "for" statements
 function GhostRegion(::Type{Datum{Quad,2}}, s::AbstractCubicalComplex2D)
     hx_ = hxq(s)
     hy_ = hyq(s)
@@ -341,6 +343,67 @@ function GhostRegion(::Type{Datum{Boid,3}}, s::AbstractCubicalComplex3D)
     recv = [rl_x, rh_x, rl_y, rh_y, rl_z, rh_z]
 
     return GhostRegion{Boid,3}(send, recv)
+end
+
+# Left/bottom edges are real and are exchanged with right/top which are halo
+function GhostRegion(::Type{Datum{Edge,2}}, s::AbstractCubicalComplex2D)
+    hx_ = hx(s)
+    hy_ = hy(s)
+    nx_ = nx(s)
+    ny_ = ny(s)
+    nxe_ = nxe(s)
+    nye_ = nye(s)
+    nxqr_ = nxqr(s)
+    nyqr_ = nyqr(s)
+
+    # ── EASTWEST pass (slice in x, interior-y transverse only) ────────────────
+    # X-edges
+    x_ew_yt = (hy_ + 1):(hy_ + nyqr_) # Capture x-interior only
+
+    sl_x_ew = Int32[coord_to_edge(s, ax, b, X_ALIGN) for ax in (hx_ + 1):(2hx_), b in x_ew_yt][:]
+    rh_x_ew = Int32[coord_to_edge(s, ax, b, X_ALIGN) for ax in (nxe_ - hx_ + 1):nxe_, b in x_ew_yt][:]
+
+    sh_x_ew = Int32[coord_to_edge(s, ax, b, X_ALIGN) for ax in (nxe_ - 2hx_ + 1):(nxe_ - hx_), b in x_ew_yt][:]
+    rl_x_ew = Int32[coord_to_edge(s, ax, b, X_ALIGN) for ax in 1:hx_, b in x_ew_yt][:]
+
+    # Y-edges
+    y_ew_yt = (hy_ + 1):(hy_ + nyqr_) # Capture x-interior only
+
+    sl_y_ew = Int32[coord_to_edge(s, ax, b, Y_ALIGN) for ax in (hx_ + 1):(2hx_ + 1), b in y_ew_yt][:]
+    rh_y_ew = Int32[coord_to_edge(s, ax, b, Y_ALIGN) for ax in (nx_ - hx_):nx_, b in y_ew_yt][:]
+
+    sh_y_ew = Int32[coord_to_edge(s, ax, b, Y_ALIGN) for ax in (nx_ - 2hx_):(nx_ - hx_ - 1), b in y_ew_yt][:]
+    rl_y_ew = Int32[coord_to_edge(s, ax, b, Y_ALIGN) for ax in 1:hx_, b in y_ew_yt][:]
+
+    sl_ew = vcat(sl_x_ew, sl_y_ew)
+    rl_ew = vcat(rl_x_ew, rl_y_ew)
+    sh_ew = vcat(sh_x_ew, sh_y_ew)
+    rh_ew = vcat(rh_x_ew, rh_y_ew)
+
+    # ── NORTHSOUTH pass (slice in y, full-x transverse) ───────────────────────
+    # Y-edges
+    sl_y_ns = Int32[coord_to_edge(s, b, ax, Y_ALIGN) for ax in (hy_ + 1):(2hy_), b in 1:nx_][:]
+    rh_y_ns = Int32[coord_to_edge(s, b, ax, Y_ALIGN) for ax in (nye_ - hy_ + 1):nye_, b in 1:nx_][:]
+
+    sh_y_ns = Int32[coord_to_edge(s, b, ax, Y_ALIGN) for ax in (nye_ - 2hy_ + 1):(nye_ - hy_), b in 1:nx_][:]
+    rl_y_ns = Int32[coord_to_edge(s, b, ax, Y_ALIGN) for ax in 1:hy_, b in 1:nx_][:]
+
+    # X-edges
+    sl_x_ns = Int32[coord_to_edge(s, b, ax, X_ALIGN) for ax in (hy_ + 1):(2hy_ + 1), b in 1:nxe_][:]
+    rh_x_ns = Int32[coord_to_edge(s, b, ax, X_ALIGN) for ax in (ny_ - hy_):ny_, b in 1:nxe_][:]
+
+    sh_x_ns = Int32[coord_to_edge(s, b, ax, X_ALIGN) for ax in (ny_ - 2hy_):(ny_ - hy_ - 1), b in 1:nxe_][:]
+    rl_x_ns = Int32[coord_to_edge(s, b, ax, X_ALIGN) for ax in 1:hy_, b in 1:nxe_][:]
+
+    sl_ns = vcat(sl_y_ns, sl_x_ns)
+    rl_ns = vcat(rl_y_ns, rl_x_ns)
+    sh_ns = vcat(sh_y_ns, sh_x_ns)
+    rh_ns = vcat(rh_y_ns, rh_x_ns)
+
+    send = [sl_ew, sh_ew, sl_ns, sh_ns]
+    recv = [rl_ew, rh_ew, rl_ns, rh_ns]
+
+    return GhostRegion{Edge,2}(send, recv)
 end
 
 @enum Face begin
@@ -424,25 +487,37 @@ function ExchangeHandler(stream::DataStream, topo::MPITopology{WorkerCache{N}}, 
     recv_face = [FaceBuffer(ghosts, stream, face, :recv) for face in faces]
 
     # Buffer size for each face
-    buf_sizes = [sum(fb.cell_lens) for fb in send_face]
+    send_buf_sizes = [sum(fb.cell_lens) for fb in send_face]
+    recv_buf_sizes = [sum(fb.cell_lens) for fb in recv_face]
 
     # Send and recv buffers for each face
-    send_bufs = map(i -> Vector{FT}(undef, buf_sizes[i]), 1:(2N))
-    recv_bufs = map(i -> Vector{FT}(undef, buf_sizes[i]), 1:(2N))
+    send_bufs = map(i -> Vector{FT}(undef, send_buf_sizes[i]), 1:(2N))
+    recv_bufs = map(i -> Vector{FT}(undef, recv_buf_sizes[i]), 1:(2N))
 
-    # W -> 0, E -> 1, S -> 2, N -> 3, D -> 4, U -> 5
     nb = topo.cache.neighbors
-    send_reqs = map(1:(2N)) do i
-        axis = (i - 1) ÷ 2
-        tag = isodd(i) ? 2 * axis : 2 * axis + 1
-        return MPI.Send_init(send_bufs[i], nb[face_names[i]], tag, topo.cart_comm)
-    end
 
+    # Tag the communication with the source's face
+
+    # Send
+    # W -> 0, E -> 1, S -> 2, N -> 3, D -> 4, U -> 5
+
+    # Recv
     # W -> 1, E -> 0, S -> 3, N -> 2, D -> 5, U -> 4
-    recv_reqs = map(1:(2N)) do i
-        axis = (i - 1) ÷ 2
-        tag = isodd(i) ? 2 * axis + 1 : 2 * axis
-        return MPI.Recv_init(recv_bufs[i], nb[face_names[i]], tag, topo.cart_comm)
+
+    low_faces = Face.(1:2:(2N))
+    high_faces = Face.(2:2:(2N))
+
+    send_reqs = Vector{MPI.Request}(undef, 2N)
+    recv_reqs = Vector{MPI.Request}(undef, 2N)
+
+    for (low, high) in zip(low_faces, high_faces)
+        il = Int(low)
+        ih = Int(high)
+        send_reqs[il] = MPI.Send_init(send_bufs[il], nb[face_names[il]], il, topo.cart_comm)
+        recv_reqs[ih] = MPI.Recv_init(recv_bufs[ih], nb[face_names[ih]], il, topo.cart_comm)
+
+        send_reqs[ih] = MPI.Send_init(send_bufs[ih], nb[face_names[ih]], ih, topo.cart_comm)
+        recv_reqs[il] = MPI.Recv_init(recv_bufs[il], nb[face_names[il]], ih, topo.cart_comm)
     end
     return ExchangeHandler{N,FT}(topo, stream, ghosts, send_face, recv_face, send_bufs, recv_bufs, send_reqs, recv_reqs)
 end
@@ -488,8 +563,8 @@ function _exchange_axis!(handler::ExchangeHandler, fields::AbstractVector, side:
     MPI.Wait(send_req(handler, low))
     MPI.Wait(send_req(handler, high))
 
-    _unpack_face!(recv_buf(handler, low), recv_face(handler, low), fields)
-    _unpack_face!(recv_buf(handler, high), recv_face(handler, high), fields)
+    _unpack_face!(fields, recv_face(handler, low), recv_buf(handler, low))
+    _unpack_face!(fields, recv_face(handler, high), recv_buf(handler, high))
 
     return nothing
 end
@@ -505,7 +580,7 @@ function _pack_face!(buf::Vector, fb::FaceBuffer, fields::AbstractVector)
     return nothing
 end
 
-function _unpack_face!(buf::Vector, fb::FaceBuffer, fields::AbstractVector)
+function _unpack_face!(fields::AbstractVector, fb::FaceBuffer, buf::Vector)
     offset = 0
     for (field, slab, cell_len) in zip(fields, fb.slabs, fb.cell_lens)
         for k in 1:cell_len

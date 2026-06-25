@@ -198,7 +198,6 @@ end
     g = GhostRegion(Datum{Quad,2}, s)
 
     @testset "struct shape" begin
-        @test nfaces(g) == 4
         @test length(send_slab(g, 1)) == hxq(s) * nyqr(s)
         @test length(recv_slab(g, 1)) == hxq(s) * nyqr(s)
         @test length(send_slab(g, 2)) == hxq(s) * nyqr(s)
@@ -286,6 +285,204 @@ end
     end
 end
 
+@testset "GhostRegion Edge 2D" begin
+    s = UniformCubicalComplex2D(5, 5, 1.0, 1.0; halo_x = 1, halo_y = 1)
+    g = GhostRegion(Datum{Edge,2}, s)
+
+    @testset "struct shape" begin
+        @test length(send_slab(g, WEST)) == hx(s) * nyqr(s) + (hx(s) + 1) * nyqr(s)
+        @test length(recv_slab(g, EAST)) == hx(s) * nyqr(s) + (hx(s) + 1) * nyqr(s)
+
+        @test length(send_slab(g, EAST)) == hx(s) * nyqr(s) + hx(s) * nyqr(s)
+        @test length(recv_slab(g, WEST)) == hx(s) * nyqr(s) + hx(s) * nyqr(s)
+
+        # Include x-halo as well
+        @test length(send_slab(g, SOUTH)) == hy(s) * nx(s) + (hy(s) + 1) * nxe(s)
+        @test length(recv_slab(g, NORTH)) == hy(s) * nx(s) + (hy(s) + 1) * nxe(s)
+
+        @test length(send_slab(g, NORTH)) == hy(s) * nx(s) + hy(s) * nxe(s)
+        @test length(recv_slab(g, SOUTH)) == hy(s) * nx(s) + hy(s) * nxe(s)
+    end
+
+    @testset "no overlap within same axis" begin
+        @test isempty(intersect(Set(send_slab(g, WEST)), Set(send_slab(g, EAST))))
+        @test isempty(intersect(Set(recv_slab(g, WEST)), Set(recv_slab(g, EAST))))
+        @test isempty(intersect(Set(send_slab(g, SOUTH)), Set(send_slab(g, NORTH))))
+        @test isempty(intersect(Set(recv_slab(g, SOUTH)), Set(recv_slab(g, NORTH))))
+    end
+
+    @testset "all indices in bounds" begin
+        for i in 1:4
+            @test all(idx -> 1 <= idx <= ne(s), send_slab(g, i))
+            @test all(idx -> 1 <= idx <= ne(s), recv_slab(g, i))
+        end
+    end
+
+    @testset "x-axis exchange" begin
+        fa = zeros(Int64, ne(s))
+        fb = map(1:ne(s)) do e
+            x, y, align = edge_to_coord(s, e)
+            return 1000 * x + y
+        end
+
+        simulate_axis_exchange!(fa, fb, g, 1)
+
+        @test all(fa[recv_slab(g, WEST)] .== fb[send_slab(g, EAST)])
+        @test all(fa[recv_slab(g, EAST)] .== fb[send_slab(g, WEST)])
+
+        # Interior x-edges untouched
+        for y in (hy(s) + 1):(hy(s) + nyqr(s)), x in (hx(s) + 1):(nxe(s) - hx(s))
+            @test fa[coord_to_edge(s, x, y, X_ALIGN)] == 0
+        end
+        # Interior y-edges untouched (excluding the shared boundary column now in send slab)
+        for y in (hy(s) + 1):(hy(s) + nyqr(s)), x in (hx(s) + 1):(nx(s) - hx(s) - 1)
+            @test fa[coord_to_edge(s, x, y, Y_ALIGN)] == 0
+        end
+
+        xe = reshape(xedges(s, fa), nxe(s), ny(s))
+        ye = reshape(yedges(s, fa), nx(s), nye(s))
+
+        @test xe[1, :] == [0; [1000 * (nxe(s) - hx(s)) + y for y in (hy(s) + 1):(hy(s) + nyqr(s))]; 0; 0]
+        @test xe[nxe(s), :] == [0; [1000 * (hx(s) + 1) + y for y in (hy(s) + 1):(hy(s) + nyqr(s))]; 0; 0]
+        @test ye[1, :] == [0; [1000 * (nx(s) - 2hx(s)) + y for y in (hy(s) + 1):(hy(s) + nyqr(s))]; 0]
+        @test ye[nx(s) - hx(s), :] == [0; [1000 * (hx(s) + 1) + y for y in (hy(s) + 1):(hy(s) + nyqr(s))]; 0]
+        @test ye[nx(s), :] == [0; [1000 * (hx(s) + 2) + y for y in (hy(s) + 1):(hy(s) + nyqr(s))]; 0]
+    end
+
+    @testset "y-axis exchange" begin
+        fa = zeros(Int64, ne(s))
+        fb = map(1:ne(s)) do e
+            x, y, align = edge_to_coord(s, e)
+            return 1000 * x + y
+        end
+
+        simulate_axis_exchange!(fa, fb, g, 2)
+
+        @test all(fa[recv_slab(g, SOUTH)] .== fb[send_slab(g, NORTH)])
+        @test all(fa[recv_slab(g, NORTH)] .== fb[send_slab(g, SOUTH)])
+
+        # Interior untouched
+        for y in (hy(s) + 1):(hy(s) + nyqr(s)), x in (hx(s) + 1):(nxe(s) - hx(s))
+            @test fa[coord_to_edge(s, x, y, X_ALIGN)] == 0
+        end
+        for y in (hy(s) + 1):(hy(s) + nyqr(s)), x in (hx(s) + 1):(nx(s) - hx(s) - 1)
+            @test fa[coord_to_edge(s, x, y, Y_ALIGN)] == 0
+        end
+
+        xe = reshape(xedges(s, fa), nxe(s), ny(s))
+        ye = reshape(yedges(s, fa), nx(s), nye(s))
+
+        @test xe[:, 1] == [1000x + (ny(s) - 2hy(s)) for x in 1:nxe(s)]
+        @test xe[:, ny(s) - hy(s)] == [1000x + (hy(s) + 1) for x in 1:nxe(s)]
+        @test xe[:, ny(s)] == [1000x + (hy(s) + 2) for x in 1:nxe(s)]
+        @test ye[:, 1] == [1000x + (nye(s) - 2hy(s) + 1) for x in 1:nx(s)]
+        @test ye[:, nye(s)] == [1000x + (hy(s) + 1) for x in 1:nx(s)]
+    end
+
+    @testset "zero halo returns boundary shared-edge slabs" begin
+        s0 = UniformCubicalComplex2D(4, 4, 1.0, 1.0; halo_x = 0, halo_y = 0)
+        g0 = GhostRegion(Datum{Edge,2}, s0)
+
+        # recv_low slabs are empty — no halo depth to receive into
+        @test isempty(recv_slab(g0, 1))   # WEST
+        @test isempty(recv_slab(g0, 3))   # SOUTH
+
+        # WEST send: left boundary y-edges
+        expected_west_send = Int32[coord_to_edge(s0, 1, b, Y_ALIGN) for b in 1:nyqr(s0)]
+        @test send_slab(g0, 1) == expected_west_send
+
+        # EAST recv: right boundary y-edges
+        expected_east_recv = Int32[coord_to_edge(s0, nx(s0), b, Y_ALIGN) for b in 1:nyqr(s0)]
+        @test recv_slab(g0, 2) == expected_east_recv
+
+        # SOUTH send: bottom boundary x-edges
+        expected_south_send = Int32[coord_to_edge(s0, b, 1, X_ALIGN) for b in 1:nxe(s0)]
+        @test send_slab(g0, 3) == expected_south_send
+
+        # NORTH recv: top boundary x-edges
+        expected_north_recv = Int32[coord_to_edge(s0, b, ny(s0), X_ALIGN) for b in 1:nxe(s0)]
+        @test recv_slab(g0, 4) == expected_north_recv
+
+        # EAST and NORTH send slabs are empty — no real layer beyond the boundary to send
+        @test isempty(send_slab(g0, 2))   # EAST
+        @test isempty(send_slab(g0, 4))   # NORTH
+    end
+end
+
+@testset "GhostRegion Edge 2D pack/unpack roundtrip" begin
+    s = UniformCubicalComplex2D(5, 5, 1.0, 1.0; halo_x = 1, halo_y = 1)
+    g = GhostRegion(Datum{Edge,2}, s)
+
+    d_edges = Datum{Edge,2}("edges", "fields", Float64)
+    stream = DataStream(Datum[d_edges])
+    fields = [map(1:ne(s)) do e
+        x, y, align = edge_to_coord(s, e)
+        return Float64(1000 * x + y)
+    end]
+
+    @testset "WEST/EAST roundtrip" begin
+        fb_send_low = FaceBuffer([g.send[Int(WEST)]], [length(g.send[Int(WEST)])])
+        fb_recv_high = FaceBuffer([g.recv[Int(EAST)]], [length(g.recv[Int(EAST)])])
+        fb_send_high = FaceBuffer([g.send[Int(EAST)]], [length(g.send[Int(EAST)])])
+        fb_recv_low = FaceBuffer([g.recv[Int(WEST)]], [length(g.recv[Int(WEST)])])
+
+        buf_low = zeros(Float64, sum(fb_send_low.cell_lens))
+        buf_high = zeros(Float64, sum(fb_send_high.cell_lens))
+
+        fa = zeros(Float64, ne(s))
+
+        _pack_face!(buf_low, fb_send_low, fields)
+        _pack_face!(buf_high, fb_send_high, fields)
+
+        @test buf_low[1:4] == Float64[2002, 2003, 2004, 2005] # xedges
+        @test buf_low[5:end] == Float64[2002, 3002, 2003, 3003, 2004, 3004, 2005, 3005] # yedges
+
+        @test buf_high[1:4] == Float64[5002, 5003, 5004, 5005] # xedges
+        @test buf_high[5:end] == Float64[5002, 5003, 5004, 5005] # yedges
+
+        _unpack_face!([fa], fb_recv_low, buf_high)
+        _unpack_face!([fa], fb_recv_high, buf_low)
+
+        for idx in eachindex(recv_slab(g, Int(WEST)))
+            @test fa[recv_slab(g, Int(WEST))[idx]] == fields[1][send_slab(g, Int(EAST))[idx]]
+        end
+        for idx in eachindex(recv_slab(g, Int(EAST)))
+            @test fa[recv_slab(g, Int(EAST))[idx]] == fields[1][send_slab(g, Int(WEST))[idx]]
+        end
+    end
+
+    @testset "SOUTH/NORTH roundtrip" begin
+        fb_send_low = FaceBuffer([g.send[Int(SOUTH)]], [length(g.send[Int(SOUTH)])])
+        fb_recv_high = FaceBuffer([g.recv[Int(NORTH)]], [length(g.recv[Int(NORTH)])])
+        fb_send_high = FaceBuffer([g.send[Int(NORTH)]], [length(g.send[Int(NORTH)])])
+        fb_recv_low = FaceBuffer([g.recv[Int(SOUTH)]], [length(g.recv[Int(SOUTH)])])
+
+        buf_low = zeros(Float64, sum(fb_send_low.cell_lens))
+        buf_high = zeros(Float64, sum(fb_send_high.cell_lens))
+
+        fa = zeros(Float64, ne(s))
+
+        _pack_face!(buf_low, fb_send_low, fields)
+        _pack_face!(buf_high, fb_send_high, fields)
+
+        @test buf_low[1:7] == Float64[1002, 2002, 3002, 4002, 5002, 6002, 7002] # xedges
+        @test buf_low[8:end] == Float64[1002, 1003, 2002, 2003, 3002, 3003, 4002, 4003, 5002, 5003, 6002, 6003] # yedges
+
+        @test buf_high[1:7] == Float64[1005, 2005, 3005, 4005, 5005, 6005, 7005] # xedges
+        @test buf_high[8:end] == Float64[1005, 2005, 3005, 4005, 5005, 6005] # yedges
+
+        _unpack_face!([fa], fb_recv_low, buf_high)
+        _unpack_face!([fa], fb_recv_high, buf_low)
+
+        for idx in eachindex(recv_slab(g, Int(SOUTH)))
+            @test fa[recv_slab(g, Int(SOUTH))[idx]] == fields[1][send_slab(g, Int(NORTH))[idx]]
+        end
+        for idx in eachindex(recv_slab(g, Int(NORTH)))
+            @test fa[recv_slab(g, Int(NORTH))[idx]] == fields[1][send_slab(g, Int(SOUTH))[idx]]
+        end
+    end
+end
+
 # ── 3D Tests ──────────────────────────────────────────────────────────────────
 
 @testset "GhostRegion Boid 3D" begin
@@ -293,7 +490,6 @@ end
     g = GhostRegion(Datum{Boid,3}, s)
 
     @testset "struct shape" begin
-        @test nfaces(g) == 6
         @test length(send_slab(g, 1)) == hxb(s) * nybr(s) * nzbr(s)
         @test length(recv_slab(g, 1)) == hxb(s) * nybr(s) * nzbr(s)
         @test length(send_slab(g, 2)) == hxb(s) * nybr(s) * nzbr(s)
@@ -331,9 +527,6 @@ end
         end
         fb = copy(fa)
         simulate_axis_exchange!(fa, fb, g, 1)
-
-        # println(repr("text/plain", reshape(fa, nxb(s), nyb(s), nzb(s))))
-        # println(repr("text/plain", reshape(fb, nxb(s), nyb(s), nzb(s))))
 
         for idx in eachindex(recv_slab(g, 2))
             @test fa[recv_slab(g, 2)[idx]] == fb[send_slab(g, 1)[idx]]

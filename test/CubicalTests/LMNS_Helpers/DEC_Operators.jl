@@ -1,7 +1,7 @@
 function build_dec_kernels(s::UniformCubicalComplex2D{FT}) where FT <: AbstractFloat
   cache = Adapt.adapt(USE_CUDA ? CUDABackend() : CPU(), UniformDECCache(s))
 
-  d0(x) = exterior_derivative(Val(1), cache, x)
+  d0(x) = exterior_derivative(Val(0), cache, x)
   d1(x) = exterior_derivative(Val(1), cache, x)
 
   dd0(x) = no_flux_dual_derivative(Val(0), cache, x)
