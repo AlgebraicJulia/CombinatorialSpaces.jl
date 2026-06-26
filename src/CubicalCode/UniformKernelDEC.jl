@@ -1006,13 +1006,13 @@ end
 #  Cached interface functions
 # ═══════════════════════════════════════════════════════════════════════════
 
-function exterior_derivative!(res, ::Val{0}, cache::UniformDECCache, f)
+function exterior_derivative!(res::AbstractVector{FT}, ::Val{0}, cache::UniformDECCache, f::AbstractVector{FT}) where FT
   backend = get_backend(f)
   kernel_d0_cached!(backend)(res, cache.src_v, cache.tgt_v, f; ndrange = cache.ne_)
   return res
 end
 
-function exterior_derivative!(res, ::Val{1}, cache::UniformDECCache, f)
+function exterior_derivative!(res::AbstractVector{FT}, ::Val{1}, cache::UniformDECCache, f::AbstractVector{FT}) where FT
   backend = get_backend(f)
   kernel_d1_cached!(backend)(res, cache.q_e1, cache.q_e2, cache.q_e3, cache.q_e4, f;
                               ndrange = cache.nquads_)
@@ -1029,6 +1029,21 @@ function exterior_derivative(::Val{1}, cache::UniformDECCache, f::AbstractVector
   backend = get_backend(f)
   res = KernelAbstractions.zeros(backend, FT, cache.nquads_)
   return exterior_derivative!(res, Val(1), cache, f)
+end
+
+function wedge_product!(res::AbstractVector{FT}, ::Val{0}, ::Val{1}, cache::UniformDECCache,
+                       f::AbstractVector{FT}, a::AbstractVector{FT}) where FT
+  backend = get_backend(f)
+  kernel_wedge_01_cached!(backend)(res, cache.src_v, cache.tgt_v, f, a; ndrange = cache.ne_)
+  return res
+end
+
+function wedge_product!(res::AbstractVector{FT}, ::Val{1}, ::Val{1}, cache::UniformDECCache,
+                       f1::AbstractVector{FT}, f2::AbstractVector{FT}) where FT
+  backend = get_backend(f1)
+  kernel_wedge_11_cached!(backend)(res, cache.q_e1, cache.q_e2, cache.q_e3, cache.q_e4,
+                                   f1, f2; ndrange = cache.nquads_)
+  return res
 end
 
 function wedge_product(::Val{0}, ::Val{1}, cache::UniformDECCache,
@@ -1115,19 +1130,19 @@ function interpolate_dp(::Val{1}, cache::UniformDECCache, a::AbstractVector{FT})
 end
 
 # ── hodge_star (cached) ───────────────────────────────────────────────────
-function hodge_star!(res, ::Val{0}, cache::UniformDECCache, f)
+function hodge_star!(res::AbstractVector{FT}, ::Val{0}, cache::UniformDECCache, f::AbstractVector{FT}) where FT
   backend = get_backend(f)
   kernel_hodge_vec!(backend)(res, cache.hs0_scale, f; ndrange = cache.nv_)
   return res
 end
 
-function hodge_star!(res, ::Val{1}, cache::UniformDECCache, f)
+function hodge_star!(res::AbstractVector{FT}, ::Val{1}, cache::UniformDECCache, f::AbstractVector{FT}) where FT
   backend = get_backend(f)
   kernel_hodge_vec!(backend)(res, cache.hs1_scale, f; ndrange = cache.ne_)
   return res
 end
 
-function hodge_star!(res, ::Val{2}, cache::UniformDECCache, f)
+function hodge_star!(res::AbstractVector{FT}, ::Val{2}, cache::UniformDECCache, f::AbstractVector{FT}) where FT
   backend = get_backend(f)
   kernel_hodge_scalar!(backend)(res, cache.hs2_val, f; ndrange = cache.nquads_)
   return res

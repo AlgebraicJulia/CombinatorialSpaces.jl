@@ -560,11 +560,49 @@ function _exchange_axis!(handler::ExchangeHandler, fields::AbstractVector, side:
 
     MPI.Wait(recv_req(handler, low))
     MPI.Wait(recv_req(handler, high))
-    MPI.Wait(send_req(handler, low))
-    MPI.Wait(send_req(handler, high))
 
     _unpack_face!(fields, recv_face(handler, low), recv_buf(handler, low))
     _unpack_face!(fields, recv_face(handler, high), recv_buf(handler, high))
+
+    MPI.Wait(send_req(handler, low))
+    MPI.Wait(send_req(handler, high))
+
+    return nothing
+end
+
+# TODO: For benchmark testing
+function test_exchange!(handler::ExchangeHandler{N,FT}, vars::NamedTuple) where {N,FT}
+    fields = map(datum -> vars[Symbol(datum.name)], handler.stream.data)
+
+    _test_exchange_axis!(handler, fields, EASTWEST)
+    _test_exchange_axis!(handler, fields, NORTHSOUTH)
+    N == 3 && _test_exchange_axis!(handler, fields, UPDOWN)
+
+    return nothing
+end
+
+function _test_exchange_axis!(handler::ExchangeHandler{N,FT}, fields::AbstractVector, side::GridSide) where {N,FT}
+    low  = low_face(side)
+    high = high_face(side)
+    il   = Int(low)
+    ih   = Int(high)
+
+    nb         = handler.topo.cache.neighbors
+    face_names = N == 2 ? AXIS_NAMES_2D : AXIS_NAMES_3D
+
+    _pack_face!(handler.send_bufs[il], handler.send_face[il], fields)
+    _pack_face!(handler.send_bufs[ih], handler.send_face[ih], fields)
+
+    MPI.Sendrecv!(handler.send_bufs[il], nb[face_names[il]], il,
+                  handler.recv_bufs[ih], nb[face_names[ih]], il,
+                  handler.topo.cart_comm)
+
+    MPI.Sendrecv!(handler.send_bufs[ih], nb[face_names[ih]], ih,
+                  handler.recv_bufs[il], nb[face_names[il]], ih,
+                  handler.topo.cart_comm)
+
+    _unpack_face!(fields, handler.recv_face[il], handler.recv_bufs[il])
+    _unpack_face!(fields, handler.recv_face[ih], handler.recv_bufs[ih])
 
     return nothing
 end

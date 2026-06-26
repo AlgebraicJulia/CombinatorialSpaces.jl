@@ -10,14 +10,26 @@ include(joinpath(PROJECT_DIR, "src", "CubicalCode", "UniformDEC.jl"))
 const CONFIG = TOML.parsefile(joinpath(@__DIR__, "config.toml"))
 
 # ── ARGS ──────────────────────────────────────────────────────────────────────
-const w_dims = (CONFIG["MPI"]["wx"], CONFIG["MPI"]["wy"])
-const o_dims = (CONFIG["MPI"]["ox"], CONFIG["MPI"]["oy"])
+const w_dims  = (parse(Int, ARGS[1]), parse(Int, ARGS[2]))
+const o_dims  = (parse(Int, ARGS[3]), parse(Int, ARGS[4]))
+const RUN_TAG = ARGS[5]
 
 # ── Dirs ──────────────────────────────────────────────────────────────────────
-const LOG_DIR = joinpath(@__DIR__, "logs")
-const OUTPUT_DIR = joinpath(@__DIR__, "output")
-mkpath(LOG_DIR)
-mkpath(OUTPUT_DIR)
+const OUTPUT_DIR = joinpath(@__DIR__, RUN_TAG, "output")
+const IMGDIR = joinpath(@__DIR__, RUN_TAG, "imgs")
+
+let comm_world = MPI.COMM_WORLD
+    rank = MPI.Comm_rank(comm_world)
+    if rank == 0
+        rm(OUTPUT_DIR; recursive = true, force = true)
+        rm(IMGDIR; recursive = true, force = true)
+
+        mkpath(OUTPUT_DIR)
+        mkpath(IMGDIR)
+    end
+    MPI.Barrier(comm_world)
+end
+
 
 # ── Config ────────────────────────────────────────────────────────────────────
 const FT = Float64
@@ -50,4 +62,5 @@ else
     include(joinpath(@__DIR__, "worker.jl"))
 end
 
+MPI.Barrier(topo.world_comm)
 MPI.Finalize()

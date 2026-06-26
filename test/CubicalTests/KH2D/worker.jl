@@ -63,6 +63,7 @@ const ex_stream = DataStream(Datum[Datum{Edge,2}("U_star", "fields", FT), Datum{
 const ex_handler = ExchangeHandler(ex_stream, topo, s)
 
 # ── IO stream (real-cell data only, sent to output processes) ─────────────────
+# TODO: Add momentum data
 const io_stream = DataStream(Datum[Datum{Quad,2}("rho", "fields", FT), Datum{Quad,2}("Theta", "fields", FT)])
 
 # ── Initial conditions (San & Kara 2015) ─────────────────────────────────────
@@ -104,12 +105,6 @@ const u0 = ComponentVector(; U_star = U_star_0, rho_star = rho_star_0, Theta_sta
 # ── Per-rank initial condition plots ──────────────────────────────────────────
 using CairoMakie
 
-const IMGDIR = joinpath(@__DIR__, "imgs")
-cart_rank == 0 && rm(IMGDIR; recursive = true, force = true)
-MPI.Barrier(cart_comm)
-cart_rank == 0 && mkpath(IMGDIR)
-MPI.Barrier(cart_comm)
-
 let
     rho_real = [hdg_2(rho_star_0)[coord_to_quad(s, x + hx(s), y + hy(s))]
                 for x in 1:nxqr(s), y in 1:nyqr(s)]
@@ -145,21 +140,25 @@ function momentum_conservation(u, p)
     U   = hdg_1(u.U_star)
     rho = hdg_2(u.rho_star)
     Theta = hdg_2(u.Theta_star)
-    vel = wdg_dd_01(FT(1) ./ rho, U)
-    v   = interp_dp_1(vel)
+
+    u = wdg_dd_01(FT(1) ./ rho, U)
+    v   = interp_dp_1(u)
     V   = interp_dp_1(U)
+
     enforce_bc_v!(v); enforce_bc_V!(V)
 
-    div_term = wdg_dd_01(dcd_1(vel), U)
+    div_term = wdg_dd_01(dcd_1(u), U)
 
     L_term   = dd0(hdg_2(wdg_11(v, inv_hdg_1(U)))) +
                hdg_1(wdg_01(inv_hdg_0(dd1(U) + d_beta(V)), v))
 
-    energy   = FT(0.5) .* wdg_dd_01(rho, dd0(hdg_2(wdg_11(v, inv_hdg_1(vel)))))
+    energy   = FT(0.5) .* wdg_dd_01(rho, dd0(hdg_2(wdg_11(v, inv_hdg_1(u)))))
 
     diff_p   = dd0(pressure(Theta))
 
-    viscous  = p.mu * (dlap_1(vel) + dlap_1_v(v))
+    viscous  = p.mu * (dlap_1(u) + dlap_1_v(v))
+
+    # TODO: Will also need to body forces later 
 
     result = -inv_hdg_1(.-div_term .- L_term .+ energy .- diff_p .+ viscous)
 
@@ -172,11 +171,11 @@ function potential_temperature_continuity(u, p)
     rho   = hdg_2(u.rho_star)
     Theta = hdg_2(u.Theta_star)
 
-    vel   = wdg_dd_01(FT(1) ./ rho, U)
-    v     = interp_dp_1(vel)
+    u   = wdg_dd_01(FT(1) ./ rho, U)
+    v     = interp_dp_1(u)
     theta = Theta ./ rho
 
-    creation  = Theta .* dcd_1(vel)
+    creation  = Theta .* dcd_1(u)
 
     advection = hdg_2(wdg_11(v, inv_hdg_1(dd0(Theta))))
 
@@ -197,18 +196,30 @@ const SAVEAT_STEPS = max(1, round(Int, SAVETIME / DT))
 const PRINT_EVERY = 500
 
 # TODO: This exchange has to be more complex, we need to seperate U_star, rho_star and Theta_star
+# When is this thing actually firing?
 periodic_cb = DiscreteCallback(
     (u, t, integrator) -> true,
-    integrator -> exchange!(ex_handler, (u = integrator.u,));
-    initialize = (c, u, t, integrator) -> exchange!(ex_handler, (u = u,)),
+    integrator -> begin
+        u = integrator.u
+        exchange!(ex_handler, (
+            U_star    = u.U_star,
+            rho_star  = u.rho_star,
+            Theta_star = u.Theta_star,
+        ))
+    end;
+    initialize = (c, u, t, integrator) -> exchange!(ex_handler, (
+        U_star     = u.U_star,
+        rho_star   = u.rho_star,
+        Theta_star = u.Theta_star,
+    )),
     save_positions = (false, false),
 )
 
 smoothing_cb = DiscreteCallback(
     (u, t, integrator) -> integrator.iter > 0, 
     integrator -> begin
-        smooth_dual0_fused!(rho_smooth_cache, integrator.u.rho_star)
-        smooth_dual0_fused!(theta_smooth_cache, integrator.u.Theta_star)
+        integrator.u.rho_star .= smooth_dual0_fused(rho_smooth_cache, integrator.u.rho_star)
+        integrator.u.Theta_star .= smooth_dual0_fused(theta_smooth_cache, integrator.u.Theta_star)
         return nothing
     end; 
     save_positions = (false, false)
@@ -232,10 +243,28 @@ end
 cart_rank == 0 && println("Warmup complete. Solving...")
 
 prob = ODEProblem(rhs!, u0, (FT(0), TE), p_phys)
+t_start = time_ns()
 sol = solve(prob, SSPRK33(); dt = DT, adaptive = false, save_everystep = false, save_start = false, save_end = false, dense = false, callback = cb)
+t_end = time_ns()
+
+solve_ms = (t_end - t_start) / 1e6
+
+all_times = MPI.Gather(solve_ms, 0, cart_comm)
+
+if cart_rank == 0
+    println("Solve complete.")
+    println("# --- Solve Timing ---")
+    for r in 0:(length(all_times) - 1)
+        @printf("  rank %3d : %10.2f ms\n", r, all_times[r + 1])
+    end
+    @printf("  mean     : %10.2f ms\n", sum(all_times) / length(all_times))
+    @printf("  max      : %10.2f ms\n", maximum(all_times))
+end
 
 cart_rank == 0 && println("Solve complete.")
 
 worker_to_output(SIGNAL_DONE, topo)
 MPI.Barrier(cart_comm)
+
 close!(ex_handler)
+MPI.Barrier(cart_comm)
