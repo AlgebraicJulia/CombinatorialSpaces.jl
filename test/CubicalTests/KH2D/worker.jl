@@ -195,10 +195,9 @@ end
 const SAVEAT_STEPS = max(1, round(Int, SAVETIME / DT))
 const PRINT_EVERY = 500
 
-# TODO: This exchange has to be more complex, we need to seperate U_star, rho_star and Theta_star
-# When is this thing actually firing?
+const N = 5
 periodic_cb = DiscreteCallback(
-    (u, t, integrator) -> true,
+    (u, t, integrator) -> integrator.iter > 0 && integrator.iter % N == 0,
     integrator -> begin
         u = integrator.u
         exchange!(ex_handler, (
@@ -243,11 +242,11 @@ end
 cart_rank == 0 && println("Warmup complete. Solving...")
 
 prob = ODEProblem(rhs!, u0, (FT(0), TE), p_phys)
-t_start = time_ns()
+t_start = MPI.API.MPI_Wtime()
 sol = solve(prob, SSPRK33(); dt = DT, adaptive = false, save_everystep = false, save_start = false, save_end = false, dense = false, callback = cb)
-t_end = time_ns()
+t_end = MPI.API.MPI_Wtime()
 
-solve_ms = (t_end - t_start) / 1e6
+solve_ms = (t_end - t_start) * 1e3
 
 all_times = MPI.Gather(solve_ms, 0, cart_comm)
 

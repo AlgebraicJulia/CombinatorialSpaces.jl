@@ -57,8 +57,10 @@ const PERIODS = PERIODIC == "ALL"        ? (true, true)  :
 const topo = MPITopology(m_dims, w_dims, o_dims; periods = PERIODS)
 
 if output(topo)
+    println("Entering output process")
     include(joinpath(@__DIR__, "output.jl"))
 else
+    println("Entering worker process")
     include(joinpath(@__DIR__, "worker.jl"))
 end
 
