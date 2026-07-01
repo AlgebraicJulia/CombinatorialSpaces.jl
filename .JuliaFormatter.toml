@@ -1,0 +1,10 @@
+always_for_in = true
+always_use_return = true
+short_to_long_function_def = true
+remove_extra_newlines = true
+separate_kwargs_with_semicolon = true
+whitespace_ops_in_indices = true
+import_to_using = true
+trailing_zero = true
+ident = 4
+margin = 180
