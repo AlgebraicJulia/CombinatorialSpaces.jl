@@ -4,7 +4,7 @@ include(joinpath(@__DIR__, "LMNS_Helpers", "Simulation_Header.jl"))
 ### Simulation Initialization ###
 #################################
 
-const sim = "Taylor_Vortices"
+const sim = "Cavity_Flow_1000"
 
 const config_filepath = joinpath(@__DIR__, "Sim_Files", "$(sim)_Sim.toml")
 const sim_filepath = joinpath(@__DIR__, "Sim_Files", "$(sim)_Sim.jl")
@@ -48,7 +48,7 @@ function parse_periodic(config)
   elseif entry == "EASTWEST"
     return EASTWEST
   else
-    error("Valid periodic settings are: ALL, NORTHSOUTH, EASTWEST")
+    return nothing
   end
 end
 
@@ -101,8 +101,10 @@ end
 function apply_periodic_prestep!(::LMNSModel, integrator, context)
   s = context.s
   periodic = context.periodic
-  set_periodic!(integrator.u.U_star, Val(1), s, periodic)
-  set_periodic!(integrator.u.rho_star, Val(2), s, periodic)
+  # TODO: remove these comments
+  # TODO: Bigger thing, need to add option to turn off periodicity
+  # set_periodic!(integrator.u.U_star, Val(1), s, periodic)
+  # set_periodic!(integrator.u.rho_star, Val(2), s, periodic)
   return nothing
 end
 
