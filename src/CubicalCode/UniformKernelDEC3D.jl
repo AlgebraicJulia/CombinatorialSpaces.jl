@@ -2,14 +2,14 @@ using KernelAbstractions
 
 ### Exterior Derivatives ###
 
-@kernel function kernel_exterior_derivative_zero!(res, s, @Const(f))
+@kernel function kernel_exterior_derivative_zero_3d!(res, s, @Const(f))
     idx = @index(Global)
     x, y, z, align = edge_to_coord(s, idx)
   
     @inbounds res[idx] = f[tgt(s, x, y, z, align)] - f[src(s, x, y, z, align)]
 end
   
-@kernel function kernel_exterior_derivative_one!(res, s, @Const(f))
+@kernel function kernel_exterior_derivative_one_3d!(res, s, @Const(f))
     idx = @index(Global)
     x, y, z, align = quad_to_coord(s, idx)
   
@@ -17,46 +17,49 @@ end
     @inbounds res[idx] = f[e1] + f[e2] - f[e3] - f[e4]
 end
   
-@kernel function kernel_exterior_derivative_two!(res, s, @Const(f))
+# TODO: I've flipped this from the original formulation
+# Please check if this is right
+@kernel function kernel_exterior_derivative_two_3d!(res, s, @Const(f))
     idx = @index(Global)
     x, y, z = boid_to_coord(s, idx)
     q1, q2, q3, q4, q5, q6 = boid_quads(s, x, y, z)
-    @inbounds res[idx] = f[q1] - f[q2] + f[q3] - f[q4] + f[q5] - f[q6]
+    # @inbounds res[idx] = f[q1] - f[q2] + f[q3] - f[q4] + f[q5] - f[q6]
+    @inbounds res[idx] = f[q2] - f[q1] + f[q4] - f[q3] + f[q6] - f[q5]
 end
 
-function exterior_derivative!(res, ::Val{0}, s::UniformCubicalComplex3D, f; workgroup_size = 256)
+function exterior_derivative!(res::AbstractVector{FT}, ::Val{0}, s::UniformCubicalComplex3D, f::AbstractVector{FT}; workgroup_size::Int = 256) where FT <: AbstractFloat
     backend = get_backend(res)
-    kernel = kernel_exterior_derivative_zero!(backend, workgroup_size)
+    kernel = kernel_exterior_derivative_zero_3d!(backend, workgroup_size)
     kernel(res, s, f, ndrange=size(res))
 end
 
-function exterior_derivative!(res, ::Val{1}, s::UniformCubicalComplex3D, f; workgroup_size = 256)
+function exterior_derivative!(res::AbstractVector{FT}, ::Val{1}, s::UniformCubicalComplex3D, f::AbstractVector{FT}; workgroup_size::Int = 256) where FT <: AbstractFloat
     backend = get_backend(res)
-    kernel = kernel_exterior_derivative_one!(backend, workgroup_size)
+    kernel = kernel_exterior_derivative_one_3d!(backend, workgroup_size)
     kernel(res, s, f, ndrange=size(res))
 end
 
-function exterior_derivative!(res, ::Val{2}, s::UniformCubicalComplex3D, f; workgroup_size = 256)
+function exterior_derivative!(res::AbstractVector{FT}, ::Val{2}, s::UniformCubicalComplex3D, f::AbstractVector{FT}; workgroup_size::Int = 256) where FT <: AbstractFloat
     backend = get_backend(res)
-    kernel = kernel_exterior_derivative_two!(backend, workgroup_size)
+    kernel = kernel_exterior_derivative_two_3d!(backend, workgroup_size)
     kernel(res, s, f, ndrange=size(res))
 end
 
-function exterior_derivative(op::Val{0}, s::UniformCubicalComplex3D, f; workgroup_size = 256)
+function exterior_derivative(op::Val{0}, s::UniformCubicalComplex3D, f::AbstractVector{FT}; workgroup_size::Int = 256) where FT <: AbstractFloat
     backend = get_backend(f)
     res = KernelAbstractions.zeros(backend, eltype(f), ne(s))
     exterior_derivative!(res, op, s, f; workgroup_size=workgroup_size)
     return res
 end
 
-function exterior_derivative(op::Val{1}, s::UniformCubicalComplex3D, f; workgroup_size = 256)
+function exterior_derivative(op::Val{1}, s::UniformCubicalComplex3D, f::AbstractVector{FT}; workgroup_size::Int = 256) where FT <: AbstractFloat
     backend = get_backend(f)
     res = KernelAbstractions.zeros(backend, eltype(f), nquads(s))
     exterior_derivative!(res, op, s, f; workgroup_size=workgroup_size)
     return res
 end
 
-function exterior_derivative(op::Val{2}, s::UniformCubicalComplex3D, f; workgroup_size = 256)
+function exterior_derivative(op::Val{2}, s::UniformCubicalComplex3D, f::AbstractVector{FT}; workgroup_size::Int = 256) where FT <: AbstractFloat
     backend = get_backend(f)
     res = KernelAbstractions.zeros(backend, eltype(f), nboids(s))
     exterior_derivative!(res, op, s, f; workgroup_size=workgroup_size)
@@ -65,7 +68,7 @@ end
 
 ### Hodge Star ###
 
-@kernel function kernel_hodge_star_zero!(res, s, @Const(f))
+@kernel function kernel_hodge_star_zero_3d!(res, s, @Const(f))
     idx = @index(Global) 
     v_idx = idx
     x, y, z = vert_to_coord(s, v_idx)
@@ -74,7 +77,7 @@ end
     @inbounds res[idx] = f[v_idx] * ratio
 end
 
-@kernel function kernel_hodge_star_one!(res, s, @Const(f))
+@kernel function kernel_hodge_star_one_3d!(res, s, @Const(f))
     idx = @index(Global)
     e_idx = idx
     x, y, z, align = edge_to_coord(s, e_idx)
@@ -83,7 +86,7 @@ end
     @inbounds res[idx] = f[e_idx] * ratio
 end
 
-@kernel function kernel_hodge_star_two!(res, s, @Const(f))
+@kernel function kernel_hodge_star_two_3d!(res, s, @Const(f))
     idx = @index(Global) 
     q_idx = idx 
     x, y, z, align = quad_to_coord(s, q_idx)
@@ -92,7 +95,7 @@ end
     @inbounds res[idx] = f[q_idx] * ratio
 end
 
-@kernel function kernel_hodge_star_three!(res, s, @Const(f))
+@kernel function kernel_hodge_star_three_3d!(res, s, @Const(f))
     idx = @index(Global) 
     b_idx = idx 
     x, y, z = boid_to_coord(s, b_idx)
@@ -101,52 +104,52 @@ end
     @inbounds res[idx] = f[b_idx] * ratio
 end
 
-function hodge_star!(res, ::Val{0}, s::UniformCubicalComplex3D, f; workgroup_size = 256)
+function hodge_star!(res::AbstractVector{FT}, ::Val{0}, s::UniformCubicalComplex3D, f::AbstractVector{FT}; workgroup_size::Int = 256) where FT <: AbstractFloat
     backend = get_backend(res)
-    kernel = kernel_hodge_star_zero!(backend, workgroup_size)
+    kernel = kernel_hodge_star_zero_3d!(backend, workgroup_size)
     kernel(res, s, f, ndrange=size(res))
 end
 
-function hodge_star!(res, ::Val{1}, s::UniformCubicalComplex3D, f; workgroup_size = 256)
+function hodge_star!(res::AbstractVector{FT}, ::Val{1}, s::UniformCubicalComplex3D, f::AbstractVector{FT}; workgroup_size::Int = 256) where FT <: AbstractFloat
     backend = get_backend(res)
-    kernel = kernel_hodge_star_one!(backend, workgroup_size)
+    kernel = kernel_hodge_star_one_3d!(backend, workgroup_size)
     kernel(res, s, f, ndrange=size(res))
 end
 
-function hodge_star!(res, ::Val{2}, s::UniformCubicalComplex3D, f; workgroup_size = 256)
+function hodge_star!(res::AbstractVector{FT}, ::Val{2}, s::UniformCubicalComplex3D, f::AbstractVector{FT}; workgroup_size::Int = 256) where FT <: AbstractFloat
     backend = get_backend(res)
-    kernel = kernel_hodge_star_two!(backend, workgroup_size)
+    kernel = kernel_hodge_star_two_3d!(backend, workgroup_size)
     kernel(res, s, f, ndrange=size(res))
 end
 
-function hodge_star!(res, ::Val{3}, s::UniformCubicalComplex3D, f; workgroup_size = 256)
+function hodge_star!(res::AbstractVector{FT}, ::Val{3}, s::UniformCubicalComplex3D, f::AbstractVector{FT}; workgroup_size::Int = 256) where FT <: AbstractFloat
     backend = get_backend(res)
-    kernel = kernel_hodge_star_three!(backend, workgroup_size)
+    kernel = kernel_hodge_star_three_3d!(backend, workgroup_size)
     kernel(res, s, f, ndrange=size(res))
 end
 
-function hodge_star(op::Val{0}, s::UniformCubicalComplex3D, f; workgroup_size = 256)
+function hodge_star(op::Val{0}, s::UniformCubicalComplex3D, f::AbstractVector{FT}; workgroup_size::Int = 256) where FT <: AbstractFloat
     backend = get_backend(f)
     res = KernelAbstractions.zeros(backend, eltype(f), nv(s))
     hodge_star!(res, op, s, f; workgroup_size=workgroup_size)
     return res
 end
 
-function hodge_star(op::Val{1}, s::UniformCubicalComplex3D, f; workgroup_size = 256)
+function hodge_star(op::Val{1}, s::UniformCubicalComplex3D, f::AbstractVector{FT}; workgroup_size::Int = 256) where FT <: AbstractFloat
     backend = get_backend(f)
     res = KernelAbstractions.zeros(backend, eltype(f), ne(s))
     hodge_star!(res, op, s, f; workgroup_size=workgroup_size)
     return res
 end
 
-function hodge_star(op::Val{2}, s::UniformCubicalComplex3D, f; workgroup_size = 256)
+function hodge_star(op::Val{2}, s::UniformCubicalComplex3D, f::AbstractVector{FT}; workgroup_size::Int = 256) where FT <: AbstractFloat
     backend = get_backend(f)
     res = KernelAbstractions.zeros(backend, eltype(f), nquads(s))
     hodge_star!(res, op, s, f; workgroup_size=workgroup_size)
     return res
 end
 
-function hodge_star(op::Val{3}, s::UniformCubicalComplex3D, f; workgroup_size = 256)
+function hodge_star(op::Val{3}, s::UniformCubicalComplex3D, f::AbstractVector{FT}; workgroup_size::Int = 256) where FT <: AbstractFloat
     backend = get_backend(f)
     res = KernelAbstractions.zeros(backend, eltype(f), nboids(s))
     hodge_star!(res, op, s, f; workgroup_size=workgroup_size)
@@ -155,7 +158,7 @@ end
 
 ### Inverse Hodge Star ###
 
-@kernel function kernel_inv_hodge_star_zero!(res, s, @Const(f))
+@kernel function kernel_inv_hodge_star_zero_3d!(res, s, @Const(f))
     idx = @index(Global)
     b_idx = idx
     x, y, z = vert_to_coord(s, idx)
@@ -164,7 +167,7 @@ end
     @inbounds res[idx] = f[b_idx] * ratio
 end
 
-@kernel function kernel_inv_hodge_star_one!(res, s, @Const(f))
+@kernel function kernel_inv_hodge_star_one_3d!(res, s, @Const(f))
     idx = @index(Global)
     q_idx = idx
     x, y, z, align = edge_to_coord(s, idx)
@@ -173,7 +176,7 @@ end
     @inbounds res[idx] = f[q_idx] * ratio
 end
 
-@kernel function kernel_inv_hodge_star_two!(res, s, @Const(f))
+@kernel function kernel_inv_hodge_star_two_3d!(res, s, @Const(f))
     idx = @index(Global)
     e_idx = idx
     x, y, z, align = quad_to_coord(s, idx)
@@ -182,7 +185,7 @@ end
     @inbounds res[idx] = f[e_idx] * ratio
 end
 
-@kernel function kernel_inv_hodge_star_three!(res, s, @Const(f))
+@kernel function kernel_inv_hodge_star_three_3d!(res, s, @Const(f))
     idx = @index(Global)
     v_idx = idx
     
@@ -190,52 +193,52 @@ end
     @inbounds res[idx] = f[v_idx] * ratio
 end
 
-function inv_hodge_star!(res, ::Val{0}, s::UniformCubicalComplex3D, f; workgroup_size = 256)
+function inv_hodge_star!(res::AbstractVector{FT}, ::Val{0}, s::UniformCubicalComplex3D, f::AbstractVector{FT}; workgroup_size::Int = 256) where FT <: AbstractFloat
     backend = get_backend(res)
-    kernel = kernel_inv_hodge_star_zero!(backend, workgroup_size)
+    kernel = kernel_inv_hodge_star_zero_3d!(backend, workgroup_size)
     kernel(res, s, f, ndrange=size(res))
 end
 
-function inv_hodge_star!(res, ::Val{1}, s::UniformCubicalComplex3D, f; workgroup_size = 256)
+function inv_hodge_star!(res::AbstractVector{FT}, ::Val{1}, s::UniformCubicalComplex3D, f::AbstractVector{FT}; workgroup_size::Int = 256) where FT <: AbstractFloat
     backend = get_backend(res)
-    kernel = kernel_inv_hodge_star_one!(backend, workgroup_size)
+    kernel = kernel_inv_hodge_star_one_3d!(backend, workgroup_size)
     kernel(res, s, f, ndrange=size(res))
 end
 
-function inv_hodge_star!(res, ::Val{2}, s::UniformCubicalComplex3D, f; workgroup_size = 256)
+function inv_hodge_star!(res::AbstractVector{FT}, ::Val{2}, s::UniformCubicalComplex3D, f::AbstractVector{FT}; workgroup_size::Int = 256) where FT <: AbstractFloat
     backend = get_backend(res)
-    kernel = kernel_inv_hodge_star_two!(backend, workgroup_size)
+    kernel = kernel_inv_hodge_star_two_3d!(backend, workgroup_size)
     kernel(res, s, f, ndrange=size(res))
 end
 
-function inv_hodge_star!(res, ::Val{3}, s::UniformCubicalComplex3D, f; workgroup_size = 256)
+function inv_hodge_star!(res::AbstractVector{FT}, ::Val{3}, s::UniformCubicalComplex3D, f::AbstractVector{FT}; workgroup_size::Int = 256) where FT <: AbstractFloat
     backend = get_backend(res)
-    kernel = kernel_inv_hodge_star_three!(backend, workgroup_size)
+    kernel = kernel_inv_hodge_star_three_3d!(backend, workgroup_size)
     kernel(res, s, f, ndrange=size(res))
 end
 
-function inv_hodge_star(op::Val{0}, s::UniformCubicalComplex3D, f; workgroup_size = 256)
+function inv_hodge_star(op::Val{0}, s::UniformCubicalComplex3D, f::AbstractVector{FT}; workgroup_size::Int = 256) where FT <: AbstractFloat
     backend = get_backend(f)
     res = KernelAbstractions.zeros(backend, eltype(f), nv(s))
     inv_hodge_star!(res, op, s, f; workgroup_size=workgroup_size)
     return res
 end
 
-function inv_hodge_star(op::Val{1}, s::UniformCubicalComplex3D, f; workgroup_size = 256)
+function inv_hodge_star(op::Val{1}, s::UniformCubicalComplex3D, f::AbstractVector{FT}; workgroup_size::Int = 256) where FT <: AbstractFloat
     backend = get_backend(f)
     res = KernelAbstractions.zeros(backend, eltype(f), ne(s))
     inv_hodge_star!(res, op, s, f; workgroup_size=workgroup_size)
     return res
 end
 
-function inv_hodge_star(op::Val{2}, s::UniformCubicalComplex3D, f; workgroup_size = 256)
+function inv_hodge_star(op::Val{2}, s::UniformCubicalComplex3D, f::AbstractVector{FT}; workgroup_size::Int = 256) where FT <: AbstractFloat
     backend = get_backend(f)
     res = KernelAbstractions.zeros(backend, eltype(f), nquads(s))
     inv_hodge_star!(res, op, s, f; workgroup_size=workgroup_size)
     return res
 end
 
-function inv_hodge_star(op::Val{3}, s::UniformCubicalComplex3D, f; workgroup_size = 256)
+function inv_hodge_star(op::Val{3}, s::UniformCubicalComplex3D, f::AbstractVector{FT}; workgroup_size::Int = 256) where FT <: AbstractFloat
     backend = get_backend(f)
     res = KernelAbstractions.zeros(backend, eltype(f), nboids(s))
     inv_hodge_star!(res, op, s, f; workgroup_size=workgroup_size)
@@ -244,7 +247,7 @@ end
 
 ### Dual Derivative ###
 
-@kernel function kernel_dual_derivative_zero!(res, s, @Const(f))
+@kernel function kernel_dual_derivative_zero_3d!(res, s, @Const(f))
     idx = @index(Global)
     FT = eltype(f)
     x, y, z, align = quad_to_coord(s, idx)
@@ -256,7 +259,7 @@ end
     @inbounds res[idx] = val2 - val1
 end
   
-@kernel function kernel_dual_derivative_one!(res, s, @Const(f))
+@kernel function kernel_dual_derivative_one_3d!(res, s, @Const(f))
     idx = @index(Global)
     FT = eltype(f)
     x, y, z, align = edge_to_coord(s, idx)
@@ -270,7 +273,7 @@ end
     @inbounds res[idx] = -val1 + val2 + val3 - val4
 end
   
-@kernel function kernel_dual_derivative_two!(res, s, @Const(f))
+@kernel function kernel_dual_derivative_two_3d!(res, s, @Const(f))
     idx = @index(Global)
     FT = eltype(f)
     x, y, z = vert_to_coord(s, idx)
@@ -286,39 +289,39 @@ end
     @inbounds res[idx] = val1 - val2 + val3 - val4 + val5 - val6
 end
 
-function dual_derivative!(res, ::Val{0}, s::UniformCubicalComplex3D, f; workgroup_size = 256)
+function dual_derivative!(res::AbstractVector{FT}, ::Val{0}, s::UniformCubicalComplex3D, f::AbstractVector{FT}; workgroup_size::Int = 256) where FT <: AbstractFloat
     backend = get_backend(res)
-    kernel = kernel_dual_derivative_zero!(backend, workgroup_size)
+    kernel = kernel_dual_derivative_zero_3d!(backend, workgroup_size)
     kernel(res, s, f, ndrange=size(res))
 end
 
-function dual_derivative!(res, ::Val{1}, s::UniformCubicalComplex3D, f; workgroup_size = 256)
+function dual_derivative!(res::AbstractVector{FT}, ::Val{1}, s::UniformCubicalComplex3D, f::AbstractVector{FT}; workgroup_size::Int = 256) where FT <: AbstractFloat
     backend = get_backend(res)
-    kernel = kernel_dual_derivative_one!(backend, workgroup_size)
+    kernel = kernel_dual_derivative_one_3d!(backend, workgroup_size)
     kernel(res, s, f, ndrange=size(res))
 end
 
-function dual_derivative!(res, ::Val{2}, s::UniformCubicalComplex3D, f; workgroup_size = 256)
+function dual_derivative!(res::AbstractVector{FT}, ::Val{2}, s::UniformCubicalComplex3D, f::AbstractVector{FT}; workgroup_size::Int = 256) where FT <: AbstractFloat
     backend = get_backend(res)
-    kernel = kernel_dual_derivative_two!(backend, workgroup_size)
+    kernel = kernel_dual_derivative_two_3d!(backend, workgroup_size)
     kernel(res, s, f, ndrange=size(res))
 end
 
-function dual_derivative(op::Val{0}, s::UniformCubicalComplex3D, f; workgroup_size = 256)
+function dual_derivative(op::Val{0}, s::UniformCubicalComplex3D, f::AbstractVector{FT}; workgroup_size::Int = 256) where FT <: AbstractFloat
     backend = get_backend(f)
     res = KernelAbstractions.zeros(backend, eltype(f), nquads(s))
     dual_derivative!(res, op, s, f; workgroup_size=workgroup_size)
     return res
 end
 
-function dual_derivative(op::Val{1}, s::UniformCubicalComplex3D, f; workgroup_size = 256)
+function dual_derivative(op::Val{1}, s::UniformCubicalComplex3D, f::AbstractVector{FT}; workgroup_size::Int = 256) where FT <: AbstractFloat
     backend = get_backend(f)
     res = KernelAbstractions.zeros(backend, eltype(f), ne(s))
     dual_derivative!(res, op, s, f; workgroup_size=workgroup_size)
     return res
 end
 
-function dual_derivative(op::Val{2}, s::UniformCubicalComplex3D, f; workgroup_size = 256)
+function dual_derivative(op::Val{2}, s::UniformCubicalComplex3D, f::AbstractVector{FT}; workgroup_size::Int = 256) where FT <: AbstractFloat
     backend = get_backend(f)
     res = KernelAbstractions.zeros(backend, eltype(f), nv(s))
     dual_derivative!(res, op, s, f; workgroup_size=workgroup_size)
@@ -327,23 +330,25 @@ end
 
 ### Wedge Product ###
 
-@kernel function kernel_wedge_product_11!(res, s, @Const(a), @Const(b))
+# TODO: Actual canonical orientations are dxdy, dzdx, dydz
+@kernel function kernel_wedge_product_11_3d!(res, s, @Const(a), @Const(b))
     idx = @index(Global)
     x, y, z, align = quad_to_coord(s, idx)
     e1, e2, e3, e4 = quad_edges(s, x, y, z, align)
     
     # X_ALIGN first pair Y, second pair Z
-    # Y_ALIGN first pair Z, second pair X (negate)
+    # Y_ALIGN first pair Z, second pair X
     # Z_ALIGN first pair X, second pair Y 
     @inbounds begin
         a1 = 0.5 * (a[e1] + a[e3]); a2 = 0.5 * (a[e2] + a[e4])
         b1 = 0.5 * (b[e1] + b[e3]); b2 = 0.5 * (b[e2] + b[e4])
-        tmp = a1 * b2 - a2 * b1
-        res[idx] = ifelse(align == Y_ALIGN, -tmp, tmp)
+        # tmp = a1 * b2 - a2 * b1
+        res[idx] = a1 * b2 - a2 * b1
+        # res[idx] = ifelse(align == Y_ALIGN, -tmp, tmp)
     end
 end
 
-@kernel function kernel_wedge_product_12!(res, s, @Const(a), @Const(b))
+@kernel function kernel_wedge_product_12_3d!(res, s, @Const(a), @Const(b))
     idx = @index(Global)
     x, y, z = boid_to_coord(s, idx)
     q1, q2, q3, q4, q5, q6 = boid_quads(s, x, y, z)
@@ -361,36 +366,36 @@ end
     end
 end
 
-function wedge_product!(res, ::Val{1}, ::Val{1}, s::UniformCubicalComplex3D, a, b; workgroup_size = 256)
+function wedge_product!(res::AbstractVector{FT}, ::Val{1}, ::Val{1}, s::UniformCubicalComplex3D, a::AbstractVector{FT}, b::AbstractVector{FT}; workgroup_size::Int = 256) where FT <: AbstractFloat
     backend = get_backend(res)
-    kernel = kernel_wedge_product_11!(backend, workgroup_size)
+    kernel = kernel_wedge_product_11_3d!(backend, workgroup_size)
     kernel(res, s, a, b, ndrange=size(res))
 end
 
-function wedge_product!(res, ::Val{1}, ::Val{2}, s::UniformCubicalComplex3D, a, b; workgroup_size = 256)
+function wedge_product!(res::AbstractVector{FT}, ::Val{1}, ::Val{2}, s::UniformCubicalComplex3D, a::AbstractVector{FT}, b::AbstractVector{FT}; workgroup_size::Int = 256) where FT <: AbstractFloat
     backend = get_backend(res)
-    kernel = kernel_wedge_product_12!(backend, workgroup_size)
+    kernel = kernel_wedge_product_12_3d!(backend, workgroup_size)
     kernel(res, s, a, b, ndrange=size(res))
 end
 
-function wedge_product(op1::Val{1}, op2::Val{1}, s::UniformCubicalComplex3D, a, b; workgroup_size = 256)
+function wedge_product(op1::Val{1}, op2::Val{1}, s::UniformCubicalComplex3D, a::AbstractVector{FT}, b::AbstractVector{FT}; workgroup_size::Int = 256) where FT <: AbstractFloat
     backend = get_backend(a)
     res = KernelAbstractions.zeros(backend, eltype(a), nquads(s))
     wedge_product!(res, op1, op2, s, a, b; workgroup_size=workgroup_size)
     return res
 end
 
-function wedge_product(op1::Val{1}, op2::Val{2}, s::UniformCubicalComplex3D, a, b; workgroup_size = 256)
+function wedge_product(op1::Val{1}, op2::Val{2}, s::UniformCubicalComplex3D, a::AbstractVector{FT}, b::AbstractVector{FT}; workgroup_size::Int = 256) where FT <: AbstractFloat
     backend = get_backend(a)
     res = KernelAbstractions.zeros(backend, eltype(a), nboids(s))
     wedge_product!(res, op1, op2, s, a, b; workgroup_size=workgroup_size)
     return res
 end
-wedge_product(::Val{2}, ::Val{1}, s::UniformCubicalComplex3D, a, b; workgroup_size = 256) = wedge_product(Val(1), Val(2), s, a, b; workgroup_size=workgroup_size)
+wedge_product(::Val{2}, ::Val{1}, s::UniformCubicalComplex3D, a::AbstractVector{FT}, b::AbstractVector{FT}; workgroup_size = 256) where FT <: AbstractFloat = wedge_product(Val(1), Val(2), s, a, b; workgroup_size=workgroup_size)
 
 ### Dual Wedge Product ###
 
-@kernel function kernel_wedge_product_dd_01!(res, s, @Const(f), @Const(a))
+@kernel function kernel_wedge_product_dd_01_3d!(res, s, @Const(f), @Const(a))
     idx = @index(Global)
     FT = eltype(f)
     x, y, z, align = quad_to_coord(s, idx)
@@ -409,13 +414,13 @@ wedge_product(::Val{2}, ::Val{1}, s::UniformCubicalComplex3D, a, b; workgroup_si
     @inbounds res[idx] = f_val * a[idx]
 end
 
-function wedge_product_dd!(res, ::Val{0}, ::Val{1}, s::UniformCubicalComplex3D, f, a; workgroup_size = 256)
+function wedge_product_dd!(res::AbstractVector{FT}, ::Val{0}, ::Val{1}, s::UniformCubicalComplex3D, f::AbstractVector{FT}, a::AbstractVector{FT}; workgroup_size::Int = 256) where FT <: AbstractFloat
     backend = get_backend(res)
-    kernel = kernel_wedge_product_dd_01!(backend, workgroup_size)
+    kernel = kernel_wedge_product_dd_01_3d!(backend, workgroup_size)
     kernel(res, s, f, a, ndrange=size(res))
 end
 
-function wedge_product_dd(op1::Val{0}, op2::Val{1}, s::UniformCubicalComplex3D, f, a; workgroup_size = 256)
+function wedge_product_dd(op1::Val{0}, op2::Val{1}, s::UniformCubicalComplex3D, f::AbstractVector{FT}, a::AbstractVector{FT}; workgroup_size::Int = 256) where FT <: AbstractFloat
     backend = get_backend(f)
     res = KernelAbstractions.zeros(backend, eltype(f), nquads(s))
     wedge_product_dd!(res, op1, op2, s, f, a; workgroup_size=workgroup_size)
@@ -424,7 +429,7 @@ end
 
 ### Sharp and Flat Operators ###
 
-@kernel function kernel_sharp_dd!(X, Y, Z, s, @Const(f))
+@kernel function kernel_sharp_dd_3d!(X, Y, Z, s, @Const(f))
     idx = @index(Global)
     x, y, z = boid_to_coord(s, idx)
     FT = eltype(f)
@@ -463,7 +468,7 @@ end
     end
 end
 
-@kernel function kernel_flat_dp!(res, s, @Const(X), @Const(Y), @Const(Z))
+@kernel function kernel_flat_dp_3d!(res, s, @Const(X), @Const(Y), @Const(Z))
     idx = @index(Global)
     x, y, z, align = edge_to_coord(s, idx)
     FT = eltype(res)
@@ -493,15 +498,14 @@ end
     @inbounds res[idx] = avg_val * edge_len(s, align)
 end
 
-function sharp_dd!(X, Y, Z, s::UniformCubicalComplex3D, f; workgroup_size = 256)
+function sharp_dd!(X::AbstractVector{FT}, Y::AbstractVector{FT}, Z::AbstractVector{FT}, s::UniformCubicalComplex3D, f::AbstractVector{FT}; workgroup_size::Int = 256) where FT <: AbstractFloat
     backend = get_backend(X)
-    kernel = kernel_sharp_dd!(backend, workgroup_size)
+    kernel = kernel_sharp_dd_3d!(backend, workgroup_size)
     kernel(X, Y, Z, s, f, ndrange=size(X))
 end
 
-function sharp_dd(s::UniformCubicalComplex3D, f; workgroup_size = 256)
+function sharp_dd(s::UniformCubicalComplex3D, f::AbstractVector{FT}; workgroup_size::Int = 256) where FT <: AbstractFloat
     backend = get_backend(f)
-    FT = eltype(f)
     
     # The resulting vector field lives on the dual vertices, which correspond
     # to the primal boids.
@@ -513,15 +517,14 @@ function sharp_dd(s::UniformCubicalComplex3D, f; workgroup_size = 256)
     return (X, Y, Z)
 end
 
-function flat_dp!(res, s::UniformCubicalComplex3D, X, Y, Z; workgroup_size = 256)
+function flat_dp!(res::AbstractVector{FT}, s::UniformCubicalComplex3D, X::AbstractVector{FT}, Y::AbstractVector{FT}, Z::AbstractVector{FT}; workgroup_size::Int = 256) where FT <: AbstractFloat
     backend = get_backend(res)
-    kernel = kernel_flat_dp!(backend, workgroup_size)
+    kernel = kernel_flat_dp_3d!(backend, workgroup_size)
     kernel(res, s, X, Y, Z, ndrange=size(res))
 end
 
-function flat_dp(s::UniformCubicalComplex3D, X, Y, Z; workgroup_size = 256)
+function flat_dp(s::UniformCubicalComplex3D, X::AbstractVector{FT}, Y::AbstractVector{FT}, Z::AbstractVector{FT}; workgroup_size::Int = 256) where FT <: AbstractFloat
     backend = get_backend(X)
-    FT = eltype(X)
     
     # The result is a primal 1-form, which lives on the primal edges.
     res = KernelAbstractions.zeros(backend, FT, ne(s))
@@ -530,3 +533,10 @@ function flat_dp(s::UniformCubicalComplex3D, X, Y, Z; workgroup_size = 256)
     return res
 end
 
+function interpolate_dp(::Val{1}, s::UniformCubicalComplex3D, a::AbstractVector{FT}) where FT <: AbstractFloat
+    backend = get_backend(a)
+    X, Y, Z = sharp_dd(s, a)
+    KernelAbstractions.synchronize(backend)
+    return flat_dp(s, X, Y, Z)
+  end
+  

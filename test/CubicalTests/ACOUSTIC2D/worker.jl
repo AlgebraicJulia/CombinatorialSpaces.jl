@@ -2,6 +2,8 @@
 using OrdinaryDiffEqSSPRK
 using DiffEqCallbacks
 using ComponentArrays
+using Distributions
+using KernelAbstractions
 
 # ── Mesh & topology ───────────────────────────────────────────────────────────
 const s = worker_mesh(topo, (LX, LY); halo = HALO)
@@ -9,14 +11,113 @@ const cart_comm = topo.cart_comm
 const cart_rank = topo.cart_rank
 const cart_coords = MPI.Cart_coords(cart_comm)
 
-cart_rank == 0 && println("KH MPI worker grid: $(w_dims[1])×$(w_dims[2])")
-println("Worker $cart_rank | coords=$cart_coords | mesh=$(nxr(s))×$(nyr(s)) real quads")
+if USE_AMDGPU
+    devices = AMDGPU.devices()
+    ndevices = length(devices)
 
-# ── DEC operators ─────────────────────────────────────────────────────────────
-const cache = UniformDECCache(s)
+    local_rank = MPI.Comm_rank(topo.local_comm)
+    gpu_id = (local_rank % ndevices) + 1
+    AMDGPU.device!(devices[gpu_id])
+
+    node_name = MPI.Get_processor_name()
+    mapping_str = "Rank $rank -> Node: $node_name, GPU: $gpu_id"
+    all_mappings = MPI.gather(mapping_str, topo.cart_comm; root=0)
+    if rank == 0
+        println("=========================================================")
+        println("MPI Topology & GPU Assignment:")
+        for m in all_mappings
+            println("   $m")
+        end
+        println("=========================================================")
+    end
+end
+
+# ── to_device ────────────────────────────────────────────────────────────────
+function to_device(arr::AbstractVector{T}) where T
+    USE_AMDGPU && return AMDGPU.ROCVector{T}(arr)
+    return arr
+end
+
+function to_device(ca::ComponentVector)
+    return ComponentArray(map(to_device, NamedTuple(ca)))
+end
+
+cart_rank == 0 && println("MPI worker grid: $(w_dims[1])×$(w_dims[2])")
+println("Worker $cart_rank | coords=$cart_coords | mesh=$(nxr(s))×$(nyr(s)) real quads")
+flush(stdout)
+
+const cache       = Adapt.adapt(USE_AMDGPU ? ROCBackend() : CPU(), UniformDECCache(s))
+
+# # TODO: Test this and move to kernels
+# function build_real_emask(s::UniformCubicalComplex2D)
+#     ne_  = ne(s)
+#     nx_  = nx(s);  ny_  = ny(s)
+#     hx_  = hx(s);  hy_  = hy(s)
+
+#     # Real domain vertex extents [1]:
+#     x_lo = hx_ + 1;      x_hi = nx_ - hx_
+#     y_lo = hy_ + 1;      y_hi = ny_ - hy_
+
+#     real_emask = Vector{Int8}(undef, ne_)
+
+#     for e in 1:ne_
+#         x, y, align = edge_to_coord(s, e)
+#         if align == X_ALIGN
+#             # X-edge: positive quad is above (y), negative quad is below (y-1)
+#             has_pos = (y  <= y_hi - 1) && (y  >= y_lo)
+#             has_neg = (y  >  y_lo)     && (y  <= y_hi)
+#         else  # Y_ALIGN
+#             # Y-edge: positive quad is left (x-1), negative quad is right (x)
+#             has_pos = (x  >  x_lo)     && (x  <= x_hi)
+#             has_neg = (x  <= x_hi - 1) && (x  >= x_lo)
+#         end
+#         real_emask[e] = Int8(has_pos) | (Int8(has_neg) << 1)
+#     end
+
+#     return real_emask
+# end
+
+# @kernel function kernel_no_flux_dd0_real!(res, @Const(dd0_qp), @Const(dd0_qn),
+#                                           @Const(dd0_emask), @Const(real_emask),
+#                                           @Const(f))
+#     e = @index(Global)
+#     @inbounds begin
+#         cache_mask = dd0_emask[e]
+#         real_mask  = real_emask[e]
+
+#         # Interior in both the mesh topology AND the real-boundary sense
+#         cache_interior = Int8(cache_mask & Int8(1)) & Int8((cache_mask >> Int8(1)) & Int8(1))
+#         real_interior  = Int8(real_mask  & Int8(1)) & Int8((real_mask  >> Int8(1)) & Int8(1))
+#         interior       = cache_interior | real_interior
+
+#         z   = zero(eltype(f))
+#         pos = ifelse(Bool(interior), f[dd0_qp[e]], z)
+#         neg = ifelse(Bool(interior), f[dd0_qn[e]], z)
+#         res[e] = pos - neg
+#     end
+# end
+
+# function no_flux_dd0_real!(res, ::Val{0}, cache::UniformDECCache,
+#                            real_emask::AbstractVector{Int8}, f)
+#     backend = get_backend(f)
+#     kernel_no_flux_dd0_real!(backend)(res, cache.dd0_qp, cache.dd0_qn,
+#                                       cache.dd0_emask, real_emask, f;
+#                                       ndrange = cache.ne_)
+#     return res
+# end
+
+# function no_flux_dd0_real(::Val{0}, cache::UniformDECCache,
+#                           real_emask::AbstractVector{Int8},
+#                           f::AbstractVector{FT}) where FT
+#     backend = get_backend(f)
+#     res = KernelAbstractions.zeros(backend, FT, cache.ne_)
+#     return no_flux_dd0_real!(res, Val(0), cache, real_emask, f)
+# end
+
+# real_emask = build_real_emask(s)
 
 const d1          = x -> exterior_derivative(Val(1), cache, x)
-const dd0         = x -> no_flux_dual_derivative(Val(0), cache, x)
+const dd0         = x -> no_flux_dual_derivative!(Val(0), cache, x)
 const dd1         = x -> dual_derivative(Val(1), cache, x)
 
 const hdg_1       = x -> hodge_star(Val(1), cache, x)
@@ -28,15 +129,9 @@ const inv_hdg_2   = x -> inv_hodge_star(Val(2), cache, x)
 
 const d_beta      = x -> d_beta_mul(cache, x)
 
-cart_rank == 0 && println("Using the WENO scheme")
-const adv_cache   = AdvectionCache(WENO5(), s)
-const wdg_01      = (f, a) -> wedge_product(Val(0), Val(1), WENO5(), adv_cache, f, a)
-const wdg_11      = (a, b) -> wedge_product(Val(1), Val(1), WENO5(), adv_cache, a, b)
+const wdg_01      = (f, a) -> wedge_product(Val(0), Val(1), cache, f, a)
+const wdg_11      = (a, b) -> wedge_product(Val(1), Val(1), cache, a, b)
 const wdg_dd_01   = (f, a) -> wedge_product_dd(Val(0), Val(1), cache, f, a)
-
-# const wdg_01      = (f, a) -> wedge_product(Val(0), Val(1), cache, f, a)
-# const wdg_11      = (a, b) -> wedge_product(Val(1), Val(1), cache, a, b)
-# const wdg_dd_01   = (f, a) -> wedge_product_dd(Val(0), Val(1), cache, f, a)
 
 const dcd_1       = x -> dual_codifferential(Val(1), cache, x)
 const dcd_2       = x -> dual_codifferential(Val(2), cache, x)
@@ -47,8 +142,10 @@ const dlap_1_v    = x -> dcd_2(d_beta(x))
 
 const interp_dp_1 = x -> interpolate_dp(Val(1), cache, x)
 
-const rho_smooth_cache = SmoothingCache(s, FT(CONFIG["Smoothing"]["rho_smooth_constant"]))
-const theta_smooth_cache = SmoothingCache(s, FT(CONFIG["Smoothing"]["theta_smooth_constant"]))
+rho_c = FT(CONFIG["Smoothing"]["rho_smooth_constant"])
+theta_c = FT(CONFIG["Smoothing"]["theta_smooth_constant"])
+const rho_smooth_cache = Adapt.adapt(USE_AMDGPU ? ROCBackend() : CPU(), SmoothingCache(s, rho_c))
+const theta_smooth_cache = Adapt.adapt(USE_AMDGPU ? ROCBackend() : CPU(), SmoothingCache(s, theta_c))
 
 # ── Physics ───────────────────────────────────────────────────────────────────
 const p_phys = (mu = FT(1) / RE, kappa = FT(1) / (RE * PR))
@@ -65,9 +162,10 @@ end
 
 # ── ExchangeHandler ───────────────────────────────────────────────────────────
 const ex_stream = DataStream(Datum[Datum{Edge,2}("U_star", "fields", FT), Datum{Quad,2}("rho_star", "fields", FT), Datum{Quad,2}("Theta_star", "fields", FT)])
-const ex_handler = ExchangeHandler(ex_stream, topo, s)
+const ex_handler = ExchangeHandler(ex_stream, topo, s; backend = USE_AMDGPU ? ROCBackend() : CPU())
 
 # ── IO stream (real-cell data only, sent to output processes) ─────────────────
+# TODO: Add momentum data
 const io_stream = DataStream(Datum[
     Datum{Quad,2}("rho", "fields", FT), 
     Datum{Quad,2}("Theta", "fields", FT),
@@ -75,73 +173,36 @@ const io_stream = DataStream(Datum[
     ])
 
 # ── Initial conditions (San & Kara 2015) ─────────────────────────────────────
-const alpha = FT(50)
-
-function kh_density(y::FT) where {FT}
-    return FT(1) + FT(0.5) * tanh(alpha * (y - FT(0.25))) - FT(0.5) * tanh(alpha * (y - FT(0.75)))
-end
-
-const ps = points(s)
-const dps = dual_points(s)
-
 const inv_hdg_2_mat = inv_hodge_star(Val(2), s)   # matrix backend for IC only
 
-rho_star_0 = inv_hdg_2_mat * map(dps) do (x, y)
-    return kh_density(FT(y))
+# TODO: Should streamline this process to avoid future errors
+Theta_dist = MvNormal([LX/2, LY/2], [0.1, 0.1])
+Theta_perturb = zeros(FT, nquads(s))
+for ry in 1:nyqr(s), rx in 1:nxqr(s)
+    q = coord_to_quad(s, rx + hx(s), ry + hy(s))
+    dp = real_dual_point(s, rx, ry)
+    Theta_perturb[q] = pdf(Theta_dist, [dp[1], dp[2]]) * 0.5
 end
 
-U_star_0 = zeros(FT, ne(s))
-for ex in 1:nxedges(s)
-    v1 = src(s, ex)
-    v2 = tgt(s, ex)
-    xc = FT(0.5) * (ps[v1][1] + ps[v2][1])
-    yc = FT(ps[v1][2])
-    U_star_0[ex] = FT(0.01) * sin(FT(2π) * xc) * edge_len(s, X_ALIGN) * kh_density(yc)
-end
-for ey in (nxedges(s) + 1):ne(s)
-    v1 = src(s, ey)
-    v2 = tgt(s, ey)
-    yc = FT(0.5) * (ps[v1][2] + ps[v2][2])
-    flow = (FT(0.25) <= yc <= FT(0.75)) ? FT(0.5) : FT(-0.5)
-    U_star_0[ey] = flow * edge_len(s, Y_ALIGN) * kh_density(yc)
-end
-
-Theta_star_0 = inv_hdg_2_mat * fill(FT(300), nquads(s))
+U_star_0 = to_device(zeros(FT, ne(s)))
+rho_star_0 = to_device(inv_hdg_2_mat * ones(FT, nquads(s)))
+Theta_star_0 = to_device(inv_hdg_2_mat * (fill(FT(300), nquads(s)) .+ Theta_perturb))
 
 const u0 = ComponentVector(; U_star = U_star_0, rho_star = rho_star_0, Theta_star = Theta_star_0)
 
-# ── Per-rank initial condition plots ──────────────────────────────────────────
-# using CairoMakie
-
-# let
-#     rho_real = [hdg_2(rho_star_0)[coord_to_quad(s, x + hx(s), y + hy(s))]
-#                 for x in 1:nxqr(s), y in 1:nyqr(s)]
-
-#     local_min = minimum(rho_real)
-#     local_max = maximum(rho_real)
-#     global_min = MPI.Allreduce(local_min, min, cart_comm)
-#     global_max = MPI.Allreduce(local_max, max, cart_comm)
-
-#     fig = Figure(; size = (600, 500))
-#     ax  = CairoMakie.Axis(fig[1, 1];
-#                title   = "Rank $cart_rank | coords=$cart_coords | ρ IC",
-#                xlabel  = "x",
-#                ylabel  = "y")
-#     hm  = heatmap!(ax, rho_real;
-#                    colorrange = (global_min, global_max),
-#                    colormap   = Makie.Reverse(:oslo))
-#     Colorbar(fig[1, 2], hm)
-#     fname = joinpath(IMGDIR, @sprintf("rank%03d_coords%d-%d_rho_IC.png",
-#                                       cart_rank, cart_coords[1], cart_coords[2]))
-#     save(fname, fig)
-# end
-
 MPI.Barrier(cart_comm)
 
-# ── No-op BC hooks expected by momentum_conservation [7] ─────────────────────
-@inline enforce_bc_v!(v) = v
-@inline enforce_bc_V!(V) = V
-@inline enforce_bc_U!(U) = U
+@inline function enforce_bc_U!(U::AbstractVector{FT}) where {FT}
+    return U
+end
+
+@inline function enforce_bc_v!(v::AbstractVector{FT}) where {FT}
+    return v
+end
+
+@inline function enforce_bc_V!(V::AbstractVector{FT}) where {FT}
+    return V
+end
 
 # ── RHS ───────────────────────────────────────────────────────────────────────
 function momentum_conservation(u, p)
@@ -155,16 +216,16 @@ function momentum_conservation(u, p)
 
     enforce_bc_v!(v); enforce_bc_V!(V)
 
-    div_term = wdg_dd_01(dcd_1(u), U) # Stencil size 1, assuming basic wedge
+    div_term = wdg_dd_01(dcd_1(u), U)
 
-    L_term   = dd0(hdg_2(wdg_11(v, inv_hdg_1(U)))) + # wdg stencil + 1 (WENO5 -> 4)
-               hdg_1(wdg_01(inv_hdg_0(dd1(U) + d_beta(V)), v)) # wdg stencil + 1 (WENO5 -> 4)
+    L_term   = dd0(hdg_2(wdg_11(v, inv_hdg_1(U)))) +
+               hdg_1(wdg_01(inv_hdg_0(dd1(U) + d_beta(V)), v))
 
-    energy   = FT(0.5) .* wdg_dd_01(rho, dd0(hdg_2(wdg_11(v, inv_hdg_1(u))))) # Stencil size 2
+    energy   = FT(0.5) .* wdg_dd_01(rho, dd0(hdg_2(wdg_11(v, inv_hdg_1(u)))))
 
-    diff_p   = dd0(pressure(Theta)) # Stencil size 1
+    diff_p   = dd0(pressure(Theta))
 
-    viscous  = p.mu * (dlap_1(u) + dlap_1_v(v)) # Stencil size 2
+    viscous  = p.mu * (dlap_1(u) + dlap_1_v(v))
 
     # TODO: Will also need to body forces later 
 
@@ -223,7 +284,7 @@ periodic_cb = DiscreteCallback(
 )
 
 smoothing_cb = DiscreteCallback(
-    (u, t, integrator) -> integrator.iter > 0, 
+    (u, t, integrator) -> integrator.iter > 0 && false, 
     integrator -> begin
         integrator.u.rho_star .= smooth_dual0_fused(rho_smooth_cache, integrator.u.rho_star)
         integrator.u.Theta_star .= smooth_dual0_fused(theta_smooth_cache, integrator.u.Theta_star)
@@ -245,7 +306,7 @@ cb = CallbackSet(periodic_cb, smoothing_cb, save_cb)
 
 # ── Solve ─────────────────────────────────────────────────────────────────────
 cart_rank == 0 && println("Warming up RHS...")
-let _du = zero(u0)
+let _du = to_device(zero(u0))
     rhs!(_du, u0, p_phys, FT(0))
 end
 cart_rank == 0 && println("Warmup complete. Solving...")
@@ -271,6 +332,7 @@ end
 
 cart_rank == 0 && println("Solve complete.")
 
+MPI.Barrier(cart_comm)
 worker_to_output(SIGNAL_DONE, topo)
 MPI.Barrier(cart_comm)
 

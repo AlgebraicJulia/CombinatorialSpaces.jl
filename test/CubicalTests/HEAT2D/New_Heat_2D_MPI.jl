@@ -161,10 +161,10 @@ else
 
     # ── DEC operators ─────────────────────────────────────────────────────────
 
-    dd0 = dual_derivative(Val(0), s)
-    ihs1 = inv_hodge_star(Val(1), s)
-    d1 = exterior_derivative(Val(1), s)
-    hs2 = hodge_star(Val(2), s)
+    dd0 = dual_derivative(Val(0), s);
+    ihs1 = inv_hodge_star(Val(1), s);
+    d1 = exterior_derivative(Val(1), s);
+    hs2 = hodge_star(Val(2), s);
 
     # ── Initial condition ─────────────────────────────────────────────────────
 

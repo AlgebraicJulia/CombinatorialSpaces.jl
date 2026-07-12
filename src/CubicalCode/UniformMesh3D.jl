@@ -902,6 +902,35 @@ function ghost_boids(s::AbstractCubicalComplex3D)
     )
 end
 
+# TODO: Test me!
+function interior(::Val{2}, f::AbstractVector, s::AbstractCubicalComplex3D)
+    # Z-aligned (XY-plane) quads: interior in x, y, and z
+    xy_indices = [
+        coord_to_quad(s, x, y, z, Z_ALIGN)
+        for z in (hz(s) + 1):(hz(s) + nzr(s))
+        for y in (hyq(s) + 1):(hyq(s) + nybr(s))
+        for x in (hxq(s) + 1):(hxq(s) + nxbr(s))
+    ]
+
+    # Y-aligned (XZ-plane) quads: interior in x, y, and z
+    xz_indices = [
+        coord_to_quad(s, x, y, z, Y_ALIGN)
+        for z in (hzq(s) + 1):(hzq(s) + nzbr(s))
+        for y in (hy(s) + 1):(hy(s) + nyr(s))
+        for x in (hxq(s) + 1):(hxq(s) + nxbr(s))
+    ]
+
+    # X-aligned (YZ-plane) quads: interior in x, y, and z
+    yz_indices = [
+        coord_to_quad(s, x, y, z, X_ALIGN)
+        for z in (hzq(s) + 1):(hzq(s) + nzbr(s))
+        for y in (hyq(s) + 1):(hyq(s) + nybr(s))
+        for x in (hx(s) + 1):(hx(s) + nxr(s))
+    ]
+
+    return f[vcat(xy_indices, xz_indices, yz_indices)]
+end
+
 function interior(::Val{3}, f::AbstractVector, s::AbstractCubicalComplex3D)
     indices = [
         coord_to_boid(s, x, y, z) for z in (hz(s) + 1):(hz(s) + nzbr(s)) for

@@ -34,7 +34,7 @@ include("../../src/CubicalCode/UniformUpwinding.jl")
 
 # ── Backend selection ─────────────────────────────────────────────────────────
 # const _BENCH_BACKEND = lowercase(get(ENV, "BENCH_BACKEND", "cpu"))
-const _BENCH_BACKEND = "cuda"
+const _BENCH_BACKEND = "amd"
 
 if _BENCH_BACKEND == "cuda"
   using CUDA
@@ -53,6 +53,17 @@ elseif _BENCH_BACKEND == "cpu"
   _dev_matrix(A)        = A          # already on CPU
   _sync()               = nothing
   println("Backend: CPU")
+elseif _BENCH_BACKEND == "amd"
+  using AMDGPU, SparseArrays
+  using AMDGPU.rocSPARSE
+  using KernelAbstractions
+  AMDGPU.allowscalar(false)
+  const _BACKEND        = ROCBackend()
+  _dev_array(x)         = ROCArray(x)
+  _dev_matrix(A)        = ROCSparseMatrixCSR{Float64}(A)
+  _sync()               = AMDGPU.synchronize()
+  println("Backend: AMD  (", AMDGPU.HIP.name(AMDGPU.device()), ")")
+
 else
   error("Unknown BENCH_BACKEND=$(repr(_BENCH_BACKEND)).  Use \"cpu\" or \"cuda\".")
 end
@@ -297,7 +308,7 @@ end
 
 # ── Run ───────────────────────────────────────────────────────────────────────
 println("Running benchmarks on backend=", _BENCH_BACKEND, "  (this may take a few minutes)...")
-results = run(suite; verbose = false, seconds = 5)
+results = run(suite; verbose = true, seconds = 5)
 
 # ── Format and write results ──────────────────────────────────────────────────
 const COL_OP  = 24

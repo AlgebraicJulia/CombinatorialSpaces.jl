@@ -1,0 +1,24 @@
+[Metadata]
+name    = "Acoustic Wave MPI"
+simspec = "Re=10_000_te=0.02"
+
+[Mesh]
+nx = 257
+ny = 257
+lx = 6.0
+ly = 6.0
+halo = 6
+
+[Physics]
+Re = 10_000
+Pr = 0.71
+
+[Smoothing]
+rho_smooth_constant   = 0.05
+theta_smooth_constant = 0.2
+
+[Simulation]
+te       = 0.02
+dt       = 1e-5
+periodic = "ALL"
+savetime = 0.001

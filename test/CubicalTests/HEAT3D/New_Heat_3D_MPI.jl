@@ -296,7 +296,7 @@ else # Worker branch
     function heat_rhs_mpi!(du, u, p, t)
         s, k = p
         grad_u = dual_derivative(Val(0), s, u)
-        flux_dual = -k .* grad_u
+        flux_dual = k .* grad_u
         flux_primal = inv_hodge_star(Val(2), s, flux_dual)
         div_flux = exterior_derivative(Val(2), s, flux_primal)
         laplacian_u = hodge_star(Val(3), s, div_flux)

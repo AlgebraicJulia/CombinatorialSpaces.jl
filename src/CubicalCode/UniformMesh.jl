@@ -102,12 +102,34 @@ quads(s::AbstractCubicalComplex2D) = 1:nquads(s)
 top_edges(s::AbstractCubicalComplex2D) = coord_to_edge.(Ref(s), 1:nxe(s), Ref(ny(s)), Ref(X_ALIGN))
 bottom_edges(s::AbstractCubicalComplex2D) = coord_to_edge.(Ref(s), 1:nxe(s), Ref(1), Ref(X_ALIGN))
 left_edges(s::AbstractCubicalComplex2D) = coord_to_edge.(Ref(s), Ref(1), 1:nye(s), Ref(Y_ALIGN))
-function right_edges(s::AbstractCubicalComplex2D)
-    return coord_to_edge.(Ref(s), Ref(nx(s)), 1:nye(s), Ref(Y_ALIGN))
-end
+right_edges(s::AbstractCubicalComplex2D) = coord_to_edge.(Ref(s), Ref(nx(s)), 1:nye(s), Ref(Y_ALIGN))
 
 function boundary_edges(s::AbstractCubicalComplex2D)
     return vcat(bottom_edges(s), top_edges(s), left_edges(s), right_edges(s))
+end
+
+function top_edges_real(s::AbstractCubicalComplex2D)
+    y_top = hy(s) + nyr(s)
+    return coord_to_edge.(Ref(s), (hx(s) + 1):(hx(s) + nxe_r(s)), Ref(y_top), Ref(X_ALIGN))
+end
+
+function bottom_edges_real(s::AbstractCubicalComplex2D)
+    y_bot = hy(s) + 1
+    return coord_to_edge.(Ref(s), (hx(s) + 1):(hx(s) + nxe_r(s)), Ref(y_bot), Ref(X_ALIGN))
+end
+
+function left_edges_real(s::AbstractCubicalComplex2D)
+    x_left = hx(s) + 1
+    return coord_to_edge.(Ref(s), Ref(x_left), (hy(s) + 1):(hy(s) + nye_r(s)), Ref(Y_ALIGN))
+end
+
+function right_edges_real(s::AbstractCubicalComplex2D)
+    x_right = hx(s) + nxr(s)
+    return coord_to_edge.(Ref(s), Ref(x_right), (hy(s) + 1):(hy(s) + nye_r(s)), Ref(Y_ALIGN))
+end
+
+function boundary_edges_real(s::AbstractCubicalComplex2D)
+    return vcat(bottom_edges_real(s), top_edges_real(s), left_edges_real(s), right_edges_real(s))
 end
 
 coord_to_vert(s::AbstractCubicalComplex2D, x::Int, y::Int) = x + (y - 1) * nx(s)
@@ -238,6 +260,16 @@ function edge_len(s::UniformCubicalComplex2D{FT}, align::Align) where {FT<:Abstr
     end
 end
 
+# TODO: Needs tests
+function edge_vertex_offset(s::AbstractCubicalComplex2D, x::Int, y::Int,
+                             align::Align, offset::Int)
+    if align == X_ALIGN
+        return coord_to_vert(s, x + offset, y)
+    else  # Y_ALIGN
+        return coord_to_vert(s, x, y + offset)
+    end
+end
+
 edge_len(s::UniformCubicalComplex2D, x::Int, y::Int, align::Align) = edge_len(s, align)
 
 edge_len(s::AbstractCubicalComplex2D, e::Int) = edge_len(s, edge_to_coord(s, e)...)
@@ -264,6 +296,7 @@ function quad_edges(s::AbstractCubicalComplex2D, x::Int, y::Int)
     return (e1, e2, e3, e4)
 end
 
+# TODO: Needs tests
 # Given a quad, gives the edge offset by the given amount in the given direction
 # An offset of zero will give either the left or bottom edge, depending on the direction
 function quad_edge_offset(s::AbstractCubicalComplex2D, x::Int, y::Int, align::Align, offset::Int)

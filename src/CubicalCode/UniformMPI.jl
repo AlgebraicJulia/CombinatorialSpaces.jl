@@ -9,6 +9,7 @@ include("UniformMesh3D.jl")
 struct MPITopology{C}
     world_comm::Union{MPI.Comm,Nothing}
     cart_comm::Union{MPI.Comm,Nothing}
+    local_comm::Union{MPI.Comm,Nothing}
     intercomm::Union{MPI.Comm,Nothing}
     cart_rank::Int
     is_output::Bool
@@ -225,11 +226,13 @@ function MPITopology(m_dims::NTuple{N,Int}, w_dims::NTuple{N,Int}, o_dims::NTupl
     # @assert all(m_dims .=> w_dims) "Expecting larger mesh dimensions than worker dimensions"
     # @assert all(w_dims .=> o_dims) "Expecting larger worker dimensions than output dimensions"
 
-    world_comm, cart_comm, is_output = _build_comms(w_dims, o_dims, periods)
+    world_comm, cart_comm, local_comm, is_output = _build_comms(w_dims, o_dims, periods)
     intercomm, base_tiles, rems = _build_intercomm(world_comm, cart_comm, is_output, w_dims, o_dims, N)
 
     cart_rank = MPI.Comm_rank(cart_comm)
     cart_coords = MPI.Cart_coords(cart_comm)
+
+
 
     if is_output
         cache = OutputCache{N}(intercomm, cart_coords, base_tiles, rems)
@@ -238,7 +241,7 @@ function MPITopology(m_dims::NTuple{N,Int}, w_dims::NTuple{N,Int}, o_dims::NTupl
         _send_mesh_metadata(intercomm, cache)
     end
 
-    return MPITopology(world_comm, cart_comm, intercomm, cart_rank, is_output, cache)
+    return MPITopology(world_comm, cart_comm, local_comm, intercomm, cart_rank, is_output, cache)
 end
 
 MPITopology(cache, is_output::Bool) = MPITopology(nothing, nothing, nothing, -1, is_output, cache)
@@ -260,10 +263,12 @@ function _build_comms(w_dims::NTuple{N,Int}, o_dims::NTuple{N,Int}, periods::NTu
 
     dims = is_output ? o_dims : w_dims
     cart_comm = MPI.Cart_create(group_comm, collect(Cint, dims), collect(Cint, periods), false)
+    cart_rank = MPI.Comm_rank(cart_comm)
 
+    local_comm = MPI.Comm_split_type(cart_comm, MPI.COMM_TYPE_SHARED, cart_rank)
     MPI.Barrier(world_comm)
 
-    return (world_comm, cart_comm, is_output)
+    return (world_comm, cart_comm, local_comm, is_output)
 end
 
 function _build_intercomm(world_comm, cart_comm, is_output, w_dims, o_dims, N)

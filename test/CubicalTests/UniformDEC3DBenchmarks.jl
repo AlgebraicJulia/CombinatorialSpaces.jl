@@ -34,7 +34,7 @@ include("../../src/CubicalCode/UniformMesh3D.jl")
 include("../../src/CubicalCode/UniformKernelDEC3D.jl")
 
 # ── Backend selection ─────────────────────────────────────────────────────────
-const _BENCH_BACKEND = "cuda"  # default
+const _BENCH_BACKEND = "cpu"  # default
 
 if _BENCH_BACKEND == "cuda"
     using CUDA

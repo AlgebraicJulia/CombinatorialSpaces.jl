@@ -7,8 +7,7 @@ MPI.Init()
 const PROJECT_DIR = dirname(dirname(dirname(@__DIR__)))
 include(joinpath(PROJECT_DIR, "src", "CubicalCode", "UniformDEC.jl"))
 
-const CONFIG_PATH = joinpath(@__DIR__, "config.toml")
-const CONFIG = TOML.parsefile(CONFIG_PATH)
+const CONFIG = TOML.parsefile(joinpath(@__DIR__, "config.toml"))
 
 # ── ARGS ──────────────────────────────────────────────────────────────────────
 const w_dims  = (parse(Int, ARGS[1]), parse(Int, ARGS[2]))
@@ -47,15 +46,8 @@ const DT = floor(min(LX / NX, LY / NY) / 360 / 2, sigdigits=1)
 const SAVETIME = FT(CONFIG["Simulation"]["savetime"])
 const PERIODIC = CONFIG["Simulation"]["periodic"]
 
-# TODO: Implement restarting code
-if haskey(CONFIG["Simulation"], "restart")
-    const RESTART = CONFIG["Simulation"]["restart"]
-else
-    const RESTART = ""
-end
-
 const m_dims = (NX + 1, NY + 1)   # vertex counts
-const OUTFILE = joinpath(OUTPUT_DIR, "kh.h5")
+const OUTFILE = joinpath(OUTPUT_DIR, "acoustic.h5")
 
 let comm_world = MPI.COMM_WORLD
     rank = MPI.Comm_rank(comm_world)
@@ -68,7 +60,6 @@ let comm_world = MPI.COMM_WORLD
     MPI.Barrier(comm_world)
 end
 
-
 # ── Topology ──────────────────────────────────────────────────────────────────
 const PERIODS = PERIODIC == "ALL"        ? (true, true)  :
                 PERIODIC == "EASTWEST"   ? (true, false) :
@@ -76,6 +67,19 @@ const PERIODS = PERIODIC == "ALL"        ? (true, true)  :
                 (false, false)
 
 const topo = MPITopology(m_dims, w_dims, o_dims; periods = PERIODS)
+
+# const HAS_CUDA   = Base.find_package("CUDA")   !== nothing
+const HAS_AMDGPU = Base.find_package("AMDGPU") !== nothing
+
+if HAS_AMDGPU
+    using AMDGPU
+    AMDGPU.allowscalar(false)
+    const USE_AMDGPU = AMDGPU.functional()
+    # println("AMDGPU is functional: $USE_AMDGPU")
+else
+    const USE_AMDGPU = false
+    # println("No GPU package found. Running on CPU.")
+end
 
 if output(topo)
     include(joinpath(@__DIR__, "output.jl"))

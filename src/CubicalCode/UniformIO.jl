@@ -1,5 +1,6 @@
 using MPI
 using HDF5
+using Adapt
 
 include("UniformMesh.jl")
 include("UniformMesh3D.jl")
@@ -281,6 +282,49 @@ struct GhostRegion{M<:AbstractMeshType,N}
     recv::AbstractVector{AbstractVector{Int32}}
 end
 
+function Adapt.adapt_structure(backend, gr::GhostRegion{M,N}) where {M,N}
+    GhostRegion{M,N}(
+        map(s -> adapt(backend, s), gr.send),
+        map(s -> adapt(backend, s), gr.recv),
+    )
+end
+
+# TODO: This needs to be tested
+function GhostRegion(::Type{Datum{Vert,2}}, s::AbstractCubicalComplex2D)
+    hx_ = hx(s)
+    hy_ = hy(s)
+    nx_ = nx(s)
+    ny_ = ny(s)
+    nyr_ = nyr(s)
+
+    # ── EASTWEST pass (slice in x, interior-y transverse only) ────────────
+    # Real left-side vertices replace right-side halo, and vice versa.
+    # Transverse range clamps to real y to avoid double-filling corners
+    # before the NS pass has run; NS pass covers the full x width including
+    # the x-halo that EW just filled, which handles corners.
+    ew_yt = (hy_ + 1):(hy_ + nyr_)
+
+    sl_ew = Int32[coord_to_vert(s, ax, b) for ax in (hx_ + 1):(2hx_),        b in ew_yt][:]
+    rh_ew = Int32[coord_to_vert(s, ax, b) for ax in (nx_ - hx_ + 1):nx_,     b in ew_yt][:]
+
+    sh_ew = Int32[coord_to_vert(s, ax, b) for ax in (nx_ - 2hx_ + 1):(nx_ - hx_), b in ew_yt][:]
+    rl_ew = Int32[coord_to_vert(s, ax, b) for ax in 1:hx_,                    b in ew_yt][:]
+
+    # ── NORTHSOUTH pass (slice in y, full-x transverse) ───────────────────
+    # Full x range so that corners (filled by EW above) are also propagated
+    # in the y direction, matching the edge ghost region convention [7].
+    sl_ns = Int32[coord_to_vert(s, b, ax) for ax in (hy_ + 1):(2hy_),        b in 1:nx_][:]
+    rh_ns = Int32[coord_to_vert(s, b, ax) for ax in (ny_ - hy_ + 1):ny_,     b in 1:nx_][:]
+
+    sh_ns = Int32[coord_to_vert(s, b, ax) for ax in (ny_ - 2hy_ + 1):(ny_ - hy_), b in 1:nx_][:]
+    rl_ns = Int32[coord_to_vert(s, b, ax) for ax in 1:hy_,                    b in 1:nx_][:]
+
+    send = [sl_ew, sh_ew, sl_ns, sh_ns]
+    recv = [rl_ew, rh_ew, rl_ns, rh_ns]
+
+    return GhostRegion{Vert,2}(send, recv)
+end
+
 # TODO: Pretty sure we can remove the [:] if we use multiple "for" statements
 function GhostRegion(::Type{Datum{Quad,2}}, s::AbstractCubicalComplex2D)
     hx_ = hxq(s)
@@ -308,6 +352,110 @@ function GhostRegion(::Type{Datum{Quad,2}}, s::AbstractCubicalComplex2D)
     recv = [rl_x, rh_x, rl_y, rh_y]
 
     return GhostRegion{Quad,2}(send, recv)
+end
+
+# TODO: Test me!
+function GhostRegion(::Type{Datum{Quad,3}}, s::AbstractCubicalComplex3D)
+    hx_  = hx(s);  hy_  = hy(s);  hz_  = hz(s)
+    nx_  = nx(s);  ny_  = ny(s);  nz_  = nz(s)
+    nxq_ = nxq(s); nyq_ = nyq(s); nzq_ = nzq(s)
+    nxbr_ = nxbr(s); nybr_ = nybr(s); nzbr_ = nzbr(s)
+
+    # ── EASTWEST pass (slice in x) ────────────────────────────────────────────
+    ew_yt = (hy_ + 1):(hy_ + nybr_)
+    ew_zt = (hz_ + 1):(hz_ + nzbr_)
+
+    # Z-aligned (XY): x is tangential, halo slabs symmetric
+    sl_z_ew = Int32[coord_to_quad(s, ax, b, c, Z_ALIGN) for ax in (hx_ + 1):(2hx_),                b in ew_yt, c in ew_zt][:]
+    rh_z_ew = Int32[coord_to_quad(s, ax, b, c, Z_ALIGN) for ax in (nxq_ - hx_ + 1):nxq_,           b in ew_yt, c in ew_zt][:]
+    sh_z_ew = Int32[coord_to_quad(s, ax, b, c, Z_ALIGN) for ax in (nxq_ - 2hx_ + 1):(nxq_ - hx_),  b in ew_yt, c in ew_zt][:]
+    rl_z_ew = Int32[coord_to_quad(s, ax, b, c, Z_ALIGN) for ax in 1:hx_,                            b in ew_yt, c in ew_zt][:]
+
+    # Y-aligned (XZ): x is tangential, halo slabs symmetric
+    sl_y_ew = Int32[coord_to_quad(s, ax, b, c, Y_ALIGN) for ax in (hx_ + 1):(2hx_),                b in ew_yt, c in ew_zt][:]
+    rh_y_ew = Int32[coord_to_quad(s, ax, b, c, Y_ALIGN) for ax in (nxq_ - hx_ + 1):nxq_,           b in ew_yt, c in ew_zt][:]
+    sh_y_ew = Int32[coord_to_quad(s, ax, b, c, Y_ALIGN) for ax in (nxq_ - 2hx_ + 1):(nxq_ - hx_),  b in ew_yt, c in ew_zt][:]
+    rl_y_ew = Int32[coord_to_quad(s, ax, b, c, Y_ALIGN) for ax in 1:hx_,                            b in ew_yt, c in ew_zt][:]
+
+    # X-aligned (YZ): x is the NORMAL axis.
+    # Low send must include the boundary face of the first real boid (at ax = hx_+1),
+    # so sl starts at hx_+1 (not hx_+2) and rl extends one layer further to hx_+1.
+    sl_x_ew = Int32[coord_to_quad(s, ax, b, c, X_ALIGN) for ax in (hx_ + 1):(2hx_),                b in ew_yt, c in ew_zt][:]
+    rh_x_ew = Int32[coord_to_quad(s, ax, b, c, X_ALIGN) for ax in (nx_ - hx_ + 1):nx_,             b in ew_yt, c in ew_zt][:]
+    sh_x_ew = Int32[coord_to_quad(s, ax, b, c, X_ALIGN) for ax in (nx_ - 2hx_ + 1):(nx_ - hx_),    b in ew_yt, c in ew_zt][:]
+    rl_x_ew = Int32[coord_to_quad(s, ax, b, c, X_ALIGN) for ax in 1:(hx_ + 1),                      b in ew_yt, c in ew_zt][:]
+
+    sl_ew = vcat(sl_z_ew, sl_y_ew, sl_x_ew)
+    rh_ew = vcat(rh_z_ew, rh_y_ew, rh_x_ew)
+    sh_ew = vcat(sh_z_ew, sh_y_ew, sh_x_ew)
+    rl_ew = vcat(rl_z_ew, rl_y_ew, rl_x_ew)
+
+    # ── NORTHSOUTH pass (slice in y, full-x transverse) ───────────────────────
+    ns_xt_z = 1:nxq_
+    ns_zt   = (hz_ + 1):(hz_ + nzbr_)
+
+    # Z-aligned (XY): y is tangential, symmetric
+    sl_z_ns = Int32[coord_to_quad(s, b, ax, c, Z_ALIGN) for ax in (hy_ + 1):(2hy_),                b in ns_xt_z, c in ns_zt][:]
+    rh_z_ns = Int32[coord_to_quad(s, b, ax, c, Z_ALIGN) for ax in (nyq_ - hy_ + 1):nyq_,           b in ns_xt_z, c in ns_zt][:]
+    sh_z_ns = Int32[coord_to_quad(s, b, ax, c, Z_ALIGN) for ax in (nyq_ - 2hy_ + 1):(nyq_ - hy_),  b in ns_xt_z, c in ns_zt][:]
+    rl_z_ns = Int32[coord_to_quad(s, b, ax, c, Z_ALIGN) for ax in 1:hy_,                            b in ns_xt_z, c in ns_zt][:]
+
+    # Y-aligned (XZ): y is the NORMAL axis.
+    # Low recv must include the south boundary face of the first real boid row.
+    ns_xt_y = 1:nxq_
+    sl_y_ns = Int32[coord_to_quad(s, b, ax, c, Y_ALIGN) for ax in (hy_ + 1):(2hy_),                b in ns_xt_y, c in ns_zt][:]
+    rh_y_ns = Int32[coord_to_quad(s, b, ax, c, Y_ALIGN) for ax in (ny_ - hy_ + 1):ny_,             b in ns_xt_y, c in ns_zt][:]
+    sh_y_ns = Int32[coord_to_quad(s, b, ax, c, Y_ALIGN) for ax in (ny_ - 2hy_ + 1):(ny_ - hy_),    b in ns_xt_y, c in ns_zt][:]
+    rl_y_ns = Int32[coord_to_quad(s, b, ax, c, Y_ALIGN) for ax in 1:(hy_ + 1),                      b in ns_xt_y, c in ns_zt][:]
+
+    # X-aligned (YZ): y is tangential, symmetric
+    ns_xt_x = 1:nx_
+    sl_x_ns = Int32[coord_to_quad(s, b, ax, c, X_ALIGN) for ax in (hy_ + 1):(2hy_),                b in ns_xt_x, c in ns_zt][:]
+    rh_x_ns = Int32[coord_to_quad(s, b, ax, c, X_ALIGN) for ax in (nyq_ - hy_ + 1):nyq_,           b in ns_xt_x, c in ns_zt][:]
+    sh_x_ns = Int32[coord_to_quad(s, b, ax, c, X_ALIGN) for ax in (nyq_ - 2hy_ + 1):(nyq_ - hy_),  b in ns_xt_x, c in ns_zt][:]
+    rl_x_ns = Int32[coord_to_quad(s, b, ax, c, X_ALIGN) for ax in 1:hy_,                            b in ns_xt_x, c in ns_zt][:]
+
+    sl_ns = vcat(sl_z_ns, sl_y_ns, sl_x_ns)
+    rh_ns = vcat(rh_z_ns, rh_y_ns, rh_x_ns)
+    sh_ns = vcat(sh_z_ns, sh_y_ns, sh_x_ns)
+    rl_ns = vcat(rl_z_ns, rl_y_ns, rl_x_ns)
+
+    # ── UPDOWN pass (slice in z, full-x and full-y transverse) ────────────────
+    ud_xt_z = 1:nxq_
+    ud_yt_z = 1:nyq_
+
+    # Z-aligned (XY): z is the NORMAL axis.
+    # Low recv must include the down boundary face of the first real boid layer.
+    sl_z_ud = Int32[coord_to_quad(s, b, c, ax, Z_ALIGN) for ax in (hz_ + 1):(2hz_),                b in ud_xt_z, c in ud_yt_z][:]
+    rh_z_ud = Int32[coord_to_quad(s, b, c, ax, Z_ALIGN) for ax in (nz_ - hz_ + 1):nz_,             b in ud_xt_z, c in ud_yt_z][:]
+    sh_z_ud = Int32[coord_to_quad(s, b, c, ax, Z_ALIGN) for ax in (nz_ - 2hz_ + 1):(nz_ - hz_),    b in ud_xt_z, c in ud_yt_z][:]
+    rl_z_ud = Int32[coord_to_quad(s, b, c, ax, Z_ALIGN) for ax in 1:(hz_ + 1),                      b in ud_xt_z, c in ud_yt_z][:]
+
+    # Y-aligned (XZ): z is tangential, symmetric
+    ud_xt_y = 1:nxq_
+    ud_yt_y = 1:ny_
+    sl_y_ud = Int32[coord_to_quad(s, b, c, ax, Y_ALIGN) for ax in (hz_ + 1):(2hz_),                b in ud_xt_y, c in ud_yt_y][:]
+    rh_y_ud = Int32[coord_to_quad(s, b, c, ax, Y_ALIGN) for ax in (nzq_ - hz_ + 1):nzq_,           b in ud_xt_y, c in ud_yt_y][:]
+    sh_y_ud = Int32[coord_to_quad(s, b, c, ax, Y_ALIGN) for ax in (nzq_ - 2hz_ + 1):(nzq_ - hz_),  b in ud_xt_y, c in ud_yt_y][:]
+    rl_y_ud = Int32[coord_to_quad(s, b, c, ax, Y_ALIGN) for ax in 1:hz_,                            b in ud_xt_y, c in ud_yt_y][:]
+
+    # X-aligned (YZ): z is tangential, symmetric
+    ud_xt_x = 1:nx_
+    ud_yt_x = 1:nyq_
+    sl_x_ud = Int32[coord_to_quad(s, b, c, ax, X_ALIGN) for ax in (hz_ + 1):(2hz_),                b in ud_xt_x, c in ud_yt_x][:]
+    rh_x_ud = Int32[coord_to_quad(s, b, c, ax, X_ALIGN) for ax in (nzq_ - hz_ + 1):nzq_,           b in ud_xt_x, c in ud_yt_x][:]
+    sh_x_ud = Int32[coord_to_quad(s, b, c, ax, X_ALIGN) for ax in (nzq_ - 2hz_ + 1):(nzq_ - hz_),  b in ud_xt_x, c in ud_yt_x][:]
+    rl_x_ud = Int32[coord_to_quad(s, b, c, ax, X_ALIGN) for ax in 1:hz_,                            b in ud_xt_x, c in ud_yt_x][:]
+
+    sl_ud = vcat(sl_z_ud, sl_y_ud, sl_x_ud)
+    rh_ud = vcat(rh_z_ud, rh_y_ud, rh_x_ud)
+    sh_ud = vcat(sh_z_ud, sh_y_ud, sh_x_ud)
+    rl_ud = vcat(rl_z_ud, rl_y_ud, rl_x_ud)
+
+    send = [sl_ew, sh_ew, sl_ns, sh_ns, sl_ud, sh_ud]
+    recv = [rl_ew, rh_ew, rl_ns, rh_ns, rl_ud, rh_ud]
+
+    return GhostRegion{Quad,3}(send, recv)
 end
 
 function GhostRegion(::Type{Datum{Boid,3}}, s::AbstractCubicalComplex3D)
@@ -418,9 +566,8 @@ end
 low_face(side::GridSide) = Face(2 * (Int(side) + 1) - 1)
 high_face(side::GridSide) = Face(2 * (Int(side) + 1))
 
-GhostRegion(::Type{Datum{Vert,N}}, s) where {N} = GhostRegion{Vert,N}(Int32[], Int32[])   # stub
+GhostRegion(::Type{Datum{Vert,3}}, s) = GhostRegion{Vert,3}(Int32[], Int32[])   # stub
 GhostRegion(::Type{Datum{Edge,N}}, s) where {N} = GhostRegion{Edge,N}(Int32[], Int32[])   # stub
-GhostRegion(::Type{Datum{Quad,3}}, s) where {} = GhostRegion{Quad,3}(Int32[], Int32[])   # stub
 
 send_slab(g::GhostRegion, face::Face) = send_slab(g, Int(face))
 recv_slab(g::GhostRegion, face::Face) = recv_slab(g, Int(face))
@@ -432,11 +579,18 @@ recv_slab(g::GhostRegion, i::Int) = g.recv[i]
 
 # Vector over each Datum
 struct FaceBuffer
-    slabs::Vector{Vector{Int32}}
-    cell_lens::Vector{Int}
+    slabs    :: AbstractVector{AbstractVector{Int32}}        # CPU index arrays, host-side only
+    cell_lens:: AbstractVector{Int}
 end
 
-function FaceBuffer(ghosts::AbstractVector, stream::DataStream, face::Face, sendrecv::Symbol)
+function Adapt.adapt_structure(backend, fb::FaceBuffer)
+    FaceBuffer(
+        map(s -> adapt(backend, s), fb.slabs),
+        fb.cell_lens,
+    )
+end
+
+function FaceBuffer(ghosts::AbstractVector, stream::DataStream, face::Face, sendrecv::Symbol, backend = CPU())
     get_slab = (sendrecv == :recv ? recv_slab : send_slab)
     slabs = Vector{Int32}[]
     cell_lens = Int[]
@@ -455,20 +609,21 @@ struct ExchangeHandler{N,FT}
     ghosts::Vector{GhostRegion} # length N + 1
 
     # One for each face
-    send_face::Vector{FaceBuffer}   # length 2N
-    recv_face::Vector{FaceBuffer}   # length 2N
+    send_face::AbstractVector{FaceBuffer}   # length 2N
+    recv_face::AbstractVector{FaceBuffer}   # length 2N
 
-    send_bufs::Vector{Vector{FT}}   # length 2N
-    recv_bufs::Vector{Vector{FT}}   # length 2N
+    send_bufs::AbstractVector{AbstractVector{FT}}   # length 2N
+    recv_bufs::AbstractVector{AbstractVector{FT}}   # length 2N
 
-    send_reqs::Vector{MPI.Request}  # length 2N
-    recv_reqs::Vector{MPI.Request}  # length 2N
+    send_reqs::AbstractVector{MPI.Request}  # length 2N
+    recv_reqs::AbstractVector{MPI.Request}  # length 2N
 end
 
 const AXIS_NAMES_2D = (:west, :east, :south, :north)
 const AXIS_NAMES_3D = (:west, :east, :south, :north, :down, :up)
 
-function ExchangeHandler(stream::DataStream, topo::MPITopology{WorkerCache{N}}, s::AbstractCubicalComplex) where {N}
+# TODO: Having the buffers be GPUArrays means we need GPU-Aware MPI
+function ExchangeHandler(stream::DataStream, topo::MPITopology{WorkerCache{N}}, s::AbstractCubicalComplex; backend = CPU()) where {N}
     @assert !isempty(stream.data) "ExchangeHandler: stream must contain at least one datum"
 
     FT = stream.data[1].entrytype
@@ -476,23 +631,24 @@ function ExchangeHandler(stream::DataStream, topo::MPITopology{WorkerCache{N}}, 
 
     ghosts = map(1:(N + 1)) do i
         elemtype = meshtype_index(Val(i))
-        return GhostRegion(Datum{elemtype,N}, s)  # lower slots stubbed
+        gr = GhostRegion(Datum{elemtype,N}, s)  # lower slots stubbed
+        return adapt(backend, gr)
     end
 
     face_names = N == 2 ? AXIS_NAMES_2D : AXIS_NAMES_3D
     faces = Face.(1:(2N))
 
     # FaceBuffer for each face (info for packing/unpacking) (all datums covered)
-    send_face = [FaceBuffer(ghosts, stream, face, :send) for face in faces]
-    recv_face = [FaceBuffer(ghosts, stream, face, :recv) for face in faces]
+    send_face = [adapt(backend, FaceBuffer(ghosts, stream, face, :send)) for face in faces]
+    recv_face = [adapt(backend, FaceBuffer(ghosts, stream, face, :recv)) for face in faces]
 
     # Buffer size for each face
     send_buf_sizes = [sum(fb.cell_lens) for fb in send_face]
     recv_buf_sizes = [sum(fb.cell_lens) for fb in recv_face]
 
     # Send and recv buffers for each face
-    send_bufs = map(i -> Vector{FT}(undef, send_buf_sizes[i]), 1:(2N))
-    recv_bufs = map(i -> Vector{FT}(undef, recv_buf_sizes[i]), 1:(2N))
+    send_bufs = map(i -> KernelAbstractions.zeros(backend, FT, send_buf_sizes[i]), 1:(2N))
+    recv_bufs = map(i -> KernelAbstractions.zeros(backend, FT, recv_buf_sizes[i]), 1:(2N))
 
     nb = topo.cache.neighbors
 
@@ -607,27 +763,70 @@ function _test_exchange_axis!(handler::ExchangeHandler{N,FT}, fields::AbstractVe
     return nothing
 end
 
-function _pack_face!(buf::Vector, fb::FaceBuffer, fields::AbstractVector)
-    offset = 0
+# TODO: Test pack/unpack kernels
+# ── GPU gather kernel: pack field values into a contiguous send buffer ────────
+@kernel function _gather_kernel!(buf, @Const(slab), @Const(field), offset)
+    i = @index(Global)
+    @inbounds buf[offset + i] = field[slab[i]]
+end
+
+# ── GPU scatter kernel: unpack a recv buffer back into field positions ─────────
+@kernel function _scatter_kernel!(field, @Const(slab), @Const(buf), offset)
+    i = @index(Global)
+    @inbounds field[slab[i]] = buf[offset + i]
+end
+
+# ── Pack: replaces scalar _pack_face! loop [7] ────────────────────────────────
+function _pack_face!(buf::AbstractVector, fb::FaceBuffer, fields::AbstractVector)
+    backend = get_backend(buf)
+    offset  = 0
     for (field, slab, cell_len) in zip(fields, fb.slabs, fb.cell_lens)
-        for k in 1:cell_len
-            buf[offset + k] = field[slab[k]]
+        if cell_len > 0
+            _gather_kernel!(backend)(buf, slab, field, offset;
+                                     ndrange = cell_len)
         end
         offset += cell_len
     end
+    KernelAbstractions.synchronize(backend)
     return nothing
 end
 
-function _unpack_face!(fields::AbstractVector, fb::FaceBuffer, buf::Vector)
-    offset = 0
+# ── Unpack: replaces scalar _unpack_face! loop [7] ───────────────────────────
+function _unpack_face!(fields::AbstractVector, fb::FaceBuffer, buf::AbstractVector)
+    backend = get_backend(buf)
+    offset  = 0
     for (field, slab, cell_len) in zip(fields, fb.slabs, fb.cell_lens)
-        for k in 1:cell_len
-            field[slab[k]] = buf[offset + k]
+        if cell_len > 0
+            _scatter_kernel!(backend)(field, slab, buf, offset;
+                                      ndrange = cell_len)
         end
         offset += cell_len
     end
+    KernelAbstractions.synchronize(backend)
     return nothing
 end
+
+# function _pack_face!(buf::Vector, fb::FaceBuffer, fields::AbstractVector)
+#     offset = 0
+#     for (field, slab, cell_len) in zip(fields, fb.slabs, fb.cell_lens)
+#         for k in 1:cell_len
+#             buf[offset + k] = field[slab[k]]
+#         end
+#         offset += cell_len
+#     end
+#     return nothing
+# end
+
+# function _unpack_face!(fields::AbstractVector, fb::FaceBuffer, buf::Vector)
+#     offset = 0
+#     for (field, slab, cell_len) in zip(fields, fb.slabs, fb.cell_lens)
+#         for k in 1:cell_len
+#             field[slab[k]] = buf[offset + k]
+#         end
+#         offset += cell_len
+#     end
+#     return nothing
+# end
 
 function close!(handler::ExchangeHandler{N,FT}) where {N,FT}
     for i in faces(handler)

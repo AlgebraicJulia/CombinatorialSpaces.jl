@@ -192,21 +192,39 @@ function UpwindCache(s::UniformCubicalComplex2D)
   return UpwindCache(nq_, q_e1, q_e2, q_e3, q_e4)
 end
 
-# ── WENO5Cache ────────────────────────────────────────────────────────────────────
+  # ── WENO5Cache (extended) ─────────────────────────────────────────────────────
 struct WENO5Cache{IT <: AbstractVector{Int32}, MT <: AbstractVector{Int8}} <: AbstractAdvectionCache
+  # ── wedge 1∧1 fields (quad-indexed) ──────────────────────────────────
   nquads_ :: Int
   q_e1 :: IT;  q_e2 :: IT;  q_e3 :: IT;  q_e4 :: IT
+
   # Extended stencil — x-aligned edges at y-offsets {-2,-1,+2,+3} from each quad
   q_wxm2 :: IT;  q_wxm1 :: IT;  q_wxp2 :: IT;  q_wxp3 :: IT
+
   # Extended stencil — y-aligned edges at x-offsets {-2,-1,+2,+3} from each quad
   q_wym2 :: IT;  q_wym1 :: IT;  q_wyp2 :: IT;  q_wyp3 :: IT
-  # 1 = full WENO5 stencil in bounds, 0 = boundary quad (falls back to upwinding)
+
+  # 1 = full WENO5 stencil fits, 0 = boundary quad (falls back to upwinding)
   q_weno_interior :: MT
+
+  # ── wedge 0∧1 fields (edge-indexed) ──────────────────────────────────
+  nedges_ :: Int
+  e_src :: IT;  e_tgt :: IT   # src/tgt vertex indices per edge
+
+  # Extended stencil vertices along the edge's own axis at offsets
+  # {-2,-1,+2,+3} relative to src.  Dummy = 1 at boundaries.
+  e_wm2 :: IT;  e_wm1 :: IT;  e_wp2 :: IT;  e_wp3 :: IT
+
+  # 1 = full 6-point stencil fits, 0 = boundary edge (falls back to average)
+  e_weno_interior :: MT
 end
 Adapt.@adapt_structure WENO5Cache
 
 function WENO5Cache(s::UniformCubicalComplex2D)
   nq_  = nquads(s);  nx_ = nx(s);  ny_ = ny(s)
+  ne_  = ne(s)
+
+  # ── quad-indexed arrays (unchanged from before) ───────────────────────
   q_e1 = Vector{Int32}(undef, nq_);  q_e2 = Vector{Int32}(undef, nq_)
   q_e3 = Vector{Int32}(undef, nq_);  q_e4 = Vector{Int32}(undef, nq_)
   q_wxm2 = Vector{Int32}(undef, nq_);  q_wxm1 = Vector{Int32}(undef, nq_)
@@ -214,30 +232,68 @@ function WENO5Cache(s::UniformCubicalComplex2D)
   q_wym2 = Vector{Int32}(undef, nq_);  q_wym1 = Vector{Int32}(undef, nq_)
   q_wyp2 = Vector{Int32}(undef, nq_);  q_wyp3 = Vector{Int32}(undef, nq_)
   q_weno_interior = Vector{Int8}(undef, nq_)
+
   for q in 1:nq_
-    x, y           = quad_to_coord(s, q)
-    e1, e2, e3, e4 = quad_edges(s, x, y)
-    q_e1[q] = e1;  q_e2[q] = e2;  q_e3[q] = e3;  q_e4[q] = e4
-    interior = (x > 2) & (x < nx_ - 2) & (y > 2) & (y < ny_ - 2)
-    q_weno_interior[q] = Int8(interior)
-    if interior
-      q_wxm2[q] = Int32(quad_edge_offset(s, x, y, X_ALIGN, -2))
-      q_wxm1[q] = Int32(quad_edge_offset(s, x, y, X_ALIGN, -1))
-      q_wxp2[q] = Int32(quad_edge_offset(s, x, y, X_ALIGN,  2))
-      q_wxp3[q] = Int32(quad_edge_offset(s, x, y, X_ALIGN,  3))
-      q_wym2[q] = Int32(quad_edge_offset(s, x, y, Y_ALIGN, -2))
-      q_wym1[q] = Int32(quad_edge_offset(s, x, y, Y_ALIGN, -1))
-      q_wyp2[q] = Int32(quad_edge_offset(s, x, y, Y_ALIGN,  2))
-      q_wyp3[q] = Int32(quad_edge_offset(s, x, y, Y_ALIGN,  3))
-    else
-      q_wxm2[q] = q_wxm1[q] = q_wxp2[q] = q_wxp3[q] = Int32(1)
-      q_wym2[q] = q_wym1[q] = q_wyp2[q] = q_wyp3[q] = Int32(1)
-    end
+      x, y           = quad_to_coord(s, q)
+      e1, e2, e3, e4 = quad_edges(s, x, y)
+      q_e1[q] = e1;  q_e2[q] = e2;  q_e3[q] = e3;  q_e4[q] = e4
+      interior = (x > 2) & (x < nx_ - 2) & (y > 2) & (y < ny_ - 2)
+      q_weno_interior[q] = Int8(interior)
+      if interior
+          q_wxm2[q] = Int32(quad_edge_offset(s, x, y, X_ALIGN, -2))
+          q_wxm1[q] = Int32(quad_edge_offset(s, x, y, X_ALIGN, -1))
+          q_wxp2[q] = Int32(quad_edge_offset(s, x, y, X_ALIGN,  2))
+          q_wxp3[q] = Int32(quad_edge_offset(s, x, y, X_ALIGN,  3))
+          q_wym2[q] = Int32(quad_edge_offset(s, x, y, Y_ALIGN, -2))
+          q_wym1[q] = Int32(quad_edge_offset(s, x, y, Y_ALIGN, -1))
+          q_wyp2[q] = Int32(quad_edge_offset(s, x, y, Y_ALIGN,  2))
+          q_wyp3[q] = Int32(quad_edge_offset(s, x, y, Y_ALIGN,  3))
+      else
+          q_wxm2[q] = q_wxm1[q] = q_wxp2[q] = q_wxp3[q] = Int32(1)
+          q_wym2[q] = q_wym1[q] = q_wyp2[q] = q_wyp3[q] = Int32(1)
+      end
   end
+
+  # ── edge-indexed arrays (new) ─────────────────────────────────────────
+  e_src = Vector{Int32}(undef, ne_);  e_tgt = Vector{Int32}(undef, ne_)
+  e_wm2 = Vector{Int32}(undef, ne_);  e_wm1 = Vector{Int32}(undef, ne_)
+  e_wp2 = Vector{Int32}(undef, ne_);  e_wp3 = Vector{Int32}(undef, ne_)
+  e_weno_interior = Vector{Int8}(undef, ne_)
+
+  for e in 1:ne_
+      x, y, align = edge_to_coord(s, e)
+      e_src[e] = Int32(src(s, x, y, align))
+      e_tgt[e] = Int32(tgt(s, x, y, align))
+
+      # Stencil fits when there is room for offsets -2 and +3 along the
+      # edge's own axis (identical radius logic to the quad WENO5 check).
+      interior = if align == X_ALIGN
+          (x > 2) & (x <= nx_ - 2)
+      else  # Y_ALIGN
+          (y > 2) & (y <= ny_ - 2)
+      end
+      e_weno_interior[e] = Int8(interior)
+
+      if interior
+          # Vertex stencil along the edge axis:
+          #   src is offset 0, tgt is offset +1.
+          #   We need offsets -2, -1 (behind src) and +2, +3 (beyond tgt).
+          e_wm2[e] = Int32(edge_vertex_offset(s, x, y, align, -2))
+          e_wm1[e] = Int32(edge_vertex_offset(s, x, y, align, -1))
+          e_wp2[e] = Int32(edge_vertex_offset(s, x, y, align,  2))
+          e_wp3[e] = Int32(edge_vertex_offset(s, x, y, align,  3))
+      else
+          e_wm2[e] = e_wm1[e] = e_wp2[e] = e_wp3[e] = Int32(1)
+      end
+  end
+
   return WENO5Cache(nq_, q_e1, q_e2, q_e3, q_e4,
                     q_wxm2, q_wxm1, q_wxp2, q_wxp3,
                     q_wym2, q_wym1, q_wyp2, q_wyp3,
-                    q_weno_interior)
+                    q_weno_interior,
+                    ne_, e_src, e_tgt,
+                    e_wm2, e_wm1, e_wp2, e_wp3,
+                    e_weno_interior)
 end
 
 # ── Factory: construct the appropriate cache for the given scheme ─────────
@@ -484,3 +540,66 @@ wedge_product(::Val{1}, ::Val{1}, sch::AdvectionScheme, cache::AbstractAdvection
 
 wedge_product(::Val{1}, ::Val{1}, sch::Upwind, cache::UniformDECCache, f1a, f1b) =
   wedge_product_11(sch, cache, f1a, f1b)
+
+# ── kernel ────────────────────────────────────────────────────────────────────
+#
+# Single pass over ne(s) edges.  For interior edges, WENO5 reconstructs f0
+# at the edge midpoint from the 6 vertices along the edge's own axis.
+# The stencil is oriented upwind: positive f1 flows from src→tgt (positive
+# axis direction), so positive flow uses the stencil rooted behind src;
+# negative flow reverses it.
+#
+# Boundary edges (stencil doesn't fit) fall back to the simple average
+# (f0[src] + f0[tgt]) / 2, which is the uncached wedge_product_01 behaviour.
+@kernel function kernel_weno5_wedge_01_cached!(res,
+                                             @Const(e_src), @Const(e_tgt),
+                                             @Const(e_wm2), @Const(e_wm1),
+                                             @Const(e_wp2), @Const(e_wp3),
+                                             @Const(e_weno_interior),
+                                             eps, @Const(f0), @Const(f1))
+  e = @index(Global)
+  @inbounds begin
+      f1_val  = f1[e]
+      f0_recon = if Bool(e_weno_interior[e])
+          vm2 = f0[e_wm2[e]];  vm1 = f0[e_wm1[e]]
+          v0  = f0[e_src[e]];  vp1 = f0[e_tgt[e]]
+          vp2 = f0[e_wp2[e]];  vp3 = f0[e_wp3[e]]
+          if f1_val >= 0
+              weno5_point(vm2, vm1, v0,  vp1, vp2, eps)
+          else
+              weno5_point(vp3, vp2, vp1, v0,  vm1, eps)
+          end
+      else
+          (f0[e_src[e]] + f0[e_tgt[e]]) * eltype(f1)(0.5)
+      end
+      res[e] = f0_recon * f1_val
+  end
+end
+
+# ── in-place interface ────────────────────────────────────────────────────────
+function wedge_product_01!(res, ::WENO5, cache::WENO5Cache, f0, f1; eps = nothing)
+  backend = get_backend(f1)
+  FT      = eltype(f1)
+  eps_T   = eps === nothing ? FT(1e-6) : FT(eps)
+  kernel_weno5_wedge_01_cached!(backend)(res,
+      cache.e_src, cache.e_tgt,
+      cache.e_wm2, cache.e_wm1, cache.e_wp2, cache.e_wp3,
+      cache.e_weno_interior,
+      eps_T, f0, f1; ndrange = cache.nedges_)
+  return res
+end
+
+# ── allocating wrapper ────────────────────────────────────────────────────────
+function wedge_product_01(::WENO5, cache::WENO5Cache,
+                        f0::AbstractVector{FT},
+                        f1::AbstractVector{FT}) where FT
+  res = KernelAbstractions.zeros(get_backend(f1), FT, cache.nedges_)
+  return wedge_product_01!(res, WENO5(), cache, f0, f1)
+end
+
+# ── Val dispatch (matches existing wedge_product_11 pattern) ─────────────────
+wedge_product(::Val{0}, ::Val{1}, ::WENO5, cache::WENO5Cache, f0, f1) =
+  wedge_product_01(WENO5(), cache, f0, f1)
+
+wedge_product(::Val{1}, ::Val{0}, ::WENO5, cache::WENO5Cache, f1, f0) =
+  wedge_product_01(WENO5(), cache, f0, f1)

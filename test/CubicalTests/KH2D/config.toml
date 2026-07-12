@@ -8,7 +8,7 @@ nx = 256
 ny = 256
 lx = 1.0
 ly = 1.0
-halo = 30 # 10 # Believe this can be 6 with SSPRK33, confirm rhs! is stencil 2
+halo = 15
 
 [Physics]
 Re = 10_000
@@ -19,7 +19,7 @@ rho_smooth_constant   = 0.05
 theta_smooth_constant = 0.2
 
 [Simulation]
-te       = 5e-4 # 5.0
-dt       = 5e-6
+te       = 5.0
 periodic = "ALL"
 savetime = 0.01
+restart = "2451839"

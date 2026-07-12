@@ -9,6 +9,55 @@ include("../../src/CubicalCode/UniformKernelDEC3D.jl")
     s = UniformCubicalComplex3D(2, 2, 2, 1.0, 1.0, 1.0)
     FT = Float64
 
+    @testset "d0" begin
+        f = fill(FT(5.0), nv(s))
+        @test all(exterior_derivative(Val(0), s, f) .== 0.0)
+
+        f = zeros(FT, nv(s))
+        for z in 1:nz(s), y in 1:ny(s), x in 1:nx(s)
+            f[coord_to_vert(s, x, y, z)] = FT(x + y + z)
+        end
+
+        result = exterior_derivative(Val(0), s, f)
+
+        # nxe(s) = 1, nye(s) = 1, nze(s) = 1 on a 2×2×2 mesh
+        for z in 1:nz(s), y in 1:ny(s), x in 1:nxe(s)
+            @test result[coord_to_edge(s, x, y, z, X_ALIGN)] ≈ FT(1.0)
+        end
+        for z in 1:nz(s), y in 1:nye(s), x in 1:nx(s)
+            @test result[coord_to_edge(s, x, y, z, Y_ALIGN)] ≈ FT(1.0)
+        end
+        for z in 1:nze(s), y in 1:ny(s), x in 1:nx(s)
+            @test result[coord_to_edge(s, x, y, z, Z_ALIGN)] ≈ FT(1.0)
+        end
+    end
+
+    @testset "d1" begin
+        f = fill(FT(5.0), ne(s))
+        @test all(exterior_derivative(Val(1), s, f) .== 0.0)
+
+        # Assign f[e] = edge index, then verify d1 = signed sum on every quad.
+        f = zeros(FT, ne(s))
+        f[1] = 1; f[2] = 5; f[5] = 5; f[6] = 6;
+        f[3] = 5; f[9] = 5; f[10] = 6;
+        f[7] = 1; f[11] = 2;
+        result = exterior_derivative(Val(1), s, f)
+
+        @test result[coord_to_quad(s, 1, 1, 1, Z_ALIGN)] ≈ FT(-3.0)
+        @test result[coord_to_quad(s, 1, 1, 1, Y_ALIGN)] ≈ FT(3.0)
+        @test result[coord_to_quad(s, 1, 1, 1, X_ALIGN)] ≈ FT(1.0)
+    end
+
+    @testset "d2" begin
+        f = fill(FT(5.0), nquads(s))
+        @test all(exterior_derivative(Val(2), s, f) .== 0.0)
+
+        f = FT.(1:nquads(s))
+        result = exterior_derivative(Val(2), s, f)
+        b = coord_to_boid(s, 1, 1, 1)
+        @test result[b] ≈ FT(3.0)
+    end
+
     @testset "dd == 0" begin
         f0 = rand(FT, nv(s))
         f1 = exterior_derivative(Val(0), s, f0)
@@ -65,16 +114,7 @@ end
         @test all(star_f3 .> 0)
     end
 
-    @testset "Numerical Accuracy" begin
-        # For a 2x2x2 mesh, all dual cells are the same since there's only one boid.
-        # Primal edge lengths: dx=2, dy=3, dz=4
-        # Primal quad areas: dx*dy=6 (Z), dx*dz=8 (Y), dy*dz=12 (X)
-        # Primal boid volume: dx*dy*dz = 24
-        # Dual volumes are half at boundaries, but this mesh is all boundary.
-        # Dual boid volume for each vertex: (dx/2)*(dy/2)*(dz/2) = 1*1.5*2 = 3
-        # Dual quad area for each edge: (dy/2)*(dz/2)=3 (X-align), (dx/2)*(dz/2)=2 (Y-align), (dx/2)*(dy/2)=1.5 (Z-align)
-        # Dual edge length for each quad: dz/2=2 (Z-align), dy/2=1.5 (Y-align), dx/2=1 (X-align)
-        
+    @testset "Numerical Accuracy" begin        
         f0 = FT[1, 2, 3, 4, 5, 6, 7, 8]
         star_f0 = hodge_star(Val(0), s, f0)
         expected_star_f0 = f0 .* 3.0
@@ -83,25 +123,17 @@ end
         s_333 = UniformCubicalComplex3D(3, 3, 3, 2.0, 3.0, 4.0)
         f0_center = zeros(FT, nv(s_333)); f0_center[14] = 1.0; # Center vertex
         star_f0_center = hodge_star(Val(0), s_333, f0_center)
-        # Only the central boid (idx 8) should be non-zero
+
         @test star_f0_center[14] ≈ 1.0 * (1.0*1.5*2.0) # interior dual boid volume
 
         f1 = ones(FT, ne(s))
         star_f1 = hodge_star(Val(1), s, f1)
-        # Expected ratio: dual_quad_area / primal_edge_len
-        # X-aligned edges (4 of them): 3 / 2 = 1.5
-        # Y-aligned edges (4 of them): 2 / 3
-        # Z-aligned edges (4 of them): 1.5 / 4 = 0.375
         @test star_f1[1:4] ≈ ones(4) .* 1.5
         @test star_f1[5:8] ≈ ones(4) .* (2/3)
         @test star_f1[9:12] ≈ ones(4) .* 0.375
 
         f2 = ones(FT, nquads(s))
         star_f2 = hodge_star(Val(2), s, f2)
-        # Expected ratio: dual_edge_len / primal_quad_area
-        # Z-aligned quads (2 of them): 2 / 6 = 1/3
-        # Y-aligned quads (2 of them): 1.5 / 8 = 0.1875
-        # X-aligned quads (2 of them): 1 / 12
         @test star_f2[1:2] ≈ ones(2) .* (1/3)
         @test star_f2[3:4] ≈ ones(2) .* 0.1875
         @test star_f2[5:6] ≈ ones(2) .* (1/12)
@@ -118,7 +150,7 @@ end
     FT = Float64
 
     @testset "Numerical Checks" begin
-        f0_dual = [i for i in boids(s)]
+        f0_dual = FT[i for i in boids(s)]
         f1_dual = dual_derivative(Val(0), s, f0_dual)
 
         # Interior only
@@ -161,7 +193,56 @@ end
         @test f2_dual_yz[41] == -1.0
         @test f2_dual_yz[50] == -1.0
 
-        # TODO: Add tests for dual deriv 2
+        f = zeros(FT, ne(s))
+
+        e_low  = coord_to_edge(s, 1, 2, 2, X_ALIGN)
+        e_high = coord_to_edge(s, 2, 2, 2, X_ALIGN)
+        f[e_low]  = FT(3.0)
+        f[e_high] = FT(5.0)
+    
+        result = dual_derivative(Val(2), s, f)
+        v_int  = coord_to_vert(s, 2, 2, 2)
+    
+        @test result[v_int] ≈ -2.0
+
+        f = zeros(FT, ne(s))
+
+        e_low  = coord_to_edge(s, 2, 1, 2, Y_ALIGN)
+        e_high = coord_to_edge(s, 2, 2, 2, Y_ALIGN)
+        f[e_low]  = FT(2.0)
+        f[e_high] = FT(7.0)
+    
+        result = dual_derivative(Val(2), s, f)
+        v_int  = coord_to_vert(s, 2, 2, 2)
+    
+        @test result[v_int] ≈ -5.0
+
+        f = zeros(FT, ne(s))
+
+        e_low  = coord_to_edge(s, 2, 2, 1, Z_ALIGN)
+        e_high = coord_to_edge(s, 2, 2, 2, Z_ALIGN)
+        f[e_low]  = FT(4.0)
+        f[e_high] = FT(9.0)
+    
+        result = dual_derivative(Val(2), s, f)
+        v_int  = coord_to_vert(s, 2, 2, 2)
+    
+        @test result[v_int] ≈ -5.0
+
+        # TODO: Check if this result is right
+        f = zeros(FT, ne(s))
+    
+        f[coord_to_edge(s, 1, 2, 2, X_ALIGN)] = FT(1.0)
+        f[coord_to_edge(s, 2, 2, 2, X_ALIGN)] = FT(2.0)
+        f[coord_to_edge(s, 2, 1, 2, Y_ALIGN)] = FT(3.0)
+        f[coord_to_edge(s, 2, 2, 2, Y_ALIGN)] = FT(4.0)
+        f[coord_to_edge(s, 2, 2, 1, Z_ALIGN)] = FT(5.0)
+        f[coord_to_edge(s, 2, 2, 2, Z_ALIGN)] = FT(6.0)
+    
+        result = dual_derivative(Val(2), s, f)
+        v_int  = coord_to_vert(s, 2, 2, 2)
+    
+        @test result[v_int] ≈ -3.0
     end
 
     @testset "dd == 0" begin
@@ -204,18 +285,19 @@ end
         @test all(isapprox.(xzquads(s, w11_xy), 0.0, atol=1e-12))
         @test all(isapprox.(yzquads(s, w11_xy), 0.0, atol=1e-12))
 
+        # Actual orientation is dzdx
         # XZ Quads (Y_ALIGN)
         f1 .= 0.0; g1 .= 0.0
         xedges(s, f1) .= 2.0
         zedges(s, g1) .= 4.0
         w11_xz = wedge_product(Val(1), Val(1), s, f1, g1)
         @test all(isapprox.(xyquads(s, w11_xz), 0.0, atol=1e-12))
-        @test all(isapprox.(xzquads(s, w11_xz), 8.0, atol=1e-12))
+        @test all(isapprox.(xzquads(s, w11_xz), -8.0, atol=1e-12))
         @test all(isapprox.(yzquads(s, w11_xz), 0.0, atol=1e-12))
 
         w11_xz = wedge_product(Val(1), Val(1), s, g1, f1)
         @test all(isapprox.(xyquads(s, w11_xz), 0.0, atol=1e-12))
-        @test all(isapprox.(xzquads(s, w11_xz), -8.0, atol=1e-12))
+        @test all(isapprox.(xzquads(s, w11_xz), 8.0, atol=1e-12))
         @test all(isapprox.(yzquads(s, w11_xz), 0.0, atol=1e-12))
 
 
@@ -405,3 +487,24 @@ end
 
 end
 
+@testset "Dual Laplacian on 0-forms" begin
+    FT = Float64
+
+    s = UniformCubicalComplex3D(4, 4, 4, 1.0, 1.0, 1.0)
+    dlap_0 = x -> hodge_star(Val(3), s,
+                    exterior_derivative(Val(2), s,
+                        inv_hodge_star(Val(2), s,
+                            dual_derivative(Val(0), s, x))))
+
+    @testset "Constant field" begin
+        f = fill(FT(7.0), nboids(s))
+        result = dlap_0(f)
+        @test result[coord_to_boid(s, 2, 2, 2)] == 0
+    end
+
+    @testset "Linear field" begin
+        f = FT[boid_to_coord(s, b)[1] for b in boids(s)]
+        result = dlap_0(f)
+        @test result[coord_to_boid(s, 2, 2, 2)] == 0
+    end
+end

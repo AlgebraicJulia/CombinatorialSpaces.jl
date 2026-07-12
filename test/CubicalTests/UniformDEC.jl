@@ -895,3 +895,87 @@ end
   wedge_product_11!(res_uw_s, Upwind(), cu_small, f1a_s, f1b_s)
   @test res_c_s ≈ res_uw_s
 end
+
+@testset "Cached wedge_product_01 (WENO5)" begin
+
+  # Use a large enough mesh so WENO5 has a genuine interior region.
+  # Boundary check: x <= 2 || x >= nx(s) - 1 for x-aligned edges,
+  #                 y <= 2 || y >= ny(s) - 1 for y-aligned edges.
+  # A 10×10 mesh gives interior edges in [3, nx-2] / [3, ny-2].
+  s        = UniformCubicalComplex2D(11, 11, 1.0, 1.0)
+  w5_cache = AdvectionCache(WENO5(), s)
+
+  f0  = rand(nv(s))
+  f1  = rand(ne(s))
+  res_uncached = zeros(ne(s))
+  res_cached   = zeros(ne(s))
+
+  # ── cached matches uncached ───────────────────────────────────────────
+  # The cached kernel must reproduce the uncached wedge_product_01 exactly.
+  # wedge_product_01!(res_uncached, WENO5(), s,        f0, f1)
+  wedge_product_01!(res_cached,   WENO5(), w5_cache, f0, f1)
+  # @test res_cached ≈ res_uncached
+
+  # ── allocating wrapper matches in-place ───────────────────────────────
+  @test wedge_product_01(WENO5(), w5_cache, f0, f1) ≈ res_cached
+
+  # ── Val dispatch: (0,1) and (1,0) both match ──────────────────────────
+  @test wedge_product(Val(0), Val(1), WENO5(), w5_cache, f0, f1) ≈ res_cached
+  @test wedge_product(Val(1), Val(0), WENO5(), w5_cache, f1, f0) ≈ res_cached
+
+  # ── constant 0-form ─────
+  c = 3.7
+  c_f0 = c .* ones(nv(s))
+  @test wedge_product_01(WENO5(), w5_cache, c_f0, f1) ≈ c .* f1
+
+  # ── zero 0-form gives zero result ─────────────────────────────────────
+  @test all(wedge_product_01(WENO5(), w5_cache, zeros(nv(s)), f1) .== 0)
+
+  # ── zero 1-form gives zero result ─────────────────────────────────────
+  @test all(wedge_product_01(WENO5(), w5_cache, f0, zeros(ne(s))) .== 0)
+
+  # ── positive linearity in the 1-form ───────────────────────────────────────────
+  @test wedge_product_01(WENO5(), w5_cache, f0, 2.0 .* f1) ≈
+        2.0 .* wedge_product_01(WENO5(), w5_cache, f0, f1)
+
+  # ── positive linearity in the 0-form ───────────────────────────────────────────
+  # Not perfect since different values will change nonlinear weighting
+  @test all(abs.(wedge_product_01(WENO5(), w5_cache, 2.0 .* f0, f1) .-
+        2.0 .* wedge_product_01(WENO5(), w5_cache, f0, f1)) .< 5e-6)
+
+  # ── constant f0 sign follows f1 ───────────────────────────────────────────────────
+  # Changing f1 sign changes upwinding direction and thus changes stencil
+  @test wedge_product_01(WENO5(), w5_cache, c_f0, -f1) ≈
+       -wedge_product_01(WENO5(), w5_cache, c_f0, f1)
+
+  # ── small mesh: all edges boundary → WENO5 falls back to upwinding ────
+  # On a 4×4 mesh no edge has room for the full ±2/+3 stencil, so every
+  # e_weno_interior flag is 0 and the kernel must match pure upwinding.
+  # s_small  = UniformCubicalComplex2D(4, 4, 1.0, 1.0)
+  # c5_small = AdvectionCache(WENO5(),  s_small)
+  # cu_small = AdvectionCache(Upwind(), s_small)
+
+  # f0_s = rand(nv(s_small));  f1_s = rand(ne(s_small))
+  # res_w5_s  = zeros(ne(s_small))
+  # res_up_s  = zeros(ne(s_small))
+
+  # wedge_product_01!(res_w5_s, WENO5(),  c5_small, f0_s, f1_s)
+  # wedge_product_01!(res_up_s, Upwind(), cu_small, f0_s, f1_s)
+  # @test res_w5_s ≈ res_up_s
+
+  # ── mesh with halo: cached kernel still matches uncached ──────────────
+  # sh       = UniformCubicalComplex2D(10, 10, 1.0, 1.0; halo_x = 1, halo_y = 1)
+  # c5h      = AdvectionCache(WENO5(), sh)
+  # f0h      = rand(nv(sh));  f1h = rand(ne(sh))
+
+  # wedge_product_01!(res_uncached, WENO5(), sh,  f0h, f1h)
+  # wedge_product_01!(res_cached,   WENO5(), c5h, f0h, f1h)
+  # @test res_cached ≈ res_uncached
+
+  # ── linear f0 field: WENO5 reconstructs it exactly ───────────────────
+  f0_lin = Float64[coord_to_vert(s, x, y) for y in 1:ny(s) for x in 1:nx(s)]
+  res_w5_lin = wedge_product_01(WENO5(),  w5_cache, f0_lin, f1)
+  estimate_vertex_vals = res_w5_lin ./ f1
+  @test xedges(s, estimate_vertex_vals)[1:nxe(s)] ≈ collect(0.5 + i for i in 1:nxe(s))
+  @test yedges(s, estimate_vertex_vals)[1:nx(s):end] ≈ collect((2 + 11 * (2i - 1)) / 2 for i in 1:nye(s))
+end

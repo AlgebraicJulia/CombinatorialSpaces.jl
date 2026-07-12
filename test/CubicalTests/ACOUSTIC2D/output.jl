@@ -6,10 +6,10 @@ const cart_comm = topo.cart_comm
 
 # ── DataHandler ───────────────────────────────────────────────────────────────
 const io_stream = DataStream("kh_2D", OUTFILE, Datum[
-    Datum{Quad,2}("rho", "fields", FT), 
+    Datum{Quad,2}("rho",   "fields", FT),
     Datum{Quad,2}("Theta", "fields", FT),
-    Datum{Edge,2}("U", "fields", FT),
-    ])
+    Datum{Edge,2}("U",     "fields", FT),
+])
 const handler = DataHandler(io_stream, topo)
 
 create_hdf5!(handler, m_dims)
@@ -32,20 +32,20 @@ if output_leader(topo)
     h5open(OUTFILE, "r") do h5
 
         # ── scalar fields: rho and Theta ──────────────────────────────────────
-        for field in ("rho", "Theta")
+        for (field, color) in (("rho", Reverse(:oslo)), ("Theta", :magma))
             dset  = h5["fields/$field"]
             ntimes = HDF5.get_extent_dims(HDF5.dataspace(dset))[1][1]
 
             ic    = dset[1,       :, :]
             final = dset[ntimes,  :, :]
 
-            cr_min, cr_max = minimum(ic), maximum(ic)
-            cr = cr_min == cr_max ? (cr_min - FT(1), cr_max + FT(1)) : (cr_min, cr_max)
+            # cr_min, cr_max = minimum(ic), maximum(ic)
+            # cr = cr_min == cr_max ? (cr_min - FT(1), cr_max + FT(1)) : (cr_min, cr_max)
 
             for (data, label) in ((ic, "IC"), (final, "final"))
                 fig = Figure(; size = (700, 600))
                 ax  = Axis(fig[1, 1]; title = "$field | $label", xlabel = "x", ylabel = "y")
-                hm  = heatmap!(ax, data)
+                hm  = heatmap!(ax, data; colormap = color)
                 Colorbar(fig[1, 2], hm)
                 save(joinpath(IMGDIR, "$(field)_$(lowercase(label)).png"), fig)
             end
@@ -53,7 +53,7 @@ if output_leader(topo)
             let frame_obs = Observable(dset[1, :, :])
                 fig = Figure(; size = (700, 600))
                 ax  = Axis(fig[1, 1]; xlabel = "x", ylabel = "y")
-                hm  = heatmap!(ax, frame_obs)
+                hm  = heatmap!(ax, frame_obs; colormap = color)
                 Colorbar(fig[1, 2], hm)
                 record(fig, joinpath(IMGDIR, "$(field).mp4"), 1:ntimes; framerate = 15) do i
                     frame_obs[] = dset[i, :, :]

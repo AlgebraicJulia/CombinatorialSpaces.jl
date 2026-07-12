@@ -4,7 +4,7 @@ include(joinpath(@__DIR__, "LMNS_Helpers", "Simulation_Header.jl"))
 ### Simulation Initialization ###
 #################################
 
-const sim = "Kelvin-Helmholtz"
+const sim = "Acoustic_Wave"
 
 const config_filepath = joinpath(@__DIR__, "Sim_Files", "$(sim)_Sim.toml")
 const sim_filepath = joinpath(@__DIR__, "Sim_Files", "$(sim)_Sim.jl")
@@ -205,3 +205,4 @@ run_simulation(
   checkpoint_at = checkpoint_at,
   periodic=periodic,
   savepath=savepath)
+  
