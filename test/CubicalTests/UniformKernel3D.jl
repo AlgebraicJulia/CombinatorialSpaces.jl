@@ -2,9 +2,13 @@ using Test
 using KernelAbstractions
 using Random
 
-include("../../src/CubicalCode/UniformMesh.jl")
-include("../../src/CubicalCode/UniformMesh3D.jl")
-include("../../src/CubicalCode/UniformKernelDEC3D.jl")
+include(joinpath(@__DIR__, "../../src/CubicalCode/UniformMesh.jl"))
+include(joinpath(@__DIR__, "../../src/CubicalCode/UniformMesh3D.jl"))
+include(joinpath(@__DIR__, "../../src/CubicalCode/UniformMatrixDEC.jl"))
+include(joinpath(@__DIR__, "../../src/CubicalCode/UniformKernelDEC.jl"))
+include(joinpath(@__DIR__, "../../src/CubicalCode/UniformKernelDEC3D.jl"))
+include(joinpath(@__DIR__, "../../src/CubicalCode/UniformUpwinding.jl"))
+include(joinpath(@__DIR__, "../../src/CubicalCode/WENO.jl"))
 
 @testset "Exterior Derivative Kernels" begin
     s = UniformCubicalComplex3D(2, 2, 2, 1.0, 1.0, 1.0)
@@ -817,4 +821,83 @@ end
             @test lhs ≈ rhs atol=eps(FT) * 64 rtol=eps(FT) * 64
         end
     end
+end
+
+### WENO TESTS ### 
+
+@testset "WENO wedge 11" begin
+    s = UniformCubicalComplex3D(12, 13, 14, 2.0, 3.0, 4.0)
+    cache = AdvectionCache(WENO5(), s);
+
+    FT = typeof(dx(s))
+    fx = zeros(FT, ne(s))
+    fy = zeros(FT, ne(s))
+    fz = zeros(FT, ne(s))
+
+    fx[1:nxedges(s)] .= dx(s)
+    fy[(nxedges(s)+1):(nxedges(s)+nyedges(s))] .= dy(s)
+    fz[(nxedges(s)+nyedges(s)+1):end] .= dz(s)
+
+    fxy = wedge_product(Val(1), Val(1), WENO5(), cache, fx, fy)
+    fyz = wedge_product(Val(1), Val(1), WENO5(), cache, fy, fz)
+    fzx = wedge_product(Val(1), Val(1), WENO5(), cache, fz, fx)
+
+    @test all(isapprox.(xyquads(s, fxy), quad_area(s, Z_ALIGN)))
+    @test all(isapprox.(yzquads(s, fyz), quad_area(s, X_ALIGN)))
+    @test all(isapprox.(xzquads(s, fzx), quad_area(s, Y_ALIGN)))
+
+    fxy = wedge_product(Val(1), Val(1), WENO5(), cache, fy, fx)
+    fyz = wedge_product(Val(1), Val(1), WENO5(), cache, fz, fy)
+    fzx = wedge_product(Val(1), Val(1), WENO5(), cache, fx, fz)
+
+    @test all(isapprox.(xyquads(s, fxy), -quad_area(s, Z_ALIGN)))
+    @test all(isapprox.(yzquads(s, fyz), -quad_area(s, X_ALIGN)))
+    @test all(isapprox.(xzquads(s, fzx), -quad_area(s, Y_ALIGN)))
+
+    z1 = zeros(FT, ne(s))
+    @test all(wedge_product(Val(1), Val(1), WENO5(), cache, z1, fx) .== zero(FT))
+    @test all(wedge_product(Val(1), Val(1), WENO5(), cache, fx, z1) .== zero(FT))
+
+    a = FT(2.5)
+    b = FT(-0.75)
+    lhs = wedge_product(Val(1), Val(1), WENO5(), cache, a .* fx .+ b .* fy, fz)
+    rhs = a .* wedge_product(Val(1), Val(1), WENO5(), cache, fx, fz) .+
+          b .* wedge_product(Val(1), Val(1), WENO5(), cache, fy, fz)
+
+    @test all(isapprox.(lhs, rhs))
+end
+
+@testset "WENO wedge 12" begin
+    s = UniformCubicalComplex3D(12, 13, 14, 2.0, 3.0, 4.0)
+    cache = AdvectionCache(WENO5(), s);
+
+    FT = typeof(dx(s))
+
+    # Constant 1-forms
+    fx = zeros(FT, ne(s))
+    fy = zeros(FT, ne(s))
+    fz = zeros(FT, ne(s))
+
+    xedges(s, fx) .= dx(s)
+    yedges(s, fy) .= dy(s)
+    zedges(s, fz) .= dz(s)
+
+    # Constant 2-forms
+    fxy = zeros(FT, nquads(s))   # dxdy on Z_ALIGN (XY) quads
+    fyz = zeros(FT, nquads(s))   # dydz on X_ALIGN (YZ) quads
+    fzx = zeros(FT, nquads(s))   # dzdx on Y_ALIGN (XZ) quads
+
+    xyquads(s, fxy) .= quad_area(s, Z_ALIGN)
+    yzquads(s, fyz) .= quad_area(s, X_ALIGN)
+    xzquads(s, fzx) .= quad_area(s, Y_ALIGN)
+
+    vol_x = wedge_product(Val(1), Val(2), WENO5(), cache, fx, fyz)
+    vol_y = wedge_product(Val(1), Val(2), WENO5(), cache, fy, fzx)
+    vol_z = wedge_product(Val(1), Val(2), WENO5(), cache, fz, fxy)
+
+    expected = boid_volume(s)
+
+    @test all(isapprox.(vol_x, expected))
+    @test all(isapprox.(vol_y, expected))
+    @test all(isapprox.(vol_z, expected))
 end

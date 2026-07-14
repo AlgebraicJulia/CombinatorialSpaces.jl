@@ -339,9 +339,7 @@ end
     @inbounds begin
         a1 = 0.5 * (a[e1] + a[e3]); a2 = 0.5 * (a[e2] + a[e4])
         b1 = 0.5 * (b[e1] + b[e3]); b2 = 0.5 * (b[e2] + b[e4])
-        # tmp = a1 * b2 - a2 * b1
         res[idx] = a1 * b2 - a2 * b1
-        # res[idx] = ifelse(align == Y_ALIGN, -tmp, tmp)
     end
 end
 

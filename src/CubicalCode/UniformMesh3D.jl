@@ -922,3 +922,40 @@ function interior(::Val{3}, f::AbstractVector, s::AbstractCubicalComplex3D)
     ]
     return f[indices]
 end
+
+function quad_edge_offset_3D(s::AbstractCubicalComplex3D,
+                              x::Int, y::Int, z::Int,
+                              quad_align::Align, edge_align::Align,
+                              offset::Int)
+    if quad_align == Z_ALIGN
+        if edge_align == X_ALIGN
+            return coord_to_edge(s, x + offset, y, z, X_ALIGN)
+        else # Y_ALIGN
+            return coord_to_edge(s, x, y + offset, z, Y_ALIGN)
+        end
+    elseif quad_align == Y_ALIGN
+        if edge_align == X_ALIGN
+            return coord_to_edge(s, x + offset, y, z, X_ALIGN)
+        else # Z_ALIGN
+            return coord_to_edge(s, x, y, z + offset, Z_ALIGN)
+        end
+    else # X_ALIGN
+        if edge_align == Y_ALIGN
+            return coord_to_edge(s, x, y + offset, z, Y_ALIGN)
+        else # Z_ALIGN
+            return coord_to_edge(s, x, y, z + offset, Z_ALIGN)
+        end
+    end
+end
+
+function boid_quad_offset(s::AbstractCubicalComplex3D,
+                          x::Int, y::Int, z::Int,
+                          align::Align, offset::Int)
+    if align == X_ALIGN
+        return coord_to_quad(s, x + offset, y, z, X_ALIGN)
+    elseif align == Y_ALIGN
+        return coord_to_quad(s, x, y + offset, z, Y_ALIGN)
+    else # Z_ALIGN
+        return coord_to_quad(s, x, y, z + offset, Z_ALIGN)
+    end
+end
