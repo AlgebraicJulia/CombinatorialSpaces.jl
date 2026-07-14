@@ -1,6 +1,7 @@
 using MPI
 using HDF5
 using Adapt
+using KernelAbstractions
 
 include("UniformMesh.jl")
 include("UniformMesh3D.jl")
@@ -40,39 +41,39 @@ end
 datum_dset_paths(datum::Datum) = (datum.groupname * "/") .* datum_dset_names(datum)
 open_dsets(h5loc, datum::Datum) = [h5loc[path] for path in datum_dset_paths(datum)]
 
-datum_dims(::Datum{Vert,2}, m::AbstractCubicalComplex2D) = [(nx(m), ny(m))]
-datum_dims(::Datum{Vert,3}, m::AbstractCubicalComplex3D) = [(nx(m), ny(m), nz(m))]
+datum_dims(::Datum{Vert,2}, s::AbstractCubicalComplex2D) = [(nx(s), ny(s))]
+datum_dims(::Datum{Vert,3}, s::AbstractCubicalComplex3D) = [(nx(s), ny(s), nz(s))]
 
-datum_dims(::Datum{Edge,2}, m::AbstractCubicalComplex2D) = [
-    (nxe(m), ny(m)),   # X family
-    (nx(m), nye(m)),
+datum_dims(::Datum{Edge,2}, s::AbstractCubicalComplex2D) = [
+    (nxe(s), ny(s)),   # X family
+    (nx(s), nye(s)),
 ]  # Y family
-function datum_dims(::Datum{Edge,3}, m::AbstractCubicalComplex3D)
+function datum_dims(::Datum{Edge,3}, s::AbstractCubicalComplex3D)
     return [
-        (nxe(m), ny(m), nz(m)),   # X family
-        (nx(m), nye(m), nz(m)),   # Y family
-        (nx(m), ny(m), nze(m)),
+        (nxe(s), ny(s), nz(s)),   # X family
+        (nx(s), nye(s), nz(s)),   # Y family
+        (nx(s), ny(s), nze(s)),
     ]  # Z family
 end  # Z family
 
-datum_dims(::Datum{Quad,2}, m::AbstractCubicalComplex2D) = [(nxq(m), nyq(m))]
-function datum_dims(::Datum{Quad,3}, m::AbstractCubicalComplex3D)
+datum_dims(::Datum{Quad,2}, s::AbstractCubicalComplex2D) = [(nxq(s), nyq(s))]
+function datum_dims(::Datum{Quad,3}, s::AbstractCubicalComplex3D)
     return [
-        (nxq(m), nyq(m), nz(m)),   # XY family
-        (nxq(m), ny(m), nzq(m)),  # XZ family
-        (nx(m), nyq(m), nzq(m)),
+        (nxq(s), nyq(s), nz(s)),   # XY family
+        (nxq(s), ny(s), nzq(s)),  # XZ family
+        (nx(s), nyq(s), nzq(s)),
     ]  # YZ family
 end  # YZ family
 
-datum_dims(::Datum{Boid,2}, m::AbstractCubicalComplex2D) = [(nxq(m), nyq(m))]
-datum_dims(::Datum{Boid,3}, m::AbstractCubicalComplex3D) = [(nxb(m), nyb(m), nzb(m))]
+datum_dims(::Datum{Boid,2}, s::AbstractCubicalComplex2D) = [(nxq(s), nyq(s))]
+datum_dims(::Datum{Boid,3}, s::AbstractCubicalComplex3D) = [(nxb(s), nyb(s), nzb(s))]
 
-function tile_buffer(datum::Datum, m::AbstractCubicalComplex)
-    return [Array{datum.entrytype}(undef, dims...) for dims in datum_dims(datum, m)]
+function tile_buffer(datum::Datum, s::AbstractCubicalComplex)
+    return [Array{datum.entrytype}(undef, dims...) for dims in datum_dims(datum, s)]
 end
 
-function mesh_count(datum::Datum, m::AbstractCubicalComplex)
-    return sum(prod(dims) for dims in datum_dims(datum, m))
+function mesh_count(datum::Datum, s::AbstractCubicalComplex)
+    return sum(prod(dims) for dims in datum_dims(datum, s))
 end
 
 # This logically represnts a stream of data either meant to be read out or saved
@@ -201,7 +202,7 @@ function write_output!(handler::DataHandler{N}) where {N}
 end
 
 # Worker-side
-function send_output!(data_arrays::Vector{<:AbstractVector}, stream::DataStream, topo::MPITopology{<:WorkerCache})
+function send_output!(data_arrays::AbstractVector{<:AbstractVector}, stream::DataStream, topo::MPITopology{<:WorkerCache})
     worker_to_output(SIGNAL_WRITE, topo)
     for (data, datum) in zip(data_arrays, stream.data)
         gather!(data, datum, topo)
@@ -291,33 +292,25 @@ end
 
 # TODO: This needs to be tested
 function GhostRegion(::Type{Datum{Vert,2}}, s::AbstractCubicalComplex2D)
-    hx_ = hx(s)
-    hy_ = hy(s)
+    hw_ = halo_west(s);  he_ = halo_east(s)
+    hs_ = halo_south(s); hn_ = halo_north(s)
     nx_ = nx(s)
     ny_ = ny(s)
     nyr_ = nyr(s)
 
     # ── EASTWEST pass (slice in x, interior-y transverse only) ────────────
-    # Real left-side vertices replace right-side halo, and vice versa.
-    # Transverse range clamps to real y to avoid double-filling corners
-    # before the NS pass has run; NS pass covers the full x width including
-    # the x-halo that EW just filled, which handles corners.
-    ew_yt = (hy_ + 1):(hy_ + nyr_)
+    ew_yt = (hs_ + 1):(hs_ + nyr_)
 
-    sl_ew = Int32[coord_to_vert(s, ax, b) for ax in (hx_ + 1):(2hx_),        b in ew_yt][:]
-    rh_ew = Int32[coord_to_vert(s, ax, b) for ax in (nx_ - hx_ + 1):nx_,     b in ew_yt][:]
-
-    sh_ew = Int32[coord_to_vert(s, ax, b) for ax in (nx_ - 2hx_ + 1):(nx_ - hx_), b in ew_yt][:]
-    rl_ew = Int32[coord_to_vert(s, ax, b) for ax in 1:hx_,                    b in ew_yt][:]
+    sl_ew = Int32[coord_to_vert(s, ax, b) for ax in (hw_ + 1):(2hw_),            b in ew_yt][:]
+    rh_ew = Int32[coord_to_vert(s, ax, b) for ax in (nx_ - he_ + 1):nx_,         b in ew_yt][:]
+    sh_ew = Int32[coord_to_vert(s, ax, b) for ax in (nx_ - 2he_ + 1):(nx_ - he_), b in ew_yt][:]
+    rl_ew = Int32[coord_to_vert(s, ax, b) for ax in 1:hw_,                        b in ew_yt][:]
 
     # ── NORTHSOUTH pass (slice in y, full-x transverse) ───────────────────
-    # Full x range so that corners (filled by EW above) are also propagated
-    # in the y direction, matching the edge ghost region convention [7].
-    sl_ns = Int32[coord_to_vert(s, b, ax) for ax in (hy_ + 1):(2hy_),        b in 1:nx_][:]
-    rh_ns = Int32[coord_to_vert(s, b, ax) for ax in (ny_ - hy_ + 1):ny_,     b in 1:nx_][:]
-
-    sh_ns = Int32[coord_to_vert(s, b, ax) for ax in (ny_ - 2hy_ + 1):(ny_ - hy_), b in 1:nx_][:]
-    rl_ns = Int32[coord_to_vert(s, b, ax) for ax in 1:hy_,                    b in 1:nx_][:]
+    sl_ns = Int32[coord_to_vert(s, b, ax) for ax in (hs_ + 1):(2hs_),            b in 1:nx_][:]
+    rh_ns = Int32[coord_to_vert(s, b, ax) for ax in (ny_ - hn_ + 1):ny_,         b in 1:nx_][:]
+    sh_ns = Int32[coord_to_vert(s, b, ax) for ax in (ny_ - 2hn_ + 1):(ny_ - hn_), b in 1:nx_][:]
+    rl_ns = Int32[coord_to_vert(s, b, ax) for ax in 1:hs_,                        b in 1:nx_][:]
 
     send = [sl_ew, sh_ew, sl_ns, sh_ns]
     recv = [rl_ew, rh_ew, rl_ns, rh_ns]
@@ -327,26 +320,26 @@ end
 
 # TODO: Pretty sure we can remove the [:] if we use multiple "for" statements
 function GhostRegion(::Type{Datum{Quad,2}}, s::AbstractCubicalComplex2D)
-    hx_ = hxq(s)
-    hy_ = hyq(s)
+    hw_ = halo_west(s);  he_ = halo_east(s)
+    hs_ = halo_south(s); hn_ = halo_north(s)
     nxq_ = nxq(s)
     nyq_ = nyq(s)
     nxqr_ = nxqr(s)
     nyqr_ = nyqr(s)
 
     # X-axis: transverse range is interior y only (no y-halo)
-    rl_x = Int32[coord_to_quad(s, ax, b) for ax in 1:hx_, b in (hy_ + 1):(hy_ + nyqr_)][:]
-    sl_x = Int32[coord_to_quad(s, ax, b) for ax in (hx_ + 1):(2hx_), b in (hy_ + 1):(hy_ + nyqr_)][:]
+    rl_x = Int32[coord_to_quad(s, ax, b) for ax in 1:hw_,                          b in (hs_ + 1):(hs_ + nyqr_)][:]
+    sl_x = Int32[coord_to_quad(s, ax, b) for ax in (hw_ + 1):(2hw_),               b in (hs_ + 1):(hs_ + nyqr_)][:]
 
-    sh_x = Int32[coord_to_quad(s, ax, b) for ax in (nxq_ - 2hx_ + 1):(nxq_ - hx_), b in (hy_ + 1):(hy_ + nyqr_)][:]
-    rh_x = Int32[coord_to_quad(s, ax, b) for ax in (nxq_ - hx_ + 1):nxq_, b in (hy_ + 1):(hy_ + nyqr_)][:]
+    sh_x = Int32[coord_to_quad(s, ax, b) for ax in (nxq_ - 2he_ + 1):(nxq_ - he_), b in (hs_ + 1):(hs_ + nyqr_)][:]
+    rh_x = Int32[coord_to_quad(s, ax, b) for ax in (nxq_ - he_ + 1):nxq_,          b in (hs_ + 1):(hs_ + nyqr_)][:]
 
     # Y-axis: transverse range is full x including x-halo (corners now covered)
-    rl_y = Int32[coord_to_quad(s, b, ax) for ax in 1:hy_, b in 1:nxq_][:]
-    sl_y = Int32[coord_to_quad(s, b, ax) for ax in (hy_ + 1):(2hy_), b in 1:nxq_][:]
+    rl_y = Int32[coord_to_quad(s, b, ax) for ax in 1:hs_,                          b in 1:nxq_][:]
+    sl_y = Int32[coord_to_quad(s, b, ax) for ax in (hs_ + 1):(2hs_),               b in 1:nxq_][:]
 
-    sh_y = Int32[coord_to_quad(s, b, ax) for ax in (nyq_ - 2hy_ + 1):(nyq_ - hy_), b in 1:nxq_][:]
-    rh_y = Int32[coord_to_quad(s, b, ax) for ax in (nyq_ - hy_ + 1):nyq_, b in 1:nxq_][:]
+    sh_y = Int32[coord_to_quad(s, b, ax) for ax in (nyq_ - 2hn_ + 1):(nyq_ - hn_), b in 1:nxq_][:]
+    rh_y = Int32[coord_to_quad(s, b, ax) for ax in (nyq_ - hn_ + 1):nyq_,          b in 1:nxq_][:]
 
     send = [sl_x, sh_x, sl_y, sh_y]
     recv = [rl_x, rh_x, rl_y, rh_y]
@@ -356,64 +349,66 @@ end
 
 # TODO: Test me!
 function GhostRegion(::Type{Datum{Quad,3}}, s::AbstractCubicalComplex3D)
-    hx_  = hx(s);  hy_  = hy(s);  hz_  = hz(s)
+    hw_  = halo_west(s);  he_  = halo_east(s)
+    hs_  = halo_south(s); hn_  = halo_north(s)
+    hd_  = halo_down(s);  hu_  = halo_up(s)
     nx_  = nx(s);  ny_  = ny(s);  nz_  = nz(s)
     nxq_ = nxq(s); nyq_ = nyq(s); nzq_ = nzq(s)
+    nxr_ = nxr(s); nyr_ = nyr(s); nzr_ = nzr(s)
     nxbr_ = nxbr(s); nybr_ = nybr(s); nzbr_ = nzbr(s)
 
+    # TODO: These seem good but check
     # ── EASTWEST pass (slice in x) ────────────────────────────────────────────
-    ew_yt = (hy_ + 1):(hy_ + nybr_)
-    ew_zt = (hz_ + 1):(hz_ + nzbr_)
+    ew_yt = (hs_ + 1):(hs_ + nybr_)
+    ew_zt = (hd_ + 1):(hd_ + nzbr_)
 
-    # Z-aligned (XY): x is tangential, halo slabs symmetric
-    sl_z_ew = Int32[coord_to_quad(s, ax, b, c, Z_ALIGN) for ax in (hx_ + 1):(2hx_),                b in ew_yt, c in ew_zt][:]
-    rh_z_ew = Int32[coord_to_quad(s, ax, b, c, Z_ALIGN) for ax in (nxq_ - hx_ + 1):nxq_,           b in ew_yt, c in ew_zt][:]
-    sh_z_ew = Int32[coord_to_quad(s, ax, b, c, Z_ALIGN) for ax in (nxq_ - 2hx_ + 1):(nxq_ - hx_),  b in ew_yt, c in ew_zt][:]
-    rl_z_ew = Int32[coord_to_quad(s, ax, b, c, Z_ALIGN) for ax in 1:hx_,                            b in ew_yt, c in ew_zt][:]
+    # Z-aligned (XY): x is tangential (effectively x-edges in 2D)
+    sl_z_ew = Int32[coord_to_quad(s, ax, b, c, Z_ALIGN) for ax in (hw_ + 1):(2hw_), b in ew_yt, c in ew_zt][:]
+    rh_z_ew = Int32[coord_to_quad(s, ax, b, c, Z_ALIGN) for ax in (nxq_ - he_ + 1):nxq_, b in ew_yt, c in ew_zt][:]
+    sh_z_ew = Int32[coord_to_quad(s, ax, b, c, Z_ALIGN) for ax in (nxq_ - 2he_ + 1):(nxq_ - he_), b in ew_yt, c in ew_zt][:]
+    rl_z_ew = Int32[coord_to_quad(s, ax, b, c, Z_ALIGN) for ax in 1:hw_, b in ew_yt, c in ew_zt][:]
 
-    # Y-aligned (XZ): x is tangential, halo slabs symmetric
-    sl_y_ew = Int32[coord_to_quad(s, ax, b, c, Y_ALIGN) for ax in (hx_ + 1):(2hx_),                b in ew_yt, c in ew_zt][:]
-    rh_y_ew = Int32[coord_to_quad(s, ax, b, c, Y_ALIGN) for ax in (nxq_ - hx_ + 1):nxq_,           b in ew_yt, c in ew_zt][:]
-    sh_y_ew = Int32[coord_to_quad(s, ax, b, c, Y_ALIGN) for ax in (nxq_ - 2hx_ + 1):(nxq_ - hx_),  b in ew_yt, c in ew_zt][:]
-    rl_y_ew = Int32[coord_to_quad(s, ax, b, c, Y_ALIGN) for ax in 1:hx_,                            b in ew_yt, c in ew_zt][:]
+    # Y-aligned (XZ): x is tangential (effectively y-edges in 2D)
+    sl_y_ew = Int32[coord_to_quad(s, ax, b, c, Y_ALIGN) for ax in (hw_ + 1):(2hw_), b in ew_yt, c in ew_zt][:]
+    rh_y_ew = Int32[coord_to_quad(s, ax, b, c, Y_ALIGN) for ax in (nxq_ - he_ + 1):nxq_, b in ew_yt, c in ew_zt][:]
+    sh_y_ew = Int32[coord_to_quad(s, ax, b, c, Y_ALIGN) for ax in (nxq_ - 2he_ + 1):(nxq_ - he_), b in ew_yt, c in ew_zt][:]
+    rl_y_ew = Int32[coord_to_quad(s, ax, b, c, Y_ALIGN) for ax in 1:hw_, b in ew_yt, c in ew_zt][:]
 
-    # X-aligned (YZ): x is the NORMAL axis.
-    # Low send must include the boundary face of the first real boid (at ax = hx_+1),
-    # so sl starts at hx_+1 (not hx_+2) and rl extends one layer further to hx_+1.
-    sl_x_ew = Int32[coord_to_quad(s, ax, b, c, X_ALIGN) for ax in (hx_ + 1):(2hx_),                b in ew_yt, c in ew_zt][:]
-    rh_x_ew = Int32[coord_to_quad(s, ax, b, c, X_ALIGN) for ax in (nx_ - hx_ + 1):nx_,             b in ew_yt, c in ew_zt][:]
-    sh_x_ew = Int32[coord_to_quad(s, ax, b, c, X_ALIGN) for ax in (nx_ - 2hx_ + 1):(nx_ - hx_),    b in ew_yt, c in ew_zt][:]
-    rl_x_ew = Int32[coord_to_quad(s, ax, b, c, X_ALIGN) for ax in 1:(hx_ + 1),                      b in ew_yt, c in ew_zt][:]
+    # X-aligned (YZ): x is the NORMAL axis 
+    sl_x_ew = Int32[coord_to_quad(s, ax, b, c, X_ALIGN) for ax in (hw_ + 1):(2hw_ + 1), b in ew_yt, c in ew_zt][:]
+    rh_x_ew = Int32[coord_to_quad(s, ax, b, c, X_ALIGN) for ax in (nx_ - he_):nx_, b in ew_yt, c in ew_zt][:]
+    sh_x_ew = Int32[coord_to_quad(s, ax, b, c, X_ALIGN) for ax in (nx_ - 2he_):(nx_ - he_ - 1), b in ew_yt, c in ew_zt][:]
+    rl_x_ew = Int32[coord_to_quad(s, ax, b, c, X_ALIGN) for ax in 1:hw_, b in ew_yt, c in ew_zt][:]
 
     sl_ew = vcat(sl_z_ew, sl_y_ew, sl_x_ew)
     rh_ew = vcat(rh_z_ew, rh_y_ew, rh_x_ew)
     sh_ew = vcat(sh_z_ew, sh_y_ew, sh_x_ew)
     rl_ew = vcat(rl_z_ew, rl_y_ew, rl_x_ew)
 
+    # TODO: These seem good but check
     # ── NORTHSOUTH pass (slice in y, full-x transverse) ───────────────────────
+    ns_zt   = (hd_ + 1):(hd_ + nzbr_)
+    
+    # Z-aligned (XY): y is tangential (effectively x-edges in 2D)
     ns_xt_z = 1:nxq_
-    ns_zt   = (hz_ + 1):(hz_ + nzbr_)
+    sl_z_ns = Int32[coord_to_quad(s, b, ax, c, Z_ALIGN) for ax in (hs_ + 1):(2hs_), b in ns_xt_z, c in ns_zt][:]
+    rh_z_ns = Int32[coord_to_quad(s, b, ax, c, Z_ALIGN) for ax in (nyq_ - hn_ + 1):nyq_, b in ns_xt_z, c in ns_zt][:]
+    sh_z_ns = Int32[coord_to_quad(s, b, ax, c, Z_ALIGN) for ax in (nyq_ - 2hn_ + 1):(nyq_ - hn_), b in ns_xt_z, c in ns_zt][:]
+    rl_z_ns = Int32[coord_to_quad(s, b, ax, c, Z_ALIGN) for ax in 1:hs_, b in ns_xt_z, c in ns_zt][:]
 
-    # Z-aligned (XY): y is tangential, symmetric
-    sl_z_ns = Int32[coord_to_quad(s, b, ax, c, Z_ALIGN) for ax in (hy_ + 1):(2hy_),                b in ns_xt_z, c in ns_zt][:]
-    rh_z_ns = Int32[coord_to_quad(s, b, ax, c, Z_ALIGN) for ax in (nyq_ - hy_ + 1):nyq_,           b in ns_xt_z, c in ns_zt][:]
-    sh_z_ns = Int32[coord_to_quad(s, b, ax, c, Z_ALIGN) for ax in (nyq_ - 2hy_ + 1):(nyq_ - hy_),  b in ns_xt_z, c in ns_zt][:]
-    rl_z_ns = Int32[coord_to_quad(s, b, ax, c, Z_ALIGN) for ax in 1:hy_,                            b in ns_xt_z, c in ns_zt][:]
-
-    # Y-aligned (XZ): y is the NORMAL axis.
-    # Low recv must include the south boundary face of the first real boid row.
+    # Y-aligned (XZ): y is the NORMAL axis
     ns_xt_y = 1:nxq_
-    sl_y_ns = Int32[coord_to_quad(s, b, ax, c, Y_ALIGN) for ax in (hy_ + 1):(2hy_),                b in ns_xt_y, c in ns_zt][:]
-    rh_y_ns = Int32[coord_to_quad(s, b, ax, c, Y_ALIGN) for ax in (ny_ - hy_ + 1):ny_,             b in ns_xt_y, c in ns_zt][:]
-    sh_y_ns = Int32[coord_to_quad(s, b, ax, c, Y_ALIGN) for ax in (ny_ - 2hy_ + 1):(ny_ - hy_),    b in ns_xt_y, c in ns_zt][:]
-    rl_y_ns = Int32[coord_to_quad(s, b, ax, c, Y_ALIGN) for ax in 1:(hy_ + 1),                      b in ns_xt_y, c in ns_zt][:]
+    sl_y_ns = Int32[coord_to_quad(s, b, ax, c, Y_ALIGN) for ax in (hs_ + 1):(2hs_ + 1), b in ns_xt_y, c in ns_zt][:]
+    rh_y_ns = Int32[coord_to_quad(s, b, ax, c, Y_ALIGN) for ax in (ny_ - hn_):ny_, b in ns_xt_y, c in ns_zt][:]
+    sh_y_ns = Int32[coord_to_quad(s, b, ax, c, Y_ALIGN) for ax in (ny_ - 2hn_):(ny_ - hn_ - 1), b in ns_xt_y, c in ns_zt][:]
+    rl_y_ns = Int32[coord_to_quad(s, b, ax, c, Y_ALIGN) for ax in 1:hs_, b in ns_xt_y, c in ns_zt][:]
 
-    # X-aligned (YZ): y is tangential, symmetric
+    # X-aligned (YZ): y is tangential (effectively y-edges in 2D)
     ns_xt_x = 1:nx_
-    sl_x_ns = Int32[coord_to_quad(s, b, ax, c, X_ALIGN) for ax in (hy_ + 1):(2hy_),                b in ns_xt_x, c in ns_zt][:]
-    rh_x_ns = Int32[coord_to_quad(s, b, ax, c, X_ALIGN) for ax in (nyq_ - hy_ + 1):nyq_,           b in ns_xt_x, c in ns_zt][:]
-    sh_x_ns = Int32[coord_to_quad(s, b, ax, c, X_ALIGN) for ax in (nyq_ - 2hy_ + 1):(nyq_ - hy_),  b in ns_xt_x, c in ns_zt][:]
-    rl_x_ns = Int32[coord_to_quad(s, b, ax, c, X_ALIGN) for ax in 1:hy_,                            b in ns_xt_x, c in ns_zt][:]
+    sl_x_ns = Int32[coord_to_quad(s, b, ax, c, X_ALIGN) for ax in (hs_ + 1):(2hs_), b in ns_xt_x, c in ns_zt][:]
+    rh_x_ns = Int32[coord_to_quad(s, b, ax, c, X_ALIGN) for ax in (nyq_ - hn_ + 1):nyq_, b in ns_xt_x, c in ns_zt][:]
+    sh_x_ns = Int32[coord_to_quad(s, b, ax, c, X_ALIGN) for ax in (nyq_ - 2hn_ + 1):(nyq_ - hn_), b in ns_xt_x, c in ns_zt][:]
+    rl_x_ns = Int32[coord_to_quad(s, b, ax, c, X_ALIGN) for ax in 1:hs_, b in ns_xt_x, c in ns_zt][:]
 
     sl_ns = vcat(sl_z_ns, sl_y_ns, sl_x_ns)
     rh_ns = vcat(rh_z_ns, rh_y_ns, rh_x_ns)
@@ -421,31 +416,30 @@ function GhostRegion(::Type{Datum{Quad,3}}, s::AbstractCubicalComplex3D)
     rl_ns = vcat(rl_z_ns, rl_y_ns, rl_x_ns)
 
     # ── UPDOWN pass (slice in z, full-x and full-y transverse) ────────────────
+    
+    # Z-aligned (XY): z is the NORMAL axis
     ud_xt_z = 1:nxq_
     ud_yt_z = 1:nyq_
+    sl_z_ud = Int32[coord_to_quad(s, b, c, ax, Z_ALIGN) for ax in (hd_ + 1):(2hd_ + 1), b in ud_xt_z, c in ud_yt_z][:]
+    rh_z_ud = Int32[coord_to_quad(s, b, c, ax, Z_ALIGN) for ax in (nz_ - hu_):nz_, b in ud_xt_z, c in ud_yt_z][:]
+    sh_z_ud = Int32[coord_to_quad(s, b, c, ax, Z_ALIGN) for ax in (nz_ - 2hu_):(nz_ - hu_ - 1), b in ud_xt_z, c in ud_yt_z][:]
+    rl_z_ud = Int32[coord_to_quad(s, b, c, ax, Z_ALIGN) for ax in 1:hd_, b in ud_xt_z, c in ud_yt_z][:]
 
-    # Z-aligned (XY): z is the NORMAL axis.
-    # Low recv must include the down boundary face of the first real boid layer.
-    sl_z_ud = Int32[coord_to_quad(s, b, c, ax, Z_ALIGN) for ax in (hz_ + 1):(2hz_),                b in ud_xt_z, c in ud_yt_z][:]
-    rh_z_ud = Int32[coord_to_quad(s, b, c, ax, Z_ALIGN) for ax in (nz_ - hz_ + 1):nz_,             b in ud_xt_z, c in ud_yt_z][:]
-    sh_z_ud = Int32[coord_to_quad(s, b, c, ax, Z_ALIGN) for ax in (nz_ - 2hz_ + 1):(nz_ - hz_),    b in ud_xt_z, c in ud_yt_z][:]
-    rl_z_ud = Int32[coord_to_quad(s, b, c, ax, Z_ALIGN) for ax in 1:(hz_ + 1),                      b in ud_xt_z, c in ud_yt_z][:]
-
-    # Y-aligned (XZ): z is tangential, symmetric
+    # Y-aligned (XZ): z is tangential (effectively x-edges in 2D)
     ud_xt_y = 1:nxq_
     ud_yt_y = 1:ny_
-    sl_y_ud = Int32[coord_to_quad(s, b, c, ax, Y_ALIGN) for ax in (hz_ + 1):(2hz_),                b in ud_xt_y, c in ud_yt_y][:]
-    rh_y_ud = Int32[coord_to_quad(s, b, c, ax, Y_ALIGN) for ax in (nzq_ - hz_ + 1):nzq_,           b in ud_xt_y, c in ud_yt_y][:]
-    sh_y_ud = Int32[coord_to_quad(s, b, c, ax, Y_ALIGN) for ax in (nzq_ - 2hz_ + 1):(nzq_ - hz_),  b in ud_xt_y, c in ud_yt_y][:]
-    rl_y_ud = Int32[coord_to_quad(s, b, c, ax, Y_ALIGN) for ax in 1:hz_,                            b in ud_xt_y, c in ud_yt_y][:]
+    sl_y_ud = Int32[coord_to_quad(s, b, c, ax, Y_ALIGN) for ax in (hd_ + 1):(2hd_), b in ud_xt_y, c in ud_yt_y][:]
+    rh_y_ud = Int32[coord_to_quad(s, b, c, ax, Y_ALIGN) for ax in (nzq_ - hu_ + 1):nzq_, b in ud_xt_y, c in ud_yt_y][:]
+    sh_y_ud = Int32[coord_to_quad(s, b, c, ax, Y_ALIGN) for ax in (nzq_ - 2hu_ + 1):(nzq_ - hu_), b in ud_xt_y, c in ud_yt_y][:]
+    rl_y_ud = Int32[coord_to_quad(s, b, c, ax, Y_ALIGN) for ax in 1:hd_, b in ud_xt_y, c in ud_yt_y][:]
 
-    # X-aligned (YZ): z is tangential, symmetric
+    # X-aligned (YZ): z is tangential (effectively y-edges in 2D)
     ud_xt_x = 1:nx_
     ud_yt_x = 1:nyq_
-    sl_x_ud = Int32[coord_to_quad(s, b, c, ax, X_ALIGN) for ax in (hz_ + 1):(2hz_),                b in ud_xt_x, c in ud_yt_x][:]
-    rh_x_ud = Int32[coord_to_quad(s, b, c, ax, X_ALIGN) for ax in (nzq_ - hz_ + 1):nzq_,           b in ud_xt_x, c in ud_yt_x][:]
-    sh_x_ud = Int32[coord_to_quad(s, b, c, ax, X_ALIGN) for ax in (nzq_ - 2hz_ + 1):(nzq_ - hz_),  b in ud_xt_x, c in ud_yt_x][:]
-    rl_x_ud = Int32[coord_to_quad(s, b, c, ax, X_ALIGN) for ax in 1:hz_,                            b in ud_xt_x, c in ud_yt_x][:]
+    sl_x_ud = Int32[coord_to_quad(s, b, c, ax, X_ALIGN) for ax in (hd_ + 1):(2hd_), b in ud_xt_x, c in ud_yt_x][:]
+    rh_x_ud = Int32[coord_to_quad(s, b, c, ax, X_ALIGN) for ax in (nzq_ - hu_ + 1):nzq_, b in ud_xt_x, c in ud_yt_x][:]
+    sh_x_ud = Int32[coord_to_quad(s, b, c, ax, X_ALIGN) for ax in (nzq_ - 2hu_ + 1):(nzq_ - hu_), b in ud_xt_x, c in ud_yt_x][:]
+    rl_x_ud = Int32[coord_to_quad(s, b, c, ax, X_ALIGN) for ax in 1:hd_, b in ud_xt_x, c in ud_yt_x][:]
 
     sl_ud = vcat(sl_z_ud, sl_y_ud, sl_x_ud)
     rh_ud = vcat(rh_z_ud, rh_y_ud, rh_x_ud)
@@ -459,33 +453,33 @@ function GhostRegion(::Type{Datum{Quad,3}}, s::AbstractCubicalComplex3D)
 end
 
 function GhostRegion(::Type{Datum{Boid,3}}, s::AbstractCubicalComplex3D)
-    hx_ = hxb(s)
-    hy_ = hyb(s)
-    hz_ = hzb(s)
-    nxb_ = nxb(s)
-    nyb_ = nyb(s)
-    nzb_ = nzb(s)
+    hw_ = halo_west(s);  he_ = halo_east(s)
+    hs_ = halo_south(s); hn_ = halo_north(s)
+    hd_ = halo_down(s);  hu_ = halo_up(s)
+    nxb_  = nxb(s)
+    nyb_  = nyb(s)
+    nzb_  = nzb(s)
     nxbr_ = nxbr(s)
     nybr_ = nybr(s)
     nzbr_ = nzbr(s)
 
     # X-axis: transverse is real y and real z only
-    rl_x = Int32[coord_to_boid(s, ax, b, c) for ax in 1:hx_, b in (hy_ + 1):(hy_ + nybr_), c in (hz_ + 1):(hz_ + nzbr_)][:]
-    sl_x = Int32[coord_to_boid(s, ax, b, c) for ax in (hx_ + 1):(2hx_), b in (hy_ + 1):(hy_ + nybr_), c in (hz_ + 1):(hz_ + nzbr_)][:]
-    sh_x = Int32[coord_to_boid(s, ax, b, c) for ax in (nxb_ - 2hx_ + 1):(nxb_ - hx_), b in (hy_ + 1):(hy_ + nybr_), c in (hz_ + 1):(hz_ + nzbr_)][:]
-    rh_x = Int32[coord_to_boid(s, ax, b, c) for ax in (nxb_ - hx_ + 1):nxb_, b in (hy_ + 1):(hy_ + nybr_), c in (hz_ + 1):(hz_ + nzbr_)][:]
+    rl_x = Int32[coord_to_boid(s, ax, b, c) for ax in 1:hw_,                            b in (hs_ + 1):(hs_ + nybr_), c in (hd_ + 1):(hd_ + nzbr_)][:]
+    sl_x = Int32[coord_to_boid(s, ax, b, c) for ax in (hw_ + 1):(2hw_),                 b in (hs_ + 1):(hs_ + nybr_), c in (hd_ + 1):(hd_ + nzbr_)][:]
+    sh_x = Int32[coord_to_boid(s, ax, b, c) for ax in (nxb_ - 2he_ + 1):(nxb_ - he_),  b in (hs_ + 1):(hs_ + nybr_), c in (hd_ + 1):(hd_ + nzbr_)][:]
+    rh_x = Int32[coord_to_boid(s, ax, b, c) for ax in (nxb_ - he_ + 1):nxb_,           b in (hs_ + 1):(hs_ + nybr_), c in (hd_ + 1):(hd_ + nzbr_)][:]
 
     # Y-axis: transverse is full x (x-halo filled), real z only
-    rl_y = Int32[coord_to_boid(s, b, ax, c) for ax in 1:hy_, b in 1:nxb_, c in (hz_ + 1):(hz_ + nzbr_)][:]
-    sl_y = Int32[coord_to_boid(s, b, ax, c) for ax in (hy_ + 1):(2hy_), b in 1:nxb_, c in (hz_ + 1):(hz_ + nzbr_)][:]
-    sh_y = Int32[coord_to_boid(s, b, ax, c) for ax in (nyb_ - 2hy_ + 1):(nyb_ - hy_), b in 1:nxb_, c in (hz_ + 1):(hz_ + nzbr_)][:]
-    rh_y = Int32[coord_to_boid(s, b, ax, c) for ax in (nyb_ - hy_ + 1):nyb_, b in 1:nxb_, c in (hz_ + 1):(hz_ + nzbr_)][:]
+    rl_y = Int32[coord_to_boid(s, b, ax, c) for ax in 1:hs_,                            b in 1:nxb_, c in (hd_ + 1):(hd_ + nzbr_)][:]
+    sl_y = Int32[coord_to_boid(s, b, ax, c) for ax in (hs_ + 1):(2hs_),                 b in 1:nxb_, c in (hd_ + 1):(hd_ + nzbr_)][:]
+    sh_y = Int32[coord_to_boid(s, b, ax, c) for ax in (nyb_ - 2hn_ + 1):(nyb_ - hn_),  b in 1:nxb_, c in (hd_ + 1):(hd_ + nzbr_)][:]
+    rh_y = Int32[coord_to_boid(s, b, ax, c) for ax in (nyb_ - hn_ + 1):nyb_,           b in 1:nxb_, c in (hd_ + 1):(hd_ + nzbr_)][:]
 
     # Z-axis: transverse is full x and full y (both halos filled)
-    rl_z = Int32[coord_to_boid(s, b, c, ax) for ax in 1:hz_, b in 1:nxb_, c in 1:nyb_][:]
-    sl_z = Int32[coord_to_boid(s, b, c, ax) for ax in (hz_ + 1):(2hz_), b in 1:nxb_, c in 1:nyb_][:]
-    sh_z = Int32[coord_to_boid(s, b, c, ax) for ax in (nzb_ - 2hz_ + 1):(nzb_ - hz_), b in 1:nxb_, c in 1:nyb_][:]
-    rh_z = Int32[coord_to_boid(s, b, c, ax) for ax in (nzb_ - hz_ + 1):nzb_, b in 1:nxb_, c in 1:nyb_][:]
+    rl_z = Int32[coord_to_boid(s, b, c, ax) for ax in 1:hd_,                            b in 1:nxb_, c in 1:nyb_][:]
+    sl_z = Int32[coord_to_boid(s, b, c, ax) for ax in (hd_ + 1):(2hd_),                 b in 1:nxb_, c in 1:nyb_][:]
+    sh_z = Int32[coord_to_boid(s, b, c, ax) for ax in (nzb_ - 2hu_ + 1):(nzb_ - hu_),  b in 1:nxb_, c in 1:nyb_][:]
+    rh_z = Int32[coord_to_boid(s, b, c, ax) for ax in (nzb_ - hu_ + 1):nzb_,           b in 1:nxb_, c in 1:nyb_][:]
 
     send = [sl_x, sh_x, sl_y, sh_y, sl_z, sh_z]
     recv = [rl_x, rh_x, rl_y, rh_y, rl_z, rh_z]
@@ -495,33 +489,31 @@ end
 
 # Left/bottom edges are real and are exchanged with right/top which are halo
 function GhostRegion(::Type{Datum{Edge,2}}, s::AbstractCubicalComplex2D)
-    hx_ = hx(s)
-    hy_ = hy(s)
-    nx_ = nx(s)
-    ny_ = ny(s)
-    nxe_ = nxe(s)
-    nye_ = nye(s)
+    hw_ = halo_west(s);  he_ = halo_east(s)
+    hs_ = halo_south(s); hn_ = halo_north(s)
+    nx_   = nx(s)
+    ny_   = ny(s)
+    nxe_  = nxe(s)
+    nye_  = nye(s)
     nxqr_ = nxqr(s)
     nyqr_ = nyqr(s)
 
     # ── EASTWEST pass (slice in x, interior-y transverse only) ────────────────
     # X-edges
-    x_ew_yt = (hy_ + 1):(hy_ + nyqr_) # Capture x-interior only
+    x_ew_yt = (hs_ + 1):(hs_ + nyqr_)
 
-    sl_x_ew = Int32[coord_to_edge(s, ax, b, X_ALIGN) for ax in (hx_ + 1):(2hx_), b in x_ew_yt][:]
-    rh_x_ew = Int32[coord_to_edge(s, ax, b, X_ALIGN) for ax in (nxe_ - hx_ + 1):nxe_, b in x_ew_yt][:]
+    sl_x_ew = Int32[coord_to_edge(s, ax, b, X_ALIGN) for ax in (hw_ + 1):(2hw_),         b in x_ew_yt][:]
+    rh_x_ew = Int32[coord_to_edge(s, ax, b, X_ALIGN) for ax in (nxe_ - he_ + 1):nxe_,   b in x_ew_yt][:]
+    sh_x_ew = Int32[coord_to_edge(s, ax, b, X_ALIGN) for ax in (nxe_ - 2he_ + 1):(nxe_ - he_), b in x_ew_yt][:]
+    rl_x_ew = Int32[coord_to_edge(s, ax, b, X_ALIGN) for ax in 1:hw_,                    b in x_ew_yt][:]
 
-    sh_x_ew = Int32[coord_to_edge(s, ax, b, X_ALIGN) for ax in (nxe_ - 2hx_ + 1):(nxe_ - hx_), b in x_ew_yt][:]
-    rl_x_ew = Int32[coord_to_edge(s, ax, b, X_ALIGN) for ax in 1:hx_, b in x_ew_yt][:]
+    # Y-edges (normal axis: +1 extension on recv/send)
+    y_ew_yt = (hs_ + 1):(hs_ + nyqr_)
 
-    # Y-edges
-    y_ew_yt = (hy_ + 1):(hy_ + nyqr_) # Capture x-interior only
-
-    sl_y_ew = Int32[coord_to_edge(s, ax, b, Y_ALIGN) for ax in (hx_ + 1):(2hx_ + 1), b in y_ew_yt][:]
-    rh_y_ew = Int32[coord_to_edge(s, ax, b, Y_ALIGN) for ax in (nx_ - hx_):nx_, b in y_ew_yt][:]
-
-    sh_y_ew = Int32[coord_to_edge(s, ax, b, Y_ALIGN) for ax in (nx_ - 2hx_):(nx_ - hx_ - 1), b in y_ew_yt][:]
-    rl_y_ew = Int32[coord_to_edge(s, ax, b, Y_ALIGN) for ax in 1:hx_, b in y_ew_yt][:]
+    sl_y_ew = Int32[coord_to_edge(s, ax, b, Y_ALIGN) for ax in (hw_ + 1):(2hw_ + 1),     b in y_ew_yt][:]
+    rh_y_ew = Int32[coord_to_edge(s, ax, b, Y_ALIGN) for ax in (nx_ - he_):nx_,           b in y_ew_yt][:]
+    sh_y_ew = Int32[coord_to_edge(s, ax, b, Y_ALIGN) for ax in (nx_ - 2he_):(nx_ - he_ - 1), b in y_ew_yt][:]
+    rl_y_ew = Int32[coord_to_edge(s, ax, b, Y_ALIGN) for ax in 1:hw_,                    b in y_ew_yt][:]
 
     sl_ew = vcat(sl_x_ew, sl_y_ew)
     rl_ew = vcat(rl_x_ew, rl_y_ew)
@@ -530,18 +522,16 @@ function GhostRegion(::Type{Datum{Edge,2}}, s::AbstractCubicalComplex2D)
 
     # ── NORTHSOUTH pass (slice in y, full-x transverse) ───────────────────────
     # Y-edges
-    sl_y_ns = Int32[coord_to_edge(s, b, ax, Y_ALIGN) for ax in (hy_ + 1):(2hy_), b in 1:nx_][:]
-    rh_y_ns = Int32[coord_to_edge(s, b, ax, Y_ALIGN) for ax in (nye_ - hy_ + 1):nye_, b in 1:nx_][:]
+    sl_y_ns = Int32[coord_to_edge(s, b, ax, Y_ALIGN) for ax in (hs_ + 1):(2hs_),         b in 1:nx_][:]
+    rh_y_ns = Int32[coord_to_edge(s, b, ax, Y_ALIGN) for ax in (nye_ - hn_ + 1):nye_,    b in 1:nx_][:]
+    sh_y_ns = Int32[coord_to_edge(s, b, ax, Y_ALIGN) for ax in (nye_ - 2hn_ + 1):(nye_ - hn_), b in 1:nx_][:]
+    rl_y_ns = Int32[coord_to_edge(s, b, ax, Y_ALIGN) for ax in 1:hs_,                    b in 1:nx_][:]
 
-    sh_y_ns = Int32[coord_to_edge(s, b, ax, Y_ALIGN) for ax in (nye_ - 2hy_ + 1):(nye_ - hy_), b in 1:nx_][:]
-    rl_y_ns = Int32[coord_to_edge(s, b, ax, Y_ALIGN) for ax in 1:hy_, b in 1:nx_][:]
-
-    # X-edges
-    sl_x_ns = Int32[coord_to_edge(s, b, ax, X_ALIGN) for ax in (hy_ + 1):(2hy_ + 1), b in 1:nxe_][:]
-    rh_x_ns = Int32[coord_to_edge(s, b, ax, X_ALIGN) for ax in (ny_ - hy_):ny_, b in 1:nxe_][:]
-
-    sh_x_ns = Int32[coord_to_edge(s, b, ax, X_ALIGN) for ax in (ny_ - 2hy_):(ny_ - hy_ - 1), b in 1:nxe_][:]
-    rl_x_ns = Int32[coord_to_edge(s, b, ax, X_ALIGN) for ax in 1:hy_, b in 1:nxe_][:]
+    # X-edges (normal axis: +1 extension on recv/send)
+    sl_x_ns = Int32[coord_to_edge(s, b, ax, X_ALIGN) for ax in (hs_ + 1):(2hs_ + 1),    b in 1:nxe_][:]
+    rh_x_ns = Int32[coord_to_edge(s, b, ax, X_ALIGN) for ax in (ny_ - hn_):ny_,          b in 1:nxe_][:]
+    sh_x_ns = Int32[coord_to_edge(s, b, ax, X_ALIGN) for ax in (ny_ - 2hn_):(ny_ - hn_ - 1), b in 1:nxe_][:]
+    rl_x_ns = Int32[coord_to_edge(s, b, ax, X_ALIGN) for ax in 1:hs_,                    b in 1:nxe_][:]
 
     sl_ns = vcat(sl_y_ns, sl_x_ns)
     rl_ns = vcat(rl_y_ns, rl_x_ns)
@@ -566,6 +556,7 @@ end
 low_face(side::GridSide) = Face(2 * (Int(side) + 1) - 1)
 high_face(side::GridSide) = Face(2 * (Int(side) + 1))
 
+# TODO: These stubs don't work if included in the data stream
 GhostRegion(::Type{Datum{Vert,3}}, s) = GhostRegion{Vert,3}(Int32[], Int32[])   # stub
 GhostRegion(::Type{Datum{Edge,N}}, s) where {N} = GhostRegion{Edge,N}(Int32[], Int32[])   # stub
 

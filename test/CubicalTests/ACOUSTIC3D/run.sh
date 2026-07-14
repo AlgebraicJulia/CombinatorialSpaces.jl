@@ -16,9 +16,9 @@ module load cray-hdf5-parallel
 # ── User-defined variables ────────────────────────────────
 cd $SIM_DIR
 
-WX=1
-WY=1
-WZ=1
+WX=6
+WY=6
+WZ=5
 OX=1
 OY=1
 OZ=1

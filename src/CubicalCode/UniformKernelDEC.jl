@@ -477,14 +477,14 @@ struct UniformDECCache{IT <: AbstractVector{Int32}, FT <: AbstractVector{Float64
   # Each pair covers all copy operations for one (form, side) combination;
   # both halo directions (e.g. right-halo←interior and left-halo←interior
   # for EW) are flattened into a single array.  Length = 2 × old-ndrange.
-  per0_ew_dst :: IT;  per0_ew_src :: IT;  per0_ew_n :: Int
-  per0_ns_dst :: IT;  per0_ns_src :: IT;  per0_ns_n :: Int
+  # per0_ew_dst :: IT;  per0_ew_src :: IT;  per0_ew_n :: Int
+  # per0_ns_dst :: IT;  per0_ns_src :: IT;  per0_ns_n :: Int
 
-  per1_ew_dst :: IT;  per1_ew_src :: IT;  per1_ew_n :: Int
-  per1_ns_dst :: IT;  per1_ns_src :: IT;  per1_ns_n :: Int
+  # per1_ew_dst :: IT;  per1_ew_src :: IT;  per1_ew_n :: Int
+  # per1_ns_dst :: IT;  per1_ns_src :: IT;  per1_ns_n :: Int
 
-  per2_ew_dst :: IT;  per2_ew_src :: IT;  per2_ew_n :: Int
-  per2_ns_dst :: IT;  per2_ns_src :: IT;  per2_ns_n :: Int
+  # per2_ew_dst :: IT;  per2_ew_src :: IT;  per2_ew_n :: Int
+  # per2_ns_dst :: IT;  per2_ns_src :: IT;  per2_ns_n :: Int
 end
 
 Adapt.@adapt_structure UniformDECCache
@@ -674,113 +674,114 @@ function UniformDECCache(s::UniformCubicalComplex2D{FT}) where {FT <: AbstractFl
   # Flatten the two writes-per-thread from each original kernel into a single
   # flat (dst, src) pair.  The cached kernel does one copy per thread.
   # Layout: first half = first-direction copies, second half = second direction.
-  _hxc  = hx(s);      _hyc  = hy(s)
-  _nxec = nxe(s);     _nyec = nye(s)
-  _nqxc = nxq(s); _nqyc = nyq(s)
 
-  # per0 EW: 0-forms east–west  (old ndrange = (hxc+1)*ny)
-  _p0ew_h = (_hxc + 1) * ny_
-  per0_ew_n   = 2 * _p0ew_h
-  per0_ew_dst = Vector{Int32}(undef, per0_ew_n)
-  per0_ew_src = Vector{Int32}(undef, per0_ew_n)
-  for _idx in 1:_p0ew_h
-    _j = div(_idx - 1, _hxc + 1) + 1
-    _i = _idx - (_j - 1) * (_hxc + 1)
-    per0_ew_dst[_idx]             = coord_to_vert(s, nx_ - _hxc + _i - 1, _j)
-    per0_ew_src[_idx]             = coord_to_vert(s, _hxc + _i, _j)
-    per0_ew_dst[_p0ew_h + _idx]   = coord_to_vert(s, _i, _j)
-    per0_ew_src[_p0ew_h + _idx]   = coord_to_vert(s, nx_ - 2 * _hxc + _i - 1, _j)
-  end
+  # _hxc  = hx(s);      _hyc  = hy(s)
+  # _nxec = nxe(s);     _nyec = nye(s)
+  # _nqxc = nxq(s); _nqyc = nyq(s)
 
-  # per0 NS: 0-forms north–south  (old ndrange = nx*(hyc+1))
-  _p0ns_h = nx_ * (_hyc + 1)
-  per0_ns_n   = 2 * _p0ns_h
-  per0_ns_dst = Vector{Int32}(undef, per0_ns_n)
-  per0_ns_src = Vector{Int32}(undef, per0_ns_n)
-  for _idx in 1:_p0ns_h
-    _j = div(_idx - 1, nx_) + 1
-    _i = _idx - (_j - 1) * nx_
-    per0_ns_dst[_idx]             = coord_to_vert(s, _i, ny_ - _hyc + _j - 1)
-    per0_ns_src[_idx]             = coord_to_vert(s, _i, _hyc + _j)
-    per0_ns_dst[_p0ns_h + _idx]   = coord_to_vert(s, _i, _j)
-    per0_ns_src[_p0ns_h + _idx]   = coord_to_vert(s, _i, ny_ - 2 * _hyc + _j - 1)
-  end
+  # # per0 EW: 0-forms east–west  (old ndrange = (hxc+1)*ny)
+  # _p0ew_h = (_hxc + 1) * ny_
+  # per0_ew_n   = 2 * _p0ew_h
+  # per0_ew_dst = Vector{Int32}(undef, per0_ew_n)
+  # per0_ew_src = Vector{Int32}(undef, per0_ew_n)
+  # for _idx in 1:_p0ew_h
+  #   _j = div(_idx - 1, _hxc + 1) + 1
+  #   _i = _idx - (_j - 1) * (_hxc + 1)
+  #   per0_ew_dst[_idx]             = coord_to_vert(s, nx_ - _hxc + _i - 1, _j)
+  #   per0_ew_src[_idx]             = coord_to_vert(s, _hxc + _i, _j)
+  #   per0_ew_dst[_p0ew_h + _idx]   = coord_to_vert(s, _i, _j)
+  #   per0_ew_src[_p0ew_h + _idx]   = coord_to_vert(s, nx_ - 2 * _hxc + _i - 1, _j)
+  # end
 
-  # per1 EW: 1-forms east–west (x-edges then y-edges concatenated)
-  _p1ewx_h = _hxc * ny_
-  _p1ewy_h = (_hxc + 1) * _nyec
-  per1_ew_n   = 2 * (_p1ewx_h + _p1ewy_h)
-  per1_ew_dst = Vector{Int32}(undef, per1_ew_n)
-  per1_ew_src = Vector{Int32}(undef, per1_ew_n)
-  for _idx in 1:_p1ewx_h
-    _j = div(_idx - 1, _hxc) + 1
-    _i = _idx - (_j - 1) * _hxc
-    per1_ew_dst[_idx]               = coord_to_edge(s, _nxec - _hxc + _i, _j, X_ALIGN)
-    per1_ew_src[_idx]               = coord_to_edge(s, _hxc + _i, _j, X_ALIGN)
-    per1_ew_dst[_p1ewx_h + _idx]    = coord_to_edge(s, _i, _j, X_ALIGN)
-    per1_ew_src[_p1ewx_h + _idx]    = coord_to_edge(s, _nxec - 2 * _hxc + _i, _j, X_ALIGN)
-  end
-  _off1 = 2 * _p1ewx_h
-  for _idx in 1:_p1ewy_h
-    _j = div(_idx - 1, _hxc + 1) + 1
-    _i = _idx - (_j - 1) * (_hxc + 1)
-    per1_ew_dst[_off1 + _idx]                = coord_to_edge(s, nx_ - _hxc + _i - 1, _j, Y_ALIGN)
-    per1_ew_src[_off1 + _idx]                = coord_to_edge(s, _hxc + _i, _j, Y_ALIGN)
-    per1_ew_dst[_off1 + _p1ewy_h + _idx]    = coord_to_edge(s, _i, _j, Y_ALIGN)
-    per1_ew_src[_off1 + _p1ewy_h + _idx]    = coord_to_edge(s, nx_ - 2 * _hxc + _i - 1, _j, Y_ALIGN)
-  end
+  # # per0 NS: 0-forms north–south  (old ndrange = nx*(hyc+1))
+  # _p0ns_h = nx_ * (_hyc + 1)
+  # per0_ns_n   = 2 * _p0ns_h
+  # per0_ns_dst = Vector{Int32}(undef, per0_ns_n)
+  # per0_ns_src = Vector{Int32}(undef, per0_ns_n)
+  # for _idx in 1:_p0ns_h
+  #   _j = div(_idx - 1, nx_) + 1
+  #   _i = _idx - (_j - 1) * nx_
+  #   per0_ns_dst[_idx]             = coord_to_vert(s, _i, ny_ - _hyc + _j - 1)
+  #   per0_ns_src[_idx]             = coord_to_vert(s, _i, _hyc + _j)
+  #   per0_ns_dst[_p0ns_h + _idx]   = coord_to_vert(s, _i, _j)
+  #   per0_ns_src[_p0ns_h + _idx]   = coord_to_vert(s, _i, ny_ - 2 * _hyc + _j - 1)
+  # end
 
-  # per1 NS: 1-forms north–south (x-edges then y-edges concatenated)
-  _p1nsx_h = _nxec * (_hyc + 1)
-  _p1nsy_h = nx_ * _hyc
-  per1_ns_n   = 2 * (_p1nsx_h + _p1nsy_h)
-  per1_ns_dst = Vector{Int32}(undef, per1_ns_n)
-  per1_ns_src = Vector{Int32}(undef, per1_ns_n)
-  for _idx in 1:_p1nsx_h
-    _j = div(_idx - 1, _nxec) + 1
-    _i = _idx - (_j - 1) * _nxec
-    per1_ns_dst[_idx]               = coord_to_edge(s, _i, ny_ - _hyc + _j - 1, X_ALIGN)
-    per1_ns_src[_idx]               = coord_to_edge(s, _i, _hyc + _j, X_ALIGN)
-    per1_ns_dst[_p1nsx_h + _idx]    = coord_to_edge(s, _i, _j, X_ALIGN)
-    per1_ns_src[_p1nsx_h + _idx]    = coord_to_edge(s, _i, ny_ - 2 * _hyc + _j - 1, X_ALIGN)
-  end
-  _off2 = 2 * _p1nsx_h
-  for _idx in 1:_p1nsy_h
-    _j = div(_idx - 1, nx_) + 1
-    _i = _idx - (_j - 1) * nx_
-    per1_ns_dst[_off2 + _idx]                = coord_to_edge(s, _i, _j, Y_ALIGN)
-    per1_ns_src[_off2 + _idx]                = coord_to_edge(s, _i, _nyec - 2 * _hyc + _j, Y_ALIGN)
-    per1_ns_dst[_off2 + _p1nsy_h + _idx]    = coord_to_edge(s, _i, _nyec - _hyc + _j, Y_ALIGN)
-    per1_ns_src[_off2 + _p1nsy_h + _idx]    = coord_to_edge(s, _i, _hyc + _j, Y_ALIGN)
-  end
+  # # per1 EW: 1-forms east–west (x-edges then y-edges concatenated)
+  # _p1ewx_h = _hxc * ny_
+  # _p1ewy_h = (_hxc + 1) * _nyec
+  # per1_ew_n   = 2 * (_p1ewx_h + _p1ewy_h)
+  # per1_ew_dst = Vector{Int32}(undef, per1_ew_n)
+  # per1_ew_src = Vector{Int32}(undef, per1_ew_n)
+  # for _idx in 1:_p1ewx_h
+  #   _j = div(_idx - 1, _hxc) + 1
+  #   _i = _idx - (_j - 1) * _hxc
+  #   per1_ew_dst[_idx]               = coord_to_edge(s, _nxec - _hxc + _i, _j, X_ALIGN)
+  #   per1_ew_src[_idx]               = coord_to_edge(s, _hxc + _i, _j, X_ALIGN)
+  #   per1_ew_dst[_p1ewx_h + _idx]    = coord_to_edge(s, _i, _j, X_ALIGN)
+  #   per1_ew_src[_p1ewx_h + _idx]    = coord_to_edge(s, _nxec - 2 * _hxc + _i, _j, X_ALIGN)
+  # end
+  # _off1 = 2 * _p1ewx_h
+  # for _idx in 1:_p1ewy_h
+  #   _j = div(_idx - 1, _hxc + 1) + 1
+  #   _i = _idx - (_j - 1) * (_hxc + 1)
+  #   per1_ew_dst[_off1 + _idx]                = coord_to_edge(s, nx_ - _hxc + _i - 1, _j, Y_ALIGN)
+  #   per1_ew_src[_off1 + _idx]                = coord_to_edge(s, _hxc + _i, _j, Y_ALIGN)
+  #   per1_ew_dst[_off1 + _p1ewy_h + _idx]    = coord_to_edge(s, _i, _j, Y_ALIGN)
+  #   per1_ew_src[_off1 + _p1ewy_h + _idx]    = coord_to_edge(s, nx_ - 2 * _hxc + _i - 1, _j, Y_ALIGN)
+  # end
 
-  # per2 EW: 2-forms east–west  (old ndrange = hxc*nqyc)
-  _p2ew_h = _hxc * _nqyc
-  per2_ew_n   = 2 * _p2ew_h
-  per2_ew_dst = Vector{Int32}(undef, per2_ew_n)
-  per2_ew_src = Vector{Int32}(undef, per2_ew_n)
-  for _idx in 1:_p2ew_h
-    _j = div(_idx - 1, _hxc) + 1
-    _i = _idx - (_j - 1) * _hxc
-    per2_ew_dst[_idx]             = coord_to_quad(s, _i, _j)
-    per2_ew_src[_idx]             = coord_to_quad(s, _nqxc - 2 * _hxc + _i, _j)
-    per2_ew_dst[_p2ew_h + _idx]   = coord_to_quad(s, _nqxc - _hxc + _i, _j)
-    per2_ew_src[_p2ew_h + _idx]   = coord_to_quad(s, _hxc + _i, _j)
-  end
+  # # per1 NS: 1-forms north–south (x-edges then y-edges concatenated)
+  # _p1nsx_h = _nxec * (_hyc + 1)
+  # _p1nsy_h = nx_ * _hyc
+  # per1_ns_n   = 2 * (_p1nsx_h + _p1nsy_h)
+  # per1_ns_dst = Vector{Int32}(undef, per1_ns_n)
+  # per1_ns_src = Vector{Int32}(undef, per1_ns_n)
+  # for _idx in 1:_p1nsx_h
+  #   _j = div(_idx - 1, _nxec) + 1
+  #   _i = _idx - (_j - 1) * _nxec
+  #   per1_ns_dst[_idx]               = coord_to_edge(s, _i, ny_ - _hyc + _j - 1, X_ALIGN)
+  #   per1_ns_src[_idx]               = coord_to_edge(s, _i, _hyc + _j, X_ALIGN)
+  #   per1_ns_dst[_p1nsx_h + _idx]    = coord_to_edge(s, _i, _j, X_ALIGN)
+  #   per1_ns_src[_p1nsx_h + _idx]    = coord_to_edge(s, _i, ny_ - 2 * _hyc + _j - 1, X_ALIGN)
+  # end
+  # _off2 = 2 * _p1nsx_h
+  # for _idx in 1:_p1nsy_h
+  #   _j = div(_idx - 1, nx_) + 1
+  #   _i = _idx - (_j - 1) * nx_
+  #   per1_ns_dst[_off2 + _idx]                = coord_to_edge(s, _i, _j, Y_ALIGN)
+  #   per1_ns_src[_off2 + _idx]                = coord_to_edge(s, _i, _nyec - 2 * _hyc + _j, Y_ALIGN)
+  #   per1_ns_dst[_off2 + _p1nsy_h + _idx]    = coord_to_edge(s, _i, _nyec - _hyc + _j, Y_ALIGN)
+  #   per1_ns_src[_off2 + _p1nsy_h + _idx]    = coord_to_edge(s, _i, _hyc + _j, Y_ALIGN)
+  # end
 
-  # per2 NS: 2-forms north–south  (old ndrange = nqxc*hyc)
-  _p2ns_h = _nqxc * _hyc
-  per2_ns_n   = 2 * _p2ns_h
-  per2_ns_dst = Vector{Int32}(undef, per2_ns_n)
-  per2_ns_src = Vector{Int32}(undef, per2_ns_n)
-  for _idx in 1:_p2ns_h
-    _j = div(_idx - 1, _nqxc) + 1
-    _i = _idx - (_j - 1) * _nqxc
-    per2_ns_dst[_idx]             = coord_to_quad(s, _i, _j)
-    per2_ns_src[_idx]             = coord_to_quad(s, _i, _nqyc - 2 * _hyc + _j)
-    per2_ns_dst[_p2ns_h + _idx]   = coord_to_quad(s, _i, _nqyc - _hyc + _j)
-    per2_ns_src[_p2ns_h + _idx]   = coord_to_quad(s, _i, _hyc + _j)
-  end
+  # # per2 EW: 2-forms east–west  (old ndrange = hxc*nqyc)
+  # _p2ew_h = _hxc * _nqyc
+  # per2_ew_n   = 2 * _p2ew_h
+  # per2_ew_dst = Vector{Int32}(undef, per2_ew_n)
+  # per2_ew_src = Vector{Int32}(undef, per2_ew_n)
+  # for _idx in 1:_p2ew_h
+  #   _j = div(_idx - 1, _hxc) + 1
+  #   _i = _idx - (_j - 1) * _hxc
+  #   per2_ew_dst[_idx]             = coord_to_quad(s, _i, _j)
+  #   per2_ew_src[_idx]             = coord_to_quad(s, _nqxc - 2 * _hxc + _i, _j)
+  #   per2_ew_dst[_p2ew_h + _idx]   = coord_to_quad(s, _nqxc - _hxc + _i, _j)
+  #   per2_ew_src[_p2ew_h + _idx]   = coord_to_quad(s, _hxc + _i, _j)
+  # end
+
+  # # per2 NS: 2-forms north–south  (old ndrange = nqxc*hyc)
+  # _p2ns_h = _nqxc * _hyc
+  # per2_ns_n   = 2 * _p2ns_h
+  # per2_ns_dst = Vector{Int32}(undef, per2_ns_n)
+  # per2_ns_src = Vector{Int32}(undef, per2_ns_n)
+  # for _idx in 1:_p2ns_h
+  #   _j = div(_idx - 1, _nqxc) + 1
+  #   _i = _idx - (_j - 1) * _nqxc
+  #   per2_ns_dst[_idx]             = coord_to_quad(s, _i, _j)
+  #   per2_ns_src[_idx]             = coord_to_quad(s, _i, _nqyc - 2 * _hyc + _j)
+  #   per2_ns_dst[_p2ns_h + _idx]   = coord_to_quad(s, _i, _nqyc - _hyc + _j)
+  #   per2_ns_src[_p2ns_h + _idx]   = coord_to_quad(s, _i, _hyc + _j)
+  # end
 
   return UniformDECCache(
     nv_, ne_, nq_, nxe_, nye_,
@@ -795,12 +796,12 @@ function UniformDECCache(s::UniformCubicalComplex2D{FT}) where {FT <: AbstractFl
     ihs0_scale, ihs1_scale, ihs1_hs2_scale, ihs2_val,
     dd0_qp, dd0_qn, dd0_emask,
     dd1_vxs, dd1_vys, dd1_vxt, dd1_vyt, dd1_vmask,
-    per0_ew_dst, per0_ew_src, per0_ew_n,
-    per0_ns_dst, per0_ns_src, per0_ns_n,
-    per1_ew_dst, per1_ew_src, per1_ew_n,
-    per1_ns_dst, per1_ns_src, per1_ns_n,
-    per2_ew_dst, per2_ew_src, per2_ew_n,
-    per2_ns_dst, per2_ns_src, per2_ns_n,
+    # per0_ew_dst, per0_ew_src, per0_ew_n,
+    # per0_ns_dst, per0_ns_src, per0_ns_n,
+    # per1_ew_dst, per1_ew_src, per1_ew_n,
+    # per1_ns_dst, per1_ns_src, per1_ns_n,
+    # per2_ew_dst, per2_ew_src, per2_ew_n,
+    # per2_ns_dst, per2_ns_src, per2_ns_n,
   )
 end
 

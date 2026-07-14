@@ -1,0 +1,25 @@
+[Metadata]
+name  = "RTI"
+float = "Float64"
+xpu = "CPU"
+
+[Mesh]
+nx = 129
+ny = 1025
+lx = 2.0
+ly = 16.0
+halo = 15
+
+[Physics]
+Re = 10_000
+Pr = 0.71
+Gravity = true
+
+[Smoothing]
+rho_smooth_constant   = 0.02
+theta_smooth_constant = 0.1
+
+[Simulation]
+te = 20.0
+periodic="EASTWEST"
+savetime = 0.01

@@ -198,14 +198,14 @@ end
     g = GhostRegion(Datum{Quad,2}, s)
 
     @testset "struct shape" begin
-        @test length(send_slab(g, 1)) == hxq(s) * nyqr(s)
-        @test length(recv_slab(g, 1)) == hxq(s) * nyqr(s)
-        @test length(send_slab(g, 2)) == hxq(s) * nyqr(s)
-        @test length(recv_slab(g, 2)) == hxq(s) * nyqr(s)
-        @test length(send_slab(g, 3)) == hyq(s) * nxq(s)
-        @test length(recv_slab(g, 3)) == hyq(s) * nxq(s)
-        @test length(send_slab(g, 4)) == hyq(s) * nxq(s)
-        @test length(recv_slab(g, 4)) == hyq(s) * nxq(s)
+        @test length(send_slab(g, 1)) == nyqr(s)
+        @test length(recv_slab(g, 1)) == nyqr(s)
+        @test length(send_slab(g, 2)) == nyqr(s)
+        @test length(recv_slab(g, 2)) == nyqr(s)
+        @test length(send_slab(g, 3)) == nxq(s)
+        @test length(recv_slab(g, 3)) == nxq(s)
+        @test length(send_slab(g, 4)) == nxq(s)
+        @test length(recv_slab(g, 4)) == nxq(s)
     end
 
     @testset "no overlap within same axis" begin
@@ -240,7 +240,7 @@ end
         end
 
         # Interior quads untouched
-        for y in (hyq(s) + 1):(hyq(s) + nyqr(s)), x in (hxq(s) + 1):(hxq(s) + nxqr(s))
+        for y in (2):(1 + nyqr(s)), x in (2):(1 + nxqr(s))
             @test fa[coord_to_quad(s, x, y)] == 0.0
         end
     end
@@ -264,7 +264,7 @@ end
         end
 
         # Interior untouched
-        for y in (hyq(s) + 1):(hyq(s) + nyqr(s)), x in (hxq(s) + 1):(hxq(s) + nxqr(s))
+        for y in (2):(1 + nyqr(s)), x in (2):(1 + nxqr(s))
             @test fa[coord_to_quad(s, x, y)] == 0.0
         end
 
@@ -286,22 +286,24 @@ end
 end
 
 @testset "GhostRegion Edge 2D" begin
-    s = UniformCubicalComplex2D(5, 5, 1.0, 1.0; halo_x = 1, halo_y = 1)
+    _hx = _hy = 1
+    s = UniformCubicalComplex2D(5, 5, 1.0, 1.0; halo_x = _hx, halo_y = _hy)
     g = GhostRegion(Datum{Edge,2}, s)
 
-    @testset "struct shape" begin
-        @test length(send_slab(g, WEST)) == hx(s) * nyqr(s) + (hx(s) + 1) * nyqr(s)
-        @test length(recv_slab(g, EAST)) == hx(s) * nyqr(s) + (hx(s) + 1) * nyqr(s)
 
-        @test length(send_slab(g, EAST)) == hx(s) * nyqr(s) + hx(s) * nyqr(s)
-        @test length(recv_slab(g, WEST)) == hx(s) * nyqr(s) + hx(s) * nyqr(s)
+    @testset "struct shape" begin
+        @test length(send_slab(g, WEST)) == _hx * nyqr(s) + (_hx + 1) * nyqr(s)
+        @test length(recv_slab(g, EAST)) == _hx * nyqr(s) + (_hx + 1) * nyqr(s)
+
+        @test length(send_slab(g, EAST)) == _hx * nyqr(s) + _hx * nyqr(s)
+        @test length(recv_slab(g, WEST)) == _hx * nyqr(s) + _hx * nyqr(s)
 
         # Include x-halo as well
-        @test length(send_slab(g, SOUTH)) == hy(s) * nx(s) + (hy(s) + 1) * nxe(s)
-        @test length(recv_slab(g, NORTH)) == hy(s) * nx(s) + (hy(s) + 1) * nxe(s)
+        @test length(send_slab(g, SOUTH)) == _hy * nx(s) + (_hy + 1) * nxe(s)
+        @test length(recv_slab(g, NORTH)) == _hy * nx(s) + (_hy + 1) * nxe(s)
 
-        @test length(send_slab(g, NORTH)) == hy(s) * nx(s) + hy(s) * nxe(s)
-        @test length(recv_slab(g, SOUTH)) == hy(s) * nx(s) + hy(s) * nxe(s)
+        @test length(send_slab(g, NORTH)) == _hy * nx(s) + _hy * nxe(s)
+        @test length(recv_slab(g, SOUTH)) == _hy * nx(s) + _hy * nxe(s)
     end
 
     @testset "no overlap within same axis" begin
@@ -331,22 +333,22 @@ end
         @test all(fa[recv_slab(g, EAST)] .== fb[send_slab(g, WEST)])
 
         # Interior x-edges untouched
-        for y in (hy(s) + 1):(hy(s) + nyqr(s)), x in (hx(s) + 1):(nxe(s) - hx(s))
+        for y in (_hy + 1):(_hy + nyqr(s)), x in (_hx + 1):(nxe(s) - _hx)
             @test fa[coord_to_edge(s, x, y, X_ALIGN)] == 0
         end
         # Interior y-edges untouched (excluding the shared boundary column now in send slab)
-        for y in (hy(s) + 1):(hy(s) + nyqr(s)), x in (hx(s) + 1):(nx(s) - hx(s) - 1)
+        for y in (_hy + 1):(_hy + nyqr(s)), x in (_hx + 1):(nx(s) - _hx - 1)
             @test fa[coord_to_edge(s, x, y, Y_ALIGN)] == 0
         end
 
         xe = reshape(xedges(s, fa), nxe(s), ny(s))
         ye = reshape(yedges(s, fa), nx(s), nye(s))
 
-        @test xe[1, :] == [0; [1000 * (nxe(s) - hx(s)) + y for y in (hy(s) + 1):(hy(s) + nyqr(s))]; 0; 0]
-        @test xe[nxe(s), :] == [0; [1000 * (hx(s) + 1) + y for y in (hy(s) + 1):(hy(s) + nyqr(s))]; 0; 0]
-        @test ye[1, :] == [0; [1000 * (nx(s) - 2hx(s)) + y for y in (hy(s) + 1):(hy(s) + nyqr(s))]; 0]
-        @test ye[nx(s) - hx(s), :] == [0; [1000 * (hx(s) + 1) + y for y in (hy(s) + 1):(hy(s) + nyqr(s))]; 0]
-        @test ye[nx(s), :] == [0; [1000 * (hx(s) + 2) + y for y in (hy(s) + 1):(hy(s) + nyqr(s))]; 0]
+        @test xe[1, :] == [0; [1000 * (nxe(s) - _hx) + y for y in (_hy + 1):(_hy + nyqr(s))]; 0; 0]
+        @test xe[nxe(s), :] == [0; [1000 * (_hx + 1) + y for y in (_hy + 1):(_hy + nyqr(s))]; 0; 0]
+        @test ye[1, :] == [0; [1000 * (nx(s) - 2_hx) + y for y in (_hy + 1):(_hy + nyqr(s))]; 0]
+        @test ye[nx(s) - _hx, :] == [0; [1000 * (_hx + 1) + y for y in (_hy + 1):(_hy + nyqr(s))]; 0]
+        @test ye[nx(s), :] == [0; [1000 * (_hx + 2) + y for y in (_hy + 1):(_hy + nyqr(s))]; 0]
     end
 
     @testset "y-axis exchange" begin
@@ -362,21 +364,21 @@ end
         @test all(fa[recv_slab(g, NORTH)] .== fb[send_slab(g, SOUTH)])
 
         # Interior untouched
-        for y in (hy(s) + 1):(hy(s) + nyqr(s)), x in (hx(s) + 1):(nxe(s) - hx(s))
+        for y in (_hy + 1):(_hy + nyqr(s)), x in (_hx + 1):(nxe(s) - _hx)
             @test fa[coord_to_edge(s, x, y, X_ALIGN)] == 0
         end
-        for y in (hy(s) + 1):(hy(s) + nyqr(s)), x in (hx(s) + 1):(nx(s) - hx(s) - 1)
+        for y in (_hy + 1):(_hy + nyqr(s)), x in (_hx + 1):(nx(s) - _hx - 1)
             @test fa[coord_to_edge(s, x, y, Y_ALIGN)] == 0
         end
 
         xe = reshape(xedges(s, fa), nxe(s), ny(s))
         ye = reshape(yedges(s, fa), nx(s), nye(s))
 
-        @test xe[:, 1] == [1000x + (ny(s) - 2hy(s)) for x in 1:nxe(s)]
-        @test xe[:, ny(s) - hy(s)] == [1000x + (hy(s) + 1) for x in 1:nxe(s)]
-        @test xe[:, ny(s)] == [1000x + (hy(s) + 2) for x in 1:nxe(s)]
-        @test ye[:, 1] == [1000x + (nye(s) - 2hy(s) + 1) for x in 1:nx(s)]
-        @test ye[:, nye(s)] == [1000x + (hy(s) + 1) for x in 1:nx(s)]
+        @test xe[:, 1] == [1000x + (ny(s) - 2_hy) for x in 1:nxe(s)]
+        @test xe[:, ny(s) - _hy] == [1000x + (_hy + 1) for x in 1:nxe(s)]
+        @test xe[:, ny(s)] == [1000x + (_hy + 2) for x in 1:nxe(s)]
+        @test ye[:, 1] == [1000x + (nye(s) - 2_hy + 1) for x in 1:nx(s)]
+        @test ye[:, nye(s)] == [1000x + (_hy + 1) for x in 1:nx(s)]
     end
 
     @testset "zero halo returns boundary shared-edge slabs" begin
@@ -486,22 +488,23 @@ end
 # ── 3D Tests ──────────────────────────────────────────────────────────────────
 
 @testset "GhostRegion Boid 3D" begin
-    s = UniformCubicalComplex3D(5, 5, 5, 1.0, 1.0, 1.0; halo_x = 1, halo_y = 1, halo_z = 1)
+    _hx = _hy = _hz = 1
+    s = UniformCubicalComplex3D(5, 5, 5, 1.0, 1.0, 1.0; halo_x = _hx, halo_y = _hy, halo_z = _hz)
     g = GhostRegion(Datum{Boid,3}, s)
 
     @testset "struct shape" begin
-        @test length(send_slab(g, 1)) == hxb(s) * nybr(s) * nzbr(s)
-        @test length(recv_slab(g, 1)) == hxb(s) * nybr(s) * nzbr(s)
-        @test length(send_slab(g, 2)) == hxb(s) * nybr(s) * nzbr(s)
-        @test length(recv_slab(g, 2)) == hxb(s) * nybr(s) * nzbr(s)
-        @test length(send_slab(g, 3)) == hyb(s) * nxb(s) * nzbr(s)
-        @test length(recv_slab(g, 3)) == hyb(s) * nxb(s) * nzbr(s)
-        @test length(send_slab(g, 4)) == hyb(s) * nxb(s) * nzbr(s)
-        @test length(recv_slab(g, 4)) == hyb(s) * nxb(s) * nzbr(s)
-        @test length(send_slab(g, 5)) == hzb(s) * nxb(s) * nyb(s)
-        @test length(recv_slab(g, 5)) == hzb(s) * nxb(s) * nyb(s)
-        @test length(send_slab(g, 6)) == hzb(s) * nxb(s) * nyb(s)
-        @test length(recv_slab(g, 6)) == hzb(s) * nxb(s) * nyb(s)
+        @test length(send_slab(g, 1)) == _hx * nybr(s) * nzbr(s)
+        @test length(recv_slab(g, 1)) == _hx * nybr(s) * nzbr(s)
+        @test length(send_slab(g, 2)) == _hx * nybr(s) * nzbr(s)
+        @test length(recv_slab(g, 2)) == _hx * nybr(s) * nzbr(s)
+        @test length(send_slab(g, 3)) == _hy * nxb(s) * nzbr(s)
+        @test length(recv_slab(g, 3)) == _hy * nxb(s) * nzbr(s)
+        @test length(send_slab(g, 4)) == _hy * nxb(s) * nzbr(s)
+        @test length(recv_slab(g, 4)) == _hy * nxb(s) * nzbr(s)
+        @test length(send_slab(g, 5)) == _hz * nxb(s) * nyb(s)
+        @test length(recv_slab(g, 5)) == _hz * nxb(s) * nyb(s)
+        @test length(send_slab(g, 6)) == _hz * nxb(s) * nyb(s)
+        @test length(recv_slab(g, 6)) == _hz * nxb(s) * nyb(s)
     end
 
     @testset "no overlap within same axis" begin
@@ -549,7 +552,7 @@ end
         simulate_axis_exchange!(fa, fb, g, 3)
 
         # Interior untouched
-        for z in (hzb(s) + 1):(hzb(s) + nzbr(s)), y in (hyb(s) + 1):(hyb(s) + nybr(s)), x in (hxb(s) + 1):(hxb(s) + nxbr(s))
+        for z in (_hz + 1):(_hz + nzbr(s)), y in (_hy + 1):(_hy + nybr(s)), x in (_hx + 1):(_hx + nxbr(s))
             @test fa[coord_to_boid(s, x, y, z)] == 0.0
         end
 

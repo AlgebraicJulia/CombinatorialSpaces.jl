@@ -1,5 +1,6 @@
 using Test
 using KernelAbstractions
+using Random
 
 include("../../src/CubicalCode/UniformMesh.jl")
 include("../../src/CubicalCode/UniformMesh3D.jl")
@@ -506,5 +507,314 @@ end
         f = FT[boid_to_coord(s, b)[1] for b in boids(s)]
         result = dlap_0(f)
         @test result[coord_to_boid(s, 2, 2, 2)] == 0
+    end
+end
+
+@testset "UniformDECCache3D exterior derivatives" begin
+    Random.seed!(1234)
+
+    meshes = [
+        UniformCubicalComplex(4, 5, 3, 1.0, 1.0, 1.0),
+        UniformCubicalComplex(5, 4, 6, 2.0, 3.0, 4.0; halo_x=1, halo_y=1, halo_z=1),
+        UniformCubicalComplex(6, 5, 4, 1.0, 2.0, 3.0; halo_west=1, halo_east=2, halo_south=1, halo_north=0, halo_down=2, halo_up=1),
+    ]
+
+    for s in meshes
+        cache = UniformDECCache3D(s)
+
+        @test cache.nv_ == nv(s)
+        @test cache.ne_ == ne(s)
+        @test cache.nquads_ == nquads(s)
+        @test cache.nboids_ == nboids(s)
+
+        for FT in (Float32, Float64)
+            # -----------------------------------------------------------------
+            # d0 : primal 0-form -> primal 1-form
+            # -----------------------------------------------------------------
+            f0_host = rand(FT, nv(s))
+
+            ref_d0 = similar(f0_host, ne(s))
+            tst_d0 = similar(f0_host, ne(s))
+
+            exterior_derivative!(ref_d0, Val(0), s, f0_host)
+            exterior_derivative!(tst_d0, Val(0), cache, f0_host)
+
+            @test tst_d0 ≈ ref_d0 atol=eps(FT) * 32 rtol=eps(FT) * 32
+
+            # -----------------------------------------------------------------
+            # d1 : primal 1-form -> primal 2-form
+            # -----------------------------------------------------------------
+            f1_host = rand(FT, ne(s))
+
+            ref_d1 = similar(f1_host, nquads(s))
+            tst_d1 = similar(f1_host, nquads(s))
+
+            exterior_derivative!(ref_d1, Val(1), s, f1_host)
+            exterior_derivative!(tst_d1, Val(1), cache, f1_host)
+
+            @test tst_d1 ≈ ref_d1 atol=eps(FT) * 32 rtol=eps(FT) * 32
+
+            # -----------------------------------------------------------------
+            # d2 : primal 2-form -> primal 3-form
+            # -----------------------------------------------------------------
+            f2_host = rand(FT, nquads(s))
+
+            ref_d2 = similar(f2_host, nboids(s))
+            tst_d2 = similar(f2_host, nboids(s))
+
+            exterior_derivative!(ref_d2, Val(2), s, f2_host)
+            exterior_derivative!(tst_d2, Val(2), cache, f2_host)
+
+            @test tst_d2 ≈ ref_d2 atol=eps(FT) * 32 rtol=eps(FT) * 32
+        end
+    end
+end
+
+@testset "UniformDECCache3D hodge_star / inv_hodge_star" begin
+    Random.seed!(1234)
+
+    meshes = [
+        UniformCubicalComplex(4, 5, 3, 1.0, 1.0, 1.0),
+        UniformCubicalComplex(5, 4, 6, 2.0, 3.0, 4.0; halo_x=1, halo_y=1, halo_z=1),
+        UniformCubicalComplex(
+            6, 5, 4, 1.0, 2.0, 3.0;
+            halo_west=1, halo_east=2,
+            halo_south=1, halo_north=0,
+            halo_down=2, halo_up=1,
+        ),
+    ]
+
+    for s in meshes
+        cache = UniformDECCache3D(s)
+
+        for FT in (Float32, Float64)
+            f0 = rand(FT, nv(s))
+            f1 = rand(FT, ne(s))
+            f2 = rand(FT, nquads(s))
+            f3 = rand(FT, nboids(s))
+
+            # -----------------------------------------------------------------
+            # hodge_star
+            # -----------------------------------------------------------------
+            ref_hs0 = similar(f0, nv(s))
+            ref_hs1 = similar(f1, ne(s))
+            ref_hs2 = similar(f2, nquads(s))
+            ref_hs3 = similar(f3, nboids(s))
+
+            tst_hs0 = similar(f0, nv(s))
+            tst_hs1 = similar(f1, ne(s))
+            tst_hs2 = similar(f2, nquads(s))
+            tst_hs3 = similar(f3, nboids(s))
+
+            hodge_star!(ref_hs0, Val(0), s, f0)
+            hodge_star!(ref_hs1, Val(1), s, f1)
+            hodge_star!(ref_hs2, Val(2), s, f2)
+            hodge_star!(ref_hs3, Val(3), s, f3)
+
+            hodge_star!(tst_hs0, Val(0), cache, f0)
+            hodge_star!(tst_hs1, Val(1), cache, f1)
+            hodge_star!(tst_hs2, Val(2), cache, f2)
+            hodge_star!(tst_hs3, Val(3), cache, f3)
+
+            @test tst_hs0 ≈ ref_hs0 atol=eps(FT) * 32 rtol=eps(FT) * 32
+            @test tst_hs1 ≈ ref_hs1 atol=eps(FT) * 32 rtol=eps(FT) * 32
+            @test tst_hs2 ≈ ref_hs2 atol=eps(FT) * 32 rtol=eps(FT) * 32
+            @test tst_hs3 ≈ ref_hs3 atol=eps(FT) * 32 rtol=eps(FT) * 32
+
+            # -----------------------------------------------------------------
+            # inv_hodge_star
+            # -----------------------------------------------------------------
+            ref_ihs0 = similar(f0, nv(s))
+            ref_ihs1 = similar(f1, ne(s))
+            ref_ihs2 = similar(f2, nquads(s))
+            ref_ihs3 = similar(f3, nboids(s))
+
+            tst_ihs0 = similar(f0, nv(s))
+            tst_ihs1 = similar(f1, ne(s))
+            tst_ihs2 = similar(f2, nquads(s))
+            tst_ihs3 = similar(f3, nboids(s))
+
+            inv_hodge_star!(ref_ihs0, Val(0), s, f0)
+            inv_hodge_star!(ref_ihs1, Val(1), s, f1)
+            inv_hodge_star!(ref_ihs2, Val(2), s, f2)
+            inv_hodge_star!(ref_ihs3, Val(3), s, f3)
+
+            inv_hodge_star!(tst_ihs0, Val(0), cache, f0)
+            inv_hodge_star!(tst_ihs1, Val(1), cache, f1)
+            inv_hodge_star!(tst_ihs2, Val(2), cache, f2)
+            inv_hodge_star!(tst_ihs3, Val(3), cache, f3)
+
+            @test tst_ihs0 ≈ ref_ihs0 atol=eps(FT) * 32 rtol=eps(FT) * 32
+            @test tst_ihs1 ≈ ref_ihs1 atol=eps(FT) * 32 rtol=eps(FT) * 32
+            @test tst_ihs2 ≈ ref_ihs2 atol=eps(FT) * 32 rtol=eps(FT) * 32
+            @test tst_ihs3 ≈ ref_ihs3 atol=eps(FT) * 32 rtol=eps(FT) * 32
+        end
+    end
+end
+
+@testset "UniformDECCache3D dual_derivative" begin
+    Random.seed!(1234)
+
+    meshes = [
+        UniformCubicalComplex(4, 5, 3, 1.0, 1.0, 1.0),
+        UniformCubicalComplex(5, 4, 6, 2.0, 3.0, 4.0; halo_x=1, halo_y=1, halo_z=1),
+        UniformCubicalComplex(
+            6, 5, 4, 1.0, 2.0, 3.0;
+            halo_west=1, halo_east=2,
+            halo_south=1, halo_north=0,
+            halo_down=2, halo_up=1,
+        ),
+    ]
+
+    for s in meshes
+        cache = UniformDECCache3D(s)
+
+        for FT in (Float32, Float64)
+            d0 = rand(FT, nboids(s))
+            d1 = rand(FT, nquads(s))
+            d2 = rand(FT, ne(s))
+
+            # -----------------------------------------------------------------
+            # dd0 : dual 0-form (boids) -> dual 1-form (quads)
+            # -----------------------------------------------------------------
+            ref_dd0 = similar(d1, nquads(s))
+            tst_dd0 = similar(d1, nquads(s))
+
+            dual_derivative!(ref_dd0, Val(0), s, d0)
+            dual_derivative!(tst_dd0, Val(0), cache, d0)
+
+            @test tst_dd0 ≈ ref_dd0 atol=eps(FT) * 32 rtol=eps(FT) * 32
+
+            # -----------------------------------------------------------------
+            # dd1 : dual 1-form (quads) -> dual 2-form (edges)
+            # -----------------------------------------------------------------
+            ref_dd1 = similar(d2, ne(s))
+            tst_dd1 = similar(d2, ne(s))
+
+            dual_derivative!(ref_dd1, Val(1), s, d1)
+            dual_derivative!(tst_dd1, Val(1), cache, d1)
+
+            @test tst_dd1 ≈ ref_dd1 atol=eps(FT) * 32 rtol=eps(FT) * 32
+
+            # -----------------------------------------------------------------
+            # dd2 : dual 2-form (edges) -> dual 3-form (vertices)
+            # -----------------------------------------------------------------
+            ref_dd2 = similar(d0, nv(s))
+            tst_dd2 = similar(d0, nv(s))
+
+            dual_derivative!(ref_dd2, Val(2), s, d2)
+            dual_derivative!(tst_dd2, Val(2), cache, d2)
+
+            @test tst_dd2 ≈ ref_dd2 atol=eps(FT) * 32 rtol=eps(FT) * 32
+        end
+    end
+end
+
+@testset "UniformDECCache3D wedge_11" begin
+    Random.seed!(1234)
+
+    meshes = [
+        UniformCubicalComplex(4, 5, 3, 1.0, 1.0, 1.0),
+        UniformCubicalComplex(5, 4, 6, 2.0, 3.0, 4.0; halo_x=1, halo_y=1, halo_z=1),
+        UniformCubicalComplex(
+            6, 5, 4, 1.0, 2.0, 3.0;
+            halo_west=1, halo_east=2,
+            halo_south=1, halo_north=0,
+            halo_down=2, halo_up=1,
+        ),
+    ]
+
+    for s in meshes
+        cache = UniformDECCache3D(s)
+
+        for FT in (Float32, Float64)
+            a = rand(FT, ne(s))
+            b = rand(FT, ne(s))
+
+            ref = wedge_product(Val(1), Val(1), s, a, b)
+            tst = wedge_product(Val(1), Val(1), cache, a, b)
+
+            @test length(tst) == nquads(s)
+            @test tst ≈ ref atol=eps(FT) * 32 rtol=eps(FT) * 32
+
+            # in-place variant
+            res = similar(ref)
+            wedge_product!(res, Val(1), Val(1), cache, a, b)
+            @test res ≈ ref atol=eps(FT) * 32 rtol=eps(FT) * 32
+
+            # antisymmetry: wedge(a, b) ≈ -wedge(b, a)
+            tst_swap = wedge_product(Val(1), Val(1), cache, b, a)
+            @test tst_swap ≈ -ref atol=eps(FT) * 32 rtol=eps(FT) * 32
+        end
+    end
+
+    for s in meshes
+        cache = UniformDECCache3D(s)
+
+        for FT in (Float32, Float64)
+            f = rand(FT, nboids(s))   # dual 0-form on boids
+            a = rand(FT, nquads(s))   # dual 1-form on quads
+
+            ref = wedge_product_dd(Val(0), Val(1), s, f, a)
+            tst = wedge_product_dd(Val(0), Val(1), cache, f, a)
+
+            @test length(tst) == nquads(s)
+            @test tst ≈ ref atol=eps(FT) * 32 rtol=eps(FT) * 32
+
+            # in-place variant
+            res = similar(ref)
+            wedge_product_dd!(res, Val(0), Val(1), cache, f, a)
+            @test res ≈ ref atol=eps(FT) * 32 rtol=eps(FT) * 32
+
+            # argument-order convenience wrapper
+            tst_swapped = wedge_product_dd(Val(1), Val(0), cache, a, f)
+            @test tst_swapped ≈ ref atol=eps(FT) * 32 rtol=eps(FT) * 32
+
+            # bilinearity spot check in first argument:
+            α = FT(0.37)
+            β = FT(-1.21)
+            g = rand(FT, nboids(s))
+
+            lhs = wedge_product_dd(Val(0), Val(1), cache, α .* f .+ β .* g, a)
+            rhs = α .* wedge_product_dd(Val(0), Val(1), cache, f, a) .+
+                  β .* wedge_product_dd(Val(0), Val(1), cache, g, a)
+
+            @test lhs ≈ rhs atol=eps(FT) * 64 rtol=eps(FT) * 64
+        end
+    end
+
+    for s in meshes
+        cache = UniformDECCache3D(s)
+
+        for FT in (Float32, Float64)
+            a = rand(FT, ne(s))       # primal 1-form on edges
+            b = rand(FT, nquads(s))   # primal 2-form on quads
+
+            ref = wedge_product(Val(1), Val(2), s, a, b)
+            tst = wedge_product(Val(1), Val(2), cache, a, b)
+
+            @test length(tst) == nboids(s)
+            @test tst ≈ ref atol=eps(FT) * 32 rtol=eps(FT) * 32
+
+            # in-place variant
+            res = similar(ref)
+            wedge_product!(res, Val(1), Val(2), cache, a, b)
+            @test res ≈ ref atol=eps(FT) * 32 rtol=eps(FT) * 32
+
+            # argument-order convenience wrapper
+            tst_swapped = wedge_product(Val(2), Val(1), cache, b, a)
+            @test tst_swapped ≈ ref atol=eps(FT) * 32 rtol=eps(FT) * 32
+
+            # bilinearity spot check in first argument
+            α = FT(0.37)
+            β = FT(-1.21)
+            c = rand(FT, ne(s))
+
+            lhs = wedge_product(Val(1), Val(2), cache, α .* a .+ β .* c, b)
+            rhs = α .* wedge_product(Val(1), Val(2), cache, a, b) .+
+                  β .* wedge_product(Val(1), Val(2), cache, c, b)
+
+            @test lhs ≈ rhs atol=eps(FT) * 64 rtol=eps(FT) * 64
+        end
     end
 end

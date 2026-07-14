@@ -131,28 +131,29 @@ end
 #   return f
 # end
 
-# This functions gets the interior values of a field defined on a grid with halo, by realigning the field and then taking the appropriate view
 function interior(::Val{0}, f::AbstractVector, s::UniformCubicalComplex2D)
   tmp = reshape(f, (nx(s), ny(s)))
-  real_x_range = (hx(s) + 1):(nx(s) - hx(s))
-  real_y_range = (hy(s) + 1):(ny(s) - hy(s))
+  real_x_range = (halo_west(s) + 1):(nx(s) - halo_east(s))
+  real_y_range = (halo_south(s) + 1):(ny(s) - halo_north(s))
   return reshape(tmp[real_x_range, real_y_range], nvr(s))
 end
 
 function interior(::Val{1}, f::AbstractVector, s::UniformCubicalComplex2D)
   tmp_x = reshape(f[1:nxedges(s)], (nxe(s), ny(s)))
-  tmp_y = reshape(f[nxedges(s)+1:end], (nx(s), nye(s)))
+  tmp_y = reshape(f[(nxedges(s) + 1):end], (nx(s), nye(s)))
 
-  interior_x = reshape(tmp_x[(hx(s) + 1):(nxe(s) - hx(s)), (hy(s) + 1):(ny(s) - hy(s))], nxe_r(s) * nyr(s))
-  interior_y = reshape(tmp_y[(hx(s) + 1):(nx(s) - hx(s)), (hy(s) + 1):(nye(s) - hy(s))], nxr(s) * nye_r(s))
+  interior_x = reshape(tmp_x[(halo_west(s) + 1):(nxe(s) - halo_east(s)),
+                              (halo_south(s) + 1):(ny(s) - halo_north(s))], nxe_r(s) * nyr(s))
+  interior_y = reshape(tmp_y[(halo_west(s) + 1):(nx(s) - halo_east(s)),
+                              (halo_south(s) + 1):(nye(s) - halo_north(s))], nxr(s) * nye_r(s))
 
   return vcat(interior_x, interior_y)
 end
 
 function interior(::Val{2}, f::AbstractVector, s::UniformCubicalComplex2D)
   tmp = reshape(f, (nxq(s), nyq(s)))
-  real_x_range = (hx(s) + 1):(hx(s) + nxqr(s))
-  real_y_range = (hy(s) + 1):(hy(s) + nyqr(s))
+  real_x_range = (halo_west(s) + 1):(halo_west(s) + nxqr(s))
+  real_y_range = (halo_south(s) + 1):(halo_south(s) + nyqr(s))
   return reshape(tmp[real_x_range, real_y_range], nquadsr(s))
 end
 

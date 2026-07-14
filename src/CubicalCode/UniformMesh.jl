@@ -22,8 +22,8 @@ struct UniformCubicalComplex2D{FT} <: AbstractEmbeddedCubicalComplex2D{FT}
     dx::FT
     dy::FT
 
-    halo_x::Int
-    halo_y::Int
+    halo_west::Int;  halo_east::Int
+    halo_south::Int; halo_north::Int
 
     base_x::FT
     base_y::FT
@@ -33,16 +33,26 @@ struct PseudoCubicalMesh2D <: AbstractCubicalComplex2D
     nx::Int
     ny::Int
 
-    halo_x::Int
-    halo_y::Int
+    halo_west::Int;  halo_east::Int
+    halo_south::Int; halo_north::Int
 end
 
-function UniformCubicalComplex(nx::Int, ny::Int, lx::Real, ly::Real; halo_x::Int = 0, halo_y::Int = 0, base_x::Real = 0.0, base_y::Real = 0.0)
-    return UniformCubicalComplex2D(nx, ny, lx, ly; halo_x = halo_x, halo_y = halo_y, base_x = base_x, base_y = base_y)
+function UniformCubicalComplex(nx::Int, ny::Int, lx::Real, ly::Real;
+        halo_x::Int = 0, halo_y::Int = 0,
+        halo_west::Int  = halo_x, halo_east::Int  = halo_x,
+        halo_south::Int = halo_y, halo_north::Int = halo_y,
+        base_x::Real = 0.0, base_y::Real = 0.0)
+    return UniformCubicalComplex2D(nx, ny, lx, ly;
+        halo_west = halo_west, halo_east  = halo_east,
+        halo_south = halo_south, halo_north = halo_north,
+        base_x = base_x, base_y = base_y)
 end
 
-function PseudoCubicalMesh2D(nx::Int, ny::Int; halo_x::Int = 0, halo_y::Int = 0)
-    return PseudoCubicalMesh2D(nx, ny, halo_x, halo_y)
+function PseudoCubicalMesh2D(nx::Int, ny::Int;
+        halo_x::Int = 0, halo_y::Int = 0,
+        halo_west::Int  = halo_x, halo_east::Int  = halo_x,
+        halo_south::Int = halo_y, halo_north::Int = halo_y)
+    return PseudoCubicalMesh2D(nx, ny, halo_west, halo_east, halo_south, halo_north)
 end
 
 PseudoCubicalMesh(nx::Int, ny::Int) = PseudoCubicalMesh2D(nx, ny)
@@ -57,15 +67,20 @@ PseudoCubicalMesh(nx::Int, ny::Int) = PseudoCubicalMesh2D(nx, ny)
 base_x(s::UniformCubicalComplex2D) = s.base_x
 base_y(s::UniformCubicalComplex2D) = s.base_y
 
-# This grabs the number of real points in the x and y directions, excluding halo points
+halo_west(s::AbstractCubicalComplex2D)  = s.halo_west
+halo_east(s::AbstractCubicalComplex2D)  = s.halo_east
+halo_south(s::AbstractCubicalComplex2D) = s.halo_south
+halo_north(s::AbstractCubicalComplex2D) = s.halo_north
+
+# TODO: Check if this is the right use
+# hx(s::AbstractCubicalComplex2D) = max(halo_west(s), halo_east(s))
+# hy(s::AbstractCubicalComplex2D) = max(halo_south(s), halo_north(s))
+
 nxr(s::AbstractCubicalComplex2D) = s.nx
 nyr(s::AbstractCubicalComplex2D) = s.ny
 
-hx(s::AbstractCubicalComplex2D) = s.halo_x
-hy(s::AbstractCubicalComplex2D) = s.halo_y
-
-nx(s::AbstractCubicalComplex2D) = nxr(s) + 2 * hx(s)
-ny(s::AbstractCubicalComplex2D) = nyr(s) + 2 * hy(s)
+nx(s::AbstractCubicalComplex2D) = nxr(s) + halo_west(s) + halo_east(s)
+ny(s::AbstractCubicalComplex2D) = nyr(s) + halo_south(s) + halo_north(s)
 
 dx(s::UniformCubicalComplex2D) = s.dx
 dy(s::UniformCubicalComplex2D) = s.dy
@@ -76,8 +91,8 @@ nvr(s::AbstractCubicalComplex2D) = nxr(s) * nyr(s)
 nxe(s::AbstractCubicalComplex2D) = nx(s) - 1
 nye(s::AbstractCubicalComplex2D) = ny(s) - 1
 
-nxe_r(s::AbstractCubicalComplex2D) = nxe(s) - 2 * hx(s)
-nye_r(s::AbstractCubicalComplex2D) = nye(s) - 2 * hy(s)
+nxe_r(s::AbstractCubicalComplex2D) = nxe(s) - halo_west(s) - halo_east(s)
+nye_r(s::AbstractCubicalComplex2D) = nye(s) - halo_south(s) - halo_north(s)
 
 nxedges(s::AbstractCubicalComplex2D) = nxe(s) * ny(s)
 nyedges(s::AbstractCubicalComplex2D) = nx(s) * nye(s)
@@ -88,11 +103,11 @@ nxq(s::AbstractCubicalComplex2D) = nx(s) - 1
 nyq(s::AbstractCubicalComplex2D) = ny(s) - 1
 nquads(s::AbstractCubicalComplex2D) = nxq(s) * nyq(s)
 
-hxq(s::AbstractCubicalComplex2D) = hx(s)
-hyq(s::AbstractCubicalComplex2D) = hy(s)
+# hxq(s::AbstractCubicalComplex2D) = hx(s)
+# hyq(s::AbstractCubicalComplex2D) = hy(s)
 
-nxqr(s::AbstractCubicalComplex2D) = nxq(s) - 2 * hxq(s)
-nyqr(s::AbstractCubicalComplex2D) = nyq(s) - 2 * hyq(s)
+nxqr(s::AbstractCubicalComplex2D) = nxq(s) - halo_west(s) - halo_east(s)
+nyqr(s::AbstractCubicalComplex2D) = nyq(s) - halo_south(s) - halo_north(s)
 nquadsr(s::AbstractCubicalComplex2D) = nxqr(s) * nyqr(s)
 
 vertices(s::AbstractCubicalComplex2D) = 1:nv(s)
@@ -109,23 +124,23 @@ function boundary_edges(s::AbstractCubicalComplex2D)
 end
 
 function top_edges_real(s::AbstractCubicalComplex2D)
-    y_top = hy(s) + nyr(s)
-    return coord_to_edge.(Ref(s), (hx(s) + 1):(hx(s) + nxe_r(s)), Ref(y_top), Ref(X_ALIGN))
+    y_top = halo_south(s) + nyr(s)
+    return coord_to_edge.(Ref(s), (halo_west(s) + 1):(halo_west(s) + nxe_r(s)), Ref(y_top), Ref(X_ALIGN))
 end
 
 function bottom_edges_real(s::AbstractCubicalComplex2D)
-    y_bot = hy(s) + 1
-    return coord_to_edge.(Ref(s), (hx(s) + 1):(hx(s) + nxe_r(s)), Ref(y_bot), Ref(X_ALIGN))
+    y_bot = halo_south(s) + 1
+    return coord_to_edge.(Ref(s), (halo_west(s) + 1):(halo_west(s) + nxe_r(s)), Ref(y_bot), Ref(X_ALIGN))
 end
 
 function left_edges_real(s::AbstractCubicalComplex2D)
-    x_left = hx(s) + 1
-    return coord_to_edge.(Ref(s), Ref(x_left), (hy(s) + 1):(hy(s) + nye_r(s)), Ref(Y_ALIGN))
+    x_left = halo_west(s) + 1
+    return coord_to_edge.(Ref(s), Ref(x_left), (halo_south(s) + 1):(halo_south(s) + nye_r(s)), Ref(Y_ALIGN))
 end
 
 function right_edges_real(s::AbstractCubicalComplex2D)
-    x_right = hx(s) + nxr(s)
-    return coord_to_edge.(Ref(s), Ref(x_right), (hy(s) + 1):(hy(s) + nye_r(s)), Ref(Y_ALIGN))
+    x_right = halo_west(s) + nxr(s)
+    return coord_to_edge.(Ref(s), Ref(x_right), (halo_south(s) + 1):(halo_south(s) + nye_r(s)), Ref(Y_ALIGN))
 end
 
 function boundary_edges_real(s::AbstractCubicalComplex2D)
@@ -148,11 +163,11 @@ is_X_aligned(e::Int, s::AbstractCubicalComplex2D) = e <= nxedges(s)
 is_Y_aligned(e::Int, s::AbstractCubicalComplex2D) = e > nxedges(s)
 
 function real_coord_to_vert(s::AbstractCubicalComplex2D, x::Int, y::Int)
-    return coord_to_vert(s, x + hx(s), y + hy(s))
+    return coord_to_vert(s, x + halo_west(s), y + halo_south(s))
 end
 # This function takes a coordinate on the interior and maps it to a vertex index
 real_coord_to_real_vert(s::AbstractCubicalComplex2D, x::Int, y::Int) = x + (y - 1) * nxr(s)
-coord_to_real_coord(s::AbstractCubicalComplex2D, x::Int, y::Int) = (x - hx(s), y - hy(s))
+coord_to_real_coord(s::AbstractCubicalComplex2D, x::Int, y::Int) = (x - halo_west(s), y - halo_south(s))
 function vert_to_real_vert(s::AbstractCubicalComplex2D, v::Int)
     x, y = vert_to_coord(s, v)
     x, y = coord_to_real_coord(s, x, y)
@@ -160,10 +175,13 @@ function vert_to_real_vert(s::AbstractCubicalComplex2D, v::Int)
 end
 
 function is_halo_vert(s::AbstractCubicalComplex2D, x::Int, y::Int)
-    return x <= hx(s) || x > nxr(s) + hx(s) || y <= hy(s) || y > nyr(s) + hy(s)
+    return x <= halo_west(s) || x > nxr(s) + halo_west(s) ||
+           y <= halo_south(s) || y > nyr(s) + halo_south(s)
 end
+
 function is_halo_quad(s::AbstractCubicalComplex2D, x::Int, y::Int)
-    return x <= hx(s) || x > nxr(s) + hx(s) - 1 || y <= hy(s) || y > nyr(s) + hy(s) - 1
+    return x <= halo_west(s) || x > nxr(s) + halo_west(s) - 1 ||
+           y <= halo_south(s) || y > nyr(s) + halo_south(s) - 1
 end
 
 function vert_to_coord(s::AbstractCubicalComplex2D, v::Int)
@@ -202,15 +220,20 @@ function quad_to_coord(s::AbstractCubicalComplex2D, q::Int)
     return x, y
 end
 
+# Origin is at the first real point (non-halo)
 function point(s::UniformCubicalComplex2D, x::Int, y::Int)
-    px = base_x(s) + (x - 1) * dx(s) - hx(s) * dx(s)
-    py = base_y(s) + (y - 1) * dy(s) - hy(s) * dy(s)
+    px = base_x(s) + (x - 1 - halo_west(s)) * dx(s)
+    py = base_y(s) + (y - 1 - halo_south(s)) * dy(s)
     return Point3(px, py, 0.0)
 end
+
 point(s::UniformCubicalComplex2D, v::Int) = point(s, vert_to_coord(s, v)...)
 
-# Returns the point corresponding to the given real coordinate, where the real coordinate (1, 1) corresponds to the first real point (halo_x + 1, halo_y + 1)
-real_point(s::AbstractCubicalComplex2D, x::Int, y::Int) = point(s, x + hx(s), y + hy(s))
+function real_coord_to_vert(s::AbstractCubicalComplex2D, x::Int, y::Int)
+    return coord_to_vert(s, x + halo_west(s), y + halo_south(s))
+end
+
+real_point(s::AbstractCubicalComplex2D, x::Int, y::Int) = point(s, x + halo_west(s), y + halo_south(s))
 
 # TODO: Make this a generator that yields points one at a time instead of creating an array of all points at once
 function points(s::AbstractCubicalComplex2D)
@@ -221,16 +244,22 @@ end
 spacing(len::FT, np::Int) where {FT<:AbstractFloat} = return len / (np - 1)
 
 # The interval given (lx, ly) is the size of the real domain, excluding halo points. So the total size of the mesh will be (lx + 2 * halo_x * dx, ly + 2 * halo_y * dy)
-function UniformCubicalComplex2D(nxr::Int, nyr::Int, lx::FT, ly::FT; halo_x::Int = 0, halo_y::Int = 0, base_x::FT = zero(FT), base_y::FT = zero(FT)) where {FT<:AbstractFloat}
+function UniformCubicalComplex2D(nxr::Int, nyr::Int, lx::FT, ly::FT;
+        halo_x::Int = 0, halo_y::Int = 0,
+        halo_west::Int  = halo_x, halo_east::Int  = halo_x,
+        halo_south::Int = halo_y, halo_north::Int = halo_y,
+        base_x::FT = zero(FT), base_y::FT = zero(FT)) where {FT <: AbstractFloat}
     dx = spacing(lx, nxr)
     dy = spacing(ly, nyr)
-    return UniformCubicalComplex2D{FT}(nxr, nyr, dx, dy, halo_x, halo_y, base_x, base_y)
+    return UniformCubicalComplex2D{FT}(nxr, nyr, dx, dy,
+        halo_west, halo_east, halo_south, halo_north, base_x, base_y)
 end
+
 # Basic show method for uniform mesh
 function Base.show(io::IO, s::UniformCubicalComplex2D)
     println(io, "UniformCubicalComplex2D with dimensions: $(nx(s)) x $(ny(s))")
     println(io, "Spacing: dx = $(dx(s)), dy = $(dy(s))")
-    println(io, "Halo: halo_x = $(s.halo_x), halo_y = $(s.halo_y)")
+    println(io, "Halo: west=$(s.halo_west) east=$(s.halo_east) south=$(s.halo_south) north=$(s.halo_north)")
     return println(io, "Base point: ($(base_x(s)), $(base_y(s)))")
 end
 
@@ -312,14 +341,14 @@ end
 quad_area(s::AbstractCubicalComplex2D) = dx(s) * dy(s)
 
 function dual_point(s::UniformCubicalComplex2D, x::Int, y::Int)
-    px = base_x(s) + (x - 0.5) * dx(s) - hx(s) * dx(s)
-    py = base_y(s) + (y - 0.5) * dy(s) - hy(s) * dy(s)
+    px = base_x(s) + (x - 0.5 - halo_west(s)) * dx(s)
+    py = base_y(s) + (y - 0.5 - halo_south(s)) * dy(s)
     return Point3(px, py, 0.0)
 end
 
 dual_points(s::AbstractCubicalComplex2D) = map(v -> dual_point(s, quad_to_coord(s, v)...), quads(s))
 
-real_dual_point(s::AbstractCubicalComplex2D, x::Int, y::Int) = dual_point(s, x + hx(s), y + hy(s))
+real_dual_point(s::AbstractCubicalComplex2D, x::Int, y::Int) = dual_point(s, x + halo_west(s), y + halo_south(s))
 
 function dual_edge(s::AbstractCubicalComplex2D, x::Int, y::Int, align::Align)
     if align == X_ALIGN
@@ -425,17 +454,29 @@ function vert_quads(s::AbstractCubicalComplex2D, x::Int, y::Int)
 end
 
 function ghost_quads(s::AbstractCubicalComplex2D)
-    function slabs(n_ax, n_b, h, to_idx)
-        h == 0 && return (Int[], Int[], Int[], Int[])
-        recv_low = [to_idx(ax, b) for ax in 1:h, b in 1:n_b][:]
-        send_low = [to_idx(ax, b) for ax in (h + 1):(2h), b in 1:n_b][:]
-        send_high = [to_idx(ax, b) for ax in (n_ax - 2h + 1):(n_ax - h), b in 1:n_b][:]
-        recv_high = [to_idx(ax, b) for ax in (n_ax - h + 1):n_ax, b in 1:n_b][:]
-        return recv_low, send_low, send_high, recv_high
+    function low_slab(n_ax, n_b, h_low, to_idx)
+        h_low == 0 && return (send = Int[], recv = Int[])
+        return (
+            send = [to_idx(ax, b) for ax in (h_low + 1):(2h_low), b in 1:n_b][:],
+            recv = [to_idx(ax, b) for ax in 1:h_low,              b in 1:n_b][:],
+        )
     end
 
-    rl_ew, sl_ew, sh_ew, rh_ew = slabs(nxq(s), nyq(s), hx(s), (ax, b) -> coord_to_quad(s, ax, b))
-    rl_ns, sl_ns, sh_ns, rh_ns = slabs(nyq(s), nxq(s), hy(s), (ax, b) -> coord_to_quad(s, b, ax))
+    function high_slab(n_ax, n_b, h_high, to_idx)
+        h_high == 0 && return (send = Int[], recv = Int[])
+        return (
+            send = [to_idx(ax, b) for ax in (n_ax - 2h_high + 1):(n_ax - h_high), b in 1:n_b][:],
+            recv = [to_idx(ax, b) for ax in (n_ax - h_high + 1):n_ax,             b in 1:n_b][:],
+        )
+    end
 
-    return (west = (send = sl_ew, recv = rl_ew), east = (send = sh_ew, recv = rh_ew), south = (send = sl_ns, recv = rl_ns), north = (send = sh_ns, recv = rh_ns))
+    ew = (ax, b) -> coord_to_quad(s, ax, b)
+    ns = (ax, b) -> coord_to_quad(s, b, ax)
+
+    return (
+        west  = low_slab( nxq(s), nyq(s), halo_west(s),  ew),
+        east  = high_slab(nxq(s), nyq(s), halo_east(s),  ew),
+        south = low_slab( nyq(s), nxq(s), halo_south(s), ns),
+        north = high_slab(nyq(s), nxq(s), halo_north(s), ns),
+    )
 end

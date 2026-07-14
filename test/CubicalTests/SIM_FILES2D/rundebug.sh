@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=LMNSH
-#SBATCH --qos=standard
-#SBATCH --time=24:00:00
+#SBATCH --qos=debug
+#SBATCH --time=00:30:00
 #SBATCH --account=ARLAP14877100
 #SBATCH --nodes=1
 #SBATCH --ntasks=192

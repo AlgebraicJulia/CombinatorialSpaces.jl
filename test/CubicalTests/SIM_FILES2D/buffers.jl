@@ -71,3 +71,12 @@ const _rhs_d1_U      = kzeros(_nq)
 # Buffers for smoothing
 const _sm_rho_tmp    = kzeros(_nq)   # intermediate buffer for two-pass smooth (rho)
 const _sm_theta_tmp  = kzeros(_nq)   # intermediate buffer for two-pass smooth (Theta)
+
+# Buffers for WENO
+const _weno_tmp_x = kzeros(_nq)
+const _weno_tmp_y = kzeros(_nq)
+
+# Buffers for gravity
+if GRAVITY
+    _mc_grav = kzeros(_ne)
+end

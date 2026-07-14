@@ -90,8 +90,11 @@ end
     @test dx(s) == 10.0 / 5
     @test dy(s) == 10.0 / 5
 
-    @test s.halo_x == 1
-    @test s.halo_y == 1
+    @test halo_west(s) == 1
+    @test halo_south(s) == 1
+
+    @test halo_east(s) == 1
+    @test halo_north(s) == 1
 
     # Test point generation with halo points
     p = point(s, 1, 1)
@@ -183,10 +186,10 @@ end
     @test nyr(s_h) == 8
 
     # ── Halo accessors ────────────────────────────────────────────────────────
-    @test hx(s) == 0
-    @test hy(s) == 0
-    @test hx(s_h) == 2
-    @test hy(s_h) == 3
+    @test halo_west(s) == 0
+    @test halo_south(s) == 0
+    @test halo_west(s_h) == 2
+    @test halo_south(s_h) == 3
 
     # ── Total (halo-inclusive) counts ─────────────────────────────────────────
     @test nx(s) == 10

@@ -35,7 +35,7 @@ include("../../src/CubicalCode/UniformMesh3D.jl")
 
     # Spacing and Halo tests
     @test dx(s) == 2.5 && dy(s) == 2.5 && dz(s) == 2.5
-    @test hx(s) == 0 && hy(s) == 0 && hz(s) == 0
+    @test halo_west(s) == 0 && halo_south(s) == 0 && halo_down(s) == 0
 end
 
 @testset "Rectangular Prism" begin
@@ -75,7 +75,7 @@ end
     s = UniformCubicalComplex3D(2, 5, 6, 10.0, 40.0, 50.0; halo_x = 1, halo_y = 1, halo_z = 1)
 
     # Halo tests
-    @test hx(s) == 1 && hy(s) == 1 && hz(s) == 1
+    @test halo_west(s) == 1 && halo_south(s) == 1 && halo_down(s) == 1
 
     # Vertex tests
     @test nxr(s) == 2 && nyr(s) == 5 && nzr(s) == 6 # Real vertices
@@ -609,20 +609,20 @@ end
         # Halo exclusion: real boids = 1, halo = 0
         u = zeros(Float64, nboids(s))
         for rz in 1:nzbr(s), ry in 1:nybr(s), rx in 1:nxbr(s)
-            u[coord_to_boid(s, rx + hx(s), ry + hy(s), rz + hz(s))] = 1.0
+            u[coord_to_boid(s, rx + halo_west(s), ry + halo_south(s), rz + halo_down(s))] = 1.0
         end
         result = interior(Val(3), u, s)
 
-        @test size(result) == (nxbr(s), nybr(s), nzbr(s))
+        @test length(result) == nbr(s)
         @test all(result .== 1.0)
         @test !any(result .== 0.0)
 
         # Axis ordering: encode position so any axis swap is unambiguous
         u_ord = zeros(Float64, nboids(s))
         for rz in 1:nzbr(s), ry in 1:nybr(s), rx in 1:nxbr(s)
-            u_ord[coord_to_boid(s, rx + hx(s), ry + hy(s), rz + hz(s))] = rx + 100 * ry + 10000 * rz
+            u_ord[coord_to_boid(s, rx + halo_west(s), ry + halo_south(s), rz + halo_down(s))] = rx + 100 * ry + 10000 * rz
         end
-        result_ord = interior(Val(3), u_ord, s)
+        result_ord = reshape(interior(Val(3), u_ord, s), nxbr(s), nybr(s), nzbr(s))
 
         for rz in 1:nzbr(s), ry in 1:nybr(s), rx in 1:nxbr(s)
             @test result_ord[rx, ry, rz] == rx + 100 * ry + 10000 * rz
@@ -640,13 +640,13 @@ end
     #     # Halo exclusion: real quads = 1, halo = 0
     #     q = zeros(Float64, nquads(s))
     #     for rz in 1:nzbr(s)+1, ry in 1:nybr(s), rx in 1:nxbr(s)  # XY family
-    #         q[coord_to_quad(s, rx + hx(s), ry + hy(s), rz + hz(s), Z_ALIGN)] = 1.0
+    #         q[coord_to_quad(s, rx + halo_west(s), ry + halo_south(s), rz + halo_down(s), Z_ALIGN)] = 1.0
     #     end
     #     for rz in 1:nzbr(s), ry in 1:nybr(s)+1, rx in 1:nxbr(s)  # XZ family
-    #         q[coord_to_quad(s, rx + hx(s), ry + hy(s), rz + hz(s), Y_ALIGN)] = 1.0
+    #         q[coord_to_quad(s, rx + halo_west(s), ry + halo_south(s), rz + halo_down(s), Y_ALIGN)] = 1.0
     #     end
     #     for rz in 1:nzbr(s), ry in 1:nybr(s), rx in 1:nxbr(s)+1  # YZ family
-    #         q[coord_to_quad(s, rx + hx(s), ry + hy(s), rz + hz(s), X_ALIGN)] = 1.0
+    #         q[coord_to_quad(s, rx + halo_west(s), ry + halo_south(s), rz + halo_down(s), X_ALIGN)] = 1.0
     #     end
     #     result = interior(Val(2), q, s)
 
@@ -657,15 +657,15 @@ end
     #     # Axis ordering per family — encode with rx + 100*ry + 10000*rz
     #     q_ord = zeros(Float64, nquads(s))
     #     for rz in 1:nzbr(s)+1, ry in 1:nybr(s), rx in 1:nxbr(s)
-    #         q_ord[coord_to_quad(s, rx + hx(s), ry + hy(s), rz + hz(s), Z_ALIGN)] =
+    #         q_ord[coord_to_quad(s, rx + halo_west(s), ry + halo_south(s), rz + halo_down(s), Z_ALIGN)] =
     #             rx + 100*ry + 10000*rz
     #     end
     #     for rz in 1:nzbr(s), ry in 1:nybr(s)+1, rx in 1:nxbr(s)
-    #         q_ord[coord_to_quad(s, rx + hx(s), ry + hy(s), rz + hz(s), Y_ALIGN)] =
+    #         q_ord[coord_to_quad(s, rx + halo_west(s), ry + halo_south(s), rz + halo_down(s), Y_ALIGN)] =
     #             rx + 100*ry + 10000*rz
     #     end
     #     for rz in 1:nzbr(s), ry in 1:nybr(s), rx in 1:nxbr(s)+1
-    #         q_ord[coord_to_quad(s, rx + hx(s), ry + hy(s), rz + hz(s), X_ALIGN)] =
+    #         q_ord[coord_to_quad(s, rx + halo_west(s), ry + halo_south(s), rz + halo_down(s), X_ALIGN)] =
     #             rx + 100*ry + 10000*rz
     #     end
     #     result_ord = interior(Val(2), q_ord, s)
@@ -704,13 +704,13 @@ end
     #     # Halo exclusion: real edges = 1, halo = 0
     #     e = zeros(Float64, ne(s))
     #     for rz in 1:nzbr(s)+1, ry in 1:nybr(s)+1, rx in 1:nxbr(s)  # X-edges
-    #         e[coord_to_edge(s, rx + hx(s), ry + hy(s), rz + hz(s), X_ALIGN)] = 1.0
+    #         e[coord_to_edge(s, rx + halo_west(s), ry + halo_south(s), rz + halo_down(s), X_ALIGN)] = 1.0
     #     end
     #     for rz in 1:nzbr(s)+1, ry in 1:nybr(s), rx in 1:nxbr(s)+1  # Y-edges
-    #         e[coord_to_edge(s, rx + hx(s), ry + hy(s), rz + hz(s), Y_ALIGN)] = 1.0
+    #         e[coord_to_edge(s, rx + halo_west(s), ry + halo_south(s), rz + halo_down(s), Y_ALIGN)] = 1.0
     #     end
     #     for rz in 1:nzbr(s), ry in 1:nybr(s)+1, rx in 1:nxbr(s)+1  # Z-edges
-    #         e[coord_to_edge(s, rx + hx(s), ry + hy(s), rz + hz(s), Z_ALIGN)] = 1.0
+    #         e[coord_to_edge(s, rx + halo_west(s), ry + halo_south(s), rz + halo_down(s), Z_ALIGN)] = 1.0
     #     end
     #     result = interior(Val(1), e, s)
 
@@ -721,15 +721,15 @@ end
     #     # Axis ordering per family
     #     e_ord = zeros(Float64, ne(s))
     #     for rz in 1:nzbr(s)+1, ry in 1:nybr(s)+1, rx in 1:nxbr(s)
-    #         e_ord[coord_to_edge(s, rx + hx(s), ry + hy(s), rz + hz(s), X_ALIGN)] =
+    #         e_ord[coord_to_edge(s, rx + halo_west(s), ry + halo_south(s), rz + halo_down(s), X_ALIGN)] =
     #             rx + 100*ry + 10000*rz
     #     end
     #     for rz in 1:nzbr(s)+1, ry in 1:nybr(s), rx in 1:nxbr(s)+1
-    #         e_ord[coord_to_edge(s, rx + hx(s), ry + hy(s), rz + hz(s), Y_ALIGN)] =
+    #         e_ord[coord_to_edge(s, rx + halo_west(s), ry + halo_south(s), rz + halo_down(s), Y_ALIGN)] =
     #             rx + 100*ry + 10000*rz
     #     end
     #     for rz in 1:nzbr(s), ry in 1:nybr(s)+1, rx in 1:nxbr(s)+1
-    #         e_ord[coord_to_edge(s, rx + hx(s), ry + hy(s), rz + hz(s), Z_ALIGN)] =
+    #         e_ord[coord_to_edge(s, rx + halo_west(s), ry + halo_south(s), rz + halo_down(s), Z_ALIGN)] =
     #             rx + 100*ry + 10000*rz
     #     end
     #     result_ord = interior(Val(1), e_ord, s)
@@ -760,7 +760,7 @@ end
     #     # Halo exclusion: real vertices = 1, halo = 0
     #     v = zeros(Float64, nv(s))
     #     for rz in 1:nzbr(s)+1, ry in 1:nybr(s)+1, rx in 1:nxbr(s)+1
-    #         v[coord_to_vert(s, rx + hx(s), ry + hy(s), rz + hz(s))] = 1.0
+    #         v[coord_to_vert(s, rx + halo_west(s), ry + halo_south(s), rz + halo_down(s))] = 1.0
     #     end
     #     result = interior(Val(0), v, s)
 
@@ -771,7 +771,7 @@ end
     #     # Axis ordering
     #     v_ord = zeros(Float64, nv(s))
     #     for rz in 1:nzbr(s)+1, ry in 1:nybr(s)+1, rx in 1:nxbr(s)+1
-    #         v_ord[coord_to_vert(s, rx + hx(s), ry + hy(s), rz + hz(s))] =
+    #         v_ord[coord_to_vert(s, rx + halo_west(s), ry + halo_south(s), rz + halo_down(s))] =
     #             rx + 100*ry + 10000*rz
     #     end
     #     result_ord = interior(Val(0), v_ord, s)
@@ -795,12 +795,12 @@ end
     @test nzr(s_h) == 6
 
     # ── Halo accessors ────────────────────────────────────────────────────────
-    @test hx(s) == 0
-    @test hy(s) == 0
-    @test hz(s) == 0
-    @test hx(s_h) == 2
-    @test hy(s_h) == 3
-    @test hz(s_h) == 1
+    @test halo_west(s) == 0
+    @test halo_south(s) == 0
+    @test halo_down(s) == 0
+    @test halo_west(s_h) == 2
+    @test halo_south(s_h) == 3
+    @test halo_down(s_h) == 1
 
     # ── Total (halo-inclusive) counts ─────────────────────────────────────────
     @test nx(s) == 10

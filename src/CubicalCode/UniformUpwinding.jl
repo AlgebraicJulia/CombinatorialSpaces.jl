@@ -237,7 +237,9 @@ function WENO5Cache(s::UniformCubicalComplex2D)
       x, y           = quad_to_coord(s, q)
       e1, e2, e3, e4 = quad_edges(s, x, y)
       q_e1[q] = e1;  q_e2[q] = e2;  q_e3[q] = e3;  q_e4[q] = e4
-      interior = (x > 2) & (x < nx_ - 2) & (y > 2) & (y < ny_ - 2)
+      #TODO: Check this interior
+      # interior = (x > 2) & (x < nx_ - 2) & (y > 2) & (y < ny_ - 2)
+      interior = (x > 3) & (x < nx_ - 3) & (y > 3) & (y < ny_ - 3)
       q_weno_interior[q] = Int8(interior)
       if interior
           q_wxm2[q] = Int32(quad_edge_offset(s, x, y, X_ALIGN, -2))
@@ -267,11 +269,18 @@ function WENO5Cache(s::UniformCubicalComplex2D)
 
       # Stencil fits when there is room for offsets -2 and +3 along the
       # edge's own axis (identical radius logic to the quad WENO5 check).
+      #TODO: Check this interior
+      # interior = if align == X_ALIGN
+      #     (x > 2) & (x <= nx_ - 2)
+      # else  # Y_ALIGN
+      #     (y > 2) & (y <= ny_ - 2)
+      # end
       interior = if align == X_ALIGN
-          (x > 2) & (x <= nx_ - 2)
+          (x > 3) & (x <= nx_ - 3)
       else  # Y_ALIGN
-          (y > 2) & (y <= ny_ - 2)
+          (y > 3) & (y <= ny_ - 3)
       end
+
       e_weno_interior[e] = Int8(interior)
 
       if interior
@@ -577,22 +586,21 @@ wedge_product(::Val{1}, ::Val{1}, sch::Upwind, cache::UniformDECCache, f1a, f1b)
 end
 
 # ── in-place interface ────────────────────────────────────────────────────────
-function wedge_product_01!(res, ::WENO5, cache::WENO5Cache, f0, f1; eps = nothing)
+function wedge_product_01!(res::AbstractVector{FT}, ::WENO5, cache::WENO5Cache, 
+                          f0::AbstractVector{FT}, f1::AbstractVector{FT}; eps::FT = FT(1e-6)) where FT <: AbstractFloat
   backend = get_backend(f1)
-  FT      = eltype(f1)
-  eps_T   = eps === nothing ? FT(1e-6) : FT(eps)
   kernel_weno5_wedge_01_cached!(backend)(res,
       cache.e_src, cache.e_tgt,
       cache.e_wm2, cache.e_wm1, cache.e_wp2, cache.e_wp3,
       cache.e_weno_interior,
-      eps_T, f0, f1; ndrange = cache.nedges_)
+      eps, f0, f1; ndrange = cache.nedges_)
   return res
 end
 
 # ── allocating wrapper ────────────────────────────────────────────────────────
 function wedge_product_01(::WENO5, cache::WENO5Cache,
                         f0::AbstractVector{FT},
-                        f1::AbstractVector{FT}) where FT
+                        f1::AbstractVector{FT}) where FT <: AbstractFloat
   res = KernelAbstractions.zeros(get_backend(f1), FT, cache.nedges_)
   return wedge_product_01!(res, WENO5(), cache, f0, f1)
 end

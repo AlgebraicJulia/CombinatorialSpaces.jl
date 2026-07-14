@@ -55,6 +55,7 @@ const HALO = CONFIG["Mesh"]["halo"]
 
 const RE = FT(CONFIG["Physics"]["Re"])
 const PR = FT(CONFIG["Physics"]["Pr"])
+const GRAVITY = get(CONFIG["Physics"], "Gravity", false)
 const TE = FT(CONFIG["Simulation"]["te"])
 
 const DT = FT(get(CONFIG["Simulation"], "dt", floor(min(LX / NX, LY / NY) / 360 / 2, sigdigits=1)))
@@ -67,6 +68,7 @@ const OUTFILE = joinpath(OUTPUT_DIR, "savedata.h5")
 comm_world = MPI.COMM_WORLD
 world_rank = MPI.Comm_rank(comm_world)
 if world_rank == 0
+    println("Running simulation: $SIM_NAME")
     println("Running on a mesh size of $NX x $NY, halo size of $HALO")
     println("Re=$RE, Pr=$PR")
     println("Chosen time-step is $DT based on CFL=dx/u")

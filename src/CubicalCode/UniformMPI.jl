@@ -71,26 +71,63 @@ end
 
 # ── Worker mesh construction ──────────────────────────────────────────────────
 
-function worker_mesh(topo::MPITopology{WorkerCache{N}}, L::NTuple{N,<:Real}; halo::Union{Int,NTuple{N,Int}} = 1) where {N}
+function worker_mesh(topo::MPITopology{WorkerCache{N}}, L::NTuple{N,<:Real};
+        halo::Int = 1,
+        halo_west::Int  = halo, halo_east::Int  = halo,
+        halo_south::Int = halo, halo_north::Int = halo,
+        halo_down::Int  = halo, halo_up::Int    = halo) where {N}
+
     cache = topo.cache
-    gm_dual = ntuple(i -> cache.gm_dims[i] - 1, N)
-    lm_dims = cache.lm_dims
-    offsets = cache.lm_gm_offsets
-    halos = halo isa Int ? ntuple(_ -> halo, N) : halo
+    gm_dual  = ntuple(i -> cache.gm_dims[i] - 1, N)
+    lm_dims  = cache.lm_dims
+    offsets  = cache.lm_gm_offsets
 
-    FT = eltype(L)
-    lengths = ntuple(i -> FT(lm_dims[i] - 1) * L[i] / gm_dual[i], N)
-    bases = ntuple(i -> FT(offsets[i]) * L[i] / gm_dual[i], N)
-
-    return UniformCubicalComplex(lm_dims..., lengths...; _mesh_kwargs(Val(N), halos, bases)...)
+    FT       = eltype(L)
+    lengths  = ntuple(i -> FT(lm_dims[i] - 1) * L[i] / gm_dual[i], N)
+    bases    = ntuple(i -> FT(offsets[i])      * L[i] / gm_dual[i], N)
+    return UniformCubicalComplex(lm_dims..., lengths...;
+        _mesh_kwargs(Val(N),
+            (halo_west, halo_east, halo_south, halo_north, halo_down, halo_up),
+            bases)...)
 end
 
-function _mesh_kwargs(::Val{2}, halos, bases)
-    return (halo_x = halos[1], halo_y = halos[2], base_x = bases[1], base_y = bases[2])
+function _mesh_kwargs(::Val{2}, halos::NTuple{6,Int}, bases)
+    return (
+        halo_west  = halos[1], halo_east  = halos[2],
+        halo_south = halos[3], halo_north = halos[4],
+        base_x = bases[1], base_y = bases[2],
+    )
 end
 
-function _mesh_kwargs(::Val{3}, halos, bases)
-    return (halo_x = halos[1], halo_y = halos[2], halo_z = halos[3], base_x = bases[1], base_y = bases[2], base_z = bases[3])
+function _mesh_kwargs(::Val{3}, halos::NTuple{6,Int}, bases)
+    return (
+        halo_west  = halos[1], halo_east  = halos[2],
+        halo_south = halos[3], halo_north = halos[4],
+        halo_down  = halos[5], halo_up    = halos[6],
+        base_x = bases[1], base_y = bases[2], base_z = bases[3],
+    )
+end
+
+function boundary_halos(topo::MPITopology{WorkerCache{2}}, halo::Int)
+    nb = topo.cache.neighbors
+    return (
+        halo_west  = nb.west  == MPI.PROC_NULL ? 0 : halo,
+        halo_east  = nb.east  == MPI.PROC_NULL ? 0 : halo,
+        halo_south = nb.south == MPI.PROC_NULL ? 0 : halo,
+        halo_north = nb.north == MPI.PROC_NULL ? 0 : halo,
+    )
+end
+
+function boundary_halos(topo::MPITopology{WorkerCache{3}}, halo::Int)
+    nb = topo.cache.neighbors
+    return (
+        halo_west  = nb.west  == MPI.PROC_NULL ? 0 : halo,
+        halo_east  = nb.east  == MPI.PROC_NULL ? 0 : halo,
+        halo_south = nb.south == MPI.PROC_NULL ? 0 : halo,
+        halo_north = nb.north == MPI.PROC_NULL ? 0 : halo,
+        halo_down  = nb.down  == MPI.PROC_NULL ? 0 : halo,
+        halo_up    = nb.up    == MPI.PROC_NULL ? 0 : halo,
+    )
 end
 
 # TODO: Remove me
@@ -244,7 +281,7 @@ function MPITopology(m_dims::NTuple{N,Int}, w_dims::NTuple{N,Int}, o_dims::NTupl
     return MPITopology(world_comm, cart_comm, local_comm, intercomm, cart_rank, is_output, cache)
 end
 
-MPITopology(cache, is_output::Bool) = MPITopology(nothing, nothing, nothing, -1, is_output, cache)
+MPITopology(cache, is_output::Bool) = MPITopology(nothing, nothing, nothing, nothing, -1, is_output, cache)
 
 function _build_comms(w_dims::NTuple{N,Int}, o_dims::NTuple{N,Int}, periods::NTuple{N,Bool}) where {N}
     world_comm = MPI.COMM_WORLD
