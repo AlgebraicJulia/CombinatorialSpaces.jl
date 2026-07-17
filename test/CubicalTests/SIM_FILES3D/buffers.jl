@@ -36,6 +36,7 @@ const _mc_dlap1_tmp1= kzeros(_ne)
 const _mc_viscous_1 = kzeros(_nq)
 const _mc_viscous_2 = kzeros(_nq)
 const _mc_viscous   = kzeros(_nq)
+const _mc_gravity   = kzeros(_nq)
 const _mc_sum_terms = kzeros(_nq)
 
 # ── potential_temperature_continuity 3D ───────────────────────────────────────
@@ -77,3 +78,20 @@ const _pt_tmp_6 = kzeros(_nb)
 
 const _pt_tmp_7 = kzeros(_nq)
 const _pt_tmp_8 = kzeros(_nb)
+
+# For WENO
+
+const _mc_wdg11_tmpa = kzeros(_nq)
+const _mc_wdg11_tmpb = kzeros(_nq)
+
+const _mc_wdg12_tmpx = kzeros(_nb)
+const _mc_wdg12_tmpy = kzeros(_nb)
+const _mc_wdg12_tmpz = kzeros(_nb)
+
+const _mc_wdg12v_tmpx = kzeros(_nb)
+const _mc_wdg12v_tmpy = kzeros(_nb)
+const _mc_wdg12v_tmpz = kzeros(_nb)
+
+const _pt_wdg12_tmpx = kzeros(_nb)
+const _pt_wdg12_tmpy = kzeros(_nb)
+const _pt_wdg12_tmpz = kzeros(_nb)

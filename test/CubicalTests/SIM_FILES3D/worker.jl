@@ -22,7 +22,7 @@ const _halo_north = has_north ? HALO : 0
 const _halo_down = has_down ? HALO : 0
 const _halo_up = has_up ? HALO : 0
 
-const s           = worker_mesh(topo, (LX, LY, LZ); halo_west = _halo_west, halo_east = _halo_east, 
+const s = worker_mesh(topo, (LX, LY, LZ); halo_west = _halo_west, halo_east = _halo_east, 
     halo_south = _halo_south, halo_north = _halo_north, halo_down = _halo_down, halo_up = _halo_up)
 
 const cart_comm   = topo.cart_comm
@@ -31,18 +31,31 @@ const cart_coords = MPI.Cart_coords(cart_comm)
 
 const bdry_quads = boundary_quads(s)
 
-# TODO: This has to be updated if we use multiple GPU nodes
-if use_amdgpu(XPU)
-    device_id = cart_rank
-    AMDGPU.device!(AMDGPU.devices()[device_id + 1])
-    dev = AMDGPU.device()
-    println("Rank $cart_rank | device: $(AMDGPU.device_id(dev))")
-    const BACKEND = ROCBackend()
+if use_amdgpu(USE_XPU)
+    devices = AMDGPU.devices()
+    ndevices = length(devices)
+
+    local_rank = MPI.Comm_rank(topo.local_comm)
+    gpu_id = (local_rank % ndevices) + 1
+    AMDGPU.device!(devices[gpu_id])
+
+    node_name = MPI.Get_processor_name()
+    mapping_str = "Rank $world_rank -> Node: $node_name, GPU: $gpu_id"
+    all_mappings = MPI.gather(mapping_str, topo.cart_comm; root=0)
+    if world_rank == 0
+        println("=========================================================")
+        println("MPI Topology & GPU Assignment:")
+        for m in all_mappings
+            println("   $m")
+        end
+        println("=========================================================")
+    end
 else
-    const BACKEND = CPU()
+    world_rank == 0 && println("Using CPU for computation...")
 end
 
-
+const BACKEND = use_amdgpu(USE_XPU) ? ROCBackend() : CPU()
+const adv_cache = Adapt.adapt(BACKEND, AdvectionCache(WENO5(), s))
 
 # ── to_device ─────────────────────────────────────────────────────────────────
 function to_device(arr::AbstractVector{T}) where T
@@ -58,43 +71,32 @@ cart_rank == 0 && println("MPI worker grid: $(w_dims[1])×$(w_dims[2])×$(w_dims
 # println("Worker $cart_rank | coords=$cart_coords | mesh=$(nxr(s))×$(nyr(s))×$(nzr(s)) real boids")
 cart_rank == 0 && flush(stdout)
 
-# ── DEC operators (3D — no cache yet, dispatch directly on s) ─────────────────
-# NOTE: UniformDECCache for 3D is not yet implemented; all operators take s directly.
-# const d0 = x -> exterior_derivative(Val(0), s, x)   # verts  → edges
-# const d1 = x -> exterior_derivative(Val(1), s, x)   # edges  → quads
-# const d2 = x -> exterior_derivative(Val(2), s, x)   # quads  → boids
-
-# const dd0 = x -> begin res = dual_derivative(Val(0), s, x); res[bdry_quads] .= 0; return res; end # boids  → quads (dual 0→1)
-# const dd1 = x -> dual_derivative(Val(1), s, x)      # quads  → edges (dual 1→2)
-# const dd2 = x -> dual_derivative(Val(2), s, x)      # edges  → verts (dual 2→3)
-
-# Primal Hodge stars
-# const hdg_0 = x -> hodge_star(Val(0), s, x)   # verts  → boids
-# const hdg_1 = x -> hodge_star(Val(1), s, x)   # edges  → quads
+# ── DEC operators ─────────────────
 const hdg_2 = x -> hodge_star(Val(2), s, x)   # quads  → edges  (U_star → U, i.e. primal 2-form → dual 1-form)
 const hdg_3 = x -> hodge_star(Val(3), s, x)   # boids  → verts
 
-# Inverse Hodge stars
-# const inv_hdg_0 = x -> inv_hodge_star(Val(0), s, x)
-# const inv_hdg_1 = x -> inv_hodge_star(Val(1), s, x)
 const inv_hdg_2 = x -> inv_hodge_star(Val(2), s, x)  # edges  → quads  (dual 1-form → primal 2-form)
 const inv_hdg_3 = x -> inv_hodge_star(Val(3), s, x)  # verts  → boids
 
-# Wedge products
-# const wdg_11     = (a, b) -> wedge_product(Val(1), Val(1), s, a, b)   # edge ∧ edge → quad
-# const wdg_12     = (a, b) -> wedge_product(Val(1), Val(2), s, a, b)   # edge ∧ quad → boid
-# const wdg_dd_01  = (f, a) -> wedge_product_dd(Val(0), Val(1), s, f, a) # dual-0 ∧ dual-1 → dual-1
+if haskey(CONFIG, "Smoothing")
+    const rho_c = FT(get(CONFIG["Smoothing"], "rho_smooth_constant", 0))
+    const theta_c = FT(get(CONFIG["Smoothing"], "theta_smooth_constant", 0))
+else
+    const rho_c = const theta_c = 0
+end
 
-# const dcd_1 = x -> hdg_3(d2(inv_hdg_2(x))) # This is div
-# const dcd_2 = x-> hdg_2(d1(inv_hdg_1(x))) # This is curl
+const use_rho_smooth = (rho_c != 0)
+const use_theta_smooth = (theta_c != 0)
 
-# const dlap_0 = x -> dcd_1(dd0(x)) # This is scalar laplacian
+if use_rho_smooth
+    world_rank == 0 && println("Activated rho smoothing: $rho_c")
+    const rho_smooth_cache = Adapt.adapt(BACKEND, SmoothingCache3D(s, rho_c))
+end
 
-# # TODO: Should line up with the vector laplacian
-# # First term is gradient of divergence, second is curl of curl
-# const dlap_1 = x -> dd0(dcd_1(x)) .- dcd_2(dd1(x))
-
-# const interp_dp_1 = x -> interpolate_dp(Val(1), s, x)
+if use_theta_smooth
+    world_rank == 0 && println("Activated Theta smoothing: $theta_c")
+    const theta_smooth_cache = Adapt.adapt(BACKEND, SmoothingCache3D(s, theta_c))
+end
 
 # ── Physics ───────────────────────────────────────────────────────────────────
 struct PhysicalParameters{FT <: AbstractFloat}
@@ -134,9 +136,14 @@ function hydrostatic_density(theta::FT, h::FT) where FT <: AbstractFloat
 end
 
 if GRAVITY
-    const g_dual = to_device(map(1:ne(s)) do e
-        is_edge_Z_aligned(e, s) ? g * (rho[src(s, e)] + rho[tgt(s, e)]) * FT(0.5) : FT(0)
-    end)
+    const g_dual_cpu = zeros(FT, nquads(s))
+
+    for q in 1:nxyquads(s)
+        x, y, z, align = quad_to_coord(s, q)
+        g_dual_cpu[q] = gₐ * dual_edge_len(s, x, y, z, align)
+    end
+    
+    const g_dual = to_device(g_dual_cpu)
 end
 
 # ── ExchangeHandler ───────────────────────────────────────────────────────────
@@ -157,31 +164,63 @@ const io_stream = DataStream(Datum[
 ])
 
 # ── Initial conditions ────────────────────────────────────────────────────────
-Theta_dist    = MvNormal([LX/2, LY/2, LZ/2], [0.25, 0.25, 0.25])
-Theta_perturb = zeros(FT, nboids(s))
-for rz in 1:nzbr(s), ry in 1:nybr(s), rx in 1:nxbr(s)
-    b  = coord_to_boid(s, rx + halo_west(s), ry + halo_south(s), rz + halo_down(s))
-    dp = real_dual_point(s, rx, ry, rz)
-    Theta_perturb[b] = pdf(Theta_dist, [dp[1], dp[2], dp[3]]) * 0.1
-end
-
-# U_star is a primal 2-form: zero initial velocity → nquads(s) zeros
-U_star_0     = to_device(zeros(FT, nquads(s)))
-rho_star_0   = to_device(inv_hdg_3(ones(FT, nboids(s))))
-Theta_star_0 = to_device(inv_hdg_3(fill(FT(300), nboids(s)) .+ Theta_perturb))
-
-const u0 = ComponentVector(; U_star = U_star_0, rho_star = rho_star_0, Theta_star = Theta_star_0)
-
-MPI.Barrier(cart_comm)
 
 const boundary_mask_d_cpu = zeros(FT, nquads(s))
 boundary_mask_d_cpu[bdry_quads] .= FT(1.0)
 const boundary_mask_d = Adapt.adapt(BACKEND, boundary_mask_d_cpu)
 
-# ── No-op BC hooks ────────────────────────────────────────────────────────────
-@inline enforce_bc_U!(U::AbstractVector{FT}) where FT <: AbstractFloat = U
-@inline enforce_bc_v!(v::AbstractVector{FT}) where FT <: AbstractFloat = v
-@inline enforce_bc_V!(V::AbstractVector{FT}) where FT <: AbstractFloat = v
+# For free-slip conditions, remove component of dd1 parallel to boundary
+
+function generate_free_slip_mask(s::UniformCubicalComplex3D)
+    dd1_emask = Vector{Int8}(undef, ne(s))
+
+    for e in 1:ne(s)
+        x, y, z, align = edge_to_coord(s, e)
+        (q_idx, q_valid) = edge_quads(s, x, y, z, align)
+
+        dd1_emask[e] =
+            Int8(q_valid[1]) |
+            (Int8(q_valid[2]) << 1) |
+            (Int8(q_valid[3]) << 2) |
+            (Int8(q_valid[4]) << 3)
+    end
+
+    free_dd1_emask = similar(dd1_emask)
+
+    for e in 1:ne(s)
+        x, y, z, align = edge_to_coord(s, e)
+        mask = dd1_emask[e]
+
+        if align == X_ALIGN
+            if y == 1     ; mask &= Int8(0b1011) ; end  # drop q3
+            if z == 1     ; mask &= Int8(0b0111) ; end  # drop q4
+            if y == ny(s) ; mask &= Int8(0b1110) ; end  # drop q1
+            if z == nz(s) ; mask &= Int8(0b1101) ; end  # drop q2
+        elseif align == Y_ALIGN
+            if z == 1     ; mask &= Int8(0b1011) ; end  # drop q3
+            if x == 1     ; mask &= Int8(0b0111) ; end  # drop q4
+            if z == nz(s) ; mask &= Int8(0b1110) ; end  # drop q1
+            if x == nx(s) ; mask &= Int8(0b1101) ; end  # drop q2
+        else # Z_ALIGN
+            if x == 1     ; mask &= Int8(0b1011) ; end  # drop q3
+            if y == 1     ; mask &= Int8(0b0111) ; end  # drop q4
+            if x == nx(s) ; mask &= Int8(0b1110) ; end  # drop q1
+            if y == ny(s) ; mask &= Int8(0b1101) ; end  # drop q2
+        end
+
+        free_dd1_emask[e] = mask
+    end
+
+    return free_dd1_emask
+end
+    
+free_dd1_emask = Adapt.adapt(BACKEND, generate_free_slip_mask(s))
+
+include(joinpath(@__DIR__, "Examples", "$SIM_NAME.jl"))
+
+const u0 = ComponentVector(; U_star = to_device(U_star_0), rho_star = to_device(rho_star_0), Theta_star = to_device(Theta_star_0))
+
+MPI.Barrier(cart_comm)
 
 # ── RHS ───────────────────────────────────────────────────────────────────────
 include(joinpath(@__DIR__, "buffers.jl"))
@@ -210,7 +249,9 @@ function momentum_conservation!(result::AbstractVector{FT}, u::ComponentVector,
 
     # ── adv_term left: dd0(hdg_3(wdg_12(v, inv_hdg_2(U)))) ───────────────────
     inv_hodge_star!(_mc_ihs2_U, Val(2), s, _mc_U)
+    # TODO: Find a better way to switch WENO
     wedge_product!(_mc_wdg12_vU, Val(1), Val(2), s, _mc_v, _mc_ihs2_U)
+    # wedge_product_12!(_mc_wdg12_vU, _mc_wdg12_tmpx, _mc_wdg12_tmpy, _mc_wdg12_tmpz, WENO5(), adv_cache, _mc_v, _mc_ihs2_U)
     hodge_star!(_mc_hdg3_wdg,   Val(3), s, _mc_wdg12_vU)
     dual_derivative!(_mc_dd0_hdg3, Val(0), s, _mc_hdg3_wdg)
 
@@ -218,16 +259,21 @@ function momentum_conservation!(result::AbstractVector{FT}, u::ComponentVector,
     _mc_dd0_hdg3 .= _mc_dd0_hdg3 .* (FT(1.0) .- boundary_mask_d) 
     
     # ── adv_term right: hdg_2(wdg_11(v, inv_hdg_1(dd1(U)))) ─────────────────
+    # TODO: This is an insert for the free slip condition
     dual_derivative!(_mc_dd1_U,         Val(1), s, _mc_U)
+    # free_slip_dd1!(_mc_dd1_U, s, free_dd1_emask, _mc_U)
+
     inv_hodge_star!(_mc_ihs1_dd1U,      Val(1), s, _mc_dd1_U)
-    wedge_product!(_mc_wdg11_v,         Val(1), Val(1), s, _mc_v, _mc_ihs1_dd1U)
+    wedge_product!(_mc_wdg11_v,         Val(1), Val(1), s, _mc_v, _mc_ihs1_dd1U) # TODO: WENO switch
+    # wedge_product_11!(_mc_wdg11_v, _mc_wdg11_tmpa, _mc_wdg11_tmpb, WENO5(), adv_cache, _mc_v, _mc_ihs1_dd1U)
     hodge_star!(_mc_hdg2_wdg,           Val(2), s, _mc_wdg11_v)
 
     _mc_adv_term .= _mc_dd0_hdg3 .+ _mc_hdg2_wdg
 
     # ── energy = 0.5 * wdg_dd_01(rho, dd0(hdg_3(wdg_12(v, inv_hdg_2(vel))))) ─
     inv_hodge_star!(_mc_ihs2_vel,  Val(2), s, _mc_u)
-    wedge_product!(_mc_wdg12_vvel, Val(1), Val(2), s, _mc_v, _mc_ihs2_vel)
+    wedge_product!(_mc_wdg12_vvel, Val(1), Val(2), s, _mc_v, _mc_ihs2_vel) # TODO: WENO switch
+    # wedge_product_12!(_mc_wdg12_vvel, _mc_wdg12v_tmpx, _mc_wdg12v_tmpy, _mc_wdg12v_tmpz, WENO5(), adv_cache, _mc_v, _mc_ihs2_vel)
     hodge_star!(_mc_hdg3_vvel,     Val(3), s, _mc_wdg12_vvel)
     dual_derivative!(_mc_dd0_hdg3v, Val(0), s, _mc_hdg3_vvel)
     _mc_dd0_hdg3v .= _mc_dd0_hdg3v .* (FT(1.0) .- boundary_mask_d) 
@@ -241,7 +287,10 @@ function momentum_conservation!(result::AbstractVector{FT}, u::ComponentVector,
     _mc_diff_p .= _mc_diff_p .* (FT(1.0) .- boundary_mask_d)
 
     # ── viscous = mu * dlap_1(vel) ────────────────────────────────────────────
+    # TODO: Free slip here
     dual_derivative!(_mc_dlap1_tmp1, Val(1), s, _mc_u)
+    # free_slip_dd1!(_mc_dlap1_tmp1, s, free_dd1_emask, _mc_u)
+
     # dual_codifferential!(_mc_viscous_1, Val(2), s, _mc_dlap1_tmp1)
     inv_hodge_star!(_mc_tmp_3, Val(1), s, _mc_dlap1_tmp1)
     exterior_derivative!(_mc_tmp_4, Val(1), s, _mc_tmp_3)
@@ -255,6 +304,12 @@ function momentum_conservation!(result::AbstractVector{FT}, u::ComponentVector,
 
     # ── assemble and apply inv_hdg_2 ──────────────────────────────────────────
     _mc_sum_terms .= .-_mc_div_term .- _mc_adv_term .+ _mc_energy .- _mc_diff_p .+ _mc_viscous
+
+    if GRAVITY
+        wedge_product_dd!(_mc_gravity, Val(0), Val(1), s, _mc_rho, g_dual)
+        _mc_sum_terms .+= _mc_gravity
+    end
+    
     inv_hodge_star!(result, Val(2), s, _mc_sum_terms)
     enforce_bc_U!(result)
     return result
@@ -290,7 +345,8 @@ function potential_temperature_continuity!(result::AbstractVector{FT}, u::Compon
     _pt_dd0_Theta .= _pt_dd0_Theta .* (FT(1.0) .- boundary_mask_d)
 
     inv_hodge_star!(_pt_ihs2_dd0T,   Val(2), s, _pt_dd0_Theta)
-    wedge_product!(_pt_wdg12_vT,     Val(1), Val(2), s, _pt_v, _pt_ihs2_dd0T)
+    wedge_product!(_pt_wdg12_vT,     Val(1), Val(2), s, _pt_v, _pt_ihs2_dd0T) # TODO: WENO switch
+    # wedge_product_12!(_pt_wdg12_vT, _pt_wdg12_tmpx, _pt_wdg12_tmpy, _pt_wdg12_tmpz, WENO5(), adv_cache, _pt_v, _pt_ihs2_dd0T)
     hodge_star!(_pt_advection,       Val(3), s, _pt_wdg12_vT)
 
     # ── diffusion = alpha * dlap_0(theta) ─────────────────────────────────────
@@ -337,18 +393,30 @@ periodic_cb = DiscreteCallback(
     save_positions = (false, false),
 )
 
+function smoothing_run(integrator)
+    use_rho_smooth && smooth_dual0_fused!(du.rho_star,   _sm_rho_tmp,   smooth_cache, du.rho_star)
+    use_theta_smooth && smooth_dual0_fused!(du.Theta_star, _sm_theta_tmp, smooth_cache, du.Theta_star)
+    return nothing
+end
+
+smoothing_cb = DiscreteCallback(
+    (u, t, integrator) -> integrator.iter > 0 && false, 
+    integrator -> smoothing_run(integrator); 
+    save_positions = (false, false)
+)
+
 save_cb = FunctionCallingCallback((u, t, integrator) -> begin
     U_real     = interior(Val(2), Array(hdg_2(u.U_star)), s)[:]
     rho_real   = interior(Val(3), Array(hdg_3(u.rho_star)), s)[:]
     theta_real = interior(Val(3), Array(hdg_3(u.Theta_star)), s)[:]
     send_output!([rho_real, theta_real, U_real], io_stream, topo)
     if cart_rank == 0
-        @printf("  t = %.4f  (%.1f%%)\n", t, 100t / TE)
+        @printf("  t = %.4f  (%.3f%%)\n", t, 100t / TE)
         flush(stdout)
     end
 end; funcat = FT(0):SAVETIME:TE)
 
-cb = CallbackSet(periodic_cb, save_cb)
+cb = CallbackSet(periodic_cb, smoothing_cb, save_cb)
 
 # ── Solve ─────────────────────────────────────────────────────────────────────
 cart_rank == 0 && println("Warming up RHS...")

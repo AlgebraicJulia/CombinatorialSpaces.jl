@@ -7,22 +7,18 @@ xpu = "AMD"
 # 257^3 (4 gpus in 66s)
 # 513^3 (4 gpus in 794s)
 [Mesh]
-nx = 129
-ny = 129
-nz = 129
-lx = 6.0
-ly = 6.0
-lz = 6.0
-halo = 6
+nx = 261
+ny = 201
+nz = 101
+lx = 13.0
+ly = 10.0
+lz = 5.0
+halo = 15
 
 [Physics]
 Re = 10_000
 Pr = 0.71
 Gravity = false
-
-[Smoothing]
-rho_smooth_constant   = 0.05
-theta_smooth_constant = 0.2
 
 [Simulation]
 te       = 0.02

@@ -6,23 +6,25 @@ MPI.Init()
 const PROJECT_DIR = dirname(dirname(dirname(@__DIR__)))
 include(joinpath(PROJECT_DIR, "src", "CubicalCode", "UniformDEC.jl"))
 
-const CONFIG = TOML.parsefile(joinpath(@__DIR__, "config.toml"))
-
 # ── ARGS ──────────────────────────────────────────────────────────────────────
-# Order: wx wy wz ox oy oz LOG_DIR
 const w_dims  = (parse(Int, ARGS[1]), parse(Int, ARGS[2]), parse(Int, ARGS[3]))
 const o_dims  = (parse(Int, ARGS[4]), parse(Int, ARGS[5]), parse(Int, ARGS[6]))
-const LOG_DIR = ARGS[7]
+const SIM_NAME = ARGS[7]
+
+const CONFIG = TOML.parsefile(joinpath(@__DIR__, "Examples", "$SIM_NAME.toml"))
+
+const LOG_DIR = CONFIG["Metadata"]["logpath"]
 
 # ── Dirs ──────────────────────────────────────────────────────────────────────
-const OUTPUT_DIR = joinpath(@__DIR__, LOG_DIR, "output")
-const IMGDIR     = joinpath(@__DIR__, LOG_DIR, "imgs")
+const OUTPUT_DIR = joinpath(LOG_DIR, "output")
+const IMGDIR     = joinpath(LOG_DIR, "imgs")
 
 comm_world = MPI.COMM_WORLD
 world_rank = MPI.Comm_rank(comm_world)
 if world_rank == 0
     rm(OUTPUT_DIR; recursive = true, force = true)
     rm(IMGDIR;     recursive = true, force = true)
+    mkpath(LOG_DIR)
     mkpath(OUTPUT_DIR)
     mkpath(IMGDIR)
 end
@@ -59,22 +61,30 @@ end
 MPI.Barrier(comm_world)
 
 # ── Topology ──────────────────────────────────────────────────────────────────
-# TODO: This should be able to support combinations of options
-const PERIODS = if PERIODIC == "ALL"
-    (true, true, true)
-elseif PERIODIC == "EASTWEST"
-    (true, false, false)
-elseif PERIODIC == "NORTHSOUTH"
-    (false, true, false)
-elseif PERIODIC == "UPDOWN"
-    (false, false, true)
-else
-    (false, false, false)
+const EWPERIODIC = false
+const NSPERIODIC = false
+const UDPERIODIC = false
+if "ALL" in PERIODIC
+    const EWPERIODIC = true
+    const NSPERIODIC = true
+    const UDPERIODIC = true
+elseif "EASTWEST" in PERIODIC
+    const EWPERIODIC = true
+elseif "NORTHSOUTH" in PERIODIC
+    const NSPERIODIC = true
+elseif "UPDOWN" in PERIODIC
+    const UDPERIODIC = true
 end
+
+const PERIODS = (EWPERIODIC, NSPERIODIC, UDPERIODIC)
 
 const topo = MPITopology(m_dims, w_dims, o_dims; periods = PERIODS)
 
-const XPU = get(CONFIG["Metadata"], "xpu", "CPU")
+if "--amd" in ARGS
+    const XPU = "AMD"
+else
+    const XPU = "CPU"
+end
 
 use_amdgpu(use_xpu::String) = use_xpu == "AMD"
 use_cpu(use_xpu::String) = use_xpu == "CPU"
@@ -96,5 +106,6 @@ else
     include(joinpath(@__DIR__, "worker.jl"))
 end
 
+world_rank == 0 & println("Closing out...")
 MPI.Barrier(topo.world_comm)
 MPI.Finalize()

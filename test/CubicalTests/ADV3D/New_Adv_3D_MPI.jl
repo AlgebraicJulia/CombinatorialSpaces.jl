@@ -179,17 +179,17 @@ else
 
     for z in 1:nzb(s), y in 1:nyb(s), x in 1:nx(s)
         q = coord_to_quad(s, x, y, z, X_ALIGN)
-        v[q] = V_X * dual_edge_length(s, x, y, z, X_ALIGN)
+        v[q] = V_X * dual_edge_len(s, x, y, z, X_ALIGN)
     end
 
     for z in 1:nzb(s), y in 1:ny(s), x in 1:nxb(s)
         q = coord_to_quad(s, x, y, z, Y_ALIGN)
-        v[q] = V_Y * dual_edge_length(s, x, y, z, Y_ALIGN)
+        v[q] = V_Y * dual_edge_len(s, x, y, z, Y_ALIGN)
     end
 
     for z in 1:nz(s), y in 1:nyb(s), x in 1:nxb(s)
         q = coord_to_quad(s, x, y, z, Z_ALIGN)
-        v[q] = V_Z * dual_edge_length(s, x, y, z, Z_ALIGN)
+        v[q] = V_Z * dual_edge_len(s, x, y, z, Z_ALIGN)
     end
 
     # ── Initial condition ─────────────────────────────────────────────────────

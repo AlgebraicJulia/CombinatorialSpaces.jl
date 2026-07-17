@@ -1,17 +1,19 @@
 [Metadata]
 name  = "RTI"
 float = "Float64"
-xpu = "CPU"
+logpath = "/p/work2/grauta/3dlogs/rtitest/4/"
 
 [Mesh]
 nx = 129
-ny = 1025
+ny = 129
+nz = 257
 lx = 2.0
-ly = 16.0
-halo = 15
+ly = 2.0
+lz = 4.0
+halo = 8 # 15 for WENO5
 
 [Physics]
-Re = 10_000
+Re = 1000
 Pr = 0.71
 Gravity = true
 
@@ -21,5 +23,5 @@ theta_smooth_constant = 0.1
 
 [Simulation]
 te = 20.0
-periodic="EASTWEST"
+periodic= ["EASTWEST", "NORTHSOUTH"]
 savetime = 0.01

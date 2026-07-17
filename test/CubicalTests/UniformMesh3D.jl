@@ -393,27 +393,27 @@ end
 
     # --- Z-Aligned Quads (Normal to Z-axis) ---
     # Boundary lengths should be dz / 2 = 15.0
-    @test dual_edge_length(s, 2, 2, 1, Z_ALIGN) == 15.0
-    @test dual_edge_length(s, 2, 2, 4, Z_ALIGN) == 15.0
+    @test dual_edge_len(s, 2, 2, 1, Z_ALIGN) == 15.0
+    @test dual_edge_len(s, 2, 2, 4, Z_ALIGN) == 15.0
     # Interior lengths should be dz = 30.0
-    @test dual_edge_length(s, 2, 2, 2, Z_ALIGN) == 30.0
-    @test dual_edge_length(s, 2, 2, 3, Z_ALIGN) == 30.0
+    @test dual_edge_len(s, 2, 2, 2, Z_ALIGN) == 30.0
+    @test dual_edge_len(s, 2, 2, 3, Z_ALIGN) == 30.0
 
     # --- Y-Aligned Quads (Normal to Y-axis) ---
     # Boundary lengths should be dy / 2 = 10.0
-    @test dual_edge_length(s, 2, 1, 2, Y_ALIGN) == 10.0
-    @test dual_edge_length(s, 2, 4, 2, Y_ALIGN) == 10.0
+    @test dual_edge_len(s, 2, 1, 2, Y_ALIGN) == 10.0
+    @test dual_edge_len(s, 2, 4, 2, Y_ALIGN) == 10.0
     # Interior lengths should be dy = 20.0
-    @test dual_edge_length(s, 2, 2, 2, Y_ALIGN) == 20.0
-    @test dual_edge_length(s, 2, 3, 2, Y_ALIGN) == 20.0
+    @test dual_edge_len(s, 2, 2, 2, Y_ALIGN) == 20.0
+    @test dual_edge_len(s, 2, 3, 2, Y_ALIGN) == 20.0
 
     # --- X-Aligned Quads (Normal to X-axis) ---
     # Boundary lengths should be dx / 2 = 5.0
-    @test dual_edge_length(s, 1, 2, 2, X_ALIGN) == 5.0
-    @test dual_edge_length(s, 4, 2, 2, X_ALIGN) == 5.0
+    @test dual_edge_len(s, 1, 2, 2, X_ALIGN) == 5.0
+    @test dual_edge_len(s, 4, 2, 2, X_ALIGN) == 5.0
     # Interior lengths should be dx = 10.0
-    @test dual_edge_length(s, 2, 2, 2, X_ALIGN) == 10.0
-    @test dual_edge_length(s, 3, 2, 2, X_ALIGN) == 10.0
+    @test dual_edge_len(s, 2, 2, 2, X_ALIGN) == 10.0
+    @test dual_edge_len(s, 3, 2, 2, X_ALIGN) == 10.0
 end
 
 @testset "Dual Boid Volume and Dual Quad Area" begin

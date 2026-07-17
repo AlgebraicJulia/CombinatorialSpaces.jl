@@ -15,11 +15,11 @@ Re = 10_000
 Pr = 0.71
 Gravity = true
 
-[Smoothing]
-rho_smooth_constant   = 0.02
-theta_smooth_constant = 0.1
+# [Smoothing]
+# rho_smooth_constant   = 0.02
+# theta_smooth_constant = 0.1
 
 [Simulation]
-te = 20.0
+te = 18.0
 periodic="EASTWEST"
 savetime = 0.01

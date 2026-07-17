@@ -1,13 +1,15 @@
 [Metadata]
 name  = "Thermal Bubble"
 float = "Float64"
-xpu = "CPU"
+logpath = "/p/work2/grauta/3dlogs/bubtest/"
 
 [Mesh]
-nx = 513
-ny = 513
+nx = 129
+ny = 129
+nz = 129
 lx = 6.0
 ly = 6.0
+lz = 6.0
 halo = 15
 
 [Physics]
@@ -20,6 +22,6 @@ rho_smooth_constant   = 0.02
 theta_smooth_constant = 0.1
 
 [Simulation]
-te       = 40.0
+te       = 20.0
 periodic = "NONE"
-savetime = 0.1
+savetime = 0.01

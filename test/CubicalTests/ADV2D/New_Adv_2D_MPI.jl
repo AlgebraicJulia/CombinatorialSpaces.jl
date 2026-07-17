@@ -9,7 +9,7 @@
 #   du/dt = -dual_codifferential(Val(1), s, w)
 #         = -(hs2 * d1 * ihs1) * w                    dual 1 → dual 0
 #
-# Velocity: uniform x-direction, v_x = V_X * dual_edge_length_x, v_y = 0
+# Velocity: uniform x-direction, v_x = V_X * dual_edge_len_x, v_y = 0
 # Periodicity handled by halo exchange via DiscreteCallback before each RHS evaluation.
 
 length(ARGS) == 5 || error("Usage: mpiexecjl -n N julia New_Adv_2D_MPI.jl wy wx oy ox run_tag")

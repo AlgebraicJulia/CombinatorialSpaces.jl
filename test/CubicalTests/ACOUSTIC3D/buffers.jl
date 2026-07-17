@@ -77,3 +77,20 @@ const _pt_tmp_6 = kzeros(_nb)
 
 const _pt_tmp_7 = kzeros(_nq)
 const _pt_tmp_8 = kzeros(_nb)
+
+# For WENO
+
+const _mc_wdg11_tmpa = kzeros(_nq)
+const _mc_wdg11_tmpb = kzeros(_nq)
+
+const _mc_wdg12_tmpx = kzeros(_nb)
+const _mc_wdg12_tmpy = kzeros(_nb)
+const _mc_wdg12_tmpz = kzeros(_nb)
+
+const _mc_wdg12v_tmpx = kzeros(_nb)
+const _mc_wdg12v_tmpy = kzeros(_nb)
+const _mc_wdg12v_tmpz = kzeros(_nb)
+
+const _pt_wdg12_tmpx = kzeros(_nb)
+const _pt_wdg12_tmpy = kzeros(_nb)
+const _pt_wdg12_tmpz = kzeros(_nb)

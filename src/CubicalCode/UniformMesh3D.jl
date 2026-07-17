@@ -255,6 +255,117 @@ is_edge_X_aligned(e::Int, s::AbstractCubicalComplex3D) = e <= nxedges(s)
 is_edge_Y_aligned(e::Int, s::AbstractCubicalComplex3D) = nxedges(s) < e <= nxedges(s) + nyedges(s)
 is_edge_Z_aligned(e::Int, s::AbstractCubicalComplex3D) = e > nxedges(s) + nyedges(s)
 
+# TODO: Test all of these boundary edges
+function down_tangent_edges(s::AbstractCubicalComplex3D, ::Val{X_ALIGN})
+    return [coord_to_edge(s, x, y, 1, X_ALIGN)
+            for x in 1:nxe(s), y in 1:ny(s)][:]
+end
+
+function down_tangent_edges(s::AbstractCubicalComplex3D, ::Val{Y_ALIGN})
+    return [coord_to_edge(s, x, y, 1, Y_ALIGN)
+            for x in 1:nx(s), y in 1:nye(s)][:]
+end
+
+# ── Up face (z=nz) ────────────────────────────────────────────────────────────
+
+function up_tangent_edges(s::AbstractCubicalComplex3D, ::Val{X_ALIGN})
+    return [coord_to_edge(s, x, y, nz(s), X_ALIGN)
+            for x in 1:nxe(s), y in 1:ny(s)][:]
+end
+
+function up_tangent_edges(s::AbstractCubicalComplex3D, ::Val{Y_ALIGN})
+    return [coord_to_edge(s, x, y, nz(s), Y_ALIGN)
+            for x in 1:nx(s), y in 1:nye(s)][:]
+end
+
+# ── South face (y=1) ──────────────────────────────────────────────────────────
+
+function south_tangent_edges(s::AbstractCubicalComplex3D, ::Val{X_ALIGN})
+    return [coord_to_edge(s, x, 1, z, X_ALIGN)
+            for x in 1:nxe(s), z in 1:nz(s)][:]
+end
+
+function south_tangent_edges(s::AbstractCubicalComplex3D, ::Val{Z_ALIGN})
+    return [coord_to_edge(s, x, 1, z, Z_ALIGN)
+            for x in 1:nx(s), z in 1:nze(s)][:]
+end
+
+# ── North face (y=ny) ─────────────────────────────────────────────────────────
+
+function north_tangent_edges(s::AbstractCubicalComplex3D, ::Val{X_ALIGN})
+    return [coord_to_edge(s, x, ny(s), z, X_ALIGN)
+            for x in 1:nxe(s), z in 1:nz(s)][:]
+end
+
+function north_tangent_edges(s::AbstractCubicalComplex3D, ::Val{Z_ALIGN})
+    return [coord_to_edge(s, x, ny(s), z, Z_ALIGN)
+            for x in 1:nx(s), z in 1:nze(s)][:]
+end
+
+# ── West face (x=1) ───────────────────────────────────────────────────────────
+
+function west_tangent_edges(s::AbstractCubicalComplex3D, ::Val{Y_ALIGN})
+    return [coord_to_edge(s, 1, y, z, Y_ALIGN)
+            for y in 1:nye(s), z in 1:nz(s)][:]
+end
+
+function west_tangent_edges(s::AbstractCubicalComplex3D, ::Val{Z_ALIGN})
+    return [coord_to_edge(s, 1, y, z, Z_ALIGN)
+            for y in 1:ny(s), z in 1:nze(s)][:]
+end
+
+# ── East face (x=nx) ──────────────────────────────────────────────────────────
+
+function east_tangent_edges(s::AbstractCubicalComplex3D, ::Val{Y_ALIGN})
+    return [coord_to_edge(s, nx(s), y, z, Y_ALIGN)
+            for y in 1:nye(s), z in 1:nz(s)][:]
+end
+
+function east_tangent_edges(s::AbstractCubicalComplex3D, ::Val{Z_ALIGN})
+    return [coord_to_edge(s, nx(s), y, z, Z_ALIGN)
+            for y in 1:ny(s), z in 1:nze(s)][:]
+end
+
+# ── Convenience: all tangent edges on a face ──────────────────────────────────
+
+function down_tangent_edges(s::AbstractCubicalComplex3D)
+    return vcat(down_tangent_edges(s, Val(X_ALIGN)),
+                down_tangent_edges(s, Val(Y_ALIGN)))
+end
+
+function up_tangent_edges(s::AbstractCubicalComplex3D)
+    return vcat(up_tangent_edges(s, Val(X_ALIGN)),
+                up_tangent_edges(s, Val(Y_ALIGN)))
+end
+
+function south_tangent_edges(s::AbstractCubicalComplex3D)
+    return vcat(south_tangent_edges(s, Val(X_ALIGN)),
+                south_tangent_edges(s, Val(Z_ALIGN)))
+end
+
+function north_tangent_edges(s::AbstractCubicalComplex3D)
+    return vcat(north_tangent_edges(s, Val(X_ALIGN)),
+                north_tangent_edges(s, Val(Z_ALIGN)))
+end
+
+function west_tangent_edges(s::AbstractCubicalComplex3D)
+    return vcat(west_tangent_edges(s, Val(Y_ALIGN)),
+                west_tangent_edges(s, Val(Z_ALIGN)))
+end
+
+function east_tangent_edges(s::AbstractCubicalComplex3D)
+    return vcat(east_tangent_edges(s, Val(Y_ALIGN)),
+                east_tangent_edges(s, Val(Z_ALIGN)))
+end
+
+# ── All boundary tangent edges ────────────────────────────────────────────────
+
+function boundary_tangent_edges(s::AbstractCubicalComplex3D)
+    return vcat(down_tangent_edges(s),  up_tangent_edges(s),
+                south_tangent_edges(s), north_tangent_edges(s),
+                west_tangent_edges(s),  east_tangent_edges(s))
+end
+
 function vert_to_coord(s::UniformCubicalComplex3D, idx::Int)
     idx0 = idx - 1
     nxy = nx(s) * ny(s)
@@ -457,7 +568,6 @@ function boundary_quads(s::AbstractCubicalComplex3D)
     return vcat(down_quads(s), up_quads(s), south_quads(s), north_quads(s), west_quads(s), east_quads(s))
 end
 
-
 # This returns the vertices counterclockwise
 # The ccw direction is determined by the perpendicular axis going from negative to positive
 # The first vertex is the one with the smallest index
@@ -591,7 +701,7 @@ function real_coord_to_boid(s::AbstractCubicalComplex3D, rx::Int, ry::Int, rz::I
     return coord_to_boid(s, rx + halo_west(s), ry + halo_south(s), rz + halo_down(s))
 end
 
-function dual_edge_length(s::UniformCubicalComplex3D, x::Int, y::Int, z::Int, align::Align)
+function dual_edge_len(s::UniformCubicalComplex3D, x::Int, y::Int, z::Int, align::Align)
     if align == Z_ALIGN
         # Z-aligned quad (XY plane) normal is along Z. 
         # Boundary is at the first and last Z-coordinates.

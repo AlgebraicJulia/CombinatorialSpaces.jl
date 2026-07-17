@@ -1,17 +1,15 @@
-const inv_hdg_2 = x -> inv_hodge_star(Val(2), cache, x)
-
-# TODO: Should streamline this process to avoid future errors
-Theta_dist = MvNormal([LX/2, LY/2], [0.1, 0.1])
-Theta_perturb = zeros(FT, nquads(s))
-for ry in 1:nyqr(s), rx in 1:nxqr(s)
-    q = coord_to_quad(s, rx + halo_west(s), ry + halo_south(s))
-    dp = real_dual_point(s, rx, ry)
-    Theta_perturb[q] = pdf(Theta_dist, [dp[1], dp[2]]) * 0.5
+Theta_dist    = MvNormal([LX/2, LY/2, LZ/2], [0.25, 0.25, 0.25])
+Theta_perturb = zeros(FT, nboids(s))
+for rz in 1:nzbr(s), ry in 1:nybr(s), rx in 1:nxbr(s)
+    b  = coord_to_boid(s, rx + halo_west(s), ry + halo_south(s), rz + halo_down(s))
+    dp = real_dual_point(s, rx, ry, rz)
+    Theta_perturb[b] = pdf(Theta_dist, [dp[1], dp[2], dp[3]]) * 0.1
 end
 
-U_star_0 = to_device(zeros(FT, ne(s)))
-rho_star_0 = to_device(inv_hdg_2(ones(FT, nquads(s))))
-Theta_star_0 = to_device(inv_hdg_2(fill(FT(300), nquads(s)) .+ Theta_perturb))
+# U_star is a primal 2-form: zero initial velocity → nquads(s) zeros
+U_star_0     = zeros(FT, nquads(s))
+rho_star_0   = inv_hdg_3(ones(FT, nboids(s)))
+Theta_star_0 = inv_hdg_3(fill(FT(300), nboids(s)) .+ Theta_perturb)
 
 @inline enforce_bc_U!(U::AbstractVector{FT}) where FT <: AbstractFloat = U
 @inline enforce_bc_v!(v::AbstractVector{FT}) where FT <: AbstractFloat = v

@@ -263,6 +263,75 @@ end
     end
 end
 
+using Test
+
+@testset "free_slip_dd1 boundary zeroing" begin
+    s = UniformCubicalComplex3D(10, 10, 10, 1.0, 1.0, 1.0)
+    FT = typeof(dx(s))
+
+    function generate_free_slip_mask(s::UniformCubicalComplex3D)
+        dd1_emask = Vector{Int8}(undef, ne(s))
+    
+        for e in 1:ne(s)
+            x, y, z, align = edge_to_coord(s, e)
+            (q_idx, q_valid) = edge_quads(s, x, y, z, align)
+    
+            dd1_emask[e] =
+                Int8(q_valid[1]) |
+                (Int8(q_valid[2]) << 1) |
+                (Int8(q_valid[3]) << 2) |
+                (Int8(q_valid[4]) << 3)
+        end
+    
+        free_dd1_emask = copy(dd1_emask)
+
+        for e in 1:ne(s)
+            mask = dd1_emask[e]
+
+            # If q1 is missing, suppress q3 (and vice versa)
+            if !Bool(mask & Int8(1))
+                free_dd1_emask[e] &= ~Int8(0b0100)
+            end
+            if !Bool((mask >> Int8(2)) & Int8(1))
+                free_dd1_emask[e] &= ~Int8(0b0001)
+            end
+
+            # If q2 is missing, suppress q4 (and vice versa)
+            if !Bool((mask >> Int8(1)) & Int8(1))
+                free_dd1_emask[e] &= ~Int8(0b1000)
+            end
+            if !Bool((mask >> Int8(3)) & Int8(1))
+                free_dd1_emask[e] &= ~Int8(0b0010)
+            end
+        end
+    
+        return free_dd1_emask
+    end
+        
+    free_dd1_emask = generate_free_slip_mask(s)
+
+    # x-only flow: set X_ALIGN (YZ) quads to 1, rest zero
+    f = zeros(FT, nquads(s))
+    yzquads(s, f) .= FT(1)
+    res = zeros(FT, ne(s))
+    free_slip_dd1!(res, s, free_dd1_emask, f)
+    @test all(res .== FT(0))
+
+    # y-only flow: set Y_ALIGN (XZ) quads to 1, rest zero
+    f = zeros(FT, nquads(s))
+    xzquads(s, f) .= FT(1)
+    res = zeros(FT, ne(s))
+    free_slip_dd1!(res, s, free_dd1_emask, f)
+    @test all(res .== FT(0))
+
+    # z-only flow: set Z_ALIGN (XY) quads to 1, rest zero
+    f = zeros(FT, nquads(s))
+    xyquads(s, f) .= FT(1)
+    res = zeros(FT, ne(s))
+    free_slip_dd1!(res, s, free_dd1_emask, f)
+    @test all(res .== FT(0))
+end
+
 # Test_UniformMesh3D.txt additions
 
 @testset "Wedge Product Kernels" begin
@@ -900,4 +969,38 @@ end
     @test all(isapprox.(vol_x, expected))
     @test all(isapprox.(vol_y, expected))
     @test all(isapprox.(vol_z, expected))
+end
+
+using Test
+
+@testset "SmoothingCache3D reduces sinusoidal variation" begin
+    s = UniformCubicalComplex3D(20, 20, 20, 1.0, 1.0, 1.0)
+    c_smooth = 0.5
+    cache = SmoothingCache3D(s, c_smooth)
+
+    FT = typeof(dx(s))
+
+    freq = 2
+
+    # Sinusoidal dual 0-form on boids
+    f = zeros(FT, nboids(s))
+    for b in 1:nboids(s)
+        x, y, z = boid_to_coord(s, b)
+        px = (x - 0.5) * dx(s)
+        py = (y - 0.5) * dy(s)
+        pz = (z - 0.5) * dz(s)
+        f[b] = sin(2π * freq * px) * sin(2π * freq * py) * sin(2π * freq * pz)
+    end
+
+    f_smooth = copy(f)
+    tmp = similar(f)
+    for _ in 1:50
+        smooth_dual0_fused!(f_smooth, tmp, cache, f_smooth)
+    end
+
+    # Smoothing should reduce the total variation (sum of absolute values)
+    @test sum(abs, f_smooth) < sum(abs, f)
+
+    # Mean should be approximately preserved (smoothing is conservative)
+    @test isapprox(sum(f_smooth), sum(f); atol = FT(1e-10))
 end

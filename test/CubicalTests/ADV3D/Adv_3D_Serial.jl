@@ -58,7 +58,7 @@ s = UniformCubicalComplex(NXB + 1, NYB + 1, NZB + 1, FT(LX), FT(LY), FT(LZ))
 
 # ── Constant velocity dual 1-form on quads ────────────────────────────────────
 # v is a dual 1-form on quads. For uniform x-advection, only X_ALIGN (YZ) quads
-# carry flux: V_X * dual_edge_length(s, x, y, z, X_ALIGN).
+# carry flux: V_X * dual_edge_len(s, x, y, z, X_ALIGN).
 #
 # TODO: After zeroing boundary quads (see note above), also zero v at all
 #       boundary quad indices so no flux enters or leaves the domain.
@@ -66,13 +66,13 @@ s = UniformCubicalComplex(NXB + 1, NYB + 1, NZB + 1, FT(LX), FT(LY), FT(LZ))
 v = zeros(FT, nquads(s))
 
 for z in 1:nzb(s), y in 1:nyb(s), x in 1:nx(s)
-    v[coord_to_quad(s, x, y, z, X_ALIGN)] = V_X * dual_edge_length(s, x, y, z, X_ALIGN)
+    v[coord_to_quad(s, x, y, z, X_ALIGN)] = V_X * dual_edge_len(s, x, y, z, X_ALIGN)
 end
 for z in 1:nzb(s), y in 1:ny(s), x in 1:nxb(s)
-    v[coord_to_quad(s, x, y, z, Y_ALIGN)] = V_Y * dual_edge_length(s, x, y, z, Y_ALIGN)
+    v[coord_to_quad(s, x, y, z, Y_ALIGN)] = V_Y * dual_edge_len(s, x, y, z, Y_ALIGN)
 end
 for z in 1:nz(s), y in 1:nyb(s), x in 1:nxb(s)
-    v[coord_to_quad(s, x, y, z, Z_ALIGN)] = V_Z * dual_edge_length(s, x, y, z, Z_ALIGN)
+    v[coord_to_quad(s, x, y, z, Z_ALIGN)] = V_Z * dual_edge_len(s, x, y, z, Z_ALIGN)
 end
 
 # ── Initial condition ─────────────────────────────────────────────────────────

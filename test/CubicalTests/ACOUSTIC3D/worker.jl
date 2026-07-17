@@ -22,7 +22,7 @@ const _halo_north = has_north ? HALO : 0
 const _halo_down = has_down ? HALO : 0
 const _halo_up = has_up ? HALO : 0
 
-const s           = worker_mesh(topo, (LX, LY, LZ); halo_west = _halo_west, halo_east = _halo_east, 
+const s = worker_mesh(topo, (LX, LY, LZ); halo_west = _halo_west, halo_east = _halo_east, 
     halo_south = _halo_south, halo_north = _halo_north, halo_down = _halo_down, halo_up = _halo_up)
 
 const cart_comm   = topo.cart_comm
@@ -42,7 +42,7 @@ else
     const BACKEND = CPU()
 end
 
-
+const adv_cache = Adapt.adapt(BACKEND, AdvectionCache(WENO5(), s))
 
 # ── to_device ─────────────────────────────────────────────────────────────────
 function to_device(arr::AbstractVector{T}) where T
@@ -58,43 +58,12 @@ cart_rank == 0 && println("MPI worker grid: $(w_dims[1])×$(w_dims[2])×$(w_dims
 # println("Worker $cart_rank | coords=$cart_coords | mesh=$(nxr(s))×$(nyr(s))×$(nzr(s)) real boids")
 cart_rank == 0 && flush(stdout)
 
-# ── DEC operators (3D — no cache yet, dispatch directly on s) ─────────────────
-# NOTE: UniformDECCache for 3D is not yet implemented; all operators take s directly.
-# const d0 = x -> exterior_derivative(Val(0), s, x)   # verts  → edges
-# const d1 = x -> exterior_derivative(Val(1), s, x)   # edges  → quads
-# const d2 = x -> exterior_derivative(Val(2), s, x)   # quads  → boids
-
-# const dd0 = x -> begin res = dual_derivative(Val(0), s, x); res[bdry_quads] .= 0; return res; end # boids  → quads (dual 0→1)
-# const dd1 = x -> dual_derivative(Val(1), s, x)      # quads  → edges (dual 1→2)
-# const dd2 = x -> dual_derivative(Val(2), s, x)      # edges  → verts (dual 2→3)
-
-# Primal Hodge stars
-# const hdg_0 = x -> hodge_star(Val(0), s, x)   # verts  → boids
-# const hdg_1 = x -> hodge_star(Val(1), s, x)   # edges  → quads
+# ── DEC operators ─────────────────
 const hdg_2 = x -> hodge_star(Val(2), s, x)   # quads  → edges  (U_star → U, i.e. primal 2-form → dual 1-form)
 const hdg_3 = x -> hodge_star(Val(3), s, x)   # boids  → verts
 
-# Inverse Hodge stars
-# const inv_hdg_0 = x -> inv_hodge_star(Val(0), s, x)
-# const inv_hdg_1 = x -> inv_hodge_star(Val(1), s, x)
 const inv_hdg_2 = x -> inv_hodge_star(Val(2), s, x)  # edges  → quads  (dual 1-form → primal 2-form)
 const inv_hdg_3 = x -> inv_hodge_star(Val(3), s, x)  # verts  → boids
-
-# Wedge products
-# const wdg_11     = (a, b) -> wedge_product(Val(1), Val(1), s, a, b)   # edge ∧ edge → quad
-# const wdg_12     = (a, b) -> wedge_product(Val(1), Val(2), s, a, b)   # edge ∧ quad → boid
-# const wdg_dd_01  = (f, a) -> wedge_product_dd(Val(0), Val(1), s, f, a) # dual-0 ∧ dual-1 → dual-1
-
-# const dcd_1 = x -> hdg_3(d2(inv_hdg_2(x))) # This is div
-# const dcd_2 = x-> hdg_2(d1(inv_hdg_1(x))) # This is curl
-
-# const dlap_0 = x -> dcd_1(dd0(x)) # This is scalar laplacian
-
-# # TODO: Should line up with the vector laplacian
-# # First term is gradient of divergence, second is curl of curl
-# const dlap_1 = x -> dd0(dcd_1(x)) .- dcd_2(dd1(x))
-
-# const interp_dp_1 = x -> interpolate_dp(Val(1), s, x)
 
 # ── Physics ───────────────────────────────────────────────────────────────────
 struct PhysicalParameters{FT <: AbstractFloat}
@@ -210,7 +179,9 @@ function momentum_conservation!(result::AbstractVector{FT}, u::ComponentVector,
 
     # ── adv_term left: dd0(hdg_3(wdg_12(v, inv_hdg_2(U)))) ───────────────────
     inv_hodge_star!(_mc_ihs2_U, Val(2), s, _mc_U)
-    wedge_product!(_mc_wdg12_vU, Val(1), Val(2), s, _mc_v, _mc_ihs2_U)
+    # TODO: Find a better way to switch WENO
+    # wedge_product!(_mc_wdg12_vU, Val(1), Val(2), s, _mc_v, _mc_ihs2_U)
+    wedge_product_12!(_mc_wdg12_vU, _mc_wdg12_tmpx, _mc_wdg12_tmpy, _mc_wdg12_tmpz, WENO5(), adv_cache, _mc_v, _mc_ihs2_U)
     hodge_star!(_mc_hdg3_wdg,   Val(3), s, _mc_wdg12_vU)
     dual_derivative!(_mc_dd0_hdg3, Val(0), s, _mc_hdg3_wdg)
 
@@ -220,14 +191,16 @@ function momentum_conservation!(result::AbstractVector{FT}, u::ComponentVector,
     # ── adv_term right: hdg_2(wdg_11(v, inv_hdg_1(dd1(U)))) ─────────────────
     dual_derivative!(_mc_dd1_U,         Val(1), s, _mc_U)
     inv_hodge_star!(_mc_ihs1_dd1U,      Val(1), s, _mc_dd1_U)
-    wedge_product!(_mc_wdg11_v,         Val(1), Val(1), s, _mc_v, _mc_ihs1_dd1U)
+    # wedge_product!(_mc_wdg11_v,         Val(1), Val(1), s, _mc_v, _mc_ihs1_dd1U) # TODO: WENO switch
+    wedge_product_11!(_mc_wdg11_v, _mc_wdg11_tmpa, _mc_wdg11_tmpb, WENO5(), adv_cache, _mc_v, _mc_ihs1_dd1U)
     hodge_star!(_mc_hdg2_wdg,           Val(2), s, _mc_wdg11_v)
 
     _mc_adv_term .= _mc_dd0_hdg3 .+ _mc_hdg2_wdg
 
     # ── energy = 0.5 * wdg_dd_01(rho, dd0(hdg_3(wdg_12(v, inv_hdg_2(vel))))) ─
     inv_hodge_star!(_mc_ihs2_vel,  Val(2), s, _mc_u)
-    wedge_product!(_mc_wdg12_vvel, Val(1), Val(2), s, _mc_v, _mc_ihs2_vel)
+    # wedge_product!(_mc_wdg12_vvel, Val(1), Val(2), s, _mc_v, _mc_ihs2_vel) # TODO: WENO switch
+    wedge_product_12!(_mc_wdg12_vvel, _mc_wdg12v_tmpx, _mc_wdg12v_tmpy, _mc_wdg12v_tmpz, WENO5(), adv_cache, _mc_v, _mc_ihs2_vel)
     hodge_star!(_mc_hdg3_vvel,     Val(3), s, _mc_wdg12_vvel)
     dual_derivative!(_mc_dd0_hdg3v, Val(0), s, _mc_hdg3_vvel)
     _mc_dd0_hdg3v .= _mc_dd0_hdg3v .* (FT(1.0) .- boundary_mask_d) 
@@ -290,7 +263,8 @@ function potential_temperature_continuity!(result::AbstractVector{FT}, u::Compon
     _pt_dd0_Theta .= _pt_dd0_Theta .* (FT(1.0) .- boundary_mask_d)
 
     inv_hodge_star!(_pt_ihs2_dd0T,   Val(2), s, _pt_dd0_Theta)
-    wedge_product!(_pt_wdg12_vT,     Val(1), Val(2), s, _pt_v, _pt_ihs2_dd0T)
+    # wedge_product!(_pt_wdg12_vT,     Val(1), Val(2), s, _pt_v, _pt_ihs2_dd0T) # TODO: WENO switch
+    wedge_product_12!(_pt_wdg12_vT, _pt_wdg12_tmpx, _pt_wdg12_tmpy, _pt_wdg12_tmpz, WENO5(), adv_cache, _pt_v, _pt_ihs2_dd0T)
     hodge_star!(_pt_advection,       Val(3), s, _pt_wdg12_vT)
 
     # ── diffusion = alpha * dlap_0(theta) ─────────────────────────────────────
