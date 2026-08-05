@@ -106,6 +106,6 @@ else
     include(joinpath(@__DIR__, "worker.jl"))
 end
 
-world_rank == 0 & println("Closing out...")
+world_rank == 0 && println("Closing out...")
 MPI.Barrier(topo.world_comm)
 MPI.Finalize()

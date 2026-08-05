@@ -35,5 +35,5 @@ PROJECT_DIR=/p/home/grauta/git/CombinatorialSpaces.jl
 SIM_DIR=${PROJECT_DIR}/test/CubicalTests/SIM_FILES3D
 SCRIPT=${SIM_DIR}/main.jl
 
-# 3 is sim name and 4 is a switch for compute device
+# 4 is sim name and 5 is a switch for compute device
 mpiexecjl -n $N_TOTAL julia --project=${PROJECT_DIR} $SCRIPT $WX $WY $WZ $OX $OY $OZ $4 $5
