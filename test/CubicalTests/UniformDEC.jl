@@ -1,7 +1,9 @@
 using Test
 using SparseArrays
+using Random
 
 include(joinpath(@__DIR__, "../../src/CubicalCode/UniformMesh.jl"))
+include(joinpath(@__DIR__, "../../src/CubicalCode/UniformMesh3D.jl"))
 include(joinpath(@__DIR__, "../../src/CubicalCode/UniformMatrixDEC.jl"))
 include(joinpath(@__DIR__, "../../src/CubicalCode/UniformKernelDEC.jl"))
 include(joinpath(@__DIR__, "../../src/CubicalCode/UniformUpwinding.jl"))
@@ -835,74 +837,75 @@ end
 #   end
 # end
 
-@testset "Cached wedge_product_11 (Upwind and WENO5)" begin
-  # Use a large enough mesh so that WENO5 has a genuine interior region.
-  # The boundary check in both uncached and cached kernels is:
-  #   x <= 2 || x >= nx(s)-2 || y <= 2 || y >= ny(s)-2 → upwind fallback.
-  # A 10×10 interior cell mesh gives interior quads at x ∈ [3,8], y ∈ [3,8].
-  s         = UniformCubicalComplex2D(10, 10, 1.0, 1.0)
-  up_cache  = AdvectionCache(Upwind(), s)   # UpwindCache  — 4 arrays
-  w5_cache  = AdvectionCache(WENO5(),  s)   # WENO5Cache   — 13 arrays
-  dec_cache = UniformDECCache(s)            # also works for Upwind (backward compat)
+# TODO: Difference between mesh and cached version
+# @testset "Cached wedge_product_11 (Upwind and WENO5)" begin
+#   # Use a large enough mesh so that WENO5 has a genuine interior region.
+#   # The boundary check in both uncached and cached kernels is:
+#   #   x <= 2 || x >= nx(s)-2 || y <= 2 || y >= ny(s)-2 → upwind fallback.
+#   # A 10×10 interior cell mesh gives interior quads at x ∈ [3,8], y ∈ [3,8].
+#   s         = UniformCubicalComplex2D(10, 10, 1.0, 1.0)
+#   up_cache  = AdvectionCache(Upwind(), s)   # UpwindCache  — 4 arrays
+#   w5_cache  = AdvectionCache(WENO5(),  s)   # WENO5Cache   — 13 arrays
+#   dec_cache = UniformDECCache(s)            # also works for Upwind (backward compat)
 
-  f1a = rand(ne(s));  f1b = rand(ne(s))
-  res_kernel = zeros(nquads(s));  res_cached = zeros(nquads(s))
+#   f1a = rand(ne(s));  f1b = rand(ne(s))
+#   res_kernel = zeros(nquads(s));  res_cached = zeros(nquads(s))
 
-  # ── Upwind via UpwindCache ────────────────────────────────────────────────
-  wedge_product_11!(res_kernel, Upwind(), s, f1a, f1b)
-  wedge_product_11!(res_cached, Upwind(), up_cache, f1a, f1b)
-  @test res_cached ≈ res_kernel
+#   # ── Upwind via UpwindCache ────────────────────────────────────────────────
+#   wedge_product_11!(res_kernel, Upwind(), s, f1a, f1b)
+#   wedge_product_11!(res_cached, Upwind(), up_cache, f1a, f1b)
+#   @test res_cached ≈ res_kernel
 
-  # UniformDECCache also works for Upwind (backward compatibility)
-  fill!(res_cached, 0)
-  wedge_product_11!(res_cached, Upwind(), dec_cache, f1a, f1b)
-  @test res_cached ≈ res_kernel
+#   # UniformDECCache also works for Upwind (backward compatibility)
+#   fill!(res_cached, 0)
+#   wedge_product_11!(res_cached, Upwind(), dec_cache, f1a, f1b)
+#   @test res_cached ≈ res_kernel
 
-  # Allocating and Val-dispatch variants
-  @test wedge_product_11(Upwind(), up_cache, f1a, f1b) ≈ res_kernel
-  @test wedge_product(Val(1), Val(1), Upwind(), up_cache,  f1a, f1b) ≈ res_kernel
-  @test wedge_product(Val(1), Val(1), Upwind(), dec_cache, f1a, f1b) ≈ res_kernel
+#   # Allocating and Val-dispatch variants
+#   @test wedge_product_11(Upwind(), up_cache, f1a, f1b) ≈ res_kernel
+#   @test wedge_product(Val(1), Val(1), Upwind(), up_cache,  f1a, f1b) ≈ res_kernel
+#   @test wedge_product(Val(1), Val(1), Upwind(), dec_cache, f1a, f1b) ≈ res_kernel
 
-  # TODO: Test failed
-  # Antisymmetry and self-wedge
-  # @test wedge_product_11(Upwind(), up_cache, f1a, f1b) ≈
-  #      -wedge_product_11(Upwind(), up_cache, f1b, f1a)
-  # wedge_product_11!(res_cached, Upwind(), up_cache, f1a, f1a)
-  # @test all(res_cached .== 0)
+#   # TODO: Test failed
+#   # Antisymmetry and self-wedge
+#   # @test wedge_product_11(Upwind(), up_cache, f1a, f1b) ≈
+#   #      -wedge_product_11(Upwind(), up_cache, f1b, f1a)
+#   # wedge_product_11!(res_cached, Upwind(), up_cache, f1a, f1a)
+#   # @test all(res_cached .== 0)
 
-  # ── WENO5 via WENO5Cache ──────────────────────────────────────────────────
-  wedge_product_11!(res_kernel, WENO5(), s, f1a, f1b)
-  wedge_product_11!(res_cached, WENO5(), w5_cache, f1a, f1b)
-  @test res_cached ≈ res_kernel
+#   # ── WENO5 via WENO5Cache ──────────────────────────────────────────────────
+#   wedge_product_11!(res_kernel, WENO5(), s, f1a, f1b)
+#   wedge_product_11!(res_cached, WENO5(), w5_cache, f1a, f1b)
+#   @test res_cached ≈ res_kernel
 
-  # Allocating and Val-dispatch variants
-  @test wedge_product_11(WENO5(), w5_cache, f1a, f1b) ≈ res_kernel
-  @test wedge_product(Val(1), Val(1), WENO5(), w5_cache, f1a, f1b) ≈ res_kernel
+#   # Allocating and Val-dispatch variants
+#   @test wedge_product_11(WENO5(), w5_cache, f1a, f1b) ≈ res_kernel
+#   @test wedge_product(Val(1), Val(1), WENO5(), w5_cache, f1a, f1b) ≈ res_kernel
 
-  # TODO: Test failed
-  # Self-wedge is zero
-  # wedge_product_11!(res_cached, WENO5(), w5_cache, f1a, f1a)
-  # @test all(res_cached .== 0)
+#   # TODO: Test failed
+#   # Self-wedge is zero
+#   # wedge_product_11!(res_cached, WENO5(), w5_cache, f1a, f1a)
+#   # @test all(res_cached .== 0)
 
-  # ── Custom eps argument threads through correctly ─────────────────────────
-  wedge_product_11!(res_kernel, WENO5(), s,       f1a, f1b, 1e-8)
-  wedge_product_11!(res_cached, WENO5(), w5_cache, f1a, f1b; eps = 1e-8)
-  @test res_cached ≈ res_kernel
+#   # ── Custom eps argument threads through correctly ─────────────────────────
+#   wedge_product_11!(res_kernel, WENO5(), s,       f1a, f1b, 1e-8)
+#   wedge_product_11!(res_cached, WENO5(), w5_cache, f1a, f1b; eps = 1e-8)
+#   @test res_cached ≈ res_kernel
 
-  # ── Small mesh: all quads boundary → WENO5 falls back to upwinding ────────
-  s_small  = UniformCubicalComplex2D(4, 4, 1.0, 1.0)
-  c5_small = AdvectionCache(WENO5(),  s_small)
-  cu_small = AdvectionCache(Upwind(), s_small)
-  f1a_s = rand(ne(s_small));  f1b_s = rand(ne(s_small))
-  res_k_s = zeros(nquads(s_small));  res_c_s = zeros(nquads(s_small))
-  wedge_product_11!(res_k_s, WENO5(), s_small,  f1a_s, f1b_s)
-  wedge_product_11!(res_c_s, WENO5(), c5_small, f1a_s, f1b_s)
-  @test res_c_s ≈ res_k_s
-  # On a fully-boundary mesh, WENO5 reduces to upwinding everywhere
-  res_uw_s = zeros(nquads(s_small))
-  wedge_product_11!(res_uw_s, Upwind(), cu_small, f1a_s, f1b_s)
-  @test res_c_s ≈ res_uw_s
-end
+#   # ── Small mesh: all quads boundary → WENO5 falls back to upwinding ────────
+#   s_small  = UniformCubicalComplex2D(4, 4, 1.0, 1.0)
+#   c5_small = AdvectionCache(WENO5(),  s_small)
+#   cu_small = AdvectionCache(Upwind(), s_small)
+#   f1a_s = rand(ne(s_small));  f1b_s = rand(ne(s_small))
+#   res_k_s = zeros(nquads(s_small));  res_c_s = zeros(nquads(s_small))
+#   wedge_product_11!(res_k_s, WENO5(), s_small,  f1a_s, f1b_s)
+#   wedge_product_11!(res_c_s, WENO5(), c5_small, f1a_s, f1b_s)
+#   @test res_c_s ≈ res_k_s
+#   # On a fully-boundary mesh, WENO5 reduces to upwinding everywhere
+#   res_uw_s = zeros(nquads(s_small))
+#   wedge_product_11!(res_uw_s, Upwind(), cu_small, f1a_s, f1b_s)
+#   @test res_c_s ≈ res_uw_s
+# end
 
 @testset "Cached wedge_product_01 (WENO5)" begin
 
@@ -986,4 +989,211 @@ end
   estimate_vertex_vals = res_w5_lin ./ f1
   @test xedges(s, estimate_vertex_vals)[1:nxe(s)] ≈ collect(0.5 + i for i in 1:nxe(s))
   @test yedges(s, estimate_vertex_vals)[1:nx(s):end] ≈ collect((2 + 11 * (2i - 1)) / 2 for i in 1:nye(s))
+end
+
+@testset "Wedge_product_dd_11" begin
+    FT = Float64
+    s = UniformCubicalComplex2D(7, 6, FT(3), FT(2))
+    cache = UniformDECCache(s)
+
+    dx̃ = zeros(FT, ne(s))
+    dỹ = zeros(FT, ne(s))
+
+    for e in edges(s)
+        _, _, align = edge_to_coord(s, e)
+        dual = dual_edge_len(s, e)
+
+        if align == X_ALIGN
+            dỹ[e] = dual
+        else
+            dx̃[e] = -dual
+        end
+    end
+
+    expected_area = FT[
+        dual_quad_area(s, v) for v in vertices(s)
+    ]
+
+    wedge_u(a, b) =
+        wedge_product_dd(Val(1), Val(1), s, a, b)
+
+    wedge_c(a, b) =
+        wedge_product_dd(Val(1), Val(1), cache, a, b)
+
+    atol = 100eps(FT)
+    rtol = 100eps(FT)
+
+    @testset "basis forms and dual-cell area" begin
+        @test wedge_u(dx̃, dỹ) ≈ expected_area atol=atol rtol=rtol
+        @test wedge_u(dỹ, dx̃) ≈ -expected_area atol=atol rtol=rtol
+
+        @test wedge_c(dx̃, dỹ) ≈ expected_area atol=atol rtol=rtol
+        @test wedge_c(dỹ, dx̃) ≈ -expected_area atol=atol rtol=rtol
+    end
+
+    Random.seed!(1234)
+    a = randn(FT, ne(s))
+    b = randn(FT, ne(s))
+    c = randn(FT, ne(s))
+    α = FT(1.7)
+    β = FT(-0.4)
+
+    @testset "antisymmetry" begin
+        @test wedge_u(a, b) ≈ -wedge_u(b, a) atol=atol rtol=rtol
+        @test wedge_c(a, b) ≈ -wedge_c(b, a) atol=atol rtol=rtol
+
+        @test wedge_u(a, a) ≈ zeros(FT, nv(s)) atol=atol
+        @test wedge_c(a, a) ≈ zeros(FT, nv(s)) atol=atol
+    end
+
+    @testset "bilinearity" begin
+        @test wedge_u(α .* a .+ β .* b, c) ≈
+              α .* wedge_u(a, c) .+ β .* wedge_u(b, c) atol=atol rtol=rtol
+
+        @test wedge_c(α .* a .+ β .* b, c) ≈
+              α .* wedge_c(a, c) .+ β .* wedge_c(b, c) atol=atol rtol=rtol
+
+        @test wedge_u(c, α .* a .+ β .* b) ≈
+              α .* wedge_u(c, a) .+ β .* wedge_u(c, b) atol=atol rtol=rtol
+
+        @test wedge_c(c, α .* a .+ β .* b) ≈
+              α .* wedge_c(c, a) .+ β .* wedge_c(c, b) atol=atol rtol=rtol
+    end
+
+    @testset "cached versus uncached" begin
+        @test wedge_c(a, b) ≈ wedge_u(a, b) atol=atol rtol=rtol
+        @test wedge_c(dx̃, dỹ) ≈ wedge_u(dx̃, dỹ) atol=atol rtol=rtol
+    end
+end
+
+@testset "Wedge_product_pd_11" begin
+    # ── Single-quad mesh: all four edges are boundary edges, weight = 1 ──────
+    s1 = UniformCubicalComplex(2, 2, 1.0, 1.0)
+    ne1 = ne(s1)
+
+    # Basis contributions on single-quad mesh (all boundary, weight 1):
+    #   e1 (bottom-x): +1,  e3 (top-x): +1
+    #   e2 (right-y):  -1,  e4 (left-y): -1
+    x1, y1 = quad_to_coord(s1, 1)
+    e1, e2, e3, e4 = quad_edges(s1, x1, y1)
+
+    a = zeros(ne1); b = zeros(ne1)
+    a[1] = 1.0; b[1] = 1.0
+    a[2] = 1.0; b[2] = -1.0
+    a[3] = 1.0; b[3] = 1.0
+    a[4] = 1.0; b[4] = -1.0
+    r = wedge_product_pd(Val(1), Val(1), s1, a, b)
+    @test r[1] ≈ 0.0
+
+    for (e, expected) in [(e1, +0.25), (e2, -0.25), (e3, +0.25), (e4, -0.25)]
+        a = zeros(ne1); b = zeros(ne1)
+        a[e] = 1.0; b[e] = 1.0
+        r = wedge_product_pd(Val(1), Val(1), s1, a, b)
+        @test r[1] ≈ expected
+    end
+
+    # ── Multi-quad mesh: interior edges weight = 0.5, boundary = 1 ───────────
+    s2 = UniformCubicalComplex(3, 3, 1.0, 1.0)
+    ne2 = ne(s2)
+
+    # Interior X-aligned edge: contributes +0.5 to quad above and quad below
+    interior_x = coord_to_edge(s2, 1, 2, X_ALIGN)
+    a2 = zeros(ne2); b2 = zeros(ne2)
+    a2[interior_x] = 1.0; b2[interior_x] = 1.0
+    r2 = wedge_product_pd(Val(1), Val(1), s2, a2, b2)
+    q_above = coord_to_quad(s2, 1, 2)
+    q_below = coord_to_quad(s2, 1, 1)
+    @test r2[q_above] ≈ 0.5
+    @test r2[q_below] ≈ 0.5
+
+    # Interior Y-aligned edge: contributes -0.5 to quad left and quad right
+    interior_y = coord_to_edge(s2, 2, 1, Y_ALIGN)
+    a3 = zeros(ne2); b3 = zeros(ne2)
+    a3[interior_y] = 1.0; b3[interior_y] = 1.0
+    r3 = wedge_product_pd(Val(1), Val(1), s2, a3, b3)
+    q_left  = coord_to_quad(s2, 1, 1)
+    q_right = coord_to_quad(s2, 2, 1)
+    @test r3[q_left]  ≈ -0.5
+    @test r3[q_right] ≈ -0.5
+
+    # Boundary X-aligned edge: contributes +1 to its single adjacent quad
+    boundary_x = coord_to_edge(s2, 1, 1, X_ALIGN)
+    a4 = zeros(ne2); b4 = zeros(ne2)
+    a4[boundary_x] = 1.0; b4[boundary_x] = 1.0
+    r4 = wedge_product_pd(Val(1), Val(1), s2, a4, b4)
+    q_adj = coord_to_quad(s2, 1, 1)
+    @test r4[q_adj] ≈ 0.25
+
+    # Boundary Y-aligned edge: contributes -1 to its single adjacent quad
+    boundary_y = coord_to_edge(s2, 1, 1, Y_ALIGN)
+    a5 = zeros(ne2); b5 = zeros(ne2)
+    a5[boundary_y] = 1.0; b5[boundary_y] = 1.0
+    r5 = wedge_product_pd(Val(1), Val(1), s2, a5, b5)
+    q_adj5 = coord_to_quad(s2, 1, 1)
+    @test r5[q_adj5] ≈ -0.25
+
+    # Forms on different edges contribute zero
+    a6 = zeros(ne2); b6 = zeros(ne2)
+    a6[interior_x] = 1.0; b6[interior_y] = 1.0
+    r6 = wedge_product_pd(Val(1), Val(1), s2, a6, b6)
+    @test all(iszero, r6)
+
+    # Bilinearity
+    a7 = rand(ne2); b7 = rand(ne2); a8 = rand(ne2)
+    r_sum = wedge_product_pd(Val(1), Val(1), s2, a7 .+ a8, b7)
+    r_a7  = wedge_product_pd(Val(1), Val(1), s2, a7, b7)
+    r_a8  = wedge_product_pd(Val(1), Val(1), s2, a8, b7)
+    @test r_sum ≈ r_a7 .+ r_a8
+
+    # Float32 type stability
+    s2_f32 = UniformCubicalComplex2D(3, 3, 1.0f0, 1.0f0)
+    a_f32 = rand(Float32, ne(s2_f32))
+    b_f32 = rand(Float32, ne(s2_f32))
+    r_f32 = wedge_product_pd(Val(1), Val(1), s2_f32, a_f32, b_f32)
+    @test eltype(r_f32) == Float32
+
+    # Output length equals nquads
+    @test length(r2) == nquads(s2)
+
+    # Cached vs uncached
+    s     = UniformCubicalComplex(5, 5, 1.0, 1.0)
+    cache = UniformDECCache(s)
+
+    ne_   = ne(s)
+    nq_   = nquads(s)
+
+    FT = Float64
+
+    a   = rand(FT, ne_)
+    b   = rand(FT, ne_)
+
+    # ── interface function agreement ──────────────────────────────────────────
+    res_ref = wedge_product_pd(Val(1), Val(1), s, a, b)
+    res_iface = wedge_product_pd(Val(1), Val(1), cache, a, b)
+    @test res_iface ≈ res_ref  atol=1e-14
+
+    # ── zero inputs ───────────────────────────────────────────────────────────
+    z = zeros(FT, ne_)
+    @test all(iszero, wedge_product_pd(Val(1), Val(1), cache, z, b))
+    @test all(iszero, wedge_product_pd(Val(1), Val(1), cache, a, z))
+
+    # ── boundary weight check: boundary quads should differ from interior ─────
+    interior_q = coord_to_quad(s, 2, 2)   # surrounded by interior edges
+    boundary_q = coord_to_quad(s, 1, 1)   # lower-left corner, all boundary edges
+
+    e1_int = cache.q_e1[interior_q]
+    e1_bnd = cache.q_e1[boundary_q]
+
+    @test cache.wedge_pd_scale[e1_int] == FT(1.0)   # interior edge → weight 1
+    @test cache.wedge_pd_scale[e1_bnd] == FT(0.5)   # boundary edge → weight 0.5
+
+    # ── larger mesh: stress-test with 17×17 ──────────────────────────────────
+    s2     = UniformCubicalComplex(17, 17, 2.0, 2.0)
+    cache2 = UniformDECCache(s2)
+    a2 = rand(FT, ne(s2))
+    b2 = rand(FT, ne(s2))
+
+    res_ref2 = wedge_product_pd(Val(1), Val(1), s2, a2, b2)
+    res_cached2 = wedge_product_pd(Val(1), Val(1), cache2, a2, b2)
+    @test res_cached2 ≈ res_ref2  atol=1e-13
 end

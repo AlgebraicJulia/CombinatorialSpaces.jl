@@ -87,7 +87,7 @@ DataStream(datum::Datum) = DataStream("", "", [datum])
 DataStream(data::AbstractVector{Datum}) = DataStream("", "", data)
 DataStream(data::AbstractVector) = DataStream("", "", Vector{Datum}(data)) # Convenience for users
 
-abstract type AbstractMetaData end  # stub, filled later
+abstract type AbstractMetaData end  # stub, fill later
 
 # ── Signalling ────────────────────────────────────────────────────────────────
 
@@ -141,7 +141,6 @@ om_mesh(h::DataHandler) = out_cache(h).om_mesh
 om_gm_offsets(h::DataHandler) = out_cache(h).om_gm_offsets
 worker_caches(h::DataHandler) = out_cache(h).worker_caches
 lm_om_offsets(h::DataHandler) = out_cache(h).lm_om_offsets
-metadata(h::DataHandler) = h.save_step
 
 function DataHandler(stream::DataStream, topo::MPITopology{OutputCache{N}}) where {N}
     cache = topo.cache
