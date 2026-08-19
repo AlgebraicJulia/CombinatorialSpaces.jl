@@ -15,7 +15,7 @@ abstract type AbstractCubicalComplex2D <: AbstractCubicalComplex end
 
 abstract type AbstractEmbeddedCubicalComplex2D{FT<:AbstractFloat} <: AbstractCubicalComplex2D end
 
-struct UniformCubicalComplex2D{FT} <: AbstractEmbeddedCubicalComplex2D{FT}
+struct UniformCubicalComplex2D{FT <: AbstractFloat} <: AbstractEmbeddedCubicalComplex2D{FT}
     nx::Int
     ny::Int
 
@@ -37,26 +37,6 @@ struct PseudoCubicalMesh2D <: AbstractCubicalComplex2D
     halo_south::Int; halo_north::Int
 end
 
-function UniformCubicalComplex(nx::Int, ny::Int, lx::Real, ly::Real;
-        halo_x::Int = 0, halo_y::Int = 0,
-        halo_west::Int  = halo_x, halo_east::Int  = halo_x,
-        halo_south::Int = halo_y, halo_north::Int = halo_y,
-        base_x::Real = 0.0, base_y::Real = 0.0)
-    return UniformCubicalComplex2D(nx, ny, lx, ly;
-        halo_west = halo_west, halo_east  = halo_east,
-        halo_south = halo_south, halo_north = halo_north,
-        base_x = base_x, base_y = base_y)
-end
-
-function PseudoCubicalMesh2D(nx::Int, ny::Int;
-        halo_x::Int = 0, halo_y::Int = 0,
-        halo_west::Int  = halo_x, halo_east::Int  = halo_x,
-        halo_south::Int = halo_y, halo_north::Int = halo_y)
-    return PseudoCubicalMesh2D(nx, ny, halo_west, halo_east, halo_south, halo_north)
-end
-
-PseudoCubicalMesh(nx::Int, ny::Int) = PseudoCubicalMesh2D(nx, ny)
-
 @enum Align X_ALIGN Y_ALIGN Z_ALIGN
 
 @enum GridSide EASTWEST NORTHSOUTH UPDOWN ALL
@@ -71,10 +51,6 @@ halo_west(s::AbstractCubicalComplex2D)  = s.halo_west
 halo_east(s::AbstractCubicalComplex2D)  = s.halo_east
 halo_south(s::AbstractCubicalComplex2D) = s.halo_south
 halo_north(s::AbstractCubicalComplex2D) = s.halo_north
-
-# TODO: Check if this is the right use
-# hx(s::AbstractCubicalComplex2D) = max(halo_west(s), halo_east(s))
-# hy(s::AbstractCubicalComplex2D) = max(halo_south(s), halo_north(s))
 
 nxr(s::AbstractCubicalComplex2D) = s.nx
 nyr(s::AbstractCubicalComplex2D) = s.ny
@@ -102,9 +78,6 @@ ne(s::AbstractCubicalComplex2D) = nxedges(s) + nyedges(s)
 nxq(s::AbstractCubicalComplex2D) = nx(s) - 1
 nyq(s::AbstractCubicalComplex2D) = ny(s) - 1
 nquads(s::AbstractCubicalComplex2D) = nxq(s) * nyq(s)
-
-# hxq(s::AbstractCubicalComplex2D) = hx(s)
-# hyq(s::AbstractCubicalComplex2D) = hy(s)
 
 nxqr(s::AbstractCubicalComplex2D) = nxq(s) - halo_west(s) - halo_east(s)
 nyqr(s::AbstractCubicalComplex2D) = nyq(s) - halo_south(s) - halo_north(s)
@@ -153,8 +126,8 @@ function coord_to_edge(s::AbstractCubicalComplex2D, x::Int, y::Int, align::Align
         return x + (y - 1) * nxe(s)
     elseif align == Y_ALIGN
         return x + (y - 1) * nx(s) + nxedges(s)
-    else # align == Z_ALIGN
-        return 0
+    else
+        throw(ArgumentError("Z_ALIGN is not valid for a 2D mesh (coord_to_edge called with align=$align)"))
     end
 end
 coord_to_quad(s::AbstractCubicalComplex2D, x::Int, y::Int) = (y - 1) * nxq(s) + x
@@ -206,12 +179,8 @@ function edge_to_coord(s::AbstractCubicalComplex2D, e::Int)
 end
 
 function dual_edge_to_coord(s::AbstractCubicalComplex2D, e::Int)
-    x, y, align = edge_to_coord(s, e)
-    if align == X_ALIGN
-        return x, y, Y_ALIGN
-    else # align == Y_ALIGN
-        return x, y, X_ALIGN
-    end
+    x, y, align = edge_to_coord(s, e)   # bounds-checked above
+    return align == X_ALIGN ? (x, y, Y_ALIGN) : (x, y, X_ALIGN)
 end
 
 function quad_to_coord(s::AbstractCubicalComplex2D, q::Int)
@@ -221,39 +190,88 @@ function quad_to_coord(s::AbstractCubicalComplex2D, q::Int)
 end
 
 # Origin is at the first real point (non-halo)
-function point(s::UniformCubicalComplex2D, x::Int, y::Int)
+function point(s::UniformCubicalComplex2D{FT}, x::Int, y::Int) where FT <: AbstractFloat
     px = base_x(s) + (x - 1 - halo_west(s)) * dx(s)
     py = base_y(s) + (y - 1 - halo_south(s)) * dy(s)
-    return Point3(px, py, 0.0)
+    return Point3(px, py, FT(0.0))
 end
 
 point(s::UniformCubicalComplex2D, v::Int) = point(s, vert_to_coord(s, v)...)
 
-function real_coord_to_vert(s::AbstractCubicalComplex2D, x::Int, y::Int)
-    return coord_to_vert(s, x + halo_west(s), y + halo_south(s))
-end
-
 real_point(s::AbstractCubicalComplex2D, x::Int, y::Int) = point(s, x + halo_west(s), y + halo_south(s))
 
-# TODO: Make this a generator that yields points one at a time instead of creating an array of all points at once
-function points(s::AbstractCubicalComplex2D)
-    return map(v -> point(s, v), vertices(s))
+points(s::UniformCubicalComplex2D) = (point(s, v) for v in vertices(s))
+
+spacing(len::FT, np::Int) where {FT <: AbstractFloat} = len / FT(np - 1)
+
+function _validate_mesh_inputs_2d(nxr, nyr, lx, ly, halo_west, halo_east, halo_south, halo_north, base_x, base_y)
+    # Point counts
+    nxr >= 2 || throw(ArgumentError("nxr must be at least 2 (got $nxr)"))
+    nyr >= 2 || throw(ArgumentError("nyr must be at least 2 (got $nyr)"))
+
+    # Physical lengths
+    isfinite(lx) && lx > 0 || throw(ArgumentError("lx must be finite and positive (got $lx)"))
+    isfinite(ly) && ly > 0 || throw(ArgumentError("ly must be finite and positive (got $ly)"))
+
+    # Halo widths
+    halo_west  >= 0 || throw(ArgumentError("halo_west must be non-negative (got $halo_west)"))
+    halo_east  >= 0 || throw(ArgumentError("halo_east must be non-negative (got $halo_east)"))
+    halo_south >= 0 || throw(ArgumentError("halo_south must be non-negative (got $halo_south)"))
+    halo_north >= 0 || throw(ArgumentError("halo_north must be non-negative (got $halo_north)"))
+
+    # Halo widths must not exceed the real domain so that interior slabs exist
+    halo_west + halo_east < nxr || throw(ArgumentError("total x halo ($(halo_west + halo_east)) must be less than nxr ($nxr)"))
+    halo_south + halo_north < nyr || throw(ArgumentError("total y halo ($(halo_south + halo_north)) must be less than nyr ($nyr)"))
+-
+    # Base coordinates
+    isfinite(base_x) || throw(ArgumentError("base_x must be finite (got $base_x)"))
+    isfinite(base_y) || throw(ArgumentError("base_y must be finite (got $base_y)"))
+
+    return nothing
 end
 
-# Function to get spacing given a length and number of points
-spacing(len::FT, np::Int) where {FT<:AbstractFloat} = return len / (np - 1)
-
-# The interval given (lx, ly) is the size of the real domain, excluding halo points. So the total size of the mesh will be (lx + 2 * halo_x * dx, ly + 2 * halo_y * dy)
-function UniformCubicalComplex2D(nxr::Int, nyr::Int, lx::FT, ly::FT;
+function UniformCubicalComplex2D(nxr::Int, nyr::Int, lx::Real, ly::Real;
         halo_x::Int = 0, halo_y::Int = 0,
         halo_west::Int  = halo_x, halo_east::Int  = halo_x,
         halo_south::Int = halo_y, halo_north::Int = halo_y,
-        base_x::FT = zero(FT), base_y::FT = zero(FT)) where {FT <: AbstractFloat}
-    dx = spacing(lx, nxr)
-    dy = spacing(ly, nyr)
-    return UniformCubicalComplex2D{FT}(nxr, nyr, dx, dy,
-        halo_west, halo_east, halo_south, halo_north, base_x, base_y)
+        base_x::Real = 0.0, base_y::Real = 0.0)
+
+    FT = float(promote_type(typeof(lx), typeof(ly)))
+    _lx, _ly         = FT(lx), FT(ly)
+    _base_x, _base_y = FT(base_x), FT(base_y)
+
+    _validate_mesh_inputs_2d(nxr, nyr, _lx, _ly, halo_west, halo_east, halo_south, halo_north, _base_x, _base_y)
+
+    _dx = spacing(_lx, nxr)
+    _dy = spacing(_ly, nyr)
+
+    return UniformCubicalComplex2D{FT}(nxr, nyr, _dx, _dy, halo_west, halo_east, halo_south, halo_north, _base_x, _base_y)
 end
+
+UniformCubicalComplex(nx::Int, ny::Int, lx::Real, ly::Real; kwargs...) =
+    UniformCubicalComplex2D(nx, ny, lx, ly; kwargs...)
+
+    function PseudoCubicalMesh2D(nx::Int, ny::Int;
+        halo_x::Int = 0, halo_y::Int = 0,
+        halo_west::Int  = halo_x, halo_east::Int  = halo_x,
+        halo_south::Int = halo_y, halo_north::Int = halo_y)
+
+    nx >= 2 || throw(ArgumentError("nx must be at least 2 (got $nx)"))
+    ny >= 2 || throw(ArgumentError("ny must be at least 2 (got $ny)"))
+    halo_west  >= 0 || throw(ArgumentError("halo_west must be non-negative (got $halo_west)"))
+    halo_east  >= 0 || throw(ArgumentError("halo_east must be non-negative (got $halo_east)"))
+    halo_south >= 0 || throw(ArgumentError("halo_south must be non-negative (got $halo_south)"))
+    halo_north >= 0 || throw(ArgumentError("halo_north must be non-negative (got $halo_north)"))
+    halo_west + halo_east < nx || throw(ArgumentError(
+        "total x halo ($(halo_west + halo_east)) must be less than nx ($nx)"))
+    halo_south + halo_north < ny || throw(ArgumentError(
+        "total y halo ($(halo_south + halo_north)) must be less than ny ($ny)"))
+
+    return PseudoCubicalMesh2D(nx, ny, halo_west, halo_east, halo_south, halo_north)
+end
+
+PseudoCubicalMesh(nx::Int, ny::Int; kwargs...) = PseudoCubicalMesh2D(nx, ny; kwargs...)
+
 
 # Basic show method for uniform mesh
 function Base.show(io::IO, s::UniformCubicalComplex2D)
@@ -273,19 +291,19 @@ function tgt(s::AbstractCubicalComplex2D, x::Int, y::Int, align::Align)
         return coord_to_vert(s, x + 1, y)
     elseif align == Y_ALIGN
         return coord_to_vert(s, x, y + 1)
-    else # align == Z_ALIGN
-        return 0
+    else
+        throw(ArgumentError("Z_ALIGN is not valid for a 2D mesh (tgt called with align=$align)"))
     end
 end
-tgt(s::AbstractCubicalComplex, e::Int) = tgt(s, edge_to_coord(s, e)...)
+tgt(s::AbstractCubicalComplex2D, e::Int) = tgt(s, edge_to_coord(s, e)...)
 
-function edge_len(s::UniformCubicalComplex2D{FT}, align::Align) where {FT<:AbstractFloat}
+function edge_len(s::UniformCubicalComplex2D{FT}, align::Align) where {FT <: AbstractFloat}
     if align == X_ALIGN
         return dx(s)
     elseif align == Y_ALIGN
         return dy(s)
-    else # align == Z_ALIGN
-        return zero(FT)
+    else
+        throw(ArgumentError("Z_ALIGN is not valid for a 2D mesh (edge_len called with align=$align)"))
     end
 end
 
@@ -303,8 +321,8 @@ edge_len(s::UniformCubicalComplex2D, x::Int, y::Int, align::Align) = edge_len(s,
 
 edge_len(s::AbstractCubicalComplex2D, e::Int) = edge_len(s, edge_to_coord(s, e)...)
 
-xedges(s::AbstractCubicalComplex2D, arr::AbstractVector) = arr[1:nxedges(s)]
-yedges(s::AbstractCubicalComplex2D, arr::AbstractVector) = arr[(nxedges(s) + 1):end]
+xedges(s::AbstractCubicalComplex2D, arr::AbstractVector) = @view arr[1:nxedges(s)]
+yedges(s::AbstractCubicalComplex2D, arr::AbstractVector) = @view arr[(nxedges(s) + 1):end]
 
 # Get the index of the vertices of a quad
 # The vertices are ordered counterclockwise starting from the lower left vertex
@@ -333,17 +351,17 @@ function quad_edge_offset(s::AbstractCubicalComplex2D, x::Int, y::Int, align::Al
         return coord_to_edge(s, x, y + offset, X_ALIGN)
     elseif align == Y_ALIGN
         return coord_to_edge(s, x + offset, y, Y_ALIGN)
-    else # align == Z_ALIGN
-        return 0
+    else
+        throw(ArgumentError(
+            "Z_ALIGN is not valid for a 2D mesh (quad_edge_offset called with align=$align)"))
     end
 end
-
 quad_area(s::AbstractCubicalComplex2D) = dx(s) * dy(s)
 
-function dual_point(s::UniformCubicalComplex2D, x::Int, y::Int)
-    px = base_x(s) + (x - 0.5 - halo_west(s)) * dx(s)
-    py = base_y(s) + (y - 0.5 - halo_south(s)) * dy(s)
-    return Point3(px, py, 0.0)
+function dual_point(s::UniformCubicalComplex2D{FT}, x::Int, y::Int) where FT <: AbstractFloat
+    px = base_x(s) + (x - FT(0.5) - halo_west(s)) * dx(s)
+    py = base_y(s) + (y - FT(0.5) - halo_south(s)) * dy(s)
+    return Point3(px, py, FT(0.0))
 end
 
 dual_points(s::AbstractCubicalComplex2D) = map(v -> dual_point(s, quad_to_coord(s, v)...), quads(s))
@@ -356,27 +374,18 @@ function dual_edge(s::AbstractCubicalComplex2D, x::Int, y::Int, align::Align)
     elseif align == Y_ALIGN
         return coord_to_edge(s, x, y, X_ALIGN)
     else
-        return 0
+        throw(ArgumentError("Z_ALIGN is not valid for a 2D mesh (dual_edge called with align=$align)"))
     end
 end
 
-# This function computes the length of the dual edge corresponding to the given primal edge
-# This the same as the primal edges except on the boundary, where the dual edge is half the length of the primal edge
-function dual_edge_len(s::UniformCubicalComplex2D{FT}, x::Int, y::Int, align::Align) where {FT<:AbstractFloat}
+function dual_edge_len(s::UniformCubicalComplex2D{FT}, x::Int, y::Int,
+                        align::Align) where {FT <: AbstractFloat}
     if align == X_ALIGN
-        if y == 1 || y == ny(s)
-            return 0.5 * dy(s)
-        else
-            return dy(s)
-        end
+        return y == 1 || y == ny(s) ? FT(0.5) * dy(s) : dy(s)
     elseif align == Y_ALIGN
-        if x == 1 || x == nx(s)
-            return 0.5 * dx(s)
-        else
-            return dx(s)
-        end
+        return x == 1 || x == nx(s) ? FT(0.5) * dx(s) : dx(s)
     else
-        return zero(FT)
+        throw(ArgumentError("Z_ALIGN is not valid for a 2D mesh (dual_edge_len called with align=$align)"))
     end
 end
 
@@ -387,11 +396,11 @@ dual_quad(s::AbstractCubicalComplex2D, x::Int, y::Int) = coord_to_vert(s, x, y)
 # This function computes the area of the dual quad corresponding to the given primal vertex
 # This is the same as the primal quad area except on the boundary, where the dual quad area is half the area of the primal quad
 # Also on the corners, the dual quad area is one quarter the area of the primal quad
-function dual_quad_area(s::UniformCubicalComplex2D, x::Int, y::Int)
+function dual_quad_area(s::UniformCubicalComplex2D{FT}, x::Int, y::Int) where FT <: AbstractFloat
     if (x == 1 || x == nx(s)) && (y == 1 || y == ny(s))
-        return 0.25 * quad_area(s)
+        return FT(0.25) * quad_area(s)
     elseif x == 1 || x == nx(s) || y == 1 || y == ny(s)
-        return 0.5 * quad_area(s)
+        return FT(0.5) * quad_area(s)
     else
         return quad_area(s)
     end
@@ -423,15 +432,15 @@ end
 # This function returns the two quads that are adjacent to the given edge, ordered with the quad on the left of the edge coming first
 function edge_quads(s::AbstractCubicalComplex2D, x::Int, y::Int, align::Align)
     if align == X_ALIGN
-        q1 = coord_to_quad(s, x, y - 1)
-        q2 = coord_to_quad(s, x, y)
+        q1 = y > 1          ? coord_to_quad(s, x, y - 1) : 0
+        q2 = y <= nyq(s)    ? coord_to_quad(s, x, y)     : 0
         return q1, q2
     elseif align == Y_ALIGN
-        q1 = coord_to_quad(s, x - 1, y)
-        q2 = coord_to_quad(s, x, y)
+        q1 = x > 1          ? coord_to_quad(s, x - 1, y) : 0
+        q2 = x <= nxq(s)    ? coord_to_quad(s, x, y)     : 0
         return q1, q2
     else
-        return 0, 0
+        throw(ArgumentError("Z_ALIGN is not valid for a 2D mesh (edge_quads called with align=$align)"))
     end
 end
 

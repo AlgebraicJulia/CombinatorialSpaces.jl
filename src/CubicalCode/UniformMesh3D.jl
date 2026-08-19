@@ -4,7 +4,7 @@ abstract type AbstractCubicalComplex3D <: AbstractCubicalComplex end
 
 abstract type AbstractEmbeddedCubicalComplex3D{FT<:AbstractFloat} <: AbstractCubicalComplex3D end
 
-struct UniformCubicalComplex3D{FT} <: AbstractEmbeddedCubicalComplex3D{FT}
+struct UniformCubicalComplex3D{FT <: AbstractFloat} <: AbstractEmbeddedCubicalComplex3D{FT}
     nx::Int; ny::Int; nz::Int
 
     dx::FT; dy::FT; dz::FT
@@ -16,39 +16,6 @@ struct UniformCubicalComplex3D{FT} <: AbstractEmbeddedCubicalComplex3D{FT}
     base_x::FT; base_y::FT; base_z::FT
 end
 
-function UniformCubicalComplex(
-    nx::Int,
-    ny::Int,
-    nz::Int,
-    lx::Real,
-    ly::Real,
-    lz::Real;
-    halo_x::Int = 0,
-    halo_y::Int = 0,
-    halo_z::Int = 0,
-    halo_west::Int  = halo_x, halo_east::Int  = halo_x,
-    halo_south::Int = halo_y, halo_north::Int = halo_y,
-    halo_down::Int  = halo_z, halo_up::Int    = halo_z,
-    base_x::Real = 0.0,
-    base_y::Real = 0.0,
-    base_z::Real = 0.0,
-)
-    return UniformCubicalComplex3D(
-        nx,
-        ny,
-        nz,
-        lx,
-        ly,
-        lz;
-        halo_west  = halo_west, halo_east  = halo_east,
-        halo_south = halo_south, halo_north = halo_north,
-        halo_down  = halo_down,  halo_up    = halo_up,
-        base_x = base_x,
-        base_y = base_y,
-        base_z = base_z,
-    )
-end
-
 struct PseudoCubicalMesh3D <: AbstractCubicalComplex3D
     nx::Int; ny::Int; nz::Int
 
@@ -57,16 +24,201 @@ struct PseudoCubicalMesh3D <: AbstractCubicalComplex3D
     halo_down::Int;  halo_up::Int
 end
 
-function PseudoCubicalMesh3D(nx::Int, ny::Int, nz::Int;
-        halo_x::Int = 0, halo_y::Int = 0, halo_z::Int = 0,
-        halo_west::Int  = halo_x, halo_east::Int  = halo_x,
-        halo_south::Int = halo_y, halo_north::Int = halo_y,
-        halo_down::Int  = halo_z, halo_up::Int    = halo_z)
-    return PseudoCubicalMesh3D(nx, ny, nz,
-        halo_west, halo_east, halo_south, halo_north, halo_down, halo_up)
+function _validate_mesh_counts_3d(
+    nxr::Int,
+    nyr::Int,
+    nzr::Int,
+    halo_west::Int,
+    halo_east::Int,
+    halo_south::Int,
+    halo_north::Int,
+    halo_down::Int,
+    halo_up::Int,
+)
+    nxr >= 2 || throw(ArgumentError("nxr must be at least 2; received $nxr"))
+    nyr >= 2 || throw(ArgumentError("nyr must be at least 2; received $nyr"))
+    nzr >= 2 || throw(ArgumentError("nzr must be at least 2; received $nzr"))
+
+    halo_west >= 0 || throw(ArgumentError("halo_west must be nonnegative; received $halo_west"))
+    halo_east >= 0 || throw(ArgumentError("halo_east must be nonnegative; received $halo_east"))
+    halo_south >= 0 || throw(ArgumentError("halo_south must be nonnegative; received $halo_south"))
+    halo_north >= 0 || throw(ArgumentError("halo_north must be nonnegative; received $halo_north"))
+    halo_down >= 0 || throw(ArgumentError("halo_down must be nonnegative; received $halo_down"))
+    halo_up >= 0 || throw(ArgumentError("halo_up must be nonnegative; received $halo_up"))
+
+    return nothing
 end
 
-PseudoCubicalMesh(nx::Int, ny::Int, nz::Int) = PseudoCubicalMesh3D(nx, ny, nz)
+function _validate_mesh_geometry_3d(
+    lx::FT,
+    ly::FT,
+    lz::FT,
+    base_x::FT,
+    base_y::FT,
+    base_z::FT,
+) where {FT <: AbstractFloat}
+
+    isfinite(lx) && lx > zero(FT) || throw(ArgumentError("lx must be finite and positive; received $lx"))
+    isfinite(ly) && ly > zero(FT) || throw(ArgumentError("ly must be finite and positive; received $ly"))
+    isfinite(lz) && lz > zero(FT) || throw(ArgumentError("lz must be finite and positive; received $lz"))
+
+    isfinite(base_x) || throw(ArgumentError("base_x must be finite; received $base_x"))
+    isfinite(base_y) || throw(ArgumentError("base_y must be finite; received $base_y"))
+    isfinite(base_z) || throw(ArgumentError("base_z must be finite; received $base_z"))
+
+    return nothing
+end
+
+function UniformCubicalComplex3D(
+    nxr::Int,
+    nyr::Int,
+    nzr::Int,
+    lx::Real,
+    ly::Real,
+    lz::Real;
+    halo_x::Int = 0,
+    halo_y::Int = 0,
+    halo_z::Int = 0,
+    halo_west::Int = halo_x,
+    halo_east::Int = halo_x,
+    halo_south::Int = halo_y,
+    halo_north::Int = halo_y,
+    halo_down::Int = halo_z,
+    halo_up::Int = halo_z,
+    base_x::Real = 0.0,
+    base_y::Real = 0.0,
+    base_z::Real = 0.0,
+)
+    FT = float(promote_type(
+        typeof(lx),
+        typeof(ly),
+        typeof(lz),
+    ))
+
+    lx_ft = convert(FT, lx)
+    ly_ft = convert(FT, ly)
+    lz_ft = convert(FT, lz)
+    base_x_ft = convert(FT, base_x)
+    base_y_ft = convert(FT, base_y)
+    base_z_ft = convert(FT, base_z)
+
+    _validate_mesh_counts_3d(
+        nxr,
+        nyr,
+        nzr,
+        halo_west,
+        halo_east,
+        halo_south,
+        halo_north,
+        halo_down,
+        halo_up,
+    )
+
+    _validate_mesh_geometry_3d(
+        lx_ft,
+        ly_ft,
+        lz_ft,
+        base_x_ft,
+        base_y_ft,
+        base_z_ft,
+    )
+
+    dx_ft = spacing(lx_ft, nxr)
+    dy_ft = spacing(ly_ft, nyr)
+    dz_ft = spacing(lz_ft, nzr)
+
+    isfinite(dx_ft) && dx_ft > zero(FT) || throw(ArgumentError(
+        "lx and nxr produce invalid x spacing: $dx_ft",
+    ))
+    isfinite(dy_ft) && dy_ft > zero(FT) || throw(ArgumentError(
+        "ly and nyr produce invalid y spacing: $dy_ft",
+    ))
+    isfinite(dz_ft) && dz_ft > zero(FT) || throw(ArgumentError(
+        "lz and nzr produce invalid z spacing: $dz_ft",
+    ))
+
+    return UniformCubicalComplex3D{FT}(
+        nxr,
+        nyr,
+        nzr,
+        dx_ft,
+        dy_ft,
+        dz_ft,
+        halo_west,
+        halo_east,
+        halo_south,
+        halo_north,
+        halo_down,
+        halo_up,
+        base_x_ft,
+        base_y_ft,
+        base_z_ft,
+    )
+end
+
+UniformCubicalComplex(
+    nx::Int,
+    ny::Int,
+    nz::Int,
+    lx::Real,
+    ly::Real,
+    lz::Real;
+    kwargs...,
+) = UniformCubicalComplex3D(
+    nx,
+    ny,
+    nz,
+    lx,
+    ly,
+    lz;
+    kwargs...,
+)
+
+function PseudoCubicalMesh3D(
+    nx::Int,
+    ny::Int,
+    nz::Int;
+    halo_x::Int = 0,
+    halo_y::Int = 0,
+    halo_z::Int = 0,
+    halo_west::Int = halo_x,
+    halo_east::Int = halo_x,
+    halo_south::Int = halo_y,
+    halo_north::Int = halo_y,
+    halo_down::Int = halo_z,
+    halo_up::Int = halo_z,
+)
+    _validate_mesh_counts_3d(
+        nx,
+        ny,
+        nz,
+        halo_west,
+        halo_east,
+        halo_south,
+        halo_north,
+        halo_down,
+        halo_up,
+    )
+
+    return PseudoCubicalMesh3D(
+        nx,
+        ny,
+        nz,
+        halo_west,
+        halo_east,
+        halo_south,
+        halo_north,
+        halo_down,
+        halo_up,
+    )
+end
+
+PseudoCubicalMesh(
+    nx::Int,
+    ny::Int,
+    nz::Int;
+    kwargs...,
+) = PseudoCubicalMesh3D(nx, ny, nz; kwargs...)
 
 base_x(s::UniformCubicalComplex3D) = s.base_x
 base_y(s::UniformCubicalComplex3D) = s.base_y
@@ -80,11 +232,6 @@ halo_south(s::AbstractCubicalComplex3D) = s.halo_south
 halo_north(s::AbstractCubicalComplex3D) = s.halo_north
 halo_down(s::AbstractCubicalComplex3D)  = s.halo_down
 halo_up(s::AbstractCubicalComplex3D)    = s.halo_up
-
-# TODO: Check if this is the right use
-# hx(s::AbstractCubicalComplex3D) = max(halo_west(s), halo_east(s))
-# hy(s::AbstractCubicalComplex3D) = max(halo_south(s), halo_north(s))
-# hz(s::AbstractCubicalComplex3D) = max(halo_down(s), halo_up(s))
 
 nxr(s::AbstractCubicalComplex3D) = s.nx
 nyr(s::AbstractCubicalComplex3D) = s.ny
@@ -108,9 +255,9 @@ nxe(s::AbstractCubicalComplex3D) = nx(s) - 1
 nye(s::AbstractCubicalComplex3D) = ny(s) - 1
 nze(s::AbstractCubicalComplex3D) = nz(s) - 1
 
-nxe_r(s::AbstractCubicalComplex3D) = nxe(s) - halo_west(s) - halo_east(s)
-nye_r(s::AbstractCubicalComplex3D) = nye(s) - halo_south(s) - halo_north(s)
-nze_r(s::AbstractCubicalComplex3D) = nze(s) - halo_down(s) - halo_up(s)
+nxe_r(s::AbstractCubicalComplex3D) = nxr(s) - 1
+nye_r(s::AbstractCubicalComplex3D) = nyr(s) - 1
+nze_r(s::AbstractCubicalComplex3D) = nzr(s) - 1
 
 # Total of axis-aligned edges
 nxedges(s::AbstractCubicalComplex3D) = nxe(s) * ny(s) * nz(s)
@@ -138,10 +285,6 @@ nyzquads(s::AbstractCubicalComplex3D) = nyzq(s) * nx(s)
 
 nquads(s::AbstractCubicalComplex3D) = nxyquads(s) + nxzquads(s) + nyzquads(s)
 
-# hxq(s::AbstractCubicalComplex3D) = hx(s)
-# hyq(s::AbstractCubicalComplex3D) = hy(s)
-# hzq(s::AbstractCubicalComplex3D) = hz(s)
-
 # Rectangular cuboids
 
 nxb(s::AbstractCubicalComplex3D) = nx(s) - 1
@@ -154,17 +297,11 @@ nxbr(s::AbstractCubicalComplex3D) = nxr(s) - 1
 nybr(s::AbstractCubicalComplex3D) = nyr(s) - 1
 nzbr(s::AbstractCubicalComplex3D) = nzr(s) - 1
 
-nbr(s::AbstractCubicalComplex3D) = nxbr(s) * nybr(s) * nzbr(s)
-
 nxyb(s::AbstractCubicalComplex3D) = nxb(s) * nyb(s)
 nxzb(s::AbstractCubicalComplex3D) = nxb(s) * nzb(s)
 nyzb(s::AbstractCubicalComplex3D) = nyb(s) * nzb(s)
 
 nboids(s::AbstractCubicalComplex3D) = nxb(s) * nyb(s) * nzb(s)
-
-# hxb(s::AbstractCubicalComplex3D) = hx(s)
-# hyb(s::AbstractCubicalComplex3D) = hy(s)
-# hzb(s::AbstractCubicalComplex3D) = hz(s)
 
 vertices(s::AbstractCubicalComplex3D) = 1:nv(s)
 edges(s::AbstractCubicalComplex3D) = 1:ne(s)
@@ -193,22 +330,6 @@ end
 
 function valid_boid(s::AbstractCubicalComplex3D, x, y, z)
     return (1 <= x <= nxb(s)) && (1 <= y <= nyb(s)) && (1 <= z <= nzb(s))
-end
-
-lx(s::UniformCubicalComplex3D) = nxe(s) * dx(s)
-ly(s::UniformCubicalComplex3D) = nye(s) * dy(s)
-lz(s::UniformCubicalComplex3D) = nze(s) * dz(s)
-
-function UniformCubicalComplex3D(nxr, nyr, nzr, lx::FT, ly::FT, lz::FT;
-        halo_x::Int = 0, halo_y::Int = 0, halo_z::Int = 0,
-        halo_west::Int  = halo_x, halo_east::Int  = halo_x,
-        halo_south::Int = halo_y, halo_north::Int = halo_y,
-        halo_down::Int  = halo_z, halo_up::Int    = halo_z,
-        base_x::FT = zero(FT), base_y::FT = zero(FT), base_z::FT = zero(FT)) where {FT <: AbstractFloat}
-    dx = spacing(lx, nxr); dy = spacing(ly, nyr); dz = spacing(lz, nzr)
-    return UniformCubicalComplex3D{FT}(nxr, nyr, nzr, dx, dy, dz,
-        halo_west, halo_east, halo_south, halo_north, halo_down, halo_up,
-        base_x, base_y, base_z)
 end
 
 function Base.show(io::IO, s::UniformCubicalComplex3D)
@@ -366,7 +487,7 @@ function boundary_tangent_edges(s::AbstractCubicalComplex3D)
                 west_tangent_edges(s),  east_tangent_edges(s))
 end
 
-function vert_to_coord(s::UniformCubicalComplex3D, idx::Int)
+function vert_to_coord(s::AbstractCubicalComplex3D, idx::Int)
     idx0 = idx - 1
     nxy = nx(s) * ny(s)
 
@@ -378,7 +499,7 @@ function vert_to_coord(s::UniformCubicalComplex3D, idx::Int)
     return (x, y, z)
 end
 
-function edge_to_coord(s::UniformCubicalComplex3D, idx::Int)
+function edge_to_coord(s::AbstractCubicalComplex3D, idx::Int)
     if idx <= nxedges(s)
         align = X_ALIGN
         idx0 = idx - 1
@@ -416,7 +537,7 @@ function edge_to_coord(s::UniformCubicalComplex3D, idx::Int)
     return (x, y, z, align)
 end
 
-function quad_to_coord(s::UniformCubicalComplex3D, idx::Int)
+function quad_to_coord(s::AbstractCubicalComplex3D, idx::Int)
     if idx <= nxyquads(s)
         align = Z_ALIGN
         idx0 = idx - 1
@@ -454,7 +575,7 @@ function quad_to_coord(s::UniformCubicalComplex3D, idx::Int)
     return (x, y, z, align)
 end
 
-function boid_to_coord(s::UniformCubicalComplex3D, idx::Int)
+function boid_to_coord(s::AbstractCubicalComplex3D, idx::Int)
     idx0 = idx - 1
     nxy_b = nxb(s) * nyb(s)
 
@@ -474,7 +595,7 @@ function point(s::UniformCubicalComplex3D, x::Int, y::Int, z::Int)
 end
 point(s::UniformCubicalComplex3D, v::Int) = point(s, vert_to_coord(s, v)...)
 
-function real_point(s::AbstractCubicalComplex3D, x::Int, y::Int, z::Int)
+function real_point(s::UniformCubicalComplex3D, x::Int, y::Int, z::Int)
     return point(s, x + halo_west(s), y + halo_south(s), z + halo_down(s))
 end
 
@@ -497,10 +618,7 @@ function tgt(s::AbstractCubicalComplex3D, x::Int, y::Int, z::Int, align::Align)
         return coord_to_vert(s, x, y, z + 1)
     end
 end
-function tgt(s::AbstractCubicalComplex3D, e::Int)
-    x, y, z, align = edge_to_coord(s, e)
-    return tgt(s, x, y, z, align)
-end
+tgt(s::AbstractCubicalComplex3D, e::Int) = tgt(s, edge_to_coord(s, e)...)
 
 function edge_len(s::UniformCubicalComplex3D, align::Align)
     if align == X_ALIGN
@@ -685,13 +803,13 @@ function boid_volume(s::UniformCubicalComplex3D)
     return dx(s) * dy(s) * dz(s)
 end
 
-function dual_point(s::UniformCubicalComplex3D, x::Int, y::Int, z::Int)
-    px = base_x(s) + (x - 0.5 - halo_west(s)) * dx(s)
-    py = base_y(s) + (y - 0.5 - halo_south(s)) * dy(s)
-    pz = base_z(s) + (z - 0.5 - halo_down(s)) * dz(s)
+function dual_point(s::UniformCubicalComplex3D{FT}, x::Int, y::Int, z::Int) where FT <: AbstractFloat
+    px = base_x(s) + (x - FT(0.5) - halo_west(s)) * dx(s)
+    py = base_y(s) + (y - FT(0.5) - halo_south(s)) * dy(s)
+    pz = base_z(s) + (z - FT(0.5) - halo_down(s)) * dz(s)
     return Point3(px, py, pz)
 end
-dual_points(s::AbstractCubicalComplex3D) = map(v -> dual_point(s, boid_to_coord(s, v)...), boids(s))
+dual_points(s::UniformCubicalComplex3D) = map(v -> dual_point(s, boid_to_coord(s, v)...), boids(s))
 
 function real_dual_point(s::UniformCubicalComplex3D, rx::Int, ry::Int, rz::Int)
     return dual_point(s, rx + halo_west(s), ry + halo_south(s), rz + halo_down(s))
@@ -701,12 +819,12 @@ function real_coord_to_boid(s::AbstractCubicalComplex3D, rx::Int, ry::Int, rz::I
     return coord_to_boid(s, rx + halo_west(s), ry + halo_south(s), rz + halo_down(s))
 end
 
-function dual_edge_len(s::UniformCubicalComplex3D, x::Int, y::Int, z::Int, align::Align)
+function dual_edge_len(s::UniformCubicalComplex3D{FT}, x::Int, y::Int, z::Int, align::Align) where FT <: AbstractFloat
     if align == Z_ALIGN
         # Z-aligned quad (XY plane) normal is along Z. 
         # Boundary is at the first and last Z-coordinates.
         if z == 1 || z == nz(s)
-            return dz(s) / 2.0
+            return dz(s) / FT(2.0)
         else
             return dz(s)
         end
@@ -714,7 +832,7 @@ function dual_edge_len(s::UniformCubicalComplex3D, x::Int, y::Int, z::Int, align
         # Y-aligned quad (XZ plane) normal is along Y.
         # Boundary is at the first and last Y-coordinates.
         if y == 1 || y == ny(s)
-            return dy(s) / 2.0
+            return dy(s) / FT(2.0)
         else
             return dy(s)
         end
@@ -722,7 +840,7 @@ function dual_edge_len(s::UniformCubicalComplex3D, x::Int, y::Int, z::Int, align
         # X-aligned quad (YZ plane) normal is along X.
         # Boundary is at the first and last X-coordinates.
         if x == 1 || x == nx(s)
-            return dx(s) / 2.0
+            return dx(s) / FT(2.0)
         else
             return dx(s)
         end
@@ -731,10 +849,10 @@ function dual_edge_len(s::UniformCubicalComplex3D, x::Int, y::Int, z::Int, align
     end
 end
 
-function dual_quad_area(s::UniformCubicalComplex3D, x::Int, y::Int, z::Int, align::Align)
-    lx = (x == 1 || x == nx(s)) ? dx(s) / 2.0 : dx(s)
-    ly = (y == 1 || y == ny(s)) ? dy(s) / 2.0 : dy(s)
-    lz = (z == 1 || z == nz(s)) ? dz(s) / 2.0 : dz(s)
+function dual_quad_area(s::UniformCubicalComplex3D{FT}, x::Int, y::Int, z::Int, align::Align) where FT <: AbstractFloat
+    lx = (x == 1 || x == nx(s)) ? dx(s) / FT(2.0) : dx(s)
+    ly = (y == 1 || y == ny(s)) ? dy(s) / FT(2.0) : dy(s)
+    lz = (z == 1 || z == nz(s)) ? dz(s) / FT(2.0) : dz(s)
 
     if align == Z_ALIGN
         return lx * ly
@@ -745,10 +863,10 @@ function dual_quad_area(s::UniformCubicalComplex3D, x::Int, y::Int, z::Int, alig
     end
 end
 
-function dual_boid_volume(s::UniformCubicalComplex3D, x::Int, y::Int, z::Int)
-    lx = (x == 1 || x == nx(s)) ? dx(s) / 2.0 : dx(s)
-    ly = (y == 1 || y == ny(s)) ? dy(s) / 2.0 : dy(s)
-    lz = (z == 1 || z == nz(s)) ? dz(s) / 2.0 : dz(s)
+function dual_boid_volume(s::UniformCubicalComplex3D{FT}, x::Int, y::Int, z::Int) where FT <: AbstractFloat
+    lx = (x == 1 || x == nx(s)) ? dx(s) / FT(2.0) : dx(s)
+    ly = (y == 1 || y == ny(s)) ? dy(s) / FT(2.0) : dy(s)
+    lz = (z == 1 || z == nz(s)) ? dz(s) / FT(2.0) : dz(s)
 
     return lx * ly * lz
 end

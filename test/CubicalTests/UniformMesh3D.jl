@@ -1,8 +1,6 @@
 using Test
 using GeometryBasics
-
-include("../../src/CubicalCode/UniformMesh.jl")
-include("../../src/CubicalCode/UniformMesh3D.jl")
+using CombinatorialSpaces
 
 @testset "Basic Cube" begin
     s = UniformCubicalComplex3D(5, 5, 5, 10.0, 10.0, 10.0)
@@ -613,7 +611,7 @@ end
         end
         result = interior(Val(3), u, s)
 
-        @test length(result) == nbr(s)
+        @test length(result) == nboidsr(s)
         @test all(result .== 1.0)
         @test !any(result .== 0.0)
 

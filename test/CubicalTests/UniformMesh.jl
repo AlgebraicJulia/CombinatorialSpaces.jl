@@ -1,7 +1,6 @@
 using Test
-# using CairoMakie
 
-include("../../src/CubicalCode/UniformMesh.jl")
+using CombinatorialSpaces
 
 @testset "UniformCubicalComplex2D - No Halo" begin
 
@@ -70,12 +69,6 @@ include("../../src/CubicalCode/UniformMesh.jl")
     @test dual_quad_area(s, 2, 1) == dx(s) * dy(s) / 2
     @test dual_quad_area(s, 2, 2) == dx(s) * dy(s)
 end
-
-# # Test plotting (if supported)
-# fig = Figure()
-# ax = CairoMakie.Axis(fig[1,1])
-# wireframe!(ax, s)
-# save("imgs/UniformGrid.png", fig)
 
 @testset "UniformCubicalComplex2D - With Halo" begin
 
