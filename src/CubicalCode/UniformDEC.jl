@@ -1,16 +1,16 @@
 module UniformDEC
 
 # ── Core numerics ─────────────────────────────────────────────────────────────
-using StaticArrays:      @SVector, SVector
-using GeometryBasics:    Point2d, Point3d
-using LinearAlgebra:     norm, diagm, diag
-using SparseArrays:      sparse, spdiagm, SparseMatrixCSC
+using StaticArrays:       @SVector, SVector
+using GeometryBasics:     Point2d, Point3d
+using LinearAlgebra:      norm, diagm, diag
+using SparseArrays:       sparse, spdiagm, SparseMatrixCSC
 using KernelAbstractions: @kernel, @index, @Const, get_backend
-using Adapt:             adapt
+using Adapt:              adapt
 
 import Base: show, getindex
-import ..SimplicialSets: nv, ne, src, tgt, vertices, edges, interior
-import ..DiscreteExteriorCalculus: point, dual_point
+import ..SimplicialSets: nv, ne, src, tgt, vertices, edges, interior, exterior_derivative
+import ..DiscreteExteriorCalculus: point, dual_point, hodge_star, inv_hodge_star, codifferential, wedge_product, dual_derivative
 
 # ── Mesh ──────────────────────────────────────────────────────────────────────
 include("UniformMesh.jl")
@@ -153,47 +153,57 @@ export
     quad_edge_offset_3D,
     boid_quad_offset,
 
-    # ── Matrix DEC — 2D reference backend (UniformMatrixDEC.jl) ───────────────
+    # ── Operators ───────────────
     exterior_derivative,
-    dual_derivative,
-    no_flux_dual_derivative,
-    dual_derivative_beta,
-    hodge_star,
-    inv_hodge_star,
-    codifferential,
-    dual_codifferential,
-    laplacian,
-    dual_laplacian,
-    dual_codifferential,
-    interpolate_dp,
-    smoothing_dual0,
-
-    # ── Kernel DEC — 2D (UniformKernelDEC.jl) ─────────────────────────────────
     exterior_derivative!,
+
+    dual_derivative,
     dual_derivative!,
+
+    d_beta,
+    d_beta_mul,
+    d_beta_mul!,
+
+    no_flux_dual_derivative,
+    no_flux_dual_derivative!,
+
+    hodge_star,
     hodge_star!,
+
+    inv_hodge_star,
     inv_hodge_star!,
+
+    codifferential,
+    codifferential!,
+
+    dual_codifferential,
+    dual_codifferential!,
+
+    laplacian,
+    laplacian!,
+
+    dual_laplacian,
+    dual_laplacian!,
+
+    interpolate_dp,
+    interpolate_dp!,
+
     wedge_product,
     wedge_product!,
     wedge_product_dd,
     wedge_product_dd!,
     wedge_product_pd,
     wedge_product_pd!,
+
     sharp_dd,
-    flat_dp,
-    flat_dd,
-    interpolate_dp!,
-    set_periodic!,
-    UniformDECCache,
-
-    # ── Kernel DEC — 3D (UniformKernelDEC3D.jl) ───────────────────────────────
-    UniformDECCache3D,
-    free_slip_dd1!,
     sharp_dd!,
-    flat_dp!,
-    interpolate_dp,
-    SmoothingCache3D,
-    smooth_dual0_fused,
-    smooth_dual0_fused!
 
+    flat_dp,
+    flat_dp!,
+
+    flat_dd,
+    flat_dd!,
+
+    UniformDECCache,
+    UniformDECCache3D
 end

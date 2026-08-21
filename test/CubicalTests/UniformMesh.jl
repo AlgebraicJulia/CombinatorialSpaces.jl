@@ -1,5 +1,4 @@
 using Test
-
 using CombinatorialSpaces
 
 @testset "UniformCubicalComplex2D - No Halo" begin

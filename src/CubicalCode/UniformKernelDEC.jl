@@ -1,89 +1,91 @@
 using KernelAbstractions
 using Adapt
 
-# Kernel for exterior derivative of 0-forms (primal 0-forms to primal 1-forms)
-@kernel function kernel_exterior_derivative_zero!(res, s, @Const(f))
-  idx = @index(Global)
-  x, y, align = edge_to_coord(s, idx)
+# Exterior derivatives 
 
-  @inbounds res[idx] = f[tgt(s, x, y, align)] - f[src(s, x, y, align)]
+@kernel function kernel_exterior_derivative_zero!(res, s, @Const(f))
+    idx = @index(Global)
+    x, y, align = edge_to_coord(s, idx)
+
+    @inbounds res[idx] = f[tgt(s, x, y, align)] - f[src(s, x, y, align)]
 end
 
-# Kernel for exterior derivative of 1-forms (primal 1-forms to primal 2-forms)
-# quad_edges returns (bottom-x, right-y, top-x, left-y); signs match the
 # matrix orientation (+1, +1, -1, -1) = bottom + right - top - left.
 @kernel function kernel_exterior_derivative_one!(res, s, @Const(f))
-  idx = @index(Global)
-  x, y = quad_to_coord(s, idx)
+    idx = @index(Global)
+    x, y = quad_to_coord(s, idx)
 
-  e1, e2, e3, e4 = quad_edges(s, x, y)
-  @inbounds res[idx] = f[e1] + f[e2] - f[e3] - f[e4]
+    e1, e2, e3, e4 = quad_edges(s, x, y)
+    @inbounds res[idx] = f[e1] + f[e2] - f[e3] - f[e4]
 end
 
-# Main interface functions
-
 function exterior_derivative!(res, ::Val{0}, s::UniformCubicalComplex2D, f)
-  backend = get_backend(f)
-  kernel = kernel_exterior_derivative_zero!(backend)
-  kernel(res, s, f; ndrange = size(res))
-  return res
+    backend = get_backend(res)
+    kernel_exterior_derivative_zero!(backend)(res, s, f; ndrange = size(res))
+    return res
+end
+
+function exterior_derivative(::Val{0}, s::UniformCubicalComplex2D, f::AbstractVector{FT}) where FT <: AbstractFloat
+    res = KernelAbstractions.zeros(get_backend(f), FT, ne(s))
+    return exterior_derivative!(res, Val(0), s, f)
 end
 
 function exterior_derivative!(res, ::Val{1}, s::UniformCubicalComplex2D, f)
-  backend = get_backend(f)
-  kernel = kernel_exterior_derivative_one!(backend)
-  kernel(res, s, f; ndrange = size(res))
-  return res
+    backend = get_backend(res)
+    kernel_exterior_derivative_one!(backend)(res, s, f; ndrange = size(res))
+    return res
 end
 
-# Kernel for wedge 01, 11, and dual 01 products
+function exterior_derivative(::Val{1}, s::UniformCubicalComplex2D, f::AbstractVector{FT}) where FT <: AbstractFloat
+    res = KernelAbstractions.zeros(get_backend(f), FT, nquads(s))
+    return exterior_derivative!(res, Val(1), s, f)
+end
+
+# Wedge Products
 
 @kernel function kernel_wedge_product_01(res, s, @Const(f), @Const(a))
-  idx = @index(Global)
-  x, y, align = edge_to_coord(s, idx)
+    idx = @index(Global)
+    x, y, align = edge_to_coord(s, idx)
 
-  # Get the values of the 0-form at the vertices of the edge
-  v1 = f[src(s, x, y, align)]
-  v2 = f[tgt(s, x, y, align)]
+    v1 = f[src(s, x, y, align)]
+    v2 = f[tgt(s, x, y, align)]
 
-  @inbounds res[idx] = (v1 + v2) * a[idx] / 2
+    @inbounds res[idx] = (v1 + v2) * a[idx] / 2
 end
 
 @kernel function kernel_wedge_product_11(res, s, @Const(a), @Const(b))
-  idx = @index(Global)
-  x, y = quad_to_coord(s, idx)
+    idx = @index(Global)
+    x, y = quad_to_coord(s, idx)
 
-  es = quad_edges(s, x, y)
+    es = quad_edges(s, x, y)
 
-  @inbounds res[idx] = 0.25 * (a[es[1]] + a[es[3]]) * (b[es[2]] + b[es[4]]) -
-    0.25 * (a[es[2]] + a[es[4]]) * (b[es[1]] + b[es[3]])
+    @inbounds res[idx] = 0.25 * (a[es[1]] + a[es[3]]) * (b[es[2]] + b[es[4]]) -
+        0.25 * (a[es[2]] + a[es[4]]) * (b[es[1]] + b[es[3]])
 end
 
-# TODO: Remove control flow to make this more efficient on the GPU
 @kernel function kernel_wedge_product_dual_01(res, s, @Const(f), @Const(a))
-  idx = @index(Global)
-  x, y, align = edge_to_coord(s, idx)
+    idx = @index(Global)
+    x, y, align = edge_to_coord(s, idx)
 
-  dv1, dv2 = edge_quads(s, x, y, align)
+    dv1, dv2 = edge_quads(s, x, y, align)
 
-  ae = a[idx]
+    ae = a[idx]
 
-  if is_left_edge(s, x, y, align)
-    tmp = f[dv2] * ae
-  elseif is_right_edge(s, x, y, align)
-    tmp = f[dv1] * ae
-  elseif is_top_edge(s, x, y, align)
-    tmp = f[dv1] * ae
-  elseif is_bottom_edge(s, x, y, align)
-    tmp = f[dv2] * ae
-  else
-    tmp = 0.5 * (f[dv1] + f[dv2]) * ae
-  end
+    if is_left_edge(s, x, y, align)
+        tmp = f[dv2] * ae
+    elseif is_right_edge(s, x, y, align)
+        tmp = f[dv1] * ae
+    elseif is_top_edge(s, x, y, align)
+        tmp = f[dv1] * ae
+    elseif is_bottom_edge(s, x, y, align)
+        tmp = f[dv2] * ae
+    else
+        tmp = 0.5 * (f[dv1] + f[dv2]) * ae
+    end
 
-  @inbounds res[idx] = tmp
+    @inbounds res[idx] = tmp
 end
 
-# ── wedge dual 1∧1: dual 1-form × dual 1-form → dual 2-form (vertex scalar) ──
 @kernel function kernel_wedge_product_dd_11(res, s, @Const(a), @Const(b),)
     v = @index(Global)
     x, y = vert_to_coord(s, v)
@@ -116,7 +118,6 @@ end
     )
 end
 
-# ── wedge primal-dual 1∧1: primal 1-form × dual 1-form → primal 2-form ──
 # Implements Equation 70 of Kraus & Maj (2017).
 @kernel function kernel_wedge_product_pd_11(res, s, @Const(a), @Const(b))
     idx = @index(Global)
@@ -140,296 +141,184 @@ end
                                     w4 * a[e4] * b[e4])
 end
 
-function wedge_product(::Val{0}, ::Val{1}, s::UniformCubicalComplex2D, f::AbstractVector{FT}, a::AbstractVector{FT}) where FT <: AbstractFloat
-  backend = get_backend(f)
-  res = KernelAbstractions.zeros(backend, FT, ne(s))
-  kernel = kernel_wedge_product_01(backend)
-
-  kernel(res, s, f, a; ndrange = size(res))
-  return res
+function wedge_product!(res, ::Val{0}, ::Val{1}, s::UniformCubicalComplex2D, f, a)
+    backend = get_backend(res)
+    kernel_wedge_product_01(backend)(res, s, f, a; ndrange = size(res))
+    return res
 end
 
+function wedge_product(::Val{0}, ::Val{1}, s::UniformCubicalComplex2D, f::AbstractVector{FT}, a::AbstractVector{FT}) where FT <: AbstractFloat
+    res = KernelAbstractions.zeros(get_backend(f), FT, ne(s))
+    return wedge_product!(res, Val(0), Val(1), s, f, a)
+end
+
+wedge_product!(res, ::Val{1}, ::Val{0}, s::UniformCubicalComplex2D, a, f) =
+    wedge_product!(res, Val(0), Val(1), s, f, a)
+
 wedge_product(::Val{1}, ::Val{0}, s::UniformCubicalComplex2D, a::AbstractVector{FT}, f::AbstractVector{FT}) where FT <: AbstractFloat =
-  wedge_product(Val(0), Val(1), s, f, a)
+    wedge_product(Val(0), Val(1), s, f, a)
 
-function wedge_product(::Val{1}, ::Val{1}, s::UniformCubicalComplex2D, f1::AbstractVector{FT}, f2::AbstractVector{FT}) where FT <: AbstractFloat
-  backend = get_backend(f1)
-  res = KernelAbstractions.zeros(backend, FT, nquads(s))
-  kernel = kernel_wedge_product_11(backend)
+function wedge_product!(res, ::Val{1}, ::Val{1}, s::UniformCubicalComplex2D, a, b)
+    backend = get_backend(res)
+    kernel_wedge_product_11(backend)(res, s, a, b; ndrange = size(res))
+    return res
+end
 
-  kernel(res, s, f1, f2; ndrange = size(res))
-  return res
+function wedge_product(::Val{1}, ::Val{1}, s::UniformCubicalComplex2D, a::AbstractVector{FT}, b::AbstractVector{FT}) where FT <: AbstractFloat
+    res = KernelAbstractions.zeros(get_backend(a), FT, nquads(s))
+    return wedge_product!(res, Val(1), Val(1), s, a, b)
+end
+    
+function wedge_product_dd!(res, ::Val{0}, ::Val{1}, s::UniformCubicalComplex2D, f, a)
+    backend = get_backend(res)
+    kernel_wedge_product_dual_01(backend)(res, s, f, a; ndrange = size(res))
+    return res
 end
 
 function wedge_product_dd(::Val{0}, ::Val{1}, s::UniformCubicalComplex2D, f::AbstractVector{FT}, a::AbstractVector{FT}) where FT <: AbstractFloat
-  backend = get_backend(f)
-  res = KernelAbstractions.zeros(backend, FT, ne(s))
-  kernel = kernel_wedge_product_dual_01(backend)
-
-  kernel(res, s, f, a; ndrange = size(res))
-  return res
+    res = KernelAbstractions.zeros(get_backend(f), FT, ne(s))
+    return wedge_product_dd!(res, Val(0), Val(1), s, f, a)
 end
 
-wedge_product_dd(::Val{1}, ::Val{0}, s::UniformCubicalComplex2D, a, f) = wedge_product_dd(Val(0), Val(1), s, f, a)
+wedge_product_dd!(res, ::Val{1}, ::Val{0}, s::UniformCubicalComplex2D, a, f) =
+    wedge_product_dd!(res, Val(0), Val(1), s, f, a)
 
-function wedge_product_dd(::Val{1}, ::Val{1}, s::UniformCubicalComplex2D, a::AbstractVector{FT}, b::AbstractVector{FT}) where {FT <: AbstractFloat}
-    backend = get_backend(a)
-    res = KernelAbstractions.zeros(backend, FT, nv(s))
-    kernel_wedge_product_dd_11(backend)(res, s, a, b; ndrange = nv(s))
+wedge_product_dd(::Val{1}, ::Val{0}, s::UniformCubicalComplex2D, a::AbstractVector{FT}, f::AbstractVector{FT}) where FT <: AbstractFloat =
+    wedge_product_dd(Val(0), Val(1), s, f, a)
+
+function wedge_product_dd!(res, ::Val{1}, ::Val{1}, s::UniformCubicalComplex2D, a, b)
+    backend = get_backend(res)
+    kernel_wedge_product_dd_11(backend)(res, s, a, b; ndrange = size(res))
     return res
 end
 
-function wedge_product_pd(::Val{1}, ::Val{1}, s::UniformCubicalComplex2D, a::AbstractVector{FT}, b::AbstractVector{FT}) where {FT <: AbstractFloat}
-    backend = get_backend(a)
-    res = KernelAbstractions.zeros(backend, FT, nquads(s))
-    kernel_wedge_product_pd_11(backend)(res, s, a, b; ndrange = nquads(s))
+function wedge_product_dd(::Val{1}, ::Val{1}, s::UniformCubicalComplex2D, a::AbstractVector{FT}, b::AbstractVector{FT}) where FT <: AbstractFloat
+    res = KernelAbstractions.zeros(get_backend(a), FT, nv(s))
+    return wedge_product_dd!(res, Val(1), Val(1), s, a, b)
+end
+
+function wedge_product_pd!(res, ::Val{1}, ::Val{1}, s::UniformCubicalComplex2D, a, b)
+    backend = get_backend(res)
+    kernel_wedge_product_pd_11(backend)(res, s, a, b; ndrange = size(res))
     return res
+end
+
+function wedge_product_pd(::Val{1}, ::Val{1}, s::UniformCubicalComplex2D, a::AbstractVector{FT}, b::AbstractVector{FT}) where FT <: AbstractFloat
+    res = KernelAbstractions.zeros(get_backend(a), FT, nquads(s))
+    return wedge_product_pd!(res, Val(1), Val(1), s, a, b)
 end
 
 # Convert a dual 1-form to a vector field on the dual points
 @kernel function kernel_sharp_dd(X, Y, s, @Const(a))
-  idx = @index(Global)
-  x, y = quad_to_coord(s, idx)
-  e1, e2, e3, e4 = quad_edges(s, x, y) # Order is (x-, y-, x+, y+)
+    idx = @index(Global)
+    x, y = quad_to_coord(s, idx)
+    e1, e2, e3, e4 = quad_edges(s, x, y) # Order is (x-, y-, x+, y+)
 
-  le1 = dual_edge_len(s, e1)
-  le2 = dual_edge_len(s, e2)
-  le3 = dual_edge_len(s, e3)
-  le4 = dual_edge_len(s, e4)
+    le1 = dual_edge_len(s, e1)
+    le2 = dual_edge_len(s, e2)
+    le3 = dual_edge_len(s, e3)
+    le4 = dual_edge_len(s, e4)
 
-  # Remember that for an X-aligned primal edge, we have a Y-aligned dual edge
-  X[idx] = -(a[e2]/le2 + a[e4]/le4) / 2
-  Y[idx] = (a[e1]/le1 + a[e3]/le3) / 2
+    # Remember that for an X-aligned primal edge, we have a Y-aligned dual edge
+    X[idx] = -(a[e2]/le2 + a[e4]/le4) / 2
+    Y[idx] = (a[e1]/le1 + a[e3]/le3) / 2
 end
 
-function sharp_dd(s::UniformCubicalComplex2D, a::AbstractVector{FT}) where FT <:AbstractFloat
-  backend = get_backend(a)
-  X = KernelAbstractions.zeros(backend, FT, nquads(s))
-  Y = KernelAbstractions.zeros(backend, FT, nquads(s))
-  kernel = kernel_sharp_dd(backend)
-
-  kernel(X, Y, s, a; ndrange = size(X))
-  return X, Y
+function sharp_dd!(X, Y, s::UniformCubicalComplex2D, a)
+    backend = get_backend(X)
+    kernel_sharp_dd(backend)(X, Y, s, a; ndrange = size(X))
+    return X, Y
 end
 
-# Flat, convert dual vector field to primal 1-form
+function sharp_dd(s::UniformCubicalComplex2D, a::AbstractVector{FT}) where FT <: AbstractFloat
+    backend = get_backend(a)
+    X = KernelAbstractions.zeros(backend, FT, nquads(s))
+    Y = KernelAbstractions.zeros(backend, FT, nquads(s))
+    return sharp_dd!(X, Y, s, a)
+end
+
+# Convert dual vector field to primal 1-form
 @kernel function kernel_flat_dp(res, s, @Const(X), @Const(Y))
-  idx = @index(Global)
-  x, y, align = edge_to_coord(s, idx)
-  if align == X_ALIGN
-    if y == 1
-      res[idx] = X[coord_to_quad(s,x,y)] * edge_len(s, X_ALIGN)
-    elseif y == ny(s)
-      res[idx] = X[coord_to_quad(s,x,y-1)] * edge_len(s, X_ALIGN)
+    idx = @index(Global)
+    x, y, align = edge_to_coord(s, idx)
+    if align == X_ALIGN
+        if y == 1
+        res[idx] = X[coord_to_quad(s,x,y)] * edge_len(s, X_ALIGN)
+        elseif y == ny(s)
+        res[idx] = X[coord_to_quad(s,x,y-1)] * edge_len(s, X_ALIGN)
+        else
+        res[idx] = 0.5 * (X[coord_to_quad(s,x,y)] + X[coord_to_quad(s,x,y-1)]) * edge_len(s, X_ALIGN)
+        end
     else
-      res[idx] = 0.5 * (X[coord_to_quad(s,x,y)] + X[coord_to_quad(s,x,y-1)]) * edge_len(s, X_ALIGN)
+        if x == 1
+        res[idx] = Y[coord_to_quad(s,x,y)] * edge_len(s, Y_ALIGN)
+        elseif x == nx(s)
+        res[idx] = Y[coord_to_quad(s,x-1,y)] * edge_len(s, Y_ALIGN)
+        else
+        res[idx] = 0.5 * (Y[coord_to_quad(s,x,y)] + Y[coord_to_quad(s,x-1,y)]) * edge_len(s, Y_ALIGN)
+        end
     end
-  else
-    if x == 1
-      res[idx] = Y[coord_to_quad(s,x,y)] * edge_len(s, Y_ALIGN)
-    elseif x == nx(s)
-      res[idx] = Y[coord_to_quad(s,x-1,y)] * edge_len(s, Y_ALIGN)
-    else
-      res[idx] = 0.5 * (Y[coord_to_quad(s,x,y)] + Y[coord_to_quad(s,x-1,y)]) * edge_len(s, Y_ALIGN)
-    end
-  end
 end
 
-function flat_dp(s::UniformCubicalComplex2D, X::AbstractVector{FT}, Y::AbstractVector{FT}) where FT <:AbstractFloat
-  backend = get_backend(X)
-  res = KernelAbstractions.zeros(backend, FT, ne(s))
-  kernel = kernel_flat_dp(backend)
-
-  kernel(res, s, X, Y; ndrange = size(res))
-  return res
+function flat_dp!(res, s::UniformCubicalComplex2D, X, Y)
+    backend = get_backend(res)
+    kernel_flat_dp(backend)(res, s, X, Y; ndrange = size(res))
+    return res
 end
 
-# Flat, convert dual vector field to dual 1-form
+function flat_dp(s::UniformCubicalComplex2D, X::AbstractVector{FT}, Y::AbstractVector{FT}) where FT <: AbstractFloat
+    res = KernelAbstractions.zeros(get_backend(X), FT, ne(s))
+    return flat_dp!(res, s, X, Y)
+end
+
+# Convert dual vector field to dual 1-form
 @kernel function kernel_flat_dd(res, s, @Const(X), @Const(Y))
-  idx = @index(Global)
-  x, y, align = edge_to_coord(s, idx)
+    idx = @index(Global)
+    x, y, align = edge_to_coord(s, idx)
 
-  if align == X_ALIGN
-    if y == 1
-      res[idx] = Y[coord_to_quad(s, x, y)] * dual_edge_len(s, idx)
-    elseif y == ny(s)
-      res[idx] = Y[coord_to_quad(s, x, y - 1)] * dual_edge_len(s, idx)
+    if align == X_ALIGN
+        if y == 1
+        res[idx] = Y[coord_to_quad(s, x, y)] * dual_edge_len(s, idx)
+        elseif y == ny(s)
+        res[idx] = Y[coord_to_quad(s, x, y - 1)] * dual_edge_len(s, idx)
+        else
+        res[idx] = 0.5 * (Y[coord_to_quad(s, x, y)] + Y[coord_to_quad(s, x, y - 1)]) * dual_edge_len(s, idx)
+        end
     else
-      res[idx] = 0.5 * (Y[coord_to_quad(s, x, y)] + Y[coord_to_quad(s, x, y - 1)]) * dual_edge_len(s, idx)
+        if x == 1
+        res[idx] = -X[coord_to_quad(s, x, y)] * dual_edge_len(s, idx)
+        elseif x == nx(s)
+        res[idx] = -X[coord_to_quad(s, x - 1, y)] * dual_edge_len(s, idx)
+        else
+        res[idx] = -0.5 * (X[coord_to_quad(s, x, y)] + X[coord_to_quad(s, x - 1, y)]) * dual_edge_len(s, idx)
+        end
     end
-  else
-    if x == 1
-      res[idx] = -X[coord_to_quad(s, x, y)] * dual_edge_len(s, idx)
-    elseif x == nx(s)
-      res[idx] = -X[coord_to_quad(s, x - 1, y)] * dual_edge_len(s, idx)
-    else
-      res[idx] = -0.5 * (X[coord_to_quad(s, x, y)] + X[coord_to_quad(s, x - 1, y)]) * dual_edge_len(s, idx)
-    end
-  end
 end
 
-function flat_dd(s::UniformCubicalComplex2D, X::AbstractVector{FT}, Y::AbstractVector{FT}) where FT <:AbstractFloat
-  backend = get_backend(X)
-  res = KernelAbstractions.zeros(backend, FT, ne(s))
-  kernel = kernel_flat_dd(backend)
-
-  kernel(res, s, X, Y; ndrange = size(res))
-  return res
+function flat_dd!(res, s::UniformCubicalComplex2D, X, Y)
+    backend = get_backend(res)
+    kernel_flat_dd(backend)(res, s, X, Y; ndrange = size(res))
+    return res
 end
 
-# TODO: Why is there scalar indexing in this function? Can we remove it to make it more efficient on the GPU?
-function interpolate_dp(::Val{1}, s::UniformCubicalComplex2D, a)
-  backend = get_backend(a)
-  X, Y = sharp_dd(s, a)
-  KernelAbstractions.synchronize(backend)
-  return flat_dp(s, X, Y)
+function flat_dd(s::UniformCubicalComplex2D, X::AbstractVector{FT}, Y::AbstractVector{FT}) where FT <: AbstractFloat
+    res = KernelAbstractions.zeros(get_backend(X), FT, ne(s))
+    return flat_dd!(res, s, X, Y)
 end
 
-# ═══════════════════════════════════════════════════════════════════════════
-#  set_periodic! – KernelAbstractions versions
-# ═══════════════════════════════════════════════════════════════════════════
-#
-# Each kernel iterates over the halo cells on one pair of opposing sides
-# (east/west or north/south).  A single linear index maps to an (i, j)
-# pair within the halo strip; each thread copies from the matching interior
-# cell on the opposite side of the domain.
-
-# ── set_periodic! (cached): single generic copy kernel ──────────────────
-# Precomputed dst/src index arrays eliminate all integer arithmetic.
-@kernel function kernel_set_periodic_cached!(f, @Const(dst), @Const(src))
-  idx = @index(Global)
-  @inbounds f[dst[idx]] = f[src[idx]]
+function interpolate_dp!(res, ::Val{1}, s::UniformCubicalComplex2D, a)
+    backend = get_backend(res)
+    X = KernelAbstractions.zeros(backend, eltype(res), nquads(s))
+    Y = KernelAbstractions.zeros(backend, eltype(res), nquads(s))
+    sharp_dd!(X, Y, s, a)
+    KernelAbstractions.synchronize(backend)
+    flat_dp!(res, s, X, Y)
+    return res
 end
 
-# ── Val{0}  (0-forms on vertices) ────────────────────────────────────────
-
-@kernel function kernel_set_periodic_0_ew!(f, s)
-  idx = @index(Global)
-  hx_ = hx(s); nx_ = nx(s); ny_ = ny(s)
-
-  j = div(idx - 1, hx_ + 1) + 1
-  i = idx - (j - 1) * (hx_ + 1)
-
-  # Right halo ← left interior
-  @inbounds f[coord_to_vert(s, nx_ - hx_ + i - 1, j)] = f[coord_to_vert(s, hx_ + i, j)]
-
-  # Left halo ← right interior
-  @inbounds f[coord_to_vert(s, i, j)] = f[coord_to_vert(s, nx_ - 2hx_ + i - 1, j)]
-end
-
-@kernel function kernel_set_periodic_0_ns!(f, s)
-  idx = @index(Global)
-  hy_ = hy(s); nx_ = nx(s); ny_ = ny(s)
-  j = div(idx - 1, nx_) + 1
-  i = idx - (j - 1) * nx_
-
-  # Top halo ← bottom interior
-  # Correct, map first vertex to last vertex continue rightwards to fill halo
-  @inbounds f[coord_to_vert(s, i, ny_ - hy_ + j - 1)] = f[coord_to_vert(s, i, hy_ + j)]
-
-  # Bottom halo ← top interior
-  @inbounds f[coord_to_vert(s, i, j)] = f[coord_to_vert(s, i, ny_ - 2hy_ + j - 1)]
-end
-
-function set_periodic!(f::AbstractVector{FT}, ::Val{0}, s::UniformCubicalComplex2D, side::GridSide) where FT <: AbstractFloat
-  backend = get_backend(f)
-  if side == EASTWEST || side == ALL
-    kernel_set_periodic_0_ew!(backend)(f, s; ndrange = (hx(s) + 1) * ny(s))
-  end
-  if side == NORTHSOUTH || side == ALL
-    kernel_set_periodic_0_ns!(backend)(f, s; ndrange = nx(s) * (hy(s) + 1))
-  end
-  return f
-end
-
-# ── Val{1}  (1-forms on edges) ───────────────────────────────────────────
-#
-# Edges come in two families (X-aligned and Y-aligned) with different grid
-# dimensions, so the EW and NS kernels each handle both families in turn.
-
-# East/West halo for x-edges:  strip is hx × ny(s)
-@kernel function kernel_set_periodic_1_ew_x!(f, s)
-  idx = @index(Global)
-  hx_ = hx(s); nxe_ = nxe(s); nyv_ = ny(s)
-  j = div(idx - 1, hx_) + 1
-  i = idx - (j - 1) * hx_
-  @inbounds f[coord_to_edge(s, nxe_ - hx_ + i, j, X_ALIGN)] = f[coord_to_edge(s, hx_ + i, j, X_ALIGN)]
-  @inbounds f[coord_to_edge(s, i, j, X_ALIGN)] = f[coord_to_edge(s, nxe_ - 2hx_ + i, j, X_ALIGN)]
-end
-
-# East/West halo for y-edges:  strip is hx × nye(s)
-@kernel function kernel_set_periodic_1_ew_y!(f, s)
-  idx = @index(Global)
-  hx_ = hx(s); nye_ = nye(s); nxv_ = nx(s)
-  j = div(idx - 1, hx_ + 1) + 1
-  i = idx - (j - 1) * (hx_ + 1)
-
-  @inbounds f[coord_to_edge(s, nxv_ - hx_ + i - 1, j, Y_ALIGN)] = f[coord_to_edge(s, hx_ + i, j, Y_ALIGN)]
-  @inbounds f[coord_to_edge(s, i, j, Y_ALIGN)] = f[coord_to_edge(s, nxv_ - 2hx_ + i - 1, j, Y_ALIGN)]
-end
-
-# North/South halo for x-edges:  strip is nxe(s) × hy
-@kernel function kernel_set_periodic_1_ns_x!(f, s)
-  idx = @index(Global)
-  hy_ = hy(s); nxe_ = nxe(s); nyv_ = ny(s)
-  j = div(idx - 1, nxe_) + 1
-  i = idx - (j - 1) * nxe_
-  @inbounds f[coord_to_edge(s, i, nyv_ - hy_ + j - 1, X_ALIGN)] = f[coord_to_edge(s, i, hy_ + j, X_ALIGN)]
-  @inbounds f[coord_to_edge(s, i, j, X_ALIGN)] = f[coord_to_edge(s, i, nyv_ - 2hy_ + j - 1, X_ALIGN)]
-end
-
-# North/South halo for y-edges:  strip is nx(s) × hy
-@kernel function kernel_set_periodic_1_ns_y!(f, s)
-  idx = @index(Global)
-  hy_ = hy(s); nxv_ = nx(s); nye_ = nye(s)
-  j = div(idx - 1, nxv_) + 1
-  i = idx - (j - 1) * nxv_
-  @inbounds f[coord_to_edge(s, i, j, Y_ALIGN)] = f[coord_to_edge(s, i, nye_ - 2hy_ + j, Y_ALIGN)]
-  @inbounds f[coord_to_edge(s, i, nye_ - hy_ + j, Y_ALIGN)] = f[coord_to_edge(s, i, hy_ + j, Y_ALIGN)]
-end
-
-function set_periodic!(f::AbstractVector{FT}, ::Val{1}, s::UniformCubicalComplex2D, side::GridSide) where FT <: AbstractFloat
-  backend = get_backend(f)
-  if side == EASTWEST || side == ALL
-    kernel_set_periodic_1_ew_x!(backend)(f, s; ndrange = hx(s) * ny(s))
-    kernel_set_periodic_1_ew_y!(backend)(f, s; ndrange = (hx(s) + 1) * nye(s))
-  end
-  if side == NORTHSOUTH || side == ALL
-    kernel_set_periodic_1_ns_x!(backend)(f, s; ndrange = nxe(s) * (hy(s) + 1))
-    kernel_set_periodic_1_ns_y!(backend)(f, s; ndrange = nx(s) * hy(s))
-  end
-  return f
-end
-
-# ── Val{2}  (2-forms on quads) ───────────────────────────────────────────
-
-@kernel function kernel_set_periodic_2_ew!(f, s)
-  idx = @index(Global)
-  hx_ = hx(s); nqx_ = nxq(s); nqy_ = nyq(s)
-  j = div(idx - 1, hx_) + 1
-  i = idx - (j - 1) * hx_
-  @inbounds f[coord_to_quad(s, i, j)] = f[coord_to_quad(s, nqx_ - 2hx_ + i, j)]
-  @inbounds f[coord_to_quad(s, nqx_ - hx_ + i, j)] = f[coord_to_quad(s, hx_ + i, j)]
-end
-
-@kernel function kernel_set_periodic_2_ns!(f, s)
-  idx = @index(Global)
-  hy_ = hy(s); nqx_ = nxq(s); nqy_ = nyq(s)
-  j = div(idx - 1, nqx_) + 1
-  i = idx - (j - 1) * nqx_
-  @inbounds f[coord_to_quad(s, i, j)] = f[coord_to_quad(s, i, nqy_ - 2hy_ + j)]
-  @inbounds f[coord_to_quad(s, i, nqy_ - hy_ + j)] = f[coord_to_quad(s, i, hy_ + j)]
-end
-
-function set_periodic!(f::AbstractVector{FT}, ::Val{2}, s::UniformCubicalComplex2D, side::GridSide) where FT <: AbstractFloat
-  backend = get_backend(f)
-  if side == EASTWEST || side == ALL
-    kernel_set_periodic_2_ew!(backend)(f, s; ndrange = hx(s) * nyq(s))
-  end
-  if side == NORTHSOUTH || side == ALL
-    kernel_set_periodic_2_ns!(backend)(f, s; ndrange = nxq(s) * hy(s))
-  end
-  return f
+function interpolate_dp(::Val{1}, s::UniformCubicalComplex2D, a::AbstractVector{FT}) where FT <: AbstractFloat
+    res = KernelAbstractions.zeros(get_backend(a), FT, ne(s))
+    return interpolate_dp!(res, Val(1), s, a)
 end
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -754,29 +643,23 @@ function UniformDECCache(s::UniformCubicalComplex2D{FT}) where {FT <: AbstractFl
   )
 end
 
-# ═══════════════════════════════════════════════════════════════════════════
-#  Cached kernels – no integer division, no control flow
-# ═══════════════════════════════════════════════════════════════════════════
+# Cached kernels
 
-# ── d0 ───────────────────────────────────────────────────────────────────
 @kernel function kernel_d0_cached!(res, @Const(src_v), @Const(tgt_v), @Const(f))
   e = @index(Global)
   @inbounds res[e] = f[tgt_v[e]] - f[src_v[e]]
 end
 
-# ── d1: signs (+1,+1,-1,-1) match quad_edges order (bottom,right,top,left)
 @kernel function kernel_d1_cached!(res, @Const(q_e1), @Const(q_e2), @Const(q_e3), @Const(q_e4), @Const(f))
   q = @index(Global)
   @inbounds res[q] = f[q_e1[q]] + f[q_e2[q]] - f[q_e3[q]] - f[q_e4[q]]
 end
 
-# ── wedge 0∧1 ────────────────────────────────────────────────────────────
 @kernel function kernel_wedge_01_cached!(res, @Const(src_v), @Const(tgt_v), @Const(f), @Const(a))
   e = @index(Global)
   @inbounds res[e] = (f[src_v[e]] + f[tgt_v[e]]) * a[e] * 0.5
 end
 
-# ── wedge 1∧1 ────────────────────────────────────────────────────────────
 @kernel function kernel_wedge_11_cached!(res, @Const(q_e1), @Const(q_e2), @Const(q_e3), @Const(q_e4), @Const(a), @Const(b))
   q = @index(Global)
   @inbounds begin
@@ -786,13 +669,11 @@ end
   end
 end
 
-# ── dual wedge 0∧1: boundary edges have q1==q2, so no branching needed ──
 @kernel function kernel_wedge_dd_01_cached!(res, @Const(e_q1), @Const(e_q2), @Const(f), @Const(a))
   e = @index(Global)
   @inbounds res[e] = (f[e_q1[e]] + f[e_q2[e]]) * a[e] * 0.5
 end
 
-# ── wedge dual 1∧1 (cached): uses dd1_v* index arrays, thread per vertex ──
 @kernel function kernel_wedge_dd_11_cached!( res, @Const(dd1_vxs), @Const(dd1_vys), @Const(dd1_vxt), @Const(dd1_vyt), @Const(dd1_vmask), @Const(a), @Const(b))
     v = @index(Global)
 
@@ -826,7 +707,6 @@ end
     end
 end
 
-# ── sharp_dd: precomputed reciprocals replace per-thread division ─────────
 @kernel function kernel_sharp_dd_cached!(X, Y, @Const(q_e1), @Const(q_e2), @Const(q_e3), @Const(q_e4),
                                          @Const(inv_de1), @Const(inv_de2), @Const(inv_de3), @Const(inv_de4), @Const(a))
   q = @index(Global)
@@ -851,7 +731,6 @@ end
     end
 end
 
-# ── flat_dp: split into two branchless launches (x-edges / y-edges) ───────
 @kernel function kernel_flat_dp_x_cached!(res, @Const(fp_xq1), @Const(fp_xq2), @Const(X), dx_half)
   e = @index(Global)
   @inbounds res[e] = (X[fp_xq1[e]] + X[fp_xq2[e]]) * dx_half
@@ -862,14 +741,7 @@ end
   @inbounds res[offset + i] = (Y[fp_yq1[i]] + Y[fp_yq2[i]]) * dy_half
 end
 
-# ── interpolate_dp = flat_dp ∘ sharp_dd: fused, no intermediate X/Y ─────
-# Inlines the sharp_dd computation directly into flat_dp, avoiding:
-#   • two intermediate nquads-length vectors (X, Y)
-#   • a synchronize() barrier between the two kernel launches
-# For an x-edge, X at each adjacent quad comes from the y-aligned dual edges
-# (e2, e4) of that quad. For a y-edge, Y comes from x-aligned dual edges (e1, e3).
-# Boundary sentinel: fp_xq1[e] == fp_xq2[e] for boundary x-edges (likewise y),
-# so (X1+X2)*dx_half = X1*dx = X1*edge_len, matching the single-quad formula.
+# interpolate_dp = flat_dp ∘ sharp_dd: fused, no intermediate X/Y
 @kernel function kernel_interp_dp_x_cached!(res, @Const(fp_xq1), @Const(fp_xq2),
                                              @Const(q_e2), @Const(q_e4), @Const(inv_de2), @Const(inv_de4),
                                              interp_x_scale::FT, @Const(a)) where FT <: AbstractFloat
@@ -892,7 +764,7 @@ end
   end
 end
 
-# ── flat_dd: split into two branchless launches (x-edges / y-edges) ───────
+# flat_dd: split into two branchless launches (x-edges / y-edges)
 @kernel function kernel_flat_dd_x_cached!(res, @Const(fd_xq1), @Const(fd_xq2), @Const(fd_xscale), @Const(Y))
   e = @index(Global)
   @inbounds res[e] = (Y[fd_xq1[e]] + Y[fd_xq2[e]]) * fd_xscale[e]
@@ -903,21 +775,17 @@ end
   @inbounds res[offset + i] = (X[fd_yq1[i]] + X[fd_yq2[i]]) * fd_yscale[i]
 end
 
-# ── hodge_star: element-wise multiply by a precomputed scale vector ────────
 @kernel function kernel_hodge_vec!(res, @Const(scale), @Const(f))
   i = @index(Global)
   @inbounds res[i] = scale[i] * f[i]
 end
 
-# ── hodge_star Val(2) / inv_hodge_star Val(2): uniform scalar multiply ─────
 @kernel function kernel_hodge_scalar!(res, val::FT, @Const(f)) where FT <: AbstractFloat
   i = @index(Global)
   @inbounds res[i] = val * f[i]
 end
 
-# ── dd0 = d1^T: signed gather from two adjacent quads per edge ────────────
 # emask bit 0 → positive quad contributes; bit 1 → negative quad contributes.
-# ifelse is branchless on both CPU (CMOV) and GPU (predication).
 @kernel function kernel_dd0_cached!(res, @Const(dd0_qp), @Const(dd0_qn), @Const(dd0_emask), @Const(f))
   e = @index(Global)
   @inbounds begin
@@ -931,9 +799,6 @@ end
 
 # TODO: Add support for passing in a custom boundary value (e.g. for nonzero Dirichlet conditions) instead of zero.
 # This should be done by passing a vector of boundary values
-# ── no_flux_dd0: same as dd0 but boundary-edge rows are zeroed ────────────
-# Boundary edges (dd0_emask != 3) are set to zero in the output.
-# Interior edges (dd0_emask == 3, both bits set) behave identically to dd0.
 # This matches no_flux_dual_derivative(Val(0), s) from UniformMatrixDEC.jl.
 @kernel function kernel_no_flux_dd0_cached!(res, @Const(dd0_qp), @Const(dd0_qn), @Const(dd0_emask), @Const(f))
   e = @index(Global)
@@ -948,7 +813,6 @@ end
   end
 end
 
-# ── dd1 = -d0^T: signed gather from 4 incident edges per vertex ───────────
 # vmask bits 0-3 → vxs, vys, vxt, vyt exist respectively.
 @kernel function kernel_dd1_cached!(res, @Const(dd1_vxs), @Const(dd1_vys), @Const(dd1_vxt), @Const(dd1_vyt), @Const(dd1_vmask), @Const(a))
   v = @index(Global)
@@ -963,15 +827,10 @@ end
   end
 end
 
-# ── d_beta_mul: boundary-edge contribution to vertex values ──────────────
-# Implements the matrix-vector product d_beta * V where
-#   d_beta = 0.5 * abs.(dd1) * diag(dd0 * ones(nquads))
-# For each vertex v, this sums 0.5 * sign(e) * V[e] over boundary edges
-# incident on v, where sign is determined by which side of the domain e lies on:
-#   dd0_emask == 1  (edge borders only its positive quad): sign = +1
-#   dd0_emask == 2  (edge borders only its negative quad): sign = −1
-#   dd0_emask == 3  (interior edge):                       sign =  0
-# Sign is extracted branchlessly as  bit0(emask) − bit1(emask).
+# d_beta = 0.5 * abs.(dd1) * diag(dd0 * ones(nquads))
+# dd0_emask == 1  (edge borders only its positive quad): sign = +1
+# dd0_emask == 2  (edge borders only its negative quad): sign = −1
+# dd0_emask == 3  (interior edge):                       sign =  0
 @kernel function kernel_d_beta_mul_cached!(res,
                                            @Const(dd1_vxs), @Const(dd1_vys),
                                            @Const(dd1_vxt), @Const(dd1_vyt),
@@ -1001,9 +860,7 @@ end
   end
 end
 
-# ═══════════════════════════════════════════════════════════════════════════
-#  Cached interface functions
-# ═══════════════════════════════════════════════════════════════════════════
+# Cached interface functions
 
 function exterior_derivative!(res::AbstractVector{FT}, ::Val{0}, cache::UniformDECCache, f::AbstractVector{FT}) where FT <: AbstractFloat
   backend = get_backend(f)
@@ -1085,7 +942,6 @@ end
 wedge_product_dd(::Val{1}, ::Val{0}, cache::UniformDECCache, a::AbstractVector{FT}, f::AbstractVector{FT}) where FT <: AbstractFloat =
   wedge_product_dd(Val(0), Val(1), cache, f, a)
 
-# ── Interface: in-place ───────────────────────────────────────────────────────
 function wedge_product_dd!(res::AbstractVector{FT}, ::Val{1}, ::Val{1}, cache::UniformDECCache, a::AbstractVector{FT}, b::AbstractVector{FT}) where {FT <: AbstractFloat}
     backend = get_backend(a)
     kernel_wedge_dd_11_cached!(backend)(res,
@@ -1096,7 +952,6 @@ function wedge_product_dd!(res::AbstractVector{FT}, ::Val{1}, ::Val{1}, cache::U
     return res
 end
 
-# ── Interface: allocating ─────────────────────────────────────────────────────
 function wedge_product_dd(::Val{1}, ::Val{1}, cache::UniformDECCache, a::AbstractVector{FT}, b::AbstractVector{FT}) where {FT <: AbstractFloat}
     backend = get_backend(a)
     res = KernelAbstractions.zeros(backend, FT, cache.nv_)
@@ -1173,7 +1028,6 @@ function interpolate_dp(::Val{1}, cache::UniformDECCache, a::AbstractVector{FT})
   return interpolate_dp!(res, Val(1), cache, a)
 end
 
-# ── hodge_star (cached) ───────────────────────────────────────────────────
 function hodge_star!(res::AbstractVector{FT}, ::Val{0}, cache::UniformDECCache, f::AbstractVector{FT}) where FT <: AbstractFloat
   backend = get_backend(f)
   kernel_hodge_vec!(backend)(res, cache.hs0_scale, f; ndrange = cache.nv_)
@@ -1199,7 +1053,6 @@ function hodge_star(::Val{k}, cache::UniformDECCache, f::AbstractVector{FT}) whe
   return hodge_star!(res, Val(k), cache, f)
 end
 
-# ── inv_hodge_star (cached) ───────────────────────────────────────────────
 function inv_hodge_star!(res::AbstractVector{FT}, ::Val{0}, cache::UniformDECCache, f::AbstractVector{FT}) where FT <: AbstractFloat
   backend = get_backend(f)
   kernel_hodge_vec!(backend)(res, cache.ihs0_scale, f; ndrange = cache.nv_)
@@ -1225,7 +1078,6 @@ function inv_hodge_star(::Val{k}, cache::UniformDECCache, f::AbstractVector{FT})
   return inv_hodge_star!(res, Val(k), cache, f)
 end
 
-# ── dual_derivative (cached) ──────────────────────────────────────────────
 function dual_derivative!(res::AbstractVector{FT}, ::Val{0}, cache::UniformDECCache, f::AbstractVector{FT}) where FT <: AbstractFloat
   backend = get_backend(f)
   kernel_dd0_cached!(backend)(res, cache.dd0_qp, cache.dd0_qn, cache.dd0_emask, f;
@@ -1248,10 +1100,6 @@ function dual_derivative(::Val{k}, cache::UniformDECCache, f::AbstractVector{FT}
   return dual_derivative!(res, Val(k), cache, f)
 end
 
-# ── no_flux_dual_derivative (cached) ─────────────────────────────────────
-# Equivalent to the matrix no_flux_dual_derivative(Val(0), s): applies dd0
-# but zeros all boundary-edge rows. Boundary edges are identified by having
-# dd0_emask != 3 (i.e. only one adjacent quad exists).
 function no_flux_dual_derivative!(res::AbstractVector{FT}, ::Val{0}, cache::UniformDECCache, f::AbstractVector{FT}) where FT <: AbstractFloat
   backend = get_backend(f)
   kernel_no_flux_dd0_cached!(backend)(res, cache.dd0_qp, cache.dd0_qn, cache.dd0_emask, f;
@@ -1265,9 +1113,6 @@ function no_flux_dual_derivative(::Val{0}, cache::UniformDECCache, f::AbstractVe
   return no_flux_dual_derivative!(res, Val(0), cache, f)
 end
 
-
-# Computes d_beta * V where d_beta = 0.5 * abs.(dd1) * diag(dd0 * ones(nquads)).
-# Result is a primal 0-form (nv): only boundary edges of V contribute.
 function d_beta_mul!(res::AbstractVector{FT}, cache::UniformDECCache, V::AbstractVector{FT}) where FT <: AbstractFloat
   backend = get_backend(V)
   kernel_d_beta_mul_cached!(backend)(res,
@@ -1299,10 +1144,7 @@ end
 #    dual_codifferential(2) = hs1   ∘ d0   ∘ ihs0  (nv  → ne)
 # ═══════════════════════════════════════════════════════════════════════════
 
-# ── codifferential(1): ihs0 * dd1 * hs1, thread per vertex ───────────────
-# dd1 = -d0^T: edges where v=src contribute +, edges where v=tgt contribute -.
-# Each edge contribution is pre-scaled by hs1[e] before the signed sum;
-# the whole vertex result is then post-scaled by ihs0[v].
+# ihs0 * dd1 * hs1
 @kernel function kernel_codiff1_cached!(res, @Const(dd1_vxs), @Const(dd1_vys), @Const(dd1_vxt), @Const(dd1_vyt),
                                         @Const(dd1_vmask), @Const(ihs0_scale), @Const(hs1_scale), @Const(a))
   v = @index(Global)
@@ -1317,9 +1159,7 @@ end
   end
 end
 
-# ── codifferential(2): ihs1 * dd0 * hs2, thread per edge ─────────────────
-# hs2 is a uniform scalar so it merges with ihs1 into a single per-edge scale.
-# dd0 bitmask guards the two adjacent quad lookups.
+# ihs1 * dd0 * hs2
 @kernel function kernel_codiff2_cached!(res, @Const(dd0_qp), @Const(dd0_qn), @Const(dd0_emask),
                                         @Const(ihs1_hs2_scale), @Const(f))
   e = @index(Global)
@@ -1331,9 +1171,7 @@ end
   end
 end
 
-# ── dual_codifferential(1): hs2 * d1 * ihs1, thread per quad ─────────────
-# d1 signs: (+1,+1,-1,-1) for (bottom-x, right-y, top-x, left-y).
-# ihs1[e] pre-scales each edge contribution; hs2_val is a uniform post-scalar.
+# hs2 * d1 * ihs1
 @kernel function kernel_dual_codiff1_cached!(res, @Const(q_e1), @Const(q_e2), @Const(q_e3), @Const(q_e4),
                                              @Const(ihs1_hs2_scale), @Const(a))
   q = @index(Global)
@@ -1345,8 +1183,7 @@ end
   end
 end
 
-# ── dual_codifferential(2): hs1 * d0 * ihs0, thread per edge ─────────────
-# d0: res[e] = ihs0[tgt]*f[tgt] - ihs0[src]*f[src]; post-scaled by hs1[e].
+# hs1 * d0 * ihs0, thread per edge 
 @kernel function kernel_dual_codiff2_cached!(res, @Const(src_v), @Const(tgt_v),
                                              @Const(hs1_scale), @Const(ihs0_scale), @Const(f))
   e = @index(Global)
@@ -1354,7 +1191,7 @@ end
                                       ihs0_scale[src_v[e]] * f[src_v[e]])
 end
 
-# ── Codifferential interface functions ────────────────────────────────────
+# Codifferential interface functions
 function codifferential!(res::AbstractVector{FT}, ::Val{1}, cache::UniformDECCache, a::AbstractVector{FT}) where FT <: AbstractFloat
   backend = get_backend(a)
   kernel_codiff1_cached!(backend)(res,
@@ -1378,7 +1215,7 @@ function codifferential(::Val{k}, cache::UniformDECCache, f::AbstractVector{FT})
   return codifferential!(res, Val(k), cache, f)
 end
 
-# ── Dual codifferential interface functions ───────────────────────────────
+# Dual codifferential interface functions
 function dual_codifferential!(res::AbstractVector{FT}, ::Val{1}, cache::UniformDECCache, a::AbstractVector{FT}) where FT <: AbstractFloat
   backend = get_backend(a)
   kernel_dual_codiff1_cached!(backend)(res,
@@ -1414,11 +1251,7 @@ end
 #  Memory saved vs chaining: 2 temporary buffers eliminated per operator.
 # ═══════════════════════════════════════════════════════════════════════════
 
-# ── laplacian(0): (ihs0 * dd1 * hs1) * d0, thread per vertex v ───────────
-# d0 at the edge incident to v flips sign depending on whether v is src or tgt.
-# For all 4 slots the combined result is hs1[e] * (f[neighbor] - f[v]):
-#   vxs/vys (v=src): dd1 sign +1, d0 = f[tgt] - f[v]  → +hs1*(f[tgt]-f[v])
-#   vxt/vyt (v=tgt): dd1 sign -1, d0 = f[v] - f[src]  → -hs1*(f[v]-f[src]) = +hs1*(f[src]-f[v])
+# (ihs0 * dd1 * hs1) * d0
 @kernel function kernel_laplacian0_cached!(res, @Const(dd1_vxs), @Const(dd1_vys), @Const(dd1_vxt), @Const(dd1_vyt),
                                            @Const(dd1_vmask), @Const(ihs0_scale), @Const(hs1_scale), @Const(src_v), @Const(tgt_v), @Const(f))
   v = @index(Global)
@@ -1433,9 +1266,7 @@ end
   end
 end
 
-# ── laplacian(2): d1 * (ihs1 * dd0 * hs2), thread per quad q ─────────────
-# For each of q's 4 boundary edges, codiff2[e] = ihs1[e]*hs2*(f[qp]-f[qn]).
-# d1 signs (+1,+1,-1,-1) are applied to the 4 codiff2 values.
+# d1 * (ihs1 * dd0 * hs2)
 @kernel function kernel_laplacian2_cached!(res, @Const(q_e1), @Const(q_e2), @Const(q_e3), @Const(q_e4),
                                            @Const(dd0_qp), @Const(dd0_qn), @Const(dd0_emask),
                                            @Const(ihs1_hs2_scale), @Const(f))
@@ -1459,19 +1290,7 @@ end
   end
 end
 
-# ── laplacian(1): d0*codiff1 + codiff2*d1, three-pass decomposition ──────
-#
-# Old two-pass approach had each edge thread independently recompute
-# codiff1 at both its endpoint vertices (4x redundancy) and d1*f at
-# both its adjacent quads (2x redundancy).
-#
-# Three-pass approach:
-#   Pass 1 (nv threads):    codiff1_v[v] = ihs0[v] * (hs1[vxs]*f[vxs] + ... )
-#   Pass 2 (nquads threads): d1f_q[q]    = f[e1] + f[e2] - f[e3] - f[e4]
-#   Pass 3 (ne threads):    res[e] = (codiff1_v[tv]-codiff1_v[sv])
-#                                   + ihs1_hs2[e]*(d1f_q[qp]-d1f_q[qn])
-# Each vertex/quad is computed exactly once; Pass 3 reads only 2+2 scalars.
-
+# d0*codiff1 + codiff2*d1, three-pass decomposition
 # Pass 1 — codiff1 of a 1-form, one result per vertex: reuses kernel_codiff1_cached!
 # Pass 2 — exterior derivative of a 1-form, one result per quad: reuses kernel_d1_cached!
 # Pass 3 — combine: one result per edge; reads only pre-computed scalars
@@ -1492,7 +1311,7 @@ end
   end
 end
 
-# ── Primal Laplacian interface functions ──────────────────────────────────
+# Primal Laplacian interface functions
 function laplacian!(res::AbstractVector{FT}, ::Val{0}, cache::UniformDECCache, f::AbstractVector{FT}) where FT <: AbstractFloat
   backend = get_backend(f)
   kernel_laplacian0_cached!(backend)(res,
@@ -1503,8 +1322,6 @@ function laplacian!(res::AbstractVector{FT}, ::Val{0}, cache::UniformDECCache, f
 end
 
 function laplacian!(res::AbstractVector{FT}, tmp1::AbstractVector{FT}, tmp2::AbstractVector{FT}, ::Val{1}, cache::UniformDECCache, f::AbstractVector{FT}) where FT <: AbstractFloat
-  # tmp1: size nv  (codiff1 per vertex)
-  # tmp2: size nquads  (d1*f per quad)
   backend = get_backend(f)
   kernel_codiff1_cached!(backend)(tmp1,
     cache.dd1_vxs, cache.dd1_vys, cache.dd1_vxt, cache.dd1_vyt, cache.dd1_vmask,
@@ -1555,10 +1372,7 @@ end
 #  The same kernel is therefore reused.
 # ═══════════════════════════════════════════════════════════════════════════
 
-# ── dual_laplacian(2): dd1 ∘ dcd2, thread per vertex v ───────────────────
-# dcd2 maps 0-forms to 1-forms: (dcd2*f)[e] = hs1[e]*(ihs0[tgt(e)]*f[tgt(e)] - ihs0[src(e)]*f[src(e)])
-# dd1 then gathers with signs (+,+,-,-) for the 4 edges incident to v.
-# For slot vxs (v=src): tgt neighbor = tgt_v[vxs]; for vxt (v=tgt): src neighbor = src_v[vxt].
+# dd1 ∘ dcd2
 @kernel function kernel_dual_laplacian2_cached!(res, @Const(dd1_vxs), @Const(dd1_vys), @Const(dd1_vxt), @Const(dd1_vyt),
                                                 @Const(dd1_vmask), @Const(hs1_scale), @Const(ihs0_scale), @Const(src_v), @Const(tgt_v), @Const(f))
   v = @index(Global)
@@ -1584,17 +1398,7 @@ end
   end
 end
 
-# ── dual_laplacian(1): dcd2*dd1 + dd0*dcd1, three-pass decomposition ─────
-#
-# Old two-pass approach had each edge thread independently recompute
-# dd1[v] at both endpoint vertices and dcd1[q] at both adjacent quads.
-#
-# Three-pass approach:
-#   Pass 1 (nv threads):    dd1_v[v]   = sum_e sign(v,e) * a[e]   (raw, no scale)
-#   Pass 2 (nquads threads): dcd1_q[q] = sum_e ihs1_hs2[e]*sign*a[e]
-#   Pass 3 (ne threads):    res[e] = hs1[e]*(ihs0[tv]*dd1_v[tv] - ihs0[sv]*dd1_v[sv])
-#                                   + (dcd1_q[qp] - dcd1_q[qn])
-
+# dcd2*dd1 + dd0*dcd1, three-pass decomposition
 # Pass 1 — dd1 applied to a 1-form, raw signed sum per vertex: reuses kernel_dd1_cached!
 # Pass 2 — dcd1 applied to a 1-form, one result per quad: reuses kernel_dual_codiff1_cached!
 # Pass 3 — combine: one result per edge; reads only pre-computed scalars
@@ -1616,9 +1420,7 @@ end
   end
 end
 
-# ── Dual Laplacian interface functions ────────────────────────────────────
-# dual_laplacian(0) = dcd1 ∘ dd0 = hs2·d1·ihs1·dd0·f
-# Since hs2 is a uniform scalar this is algebraically identical to laplacian(2).
+# Dual Laplacian interface functions
 function dual_laplacian!(res::AbstractVector{FT}, ::Val{0}, cache::UniformDECCache, f::AbstractVector{FT}) where FT <: AbstractFloat
   backend = get_backend(f)
   kernel_laplacian2_cached!(backend)(res,

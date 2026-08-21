@@ -339,8 +339,7 @@ function Base.show(io::IO, s::UniformCubicalComplex3D)
     println(io, " - halo_west = $(s.halo_west), halo_east = $(s.halo_east)")
     println(io, " - halo_south = $(s.halo_south), halo_north = $(s.halo_north)")
     println(io, " - halo_down = $(s.halo_down), halo_up = $(s.halo_up)")
-    println(io, "Base point: ($(base_x(s)), $(base_y(s)), $(base_z(s)))")
-    return println(io, "Physical domain: lx = $(lx(s)), ly = $(ly(s)), lz = $(lz(s))")
+    return println(io, "Base point: ($(base_x(s)), $(base_y(s)), $(base_z(s)))")
 end
 
 function coord_to_vert(s::AbstractCubicalComplex3D, x::Int, y::Int, z::Int)

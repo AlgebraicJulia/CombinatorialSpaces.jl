@@ -277,7 +277,9 @@ PseudoCubicalMesh(nx::Int, ny::Int; kwargs...) = PseudoCubicalMesh2D(nx, ny; kwa
 function Base.show(io::IO, s::UniformCubicalComplex2D)
     println(io, "UniformCubicalComplex2D with dimensions: $(nx(s)) x $(ny(s))")
     println(io, "Spacing: dx = $(dx(s)), dy = $(dy(s))")
-    println(io, "Halo: west=$(s.halo_west) east=$(s.halo_east) south=$(s.halo_south) north=$(s.halo_north)")
+    println(io, "Halo:") 
+    println(io, " - halo_west = $(s.halo_west), halo_east = $(s.halo_east)")
+    println(io, " - halo_south = $(s.halo_south), halo_north = $(s.halo_north)")
     return println(io, "Base point: ($(base_x(s)), $(base_y(s)))")
 end
 
