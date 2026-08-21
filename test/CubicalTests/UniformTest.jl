@@ -5,6 +5,10 @@ using Test
     include("UniformKernel.jl")
 end
 
+@testset "2D Uniform Cubical Graphics" begin
+    include("UniformMeshGraphics.jl")
+end
+
 @testset "3D Uniform Cubical Tests" begin
     include("UniformMesh3D.jl")
     include("UniformKernel3D.jl")

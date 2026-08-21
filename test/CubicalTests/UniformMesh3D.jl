@@ -150,7 +150,7 @@ end
 @testset "Reverse Coordinate Mappings with Halo" begin
     # Construct a mesh with a 1-cell halo padding in all three dimensions
     # Real sizes: nxr=2, nyr=5, nzr=6
-    # Halo padding adds +2 to each dimension: 
+    # Halo padding adds +2 to each dimension:
     # Total sizes: nx=4, ny=7, nz=8
     # Boid dimensions: nxb=3, nyb=6, nzb=7
     s = UniformCubicalComplex3D(2, 5, 6, 10.0, 40.0, 50.0; halo_x = 1, halo_y = 1, halo_z = 1)
@@ -863,4 +863,11 @@ end
     @test valid_boid(s_h, 14, 1, 1) == false
     @test valid_boid(s_h, 1, 14, 1) == false
     @test valid_boid(s_h, 1, 1, 8) == false
+end
+
+@testset "Base.show" begin
+    s = UniformCubicalComplex3D(5, 5, 5, 10.0, 10.0, 10.0)
+    s_h = UniformCubicalComplex3D(5, 5, 5, 10.0, 10.0, 10.0; halo_x = 1, halo_y = 1, halo_z = 1)
+    @test isnothing(show(IOBuffer(), s))
+    @test isnothing(show(IOBuffer(), s_h))
 end

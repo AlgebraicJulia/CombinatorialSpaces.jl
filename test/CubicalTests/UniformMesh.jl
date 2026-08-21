@@ -238,3 +238,10 @@ end
     @test is_halo_quad(s_h, 2, 4) == true
     @test is_halo_quad(s_h, 3, 4) == false
 end
+
+@testset "Base.show" begin
+    s = UniformCubicalComplex2D(6, 6, 10.0, 10.0)
+    s_h = UniformCubicalComplex2D(6, 6, 10.0, 10.0; halo_x = 1, halo_y = 1)
+    @test isnothing(show(IOBuffer(), s))
+    @test isnothing(show(IOBuffer(), s_h))
+end

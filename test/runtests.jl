@@ -42,4 +42,8 @@ end
   include("CombinatorialMaps.jl")
 end
 
+@testset "Cubical Complexes" begin
+    include("CubicalTests/UniformTest.jl")
+end
+
 end

@@ -10,9 +10,9 @@ module CombinatorialSpacesMakieExt
 using Catlab
 using CombinatorialSpaces
 
-using GeometryBasics: Mesh
+using GeometryBasics: Mesh, QuadFace
 using Makie
-import Makie: convert_arguments
+import Makie: convert_arguments, plottype
 
 """ This extends the "Mesh" plotting recipe for embedded deltasets by converting
 an embedded deltaset into arguments that can be passed into Makie.mesh
@@ -38,5 +38,25 @@ function convert_arguments(P::Type{<:Makie.LineSegments}, dset::EmbeddedDeltaSet
 end
 
 plottype(::EmbeddedDeltaSet2D) = Mesh
+
+function Mesh(s::UniformCubicalComplex2D)
+  ps = interior(Val(0), collect(points(s)), s)
+
+  qs = QuadFace{Int}[]
+  for y in 1:nyq(s)
+    for x in 1:nxq(s)
+      is_halo_quad(s, x, y) && continue
+      push!(qs, map(v -> vert_to_real_vert(s, v), quad_vertices(s, x, y)))
+    end
+  end
+
+  return Mesh(ps, qs)
+end
+
+function convert_arguments(P::Union{Type{<:Makie.Wireframe},Type{<:Makie.Mesh},Type{<:Makie.Scatter}}, s::UniformCubicalComplex2D)
+  convert_arguments(P, Mesh(s))
+end
+
+plottype(::UniformCubicalComplex2D) = Mesh
 
 end
