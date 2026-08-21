@@ -575,8 +575,8 @@ end
   res_ne_L  = zeros(ne(s))
   res_nq_L  = zeros(nquads(s))
 
-  tmp1 = zeros(ne(s))
-  tmp2 = zeros(ne(s ))
+  tmp1 = zeros(nv(s))
+  tmp2 = zeros(nquads(s))
 
   laplacian!(res_nv_L, Val(0), cache, f0);  @test res_nv_L ≈ L0_mat
   laplacian!(res_ne_L, tmp1, tmp2, Val(1), cache, f1);  @test res_ne_L ≈ L1_mat
@@ -611,8 +611,8 @@ end
   res_ne_DL  = zeros(ne(s))
   res_nv_DL  = zeros(nv(s))
 
-  tmp1 = zeros(ne(s))
-  tmp2 = zeros(ne(s))
+  tmp1 = zeros(nv(s))
+  tmp2 = zeros(nquads(s))
 
   dual_laplacian!(res_nq_DL, Val(0), cache, f2);  @test res_nq_DL ≈ DL0_mat
   dual_laplacian!(res_ne_DL, tmp1, tmp2, Val(1), cache, f1);  @test res_ne_DL ≈ DL1_mat

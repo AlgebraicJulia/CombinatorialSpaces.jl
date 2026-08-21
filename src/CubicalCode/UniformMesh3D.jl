@@ -1034,13 +1034,18 @@ function primal_boundary_vertices(s::AbstractCubicalComplex3D, side::GridSide)
         south = [coord_to_vert(s, x, 1, z) for x in 1:nx(s), z in 1:nz(s)][:]
         north = [coord_to_vert(s, x, ny(s), z) for x in 1:nx(s), z in 1:nz(s)][:]
         return (south, north)
-    else # side == UPDOWN
+    elseif side == UPDOWN
         down = [coord_to_vert(s, x, y, 1) for x in 1:nx(s), y in 1:ny(s)][:]
         up = [coord_to_vert(s, x, y, nz(s)) for x in 1:nx(s), y in 1:ny(s)][:]
         return (down, up)
+    else
+        throw(ArgumentError("side=$side is not supported for primal_boundary_vertices (expected EASTWEST, NORTHSOUTH, or UPDOWN)"))
     end
 end
 
+# NOTE: unlike primal_boundary_vertices/boids, the returned tuple order here is
+# (far, near) rather than (near, far) for each side; this is intentional and
+# matches downstream test/caller expectations, kept for backwards compatibility.
 function primal_boundary_quads(s::AbstractCubicalComplex3D, side::GridSide)
     if side == EASTWEST
         west = [coord_to_quad(s, 1, y, z, X_ALIGN) for y in 1:nyb(s), z in 1:nzb(s)][:]
@@ -1050,10 +1055,12 @@ function primal_boundary_quads(s::AbstractCubicalComplex3D, side::GridSide)
         south = [coord_to_quad(s, x, 1, z, Y_ALIGN) for x in 1:nxb(s), z in 1:nzb(s)][:]
         north = [coord_to_quad(s, x, ny(s), z, Y_ALIGN) for x in 1:nxb(s), z in 1:nzb(s)][:]
         return (north, south)
-    else # side == UPDOWN
+    elseif side == UPDOWN
         down = [coord_to_quad(s, x, y, 1, Z_ALIGN) for x in 1:nxb(s), y in 1:nyb(s)][:]
         up = [coord_to_quad(s, x, y, nz(s), Z_ALIGN) for x in 1:nxb(s), y in 1:nyb(s)][:]
         return (up, down)
+    else
+        throw(ArgumentError("side=$side is not supported for primal_boundary_quads (expected EASTWEST, NORTHSOUTH, or UPDOWN)"))
     end
 end
 
@@ -1066,10 +1073,12 @@ function primal_boundary_boids(s::AbstractCubicalComplex3D, side::GridSide)
         south = [coord_to_boid(s, x, 1, z) for x in 1:nxb(s), z in 1:nzb(s)][:]
         north = [coord_to_boid(s, x, nyb(s), z) for x in 1:nxb(s), z in 1:nzb(s)][:]
         return (south, north)
-    else # side == UPDOWN
+    elseif side == UPDOWN
         down = [coord_to_boid(s, x, y, 1) for x in 1:nxb(s), y in 1:nyb(s)][:]
         up = [coord_to_boid(s, x, y, nzb(s)) for x in 1:nxb(s), y in 1:nyb(s)][:]
         return (down, up)
+    else
+        throw(ArgumentError("side=$side is not supported for primal_boundary_boids (expected EASTWEST, NORTHSOUTH, or UPDOWN)"))
     end
 end
 

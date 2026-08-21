@@ -4,7 +4,7 @@ using LinearAlgebra
 function exterior_derivative(::Val{0}, s::UniformCubicalComplex2D)
 
   tot = 2 * ne(s)
-  I, J = zeros(Float64, tot), zeros(Float64, tot)
+  I, J = zeros(Int32, tot), zeros(Int32, tot)
   V = zeros(Float64, tot)
 
   for e in edges(s)
@@ -28,7 +28,7 @@ end
 function exterior_derivative(::Val{1}, s::UniformCubicalComplex2D)
 
   tot = 4 * nquads(s)
-  I, J = zeros(Float64, tot), zeros(Float64, tot)
+  I, J = zeros(Int32, tot), zeros(Int32, tot)
   V = zeros(Float64, tot)
 
   orients = (1,1,-1,-1)
@@ -85,7 +85,7 @@ dual_laplacian(::Val{2}, s::UniformCubicalComplex2D) = dual_derivative(Val(1), s
 # Create a matrix that maps values on dual points to primal points by taking the average of the adjacent dual points for each primal point
 # TODO: Write a test for this function to make sure it's doing what we expect, especially at the boundaries
 function interpolate_dp(::Val{0}, s::UniformCubicalComplex2D)
-  I, J = Int64[], Int64[]
+  I, J = Int32[], Int32[]
   V = Float64[]
 
   for v in vertices(s)

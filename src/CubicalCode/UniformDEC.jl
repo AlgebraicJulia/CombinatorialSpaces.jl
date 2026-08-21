@@ -66,7 +66,6 @@ export
 
     # ── Physical domain accessors ──────────────────────────────────────────────
     base_x, base_y, base_z,
-    lx, ly, lz,
     spacing,
 
     # ── Cell iterators ─────────────────────────────────────────────────────────

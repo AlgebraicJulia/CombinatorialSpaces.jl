@@ -1,7 +1,7 @@
 using KernelAbstractions
 using Adapt
 
-# Exterior derivatives 
+# Exterior derivatives
 
 @kernel function kernel_exterior_derivative_zero!(res, s, @Const(f))
     idx = @index(Global)
@@ -168,7 +168,7 @@ function wedge_product(::Val{1}, ::Val{1}, s::UniformCubicalComplex2D, a::Abstra
     res = KernelAbstractions.zeros(get_backend(a), FT, nquads(s))
     return wedge_product!(res, Val(1), Val(1), s, a, b)
 end
-    
+
 function wedge_product_dd!(res, ::Val{0}, ::Val{1}, s::UniformCubicalComplex2D, f, a)
     backend = get_backend(res)
     kernel_wedge_product_dual_01(backend)(res, s, f, a; ndrange = size(res))
@@ -336,7 +336,7 @@ end
 # Memory note: Int32 indices halve the bandwidth cost of the look-up arrays
 # on both CPU and GPU relative to the default Int64.
 
-struct UniformDECCache{IT <: AbstractVector{Int32}, FT <: AbstractVector{<:AbstractFloat}, MT <: AbstractVector{Int8}}
+struct UniformDECCache{ST <: AbstractFloat, IT <: AbstractVector{Int32}, FT <: AbstractVector{ST}, MT <: AbstractVector{Int8}}
   # ── Mesh dimensions (for allocation inside interface functions) ──────────
   nv_      :: Int
   ne_      :: Int
@@ -377,8 +377,8 @@ struct UniformDECCache{IT <: AbstractVector{Int32}, FT <: AbstractVector{<:Abstr
   # Y-aligned edges → interpolate Y component
   fp_yq1 :: IT   # length nyedges
   fp_yq2 :: IT
-  fp_dx_half :: Float64   # = 0.5 * dx  (constant for uniform grid)
-  fp_dy_half :: Float64   # = 0.5 * dy
+  fp_dx_half :: ST   # = 0.5 * dx  (constant for uniform grid)
+  fp_dy_half :: ST   # = 0.5 * dy
 
   # ── flat_dd: adjacent quad pairs + per-edge signed scale ────────────────
   # X-aligned edges → use Y component with positive sign.
@@ -403,11 +403,11 @@ struct UniformDECCache{IT <: AbstractVector{Int32}, FT <: AbstractVector{<:Abstr
   # ihs2_val      = dx*dy                      (uniform scalar)
   hs0_scale  :: FT   # length nv
   hs1_scale  :: FT   # length ne
-  hs2_val    :: Float64
+  hs2_val    :: ST
   ihs0_scale :: FT   # length nv
   ihs1_scale     :: FT   # length ne  — values are negative
   ihs1_hs2_scale :: FT   # length ne  — ihs1_scale[e] * hs2_val (precomputed product)
-  ihs2_val       :: Float64
+  ihs2_val       :: ST
 
   # ── dd0 = d1^T: for each edge e, res[e] = f[q_pos] - f[q_neg] ───────────
   # Positive/negative quads follow the orientation of d1:
@@ -632,7 +632,7 @@ function UniformDECCache(s::UniformCubicalComplex2D{FT}) where {FT <: AbstractFl
     q_e1, q_e2, q_e3, q_e4,
     inv_de1, inv_de2, inv_de3, inv_de4,
     e_q1, e_q2,
-    fp_xq1, fp_xq2, fp_yq1, fp_yq2, 0.5 * dx(s), 0.5 * dy(s),
+    fp_xq1, fp_xq2, fp_yq1, fp_yq2, FT(0.5) * dx(s), FT(0.5) * dy(s),
     fd_xq1, fd_xq2, fd_xscale,
     fd_yq1, fd_yq2, fd_yscale,
     hs0_scale, hs1_scale, hs2_val,
@@ -863,13 +863,13 @@ end
 # Cached interface functions
 
 function exterior_derivative!(res::AbstractVector{FT}, ::Val{0}, cache::UniformDECCache, f::AbstractVector{FT}) where FT <: AbstractFloat
-  backend = get_backend(f)
+  backend = get_backend(res)
   kernel_d0_cached!(backend)(res, cache.src_v, cache.tgt_v, f; ndrange = cache.ne_)
   return res
 end
 
 function exterior_derivative!(res::AbstractVector{FT}, ::Val{1}, cache::UniformDECCache, f::AbstractVector{FT}) where FT <: AbstractFloat
-  backend = get_backend(f)
+  backend = get_backend(res)
   kernel_d1_cached!(backend)(res, cache.q_e1, cache.q_e2, cache.q_e3, cache.q_e4, f;
                               ndrange = cache.nquads_)
   return res
@@ -889,14 +889,14 @@ end
 
 function wedge_product!(res::AbstractVector{FT}, ::Val{0}, ::Val{1}, cache::UniformDECCache,
                        f::AbstractVector{FT}, a::AbstractVector{FT}) where FT <: AbstractFloat
-  backend = get_backend(f)
+  backend = get_backend(res)
   kernel_wedge_01_cached!(backend)(res, cache.src_v, cache.tgt_v, f, a; ndrange = cache.ne_)
   return res
 end
 
 function wedge_product!(res::AbstractVector{FT}, ::Val{1}, ::Val{1}, cache::UniformDECCache,
                        f1::AbstractVector{FT}, f2::AbstractVector{FT}) where FT <: AbstractFloat
-  backend = get_backend(f1)
+  backend = get_backend(res)
   kernel_wedge_11_cached!(backend)(res, cache.q_e1, cache.q_e2, cache.q_e3, cache.q_e4,
                                    f1, f2; ndrange = cache.nquads_)
   return res
@@ -924,7 +924,7 @@ function wedge_product(::Val{1}, ::Val{1}, cache::UniformDECCache,
 end
 
 function wedge_product_dd!(res::AbstractVector{FT}, ::Val{0}, ::Val{1}, cache::UniformDECCache, f::AbstractVector{FT}, a::AbstractVector{FT}) where FT <: AbstractFloat
-  backend = get_backend(f)
+  backend = get_backend(res)
   kernel_wedge_dd_01_cached!(backend)(res, cache.e_q1, cache.e_q2, f, a; ndrange = cache.ne_)
   return res
 end
@@ -943,7 +943,7 @@ wedge_product_dd(::Val{1}, ::Val{0}, cache::UniformDECCache, a::AbstractVector{F
   wedge_product_dd(Val(0), Val(1), cache, f, a)
 
 function wedge_product_dd!(res::AbstractVector{FT}, ::Val{1}, ::Val{1}, cache::UniformDECCache, a::AbstractVector{FT}, b::AbstractVector{FT}) where {FT <: AbstractFloat}
-    backend = get_backend(a)
+    backend = get_backend(res)
     kernel_wedge_dd_11_cached!(backend)(res,
         cache.dd1_vxs, cache.dd1_vys,
         cache.dd1_vxt, cache.dd1_vyt,
@@ -962,7 +962,7 @@ function wedge_product_pd!(res::AbstractVector{FT}, ::Val{1}, ::Val{1},
                            cache::UniformDECCache,
                            a::AbstractVector{FT},
                            b::AbstractVector{FT}) where {FT <: AbstractFloat}
-    backend = get_backend(a)
+    backend = get_backend(res)
     kernel_wedge_pd_11_cached!(backend)(res,
         cache.q_e1, cache.q_e2, cache.q_e3, cache.q_e4,
         cache.wedge_pd_scale,
@@ -1010,7 +1010,7 @@ function flat_dd(cache::UniformDECCache, X::AbstractVector{FT}, Y::AbstractVecto
 end
 
  function interpolate_dp!(res::AbstractVector{FT}, ::Val{1}, cache::UniformDECCache, a::AbstractVector{FT}) where FT <: AbstractFloat
-  backend = get_backend(a)
+  backend = get_backend(res)
   kernel_interp_dp_x_cached!(backend)(res,
     cache.fp_xq1, cache.fp_xq2,
     cache.q_e2, cache.q_e4, cache.inv_de2, cache.inv_de4,
@@ -1029,19 +1029,19 @@ function interpolate_dp(::Val{1}, cache::UniformDECCache, a::AbstractVector{FT})
 end
 
 function hodge_star!(res::AbstractVector{FT}, ::Val{0}, cache::UniformDECCache, f::AbstractVector{FT}) where FT <: AbstractFloat
-  backend = get_backend(f)
+  backend = get_backend(res)
   kernel_hodge_vec!(backend)(res, cache.hs0_scale, f; ndrange = cache.nv_)
   return res
 end
 
 function hodge_star!(res::AbstractVector{FT}, ::Val{1}, cache::UniformDECCache, f::AbstractVector{FT}) where FT <: AbstractFloat
-  backend = get_backend(f)
+  backend = get_backend(res)
   kernel_hodge_vec!(backend)(res, cache.hs1_scale, f; ndrange = cache.ne_)
   return res
 end
 
 function hodge_star!(res::AbstractVector{FT}, ::Val{2}, cache::UniformDECCache, f::AbstractVector{FT}) where FT <: AbstractFloat
-  backend = get_backend(f)
+  backend = get_backend(res)
   kernel_hodge_scalar!(backend)(res, cache.hs2_val, f; ndrange = cache.nquads_)
   return res
 end
@@ -1054,19 +1054,19 @@ function hodge_star(::Val{k}, cache::UniformDECCache, f::AbstractVector{FT}) whe
 end
 
 function inv_hodge_star!(res::AbstractVector{FT}, ::Val{0}, cache::UniformDECCache, f::AbstractVector{FT}) where FT <: AbstractFloat
-  backend = get_backend(f)
+  backend = get_backend(res)
   kernel_hodge_vec!(backend)(res, cache.ihs0_scale, f; ndrange = cache.nv_)
   return res
 end
 
 function inv_hodge_star!(res::AbstractVector{FT}, ::Val{1}, cache::UniformDECCache, f::AbstractVector{FT}) where FT <: AbstractFloat
-  backend = get_backend(f)
+  backend = get_backend(res)
   kernel_hodge_vec!(backend)(res, cache.ihs1_scale, f; ndrange = cache.ne_)
   return res
 end
 
 function inv_hodge_star!(res::AbstractVector{FT}, ::Val{2}, cache::UniformDECCache, f::AbstractVector{FT}) where FT <: AbstractFloat
-  backend = get_backend(f)
+  backend = get_backend(res)
   kernel_hodge_scalar!(backend)(res, cache.ihs2_val, f; ndrange = cache.nquads_)
   return res
 end
@@ -1079,14 +1079,14 @@ function inv_hodge_star(::Val{k}, cache::UniformDECCache, f::AbstractVector{FT})
 end
 
 function dual_derivative!(res::AbstractVector{FT}, ::Val{0}, cache::UniformDECCache, f::AbstractVector{FT}) where FT <: AbstractFloat
-  backend = get_backend(f)
+  backend = get_backend(res)
   kernel_dd0_cached!(backend)(res, cache.dd0_qp, cache.dd0_qn, cache.dd0_emask, f;
                                ndrange = cache.ne_)
   return res
 end
 
 function dual_derivative!(res::AbstractVector{FT}, ::Val{1}, cache::UniformDECCache, a::AbstractVector{FT}) where FT <: AbstractFloat
-  backend = get_backend(a)
+  backend = get_backend(res)
   kernel_dd1_cached!(backend)(res, cache.dd1_vxs, cache.dd1_vys,
                                cache.dd1_vxt, cache.dd1_vyt, cache.dd1_vmask, a;
                                ndrange = cache.nv_)
@@ -1101,7 +1101,7 @@ function dual_derivative(::Val{k}, cache::UniformDECCache, f::AbstractVector{FT}
 end
 
 function no_flux_dual_derivative!(res::AbstractVector{FT}, ::Val{0}, cache::UniformDECCache, f::AbstractVector{FT}) where FT <: AbstractFloat
-  backend = get_backend(f)
+  backend = get_backend(res)
   kernel_no_flux_dd0_cached!(backend)(res, cache.dd0_qp, cache.dd0_qn, cache.dd0_emask, f;
                                        ndrange = cache.ne_)
   return res
@@ -1114,7 +1114,7 @@ function no_flux_dual_derivative(::Val{0}, cache::UniformDECCache, f::AbstractVe
 end
 
 function d_beta_mul!(res::AbstractVector{FT}, cache::UniformDECCache, V::AbstractVector{FT}) where FT <: AbstractFloat
-  backend = get_backend(V)
+  backend = get_backend(res)
   kernel_d_beta_mul_cached!(backend)(res,
     cache.dd1_vxs, cache.dd1_vys, cache.dd1_vxt, cache.dd1_vyt, cache.dd1_vmask,
     cache.dd0_emask, V; ndrange = cache.nv_)
@@ -1183,7 +1183,7 @@ end
   end
 end
 
-# hs1 * d0 * ihs0, thread per edge 
+# hs1 * d0 * ihs0, thread per edge
 @kernel function kernel_dual_codiff2_cached!(res, @Const(src_v), @Const(tgt_v),
                                              @Const(hs1_scale), @Const(ihs0_scale), @Const(f))
   e = @index(Global)
@@ -1193,7 +1193,7 @@ end
 
 # Codifferential interface functions
 function codifferential!(res::AbstractVector{FT}, ::Val{1}, cache::UniformDECCache, a::AbstractVector{FT}) where FT <: AbstractFloat
-  backend = get_backend(a)
+  backend = get_backend(res)
   kernel_codiff1_cached!(backend)(res,
     cache.dd1_vxs, cache.dd1_vys, cache.dd1_vxt, cache.dd1_vyt, cache.dd1_vmask,
     cache.ihs0_scale, cache.hs1_scale, a; ndrange = cache.nv_)
@@ -1201,7 +1201,7 @@ function codifferential!(res::AbstractVector{FT}, ::Val{1}, cache::UniformDECCac
 end
 
 function codifferential!(res::AbstractVector{FT}, ::Val{2}, cache::UniformDECCache, f::AbstractVector{FT}) where FT <: AbstractFloat
-  backend = get_backend(f)
+  backend = get_backend(res)
   kernel_codiff2_cached!(backend)(res,
     cache.dd0_qp, cache.dd0_qn, cache.dd0_emask,
     cache.ihs1_hs2_scale, f; ndrange = cache.ne_)
@@ -1217,7 +1217,7 @@ end
 
 # Dual codifferential interface functions
 function dual_codifferential!(res::AbstractVector{FT}, ::Val{1}, cache::UniformDECCache, a::AbstractVector{FT}) where FT <: AbstractFloat
-  backend = get_backend(a)
+  backend = get_backend(res)
   kernel_dual_codiff1_cached!(backend)(res,
     cache.q_e1, cache.q_e2, cache.q_e3, cache.q_e4,
     cache.ihs1_hs2_scale, a; ndrange = cache.nquads_)
@@ -1225,7 +1225,7 @@ function dual_codifferential!(res::AbstractVector{FT}, ::Val{1}, cache::UniformD
 end
 
 function dual_codifferential!(res::AbstractVector{FT}, ::Val{2}, cache::UniformDECCache, f::AbstractVector{FT}) where FT <: AbstractFloat
-  backend = get_backend(f)
+  backend = get_backend(res)
   kernel_dual_codiff2_cached!(backend)(res,
     cache.src_v, cache.tgt_v, cache.hs1_scale, cache.ihs0_scale, f;
     ndrange = cache.ne_)
@@ -1313,7 +1313,7 @@ end
 
 # Primal Laplacian interface functions
 function laplacian!(res::AbstractVector{FT}, ::Val{0}, cache::UniformDECCache, f::AbstractVector{FT}) where FT <: AbstractFloat
-  backend = get_backend(f)
+  backend = get_backend(res)
   kernel_laplacian0_cached!(backend)(res,
     cache.dd1_vxs, cache.dd1_vys, cache.dd1_vxt, cache.dd1_vyt, cache.dd1_vmask,
     cache.ihs0_scale, cache.hs1_scale, cache.src_v, cache.tgt_v, f;
@@ -1322,7 +1322,7 @@ function laplacian!(res::AbstractVector{FT}, ::Val{0}, cache::UniformDECCache, f
 end
 
 function laplacian!(res::AbstractVector{FT}, tmp1::AbstractVector{FT}, tmp2::AbstractVector{FT}, ::Val{1}, cache::UniformDECCache, f::AbstractVector{FT}) where FT <: AbstractFloat
-  backend = get_backend(f)
+  backend = get_backend(res)
   kernel_codiff1_cached!(backend)(tmp1,
     cache.dd1_vxs, cache.dd1_vys, cache.dd1_vxt, cache.dd1_vyt, cache.dd1_vmask,
     cache.ihs0_scale, cache.hs1_scale, f;
@@ -1339,7 +1339,7 @@ function laplacian!(res::AbstractVector{FT}, tmp1::AbstractVector{FT}, tmp2::Abs
 end
 
 function laplacian!(res::AbstractVector{FT}, ::Val{2}, cache::UniformDECCache, f::AbstractVector{FT}) where FT <: AbstractFloat
-  backend = get_backend(f)
+  backend = get_backend(res)
   kernel_laplacian2_cached!(backend)(res,
     cache.q_e1, cache.q_e2, cache.q_e3, cache.q_e4,
     cache.dd0_qp, cache.dd0_qn, cache.dd0_emask,
@@ -1422,7 +1422,7 @@ end
 
 # Dual Laplacian interface functions
 function dual_laplacian!(res::AbstractVector{FT}, ::Val{0}, cache::UniformDECCache, f::AbstractVector{FT}) where FT <: AbstractFloat
-  backend = get_backend(f)
+  backend = get_backend(res)
   kernel_laplacian2_cached!(backend)(res,
     cache.q_e1, cache.q_e2, cache.q_e3, cache.q_e4,
     cache.dd0_qp, cache.dd0_qn, cache.dd0_emask,
@@ -1434,7 +1434,7 @@ end
 function dual_laplacian!(res::AbstractVector{FT}, tmp1::AbstractVector{FT}, tmp2::AbstractVector{FT}, ::Val{1}, cache::UniformDECCache, a::AbstractVector{FT}) where FT <: AbstractFloat
   # tmp1: size nv  (dd1 raw sum per vertex)
   # tmp2: size nquads  (dcd1 per quad)
-  backend = get_backend(a)
+  backend = get_backend(res)
   kernel_dd1_cached!(backend)(tmp1,
     cache.dd1_vxs, cache.dd1_vys, cache.dd1_vxt, cache.dd1_vyt, cache.dd1_vmask,
     a; ndrange = cache.nv_)
@@ -1450,7 +1450,7 @@ function dual_laplacian!(res::AbstractVector{FT}, tmp1::AbstractVector{FT}, tmp2
 end
 
 function dual_laplacian!(res::AbstractVector{FT}, ::Val{2}, cache::UniformDECCache, f::AbstractVector{FT}) where FT <: AbstractFloat
-  backend = get_backend(f)
+  backend = get_backend(res)
   kernel_dual_laplacian2_cached!(backend)(res,
     cache.dd1_vxs, cache.dd1_vys, cache.dd1_vxt, cache.dd1_vyt, cache.dd1_vmask,
     cache.hs1_scale, cache.ihs0_scale, cache.src_v, cache.tgt_v, f;

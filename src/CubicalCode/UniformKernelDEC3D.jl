@@ -6,18 +6,18 @@ using Adapt
 @kernel function kernel_exterior_derivative_zero_3d!(res, s, @Const(f))
     idx = @index(Global)
     x, y, z, align = edge_to_coord(s, idx)
-  
+
     @inbounds res[idx] = f[tgt(s, x, y, z, align)] - f[src(s, x, y, z, align)]
 end
-  
+
 @kernel function kernel_exterior_derivative_one_3d!(res, s, @Const(f))
     idx = @index(Global)
     x, y, z, align = quad_to_coord(s, idx)
-  
+
     e1, e2, e3, e4 = quad_edges(s, x, y, z, align)
     @inbounds res[idx] = f[e1] + f[e2] - f[e3] - f[e4]
 end
-  
+
 @kernel function kernel_exterior_derivative_two_3d!(res, s, @Const(f))
     idx = @index(Global)
     x, y, z = boid_to_coord(s, idx)
@@ -67,7 +67,7 @@ end
 ### Hodge Star ###
 
 @kernel function kernel_hodge_star_zero_3d!(res, s, @Const(f))
-    idx = @index(Global) 
+    idx = @index(Global)
     v_idx = idx
     x, y, z = vert_to_coord(s, v_idx)
 
@@ -85,7 +85,7 @@ end
 end
 
 @kernel function kernel_hodge_star_two_3d!(res, s, @Const(f))
-    idx = @index(Global) 
+    idx = @index(Global)
     q_idx = idx
     x, y, z, align = quad_to_coord(s, q_idx)
 
@@ -94,10 +94,10 @@ end
 end
 
 @kernel function kernel_hodge_star_three_3d!(res, s, @Const(f))
-    idx = @index(Global) 
-    b_idx = idx 
+    idx = @index(Global)
+    b_idx = idx
     x, y, z = boid_to_coord(s, b_idx)
-    
+
     ratio = inv(boid_volume(s))
     @inbounds res[idx] = f[b_idx] * ratio
 end
@@ -178,7 +178,7 @@ end
     idx = @index(Global)
     e_idx = idx
     x, y, z, align = quad_to_coord(s, idx)
-    
+
     ratio = quad_area(s, align) / dual_edge_len(s, x, y, z, align)
     @inbounds res[idx] = f[e_idx] * ratio
 end
@@ -186,7 +186,7 @@ end
 @kernel function kernel_inv_hodge_star_three_3d!(res, s, @Const(f))
     idx = @index(Global)
     v_idx = idx
-    
+
     ratio = boid_volume(s)
     @inbounds res[idx] = f[v_idx] * ratio
 end
@@ -250,13 +250,13 @@ end
     FT = eltype(f)
     x, y, z, align = quad_to_coord(s, idx)
     (b_indices, b_valid) = quad_boids(s, x, y, z, align)
-    
+
     val1 = b_valid[1] ? f[b_indices[1]] : zero(FT)
     val2 = b_valid[2] ? f[b_indices[2]] : zero(FT)
 
     @inbounds res[idx] = val2 - val1
 end
-  
+
 @kernel function kernel_dual_derivative_one_3d!(res, s, @Const(f))
     idx = @index(Global)
     FT = eltype(f)
@@ -270,7 +270,7 @@ end
 
     @inbounds res[idx] = -val1 + val2 + val3 - val4
 end
-  
+
 @kernel function kernel_dual_derivative_two_3d!(res, s, @Const(f))
     idx = @index(Global)
     FT = eltype(f)
@@ -333,10 +333,10 @@ end
     idx = @index(Global)
     x, y, z, align = quad_to_coord(s, idx)
     e1, e2, e3, e4 = quad_edges(s, x, y, z, align)
-    
+
     # X_ALIGN first pair Y, second pair Z
     # Y_ALIGN first pair Z, second pair X
-    # Z_ALIGN first pair X, second pair Y 
+    # Z_ALIGN first pair X, second pair Y
     @inbounds begin
         a1 = 0.5 * (a[e1] + a[e3]); a2 = 0.5 * (a[e2] + a[e4])
         b1 = 0.5 * (b[e1] + b[e3]); b2 = 0.5 * (b[e2] + b[e4])
@@ -349,12 +349,12 @@ end
     x, y, z = boid_to_coord(s, idx)
     q1, q2, q3, q4, q5, q6 = boid_quads(s, x, y, z)
     e1, e2, e3, e4, e5, e6, e7, e8, e9, e10, e11, e12 = boid_edges(s, x, y, z)
-    
+
     @inbounds begin
         ax = 0.25 * (a[e1] + a[e2] + a[e3] + a[e4])
         ay = 0.25 * (a[e5] + a[e6] + a[e7] + a[e8])
         az = 0.25 * (a[e9] + a[e10] + a[e11] + a[e12])
-    
+
         bz = 0.5 * (b[q1] + b[q2])
         by = 0.5 * (b[q3] + b[q4])
         bx = 0.5 * (b[q5] + b[q6])
@@ -387,7 +387,7 @@ function wedge_product(op1::Val{1}, op2::Val{2}, s::UniformCubicalComplex3D, a::
     res = KernelAbstractions.zeros(backend, eltype(a), nboids(s))
     return wedge_product!(res, op1, op2, s, a, b)
 end
-wedge_product(::Val{2}, ::Val{1}, s::UniformCubicalComplex3D, a::AbstractVector{FT}, b::AbstractVector{FT}; workgroup_size = 256) where FT <: AbstractFloat = wedge_product(Val(1), Val(2), s, a, b)
+wedge_product(::Val{2}, ::Val{1}, s::UniformCubicalComplex3D, a::AbstractVector{FT}, b::AbstractVector{FT}) where FT <: AbstractFloat = wedge_product(Val(1), Val(2), s, b, a)
 
 ### Dual Wedge Product ###
 
@@ -396,7 +396,7 @@ wedge_product(::Val{2}, ::Val{1}, s::UniformCubicalComplex3D, a::AbstractVector{
     FT = eltype(f)
     x, y, z, align = quad_to_coord(s, idx)
     b_indices, b_valid = quad_boids(s, x, y, z, align)
-    
+
     f_val = if b_valid[1] && b_valid[2]
         0.5 * (f[b_indices[1]] + f[b_indices[2]])
     elseif b_valid[1]
@@ -406,7 +406,7 @@ wedge_product(::Val{2}, ::Val{1}, s::UniformCubicalComplex3D, a::AbstractVector{
     else
         zero(FT)
     end
-    
+
     @inbounds res[idx] = f_val * a[idx]
 end
 
@@ -436,11 +436,11 @@ end
     # --- X Component ---
     val_x1 = f[q_x1] # West
     val_x2 = f[q_x2] # East
-    
+
     local_X = zero(FT)
     local_X += ifelse(x == 1, FT(1.0), FT(0.5)) * val_x1
     local_X += ifelse(x == nxb(s), FT(1.0), FT(0.5)) * val_x2
-    
+
     # --- Y Component ---
     val_y1 = f[q_y1] # South
     val_y2 = f[q_y2] # North
@@ -470,7 +470,7 @@ end
     FT = eltype(res)
 
     b_indices, b_valid = edge_boids(s, x, y, z, align)
-    
+
     total_val = zero(FT)
     valid_boids = 0
 
@@ -490,7 +490,7 @@ end
 
     # Calculate the average and multiply by the edge length
     avg_val = valid_boids > 0 ? total_val / valid_boids : zero(FT)
-    
+
     @inbounds res[idx] = avg_val * edge_len(s, align)
 end
 
@@ -503,7 +503,7 @@ end
 
 function sharp_dd(s::UniformCubicalComplex3D, f::AbstractVector{FT}) where FT <: AbstractFloat
     backend = get_backend(f)
-    
+
     # The resulting vector field lives on the dual vertices, which correspond
     # to the primal boids.
     X = KernelAbstractions.zeros(backend, FT, nboids(s))
@@ -522,28 +522,28 @@ end
 
 function flat_dp(s::UniformCubicalComplex3D, X::AbstractVector{FT}, Y::AbstractVector{FT}, Z::AbstractVector{FT}) where FT <: AbstractFloat
     backend = get_backend(X)
-    
+
     # The result is a primal 1-form, which lives on the primal edges.
     res = KernelAbstractions.zeros(backend, FT, ne(s))
 
     return flat_dp!(res, s, X, Y, Z)
 end
 
-function interpolate_dp!(res::AbstractVector{FT}, X::AbstractVector{FT}, Y::AbstractVector{FT}, Z::AbstractVector{FT}, ::Val{1}, 
+function interpolate_dp!(res::AbstractVector{FT}, X::AbstractVector{FT}, Y::AbstractVector{FT}, Z::AbstractVector{FT}, ::Val{1},
         s::UniformCubicalComplex3D, a::AbstractVector{FT}) where FT <: AbstractFloat
-    backend = get_backend(a)
+    backend = get_backend(res)
     sharp_dd!(X, Y, Z, s, a)
     KernelAbstractions.synchronize(backend)
     return flat_dp!(res, s, X, Y, Z)
 end
-  
+
 function interpolate_dp(::Val{1}, s::UniformCubicalComplex3D, a::AbstractVector{FT}) where FT <: AbstractFloat
     backend = get_backend(a)
     X, Y, Z = sharp_dd(s, a)
     KernelAbstractions.synchronize(backend)
     return flat_dp(s, X, Y, Z)
 end
-  
+
 # ═══════════════════════════════════════════════════════════════════════════
 #  Cached interface functions
 # ═══════════════════════════════════════════════════════════════════════════
@@ -554,10 +554,10 @@ end
 # cache parametric over index type and support Int64 lookup arrays.
 
 struct UniformDECCache3D{
+    ST <: AbstractFloat,
     IT <: AbstractVector{Int32},
     MT <: AbstractVector{Int8},
-    VT <: AbstractVector,
-    ST
+    VT <: AbstractVector{ST}
 }
     nv_       :: Int
     ne_       :: Int
@@ -958,8 +958,7 @@ function exterior_derivative!(
     res::AbstractVector{FT},
     ::Val{0},
     cache::UniformDECCache3D,
-    f::AbstractVector{FT};
-    workgroup_size::Int = 256,
+    f::AbstractVector{FT},
 ) where {FT <: AbstractFloat}
     backend = get_backend(res)
     kernel = kernel_d0_cached_3d!(backend)
@@ -971,8 +970,7 @@ function exterior_derivative!(
     res::AbstractVector{FT},
     ::Val{1},
     cache::UniformDECCache3D,
-    f::AbstractVector{FT};
-    workgroup_size::Int = 256,
+    f::AbstractVector{FT},
 ) where {FT <: AbstractFloat}
     backend = get_backend(res)
     kernel = kernel_d1_cached_3d!(backend)
@@ -984,8 +982,7 @@ function exterior_derivative!(
     res::AbstractVector{FT},
     ::Val{2},
     cache::UniformDECCache3D,
-    f::AbstractVector{FT};
-    workgroup_size::Int = 256,
+    f::AbstractVector{FT},
 ) where {FT <: AbstractFloat}
     backend = get_backend(res)
     kernel = kernel_d2_cached_3d!(backend)
@@ -1002,34 +999,31 @@ end
 function exterior_derivative(
     ::Val{0},
     cache::UniformDECCache3D,
-    f::AbstractVector{FT};
-    workgroup_size::Int = 256,
+    f::AbstractVector{FT},
 ) where {FT <: AbstractFloat}
     backend = get_backend(f)
     res = KernelAbstractions.zeros(backend, FT, cache.ne_)
-    return exterior_derivative!(res, Val(0), cache, f; workgroup_size = workgroup_size)
+    return exterior_derivative!(res, Val(0), cache, f)
 end
 
 function exterior_derivative(
     ::Val{1},
     cache::UniformDECCache3D,
-    f::AbstractVector{FT};
-    workgroup_size::Int = 256,
+    f::AbstractVector{FT},
 ) where {FT <: AbstractFloat}
     backend = get_backend(f)
     res = KernelAbstractions.zeros(backend, FT, cache.nquads_)
-    return exterior_derivative!(res, Val(1), cache, f; workgroup_size = workgroup_size)
+    return exterior_derivative!(res, Val(1), cache, f)
 end
 
 function exterior_derivative(
     ::Val{2},
     cache::UniformDECCache3D,
-    f::AbstractVector{FT};
-    workgroup_size::Int = 256,
+    f::AbstractVector{FT},
 ) where {FT <: AbstractFloat}
     backend = get_backend(f)
     res = KernelAbstractions.zeros(backend, FT, cache.nboids_)
-    return exterior_derivative!(res, Val(2), cache, f; workgroup_size = workgroup_size)
+    return exterior_derivative!(res, Val(2), cache, f)
 end
 
 # ============================================================================
@@ -1040,8 +1034,7 @@ function hodge_star!(
     res::AbstractVector{FT},
     ::Val{0},
     cache::UniformDECCache3D,
-    f::AbstractVector{FT};
-    workgroup_size::Int = 256,
+    f::AbstractVector{FT},
 ) where {FT <: AbstractFloat}
     backend = get_backend(res)
     kernel = kernel_hodge_vec_3d!(backend)
@@ -1053,8 +1046,7 @@ function hodge_star!(
     res::AbstractVector{FT},
     ::Val{1},
     cache::UniformDECCache3D,
-    f::AbstractVector{FT};
-    workgroup_size::Int = 256,
+    f::AbstractVector{FT},
 ) where {FT <: AbstractFloat}
     backend = get_backend(res)
     kernel = kernel_hodge_vec_3d!(backend)
@@ -1066,8 +1058,7 @@ function hodge_star!(
     res::AbstractVector{FT},
     ::Val{2},
     cache::UniformDECCache3D,
-    f::AbstractVector{FT};
-    workgroup_size::Int = 256,
+    f::AbstractVector{FT},
 ) where {FT <: AbstractFloat}
     backend = get_backend(res)
     kernel = kernel_hodge_vec_3d!(backend)
@@ -1079,8 +1070,7 @@ function hodge_star!(
     res::AbstractVector{FT},
     ::Val{3},
     cache::UniformDECCache3D,
-    f::AbstractVector{FT};
-    workgroup_size::Int = 256,
+    f::AbstractVector{FT},
 ) where {FT <: AbstractFloat}
     backend = get_backend(res)
     kernel = kernel_hodge_scalar_3d!(backend)
@@ -1091,45 +1081,41 @@ end
 function hodge_star(
     ::Val{0},
     cache::UniformDECCache3D,
-    f::AbstractVector{FT};
-    workgroup_size::Int = 256,
+    f::AbstractVector{FT},
 ) where {FT <: AbstractFloat}
     backend = get_backend(f)
     res = KernelAbstractions.zeros(backend, FT, cache.nv_)
-    return hodge_star!(res, Val(0), cache, f; workgroup_size = workgroup_size)
+    return hodge_star!(res, Val(0), cache, f)
 end
 
 function hodge_star(
     ::Val{1},
     cache::UniformDECCache3D,
-    f::AbstractVector{FT};
-    workgroup_size::Int = 256,
+    f::AbstractVector{FT},
 ) where {FT <: AbstractFloat}
     backend = get_backend(f)
     res = KernelAbstractions.zeros(backend, FT, cache.ne_)
-    return hodge_star!(res, Val(1), cache, f; workgroup_size = workgroup_size)
+    return hodge_star!(res, Val(1), cache, f)
 end
 
 function hodge_star(
     ::Val{2},
     cache::UniformDECCache3D,
-    f::AbstractVector{FT};
-    workgroup_size::Int = 256,
+    f::AbstractVector{FT},
 ) where {FT <: AbstractFloat}
     backend = get_backend(f)
     res = KernelAbstractions.zeros(backend, FT, cache.nquads_)
-    return hodge_star!(res, Val(2), cache, f; workgroup_size = workgroup_size)
+    return hodge_star!(res, Val(2), cache, f)
 end
 
 function hodge_star(
     ::Val{3},
     cache::UniformDECCache3D,
-    f::AbstractVector{FT};
-    workgroup_size::Int = 256,
+    f::AbstractVector{FT},
 ) where {FT <: AbstractFloat}
     backend = get_backend(f)
     res = KernelAbstractions.zeros(backend, FT, cache.nboids_)
-    return hodge_star!(res, Val(3), cache, f; workgroup_size = workgroup_size)
+    return hodge_star!(res, Val(3), cache, f)
 end
 
 # ============================================================================
@@ -1140,8 +1126,7 @@ function inv_hodge_star!(
     res::AbstractVector{FT},
     ::Val{0},
     cache::UniformDECCache3D,
-    f::AbstractVector{FT};
-    workgroup_size::Int = 256,
+    f::AbstractVector{FT},
 ) where {FT <: AbstractFloat}
     backend = get_backend(res)
     kernel = kernel_hodge_vec_3d!(backend)
@@ -1153,8 +1138,7 @@ function inv_hodge_star!(
     res::AbstractVector{FT},
     ::Val{1},
     cache::UniformDECCache3D,
-    f::AbstractVector{FT};
-    workgroup_size::Int = 256,
+    f::AbstractVector{FT},
 ) where {FT <: AbstractFloat}
     backend = get_backend(res)
     kernel = kernel_hodge_vec_3d!(backend)
@@ -1166,8 +1150,7 @@ function inv_hodge_star!(
     res::AbstractVector{FT},
     ::Val{2},
     cache::UniformDECCache3D,
-    f::AbstractVector{FT};
-    workgroup_size::Int = 256,
+    f::AbstractVector{FT},
 ) where {FT <: AbstractFloat}
     backend = get_backend(res)
     kernel = kernel_hodge_vec_3d!(backend)
@@ -1179,8 +1162,7 @@ function inv_hodge_star!(
     res::AbstractVector{FT},
     ::Val{3},
     cache::UniformDECCache3D,
-    f::AbstractVector{FT};
-    workgroup_size::Int = 256,
+    f::AbstractVector{FT},
 ) where {FT <: AbstractFloat}
     backend = get_backend(res)
     kernel = kernel_hodge_scalar_3d!(backend)
@@ -1191,45 +1173,41 @@ end
 function inv_hodge_star(
     ::Val{0},
     cache::UniformDECCache3D,
-    f::AbstractVector{FT};
-    workgroup_size::Int = 256,
+    f::AbstractVector{FT},
 ) where {FT <: AbstractFloat}
     backend = get_backend(f)
     res = KernelAbstractions.zeros(backend, FT, cache.nv_)
-    return inv_hodge_star!(res, Val(0), cache, f; workgroup_size = workgroup_size)
+    return inv_hodge_star!(res, Val(0), cache, f)
 end
 
 function inv_hodge_star(
     ::Val{1},
     cache::UniformDECCache3D,
-    f::AbstractVector{FT};
-    workgroup_size::Int = 256,
+    f::AbstractVector{FT},
 ) where {FT <: AbstractFloat}
     backend = get_backend(f)
     res = KernelAbstractions.zeros(backend, FT, cache.ne_)
-    return inv_hodge_star!(res, Val(1), cache, f; workgroup_size = workgroup_size)
+    return inv_hodge_star!(res, Val(1), cache, f)
 end
 
 function inv_hodge_star(
     ::Val{2},
     cache::UniformDECCache3D,
-    f::AbstractVector{FT};
-    workgroup_size::Int = 256,
+    f::AbstractVector{FT},
 ) where {FT <: AbstractFloat}
     backend = get_backend(f)
     res = KernelAbstractions.zeros(backend, FT, cache.nquads_)
-    return inv_hodge_star!(res, Val(2), cache, f; workgroup_size = workgroup_size)
+    return inv_hodge_star!(res, Val(2), cache, f)
 end
 
 function inv_hodge_star(
     ::Val{3},
     cache::UniformDECCache3D,
-    f::AbstractVector{FT};
-    workgroup_size::Int = 256,
+    f::AbstractVector{FT},
 ) where {FT <: AbstractFloat}
     backend = get_backend(f)
     res = KernelAbstractions.zeros(backend, FT, cache.nboids_)
-    return inv_hodge_star!(res, Val(3), cache, f; workgroup_size = workgroup_size)
+    return inv_hodge_star!(res, Val(3), cache, f)
 end
 
 # ============================================================================
@@ -1317,8 +1295,7 @@ function dual_derivative!(
     res::AbstractVector{FT},
     ::Val{0},
     cache::UniformDECCache3D,
-    f::AbstractVector{FT};
-    workgroup_size::Int = 256,
+    f::AbstractVector{FT},
 ) where {FT <: AbstractFloat}
     backend = get_backend(res)
     kernel = kernel_dd0_cached_3d!(backend)
@@ -1330,8 +1307,7 @@ function dual_derivative!(
     res::AbstractVector{FT},
     ::Val{1},
     cache::UniformDECCache3D,
-    f::AbstractVector{FT};
-    workgroup_size::Int = 256,
+    f::AbstractVector{FT},
 ) where {FT <: AbstractFloat}
     backend = get_backend(res)
     kernel = kernel_dd1_cached_3d!(backend)
@@ -1349,8 +1325,7 @@ function dual_derivative!(
     res::AbstractVector{FT},
     ::Val{2},
     cache::UniformDECCache3D,
-    f::AbstractVector{FT};
-    workgroup_size::Int = 256,
+    f::AbstractVector{FT},
 ) where {FT <: AbstractFloat}
     backend = get_backend(res)
     kernel = kernel_dd2_cached_3d!(backend)
@@ -1368,34 +1343,31 @@ end
 function dual_derivative(
     ::Val{0},
     cache::UniformDECCache3D,
-    f::AbstractVector{FT};
-    workgroup_size::Int = 256,
+    f::AbstractVector{FT},
 ) where {FT <: AbstractFloat}
     backend = get_backend(f)
     res = KernelAbstractions.zeros(backend, FT, cache.nquads_)
-    return dual_derivative!(res, Val(0), cache, f; workgroup_size = workgroup_size)
+    return dual_derivative!(res, Val(0), cache, f)
 end
 
 function dual_derivative(
     ::Val{1},
     cache::UniformDECCache3D,
-    f::AbstractVector{FT};
-    workgroup_size::Int = 256,
+    f::AbstractVector{FT},
 ) where {FT <: AbstractFloat}
     backend = get_backend(f)
     res = KernelAbstractions.zeros(backend, FT, cache.ne_)
-    return dual_derivative!(res, Val(1), cache, f; workgroup_size = workgroup_size)
+    return dual_derivative!(res, Val(1), cache, f)
 end
 
 function dual_derivative(
     ::Val{2},
     cache::UniformDECCache3D,
-    f::AbstractVector{FT};
-    workgroup_size::Int = 256,
+    f::AbstractVector{FT},
 ) where {FT <: AbstractFloat}
     backend = get_backend(f)
     res = KernelAbstractions.zeros(backend, FT, cache.nv_)
-    return dual_derivative!(res, Val(2), cache, f; workgroup_size = workgroup_size)
+    return dual_derivative!(res, Val(2), cache, f)
 end
 
 # ============================================================================
@@ -1473,8 +1445,7 @@ function wedge_product!(
     ::Val{1},
     cache::UniformDECCache3D,
     a::AbstractVector{FT},
-    b::AbstractVector{FT};
-    workgroup_size::Int = 256,
+    b::AbstractVector{FT},
 ) where {FT <: AbstractFloat}
     backend = get_backend(res)
     kernel = kernel_wedge_11_cached_3d!(backend)
@@ -1492,12 +1463,11 @@ function wedge_product(
     ::Val{1},
     cache::UniformDECCache3D,
     a::AbstractVector{FT},
-    b::AbstractVector{FT};
-    workgroup_size::Int = 256,
+    b::AbstractVector{FT},
 ) where {FT <: AbstractFloat}
     backend = get_backend(a)
     res = KernelAbstractions.zeros(backend, FT, cache.nquads_)
-    return wedge_product!(res, Val(1), Val(1), cache, a, b; workgroup_size = workgroup_size)
+    return wedge_product!(res, Val(1), Val(1), cache, a, b)
 end
 
 function wedge_product!(
@@ -1506,8 +1476,7 @@ function wedge_product!(
     ::Val{2},
     cache::UniformDECCache3D,
     a::AbstractVector{FT},
-    b::AbstractVector{FT};
-    workgroup_size::Int = 256,
+    b::AbstractVector{FT},
 ) where {FT <: AbstractFloat}
     backend = get_backend(res)
     kernel = kernel_wedge_12_cached_3d!(backend)
@@ -1529,12 +1498,11 @@ function wedge_product(
     ::Val{2},
     cache::UniformDECCache3D,
     a::AbstractVector{FT},
-    b::AbstractVector{FT};
-    workgroup_size::Int = 256,
+    b::AbstractVector{FT},
 ) where {FT <: AbstractFloat}
     backend = get_backend(a)
     res = KernelAbstractions.zeros(backend, FT, cache.nboids_)
-    return wedge_product!(res, Val(1), Val(2), cache, a, b; workgroup_size = workgroup_size)
+    return wedge_product!(res, Val(1), Val(2), cache, a, b)
 end
 
 wedge_product(
@@ -1542,10 +1510,9 @@ wedge_product(
     ::Val{1},
     cache::UniformDECCache3D,
     b::AbstractVector{FT},
-    a::AbstractVector{FT};
-    workgroup_size::Int = 256,
+    a::AbstractVector{FT},
 ) where {FT <: AbstractFloat} =
-    wedge_product(Val(1), Val(2), cache, a, b; workgroup_size = workgroup_size)
+    wedge_product(Val(1), Val(2), cache, a, b)
 
 function wedge_product_dd!(
     res::AbstractVector{FT},
@@ -1553,8 +1520,7 @@ function wedge_product_dd!(
     ::Val{1},
     cache::UniformDECCache3D,
     f::AbstractVector{FT},
-    a::AbstractVector{FT};
-    workgroup_size::Int = 256,
+    a::AbstractVector{FT},
 ) where {FT <: AbstractFloat}
     backend = get_backend(res)
     kernel = kernel_wedge_dd_01_cached_3d!(backend)
@@ -1572,12 +1538,11 @@ function wedge_product_dd(
     ::Val{1},
     cache::UniformDECCache3D,
     f::AbstractVector{FT},
-    a::AbstractVector{FT};
-    workgroup_size::Int = 256,
+    a::AbstractVector{FT},
 ) where {FT <: AbstractFloat}
     backend = get_backend(f)
     res = KernelAbstractions.zeros(backend, FT, cache.nquads_)
-    return wedge_product_dd!(res, Val(0), Val(1), cache, f, a; workgroup_size = workgroup_size)
+    return wedge_product_dd!(res, Val(0), Val(1), cache, f, a)
 end
 
 wedge_product_dd(
@@ -1585,7 +1550,6 @@ wedge_product_dd(
     ::Val{0},
     cache::UniformDECCache3D,
     a::AbstractVector{FT},
-    f::AbstractVector{FT};
-    workgroup_size::Int = 256,
+    f::AbstractVector{FT},
 ) where {FT <: AbstractFloat} =
-    wedge_product_dd(Val(0), Val(1), cache, f, a; workgroup_size = workgroup_size)
+    wedge_product_dd(Val(0), Val(1), cache, f, a)
