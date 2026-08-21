@@ -1,7 +1,7 @@
 using Test
 
 @testset "2D Uniform Cubical Tests" begin
-    include("UniformMesh.jl")
+    include("UniformMeshTests.jl")
     include("UniformKernel.jl")
 end
 
@@ -10,6 +10,6 @@ end
 end
 
 @testset "3D Uniform Cubical Tests" begin
-    include("UniformMesh3D.jl")
+    include("UniformMesh3DTests.jl")
     include("UniformKernel3D.jl")
 end
