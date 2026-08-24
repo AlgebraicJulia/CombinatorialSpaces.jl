@@ -1,3 +1,5 @@
+module TestUniformKernel3D
+
 using Test
 using KernelAbstractions
 using Random
@@ -34,7 +36,7 @@ using CombinatorialSpaces
         f = fill(FT(5.0), ne(s))
         @test all(exterior_derivative(Val(1), s, f) .== 0.0)
 
-        # Assign f[e] = edge index, then verify d1 = signed sum on every quad.
+        # f[e] = edge index; verify d1 = signed sum on every quad
         f = zeros(FT, ne(s))
         f[1] = 1; f[2] = 5; f[5] = 5; f[6] = 6;
         f[3] = 5; f[9] = 5; f[10] = 6;
@@ -112,7 +114,7 @@ end
         @test all(star_f3 .> 0)
     end
 
-    @testset "Numerical Accuracy" begin        
+    @testset "Numerical Accuracy" begin
         f0 = FT[1, 2, 3, 4, 5, 6, 7, 8]
         star_f0 = hodge_star(Val(0), s, f0)
         expected_star_f0 = f0 .* 3.0
@@ -260,7 +262,7 @@ end
     s = UniformCubicalComplex3D(3, 3, 3, 1.0, 1.0, 1.0)
     FT = Float64
 
-    @testset "Wedge 11" begin
+    @testset "Wedge 1-1" begin
         # Linear dependence means zero
         f1 = ones(FT, ne(s)) .* 2.0
         g1 = ones(FT, ne(s)) .* 3.0
@@ -281,8 +283,7 @@ end
         @test all(isapprox.(xzquads(s, w11_xy), 0.0, atol=1e-12))
         @test all(isapprox.(yzquads(s, w11_xy), 0.0, atol=1e-12))
 
-        # Actual orientation is dzdx
-        # XZ Quads (Y_ALIGN)
+                # XZ Quads (Y_ALIGN)
         f1 .= 0.0; g1 .= 0.0
         xedges(s, f1) .= 2.0
         zedges(s, g1) .= 4.0
@@ -313,8 +314,8 @@ end
 
     end
 
-    @testset "Wedge 12" begin
-        # This should return the volume of the boid as 6.0 = 2.0 * 3.0
+    @testset "Wedge 1-2" begin
+        # volume of boid: 6.0 = 2.0 * 3.0
         f1 = ones(FT, ne(s)) .* 2.0
         g2 = ones(FT, nquads(s)) .* 3.0
         w12 = wedge_product(Val(1), Val(2), s, f1, g2)
@@ -340,17 +341,15 @@ end
     s = UniformCubicalComplex3D(3, 3, 3, 1.0, 1.0, 1.0)
     FT = Float64
     
-    @testset "Wedge DD 01" begin
+    @testset "Wedge DD 0-1" begin
         f = ones(FT, nboids(s)) .* 2.0
         a = ones(FT, nquads(s)) .* 3.0
         w01 = wedge_product_dd(Val(0), Val(1), s, f, a)
         
-        # Whether on boundary (1 valid boid -> just take value) or interior (average of identical values),
-        # the result should be 2.0 * 3.0 = 6.0.
+        # boundary (1 valid boid) or interior (avg of identical values): 2.0 * 3.0 = 6.0
         @test all(w01 .≈ 6.0)
 
-        # Check a specific boundary case explicitly: 
-        # Z-aligned quad on z=1 (boundary)
+        # boundary case: Z-aligned quad on z=1
         f_grad = FT.(1:nboids(s))
         a_ones = ones(FT, nquads(s))
         w01_grad = wedge_product_dd(Val(0), Val(1), s, f_grad, a_ones)
@@ -379,7 +378,7 @@ end
 
         f = zeros(FT, nquads(s))
         
-        # --- Test 1: Interior Boid (2,2,2) ---
+        # Interior boid (2,2,2)
         boid_idx = coord_to_boid(s, 2, 2, 2)
         q_z1, q_z2, q_y1, q_y2, q_x1, q_x2 = boid_quads(s, 2, 2, 2)
         
@@ -393,7 +392,7 @@ end
         @test Y[boid_idx] ≈ 5.0 / dy(s)
         @test Z[boid_idx] ≈ 7.0 / dz(s)
 
-        # --- Test 2: Boundary Corner Boid (1,1,1) ---
+        # Boundary corner boid (1,1,1)
         f .= 0.0
         boid_idx_corner = coord_to_boid(s, 1, 1, 1)
         q_z1, q_z2, q_y1, q_y2, q_x1, q_x2 = boid_quads(s, 1, 1, 1)
@@ -408,7 +407,7 @@ end
         @test Y_c[boid_idx_corner] ≈ 4.0 / dy(s)
         @test Z_c[boid_idx_corner] ≈ 8.0 / dz(s)
         
-        # --- Test 3: Boid on Edge (1, 2, nzb(s)) ---
+        # Boid on edge (1, 2, nzb(s))
         f .= 0.0
         boid_idx_edge = coord_to_boid(s, 1, 2, nzb(s))
         q_z1, q_z2, q_y1, q_y2, q_x1, q_x2 = boid_quads(s, 1, 2, nzb(s))
@@ -436,15 +435,15 @@ end
 
         f_const = flat_dp(s, X_const, Y_const, Z_const)
 
-        # --- Test 1: Interior Edge ---
+        # Interior edge
         edge_idx_int = coord_to_edge(s, 2, 2, 2, X_ALIGN)
         @test f_const[edge_idx_int] ≈ C_x * dx(s)
 
-        # --- Test 2: Boundary Edge on a face ---
+        # Boundary edge on a face
         edge_idx_face = coord_to_edge(s, 2, 3, 2, Z_ALIGN)
         @test f_const[edge_idx_face] ≈ C_z * dz(s)
 
-        # --- Test 3: Boundary Edge on a corner ---
+        # Boundary edge on a corner
         edge_idx_corner = coord_to_edge(s, 1, 1, 1, Y_ALIGN)
         @test f_const[edge_idx_corner] ≈ C_y * dy(s)
 
@@ -456,7 +455,7 @@ end
 
         f = flat_dp(s, X, Y, Z)
 
-        # --- Test 1: Interior Edge ---
+        # Interior edge
         edge_idx = coord_to_edge(s, 2, 2, 2, X_ALIGN)
         b_indices, b_valid = edge_boids(s, 2, 2, 2, X_ALIGN)
         @test all(b_valid)
@@ -464,7 +463,7 @@ end
         avg_X = (X[b_indices[1]] + X[b_indices[2]] + X[b_indices[3]] + X[b_indices[4]]) / 4.0
         @test f[edge_idx] ≈ avg_X * dx(s)
 
-        # --- Test 2: Boundary Edge (on a face) ---
+        # Boundary edge (on a face)
         edge_idx = coord_to_edge(s, 2, 3, 2, Z_ALIGN) # y=3 is boundary for edge
         b_indices, b_valid = edge_boids(s, 2, 3, 2, Z_ALIGN)
         @test count(b_valid) == 2
@@ -472,7 +471,7 @@ end
         avg_Z = (Z[b_indices[1]] + Z[b_indices[2]]) / 2.0
         @test f[edge_idx] ≈ avg_Z * dz(s)
         
-        # --- Test 3: Boundary Edge (on a corner) ---
+        # Boundary edge (on a corner)
         edge_idx = coord_to_edge(s, 1, 1, 1, Y_ALIGN)
         b_indices, b_valid = edge_boids(s, 1, 1, 1, Y_ALIGN)
         @test count(b_valid) == 1
@@ -492,20 +491,20 @@ end
                         inv_hodge_star(Val(2), s,
                             dual_derivative(Val(0), s, x))))
 
-    @testset "Constant field" begin
+    @testset "Constant Field" begin
         f = fill(FT(7.0), nboids(s))
         result = dlap_0(f)
         @test result[coord_to_boid(s, 2, 2, 2)] == 0
     end
 
-    @testset "Linear field" begin
+    @testset "Linear Field" begin
         f = FT[boid_to_coord(s, b)[1] for b in boids(s)]
         result = dlap_0(f)
         @test result[coord_to_boid(s, 2, 2, 2)] == 0
     end
 end
 
-@testset "UniformDECCache3D exterior derivatives" begin
+@testset "Cached Exterior Derivatives" begin
     Random.seed!(1234)
 
     meshes = [
@@ -523,9 +522,7 @@ end
         @test cache.nboids_ == nboids(s)
 
         for FT in (Float32, Float64)
-            # -----------------------------------------------------------------
-            # d0 : primal 0-form -> primal 1-form
-            # -----------------------------------------------------------------
+            # $1
             f0_host = rand(FT, nv(s))
 
             ref_d0 = similar(f0_host, ne(s))
@@ -536,9 +533,7 @@ end
 
             @test tst_d0 ≈ ref_d0 atol=eps(FT) * 32 rtol=eps(FT) * 32
 
-            # -----------------------------------------------------------------
-            # d1 : primal 1-form -> primal 2-form
-            # -----------------------------------------------------------------
+            # $1
             f1_host = rand(FT, ne(s))
 
             ref_d1 = similar(f1_host, nquads(s))
@@ -549,9 +544,7 @@ end
 
             @test tst_d1 ≈ ref_d1 atol=eps(FT) * 32 rtol=eps(FT) * 32
 
-            # -----------------------------------------------------------------
-            # d2 : primal 2-form -> primal 3-form
-            # -----------------------------------------------------------------
+            # $1
             f2_host = rand(FT, nquads(s))
 
             ref_d2 = similar(f2_host, nboids(s))
@@ -565,7 +558,7 @@ end
     end
 end
 
-@testset "UniformDECCache3D hodge_star / inv_hodge_star" begin
+@testset "Cached Hodge Star and Inverse" begin
     Random.seed!(1234)
 
     meshes = [
@@ -588,9 +581,7 @@ end
             f2 = rand(FT, nquads(s))
             f3 = rand(FT, nboids(s))
 
-            # -----------------------------------------------------------------
-            # hodge_star
-            # -----------------------------------------------------------------
+            # $1
             ref_hs0 = similar(f0, nv(s))
             ref_hs1 = similar(f1, ne(s))
             ref_hs2 = similar(f2, nquads(s))
@@ -616,9 +607,7 @@ end
             @test tst_hs2 ≈ ref_hs2 atol=eps(FT) * 32 rtol=eps(FT) * 32
             @test tst_hs3 ≈ ref_hs3 atol=eps(FT) * 32 rtol=eps(FT) * 32
 
-            # -----------------------------------------------------------------
-            # inv_hodge_star
-            # -----------------------------------------------------------------
+            # $1
             ref_ihs0 = similar(f0, nv(s))
             ref_ihs1 = similar(f1, ne(s))
             ref_ihs2 = similar(f2, nquads(s))
@@ -647,7 +636,7 @@ end
     end
 end
 
-@testset "UniformDECCache3D dual_derivative" begin
+@testset "Cached Dual Derivative" begin
     Random.seed!(1234)
 
     meshes = [
@@ -669,9 +658,7 @@ end
             d1 = rand(FT, nquads(s))
             d2 = rand(FT, ne(s))
 
-            # -----------------------------------------------------------------
-            # dd0 : dual 0-form (boids) -> dual 1-form (quads)
-            # -----------------------------------------------------------------
+            # $1
             ref_dd0 = similar(d1, nquads(s))
             tst_dd0 = similar(d1, nquads(s))
 
@@ -680,9 +667,7 @@ end
 
             @test tst_dd0 ≈ ref_dd0 atol=eps(FT) * 32 rtol=eps(FT) * 32
 
-            # -----------------------------------------------------------------
-            # dd1 : dual 1-form (quads) -> dual 2-form (edges)
-            # -----------------------------------------------------------------
+            # $1
             ref_dd1 = similar(d2, ne(s))
             tst_dd1 = similar(d2, ne(s))
 
@@ -691,9 +676,7 @@ end
 
             @test tst_dd1 ≈ ref_dd1 atol=eps(FT) * 32 rtol=eps(FT) * 32
 
-            # -----------------------------------------------------------------
-            # dd2 : dual 2-form (edges) -> dual 3-form (vertices)
-            # -----------------------------------------------------------------
+            # $1
             ref_dd2 = similar(d0, nv(s))
             tst_dd2 = similar(d0, nv(s))
 
@@ -705,7 +688,7 @@ end
     end
 end
 
-@testset "UniformDECCache3D wedge_11" begin
+@testset "Cached Wedge Products" begin
     Random.seed!(1234)
 
     meshes = [
@@ -812,4 +795,6 @@ end
             @test lhs ≈ rhs atol=eps(FT) * 64 rtol=eps(FT) * 64
         end
     end
+end
+
 end

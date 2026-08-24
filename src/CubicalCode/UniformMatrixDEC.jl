@@ -22,7 +22,7 @@ function exterior_derivative(::Val{0}, s::UniformCubicalComplex2D)
     V[idx + 1] = -1
   end
 
-  return sparse(I, J, V)
+  return sparse(I, J, V, ne(s), nv(s))
 end
 
 function exterior_derivative(::Val{1}, s::UniformCubicalComplex2D)
@@ -43,7 +43,7 @@ function exterior_derivative(::Val{1}, s::UniformCubicalComplex2D)
     end
   end
 
-  return sparse(I, J, V)
+  return sparse(I, J, V, nquads(s), ne(s))
 end
 
 dual_derivative(::Val{0}, s::UniformCubicalComplex2D) = transpose(exterior_derivative(Val(1), s))
@@ -81,28 +81,6 @@ laplacian(::Val{2}, s::UniformCubicalComplex2D) = exterior_derivative(Val(1), s)
 dual_laplacian(::Val{0}, s::UniformCubicalComplex2D) = dual_codifferential(Val(1), s) * dual_derivative(Val(0), s)
 dual_laplacian(::Val{1}, s::UniformCubicalComplex2D) = dual_codifferential(Val(2), s) * dual_derivative(Val(1), s) + dual_derivative(Val(0), s) * dual_codifferential(Val(1), s)
 dual_laplacian(::Val{2}, s::UniformCubicalComplex2D) = dual_derivative(Val(1), s) * dual_codifferential(Val(2), s)
-
-# Create a matrix that maps values on dual points to primal points by taking the average of the adjacent dual points for each primal point
-# TODO: Write a test for this function to make sure it's doing what we expect, especially at the boundaries
-function interpolate_dp(::Val{0}, s::UniformCubicalComplex2D)
-  I, J = Int32[], Int32[]
-  V = Float64[]
-
-  for v in vertices(s)
-    x, y = vert_to_coord(s, v)
-
-    adjacent_quads = vert_quads(s, x, y)
-    valid_quads = filter(q -> 1 <= q <= nquads(s), adjacent_quads)
-    n = length(valid_quads)
-    for q in valid_quads
-      push!(I, v)
-      push!(J, q)
-      push!(V, 1 / n)
-    end
-  end
-
-  return sparse(I, J, V)
-end
 
 function interior(::Val{0}, f::AbstractVector, s::UniformCubicalComplex2D)
   tmp = reshape(f, (nx(s), ny(s)))

@@ -10,7 +10,8 @@ module CombinatorialSpacesMakieExt
 using Catlab
 using CombinatorialSpaces
 
-using GeometryBasics: Mesh, QuadFace
+import GeometryBasics
+using GeometryBasics: QuadFace
 using Makie
 import Makie: convert_arguments, plottype
 
@@ -22,7 +23,7 @@ function convert_arguments(P::Union{Type{<:Makie.Wireframe},
                                     Type{<:Makie.Mesh},
                                     Type{<:Makie.Scatter}},
                            dset::HasDeltaSet)
-  convert_arguments(P, Mesh(dset))
+  convert_arguments(P, GeometryBasics.Mesh(dset))
 end
 
 """ This extends the "LineSegments" plotting recipe for embedded deltasets by converting
@@ -37,9 +38,9 @@ function convert_arguments(P::Type{<:Makie.LineSegments}, dset::EmbeddedDeltaSet
   convert_arguments(P, edge_positions)
 end
 
-plottype(::EmbeddedDeltaSet2D) = Mesh
+plottype(::EmbeddedDeltaSet2D) = Makie.Mesh
 
-function Mesh(s::UniformCubicalComplex2D)
+function GeometryBasics.Mesh(s::UniformCubicalComplex2D)
   ps = interior(Val(0), collect(points(s)), s)
 
   qs = QuadFace{Int}[]
@@ -50,13 +51,13 @@ function Mesh(s::UniformCubicalComplex2D)
     end
   end
 
-  return Mesh(ps, qs)
+  return GeometryBasics.Mesh(ps, qs)
 end
 
 function convert_arguments(P::Union{Type{<:Makie.Wireframe},Type{<:Makie.Mesh},Type{<:Makie.Scatter}}, s::UniformCubicalComplex2D)
-  convert_arguments(P, Mesh(s))
+  convert_arguments(P, GeometryBasics.Mesh(s))
 end
 
-plottype(::UniformCubicalComplex2D) = Mesh
+plottype(::UniformCubicalComplex2D) = Makie.Mesh
 
 end

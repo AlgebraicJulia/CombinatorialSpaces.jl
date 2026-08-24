@@ -1,3 +1,5 @@
+module TestUniformMesh3D
+
 using Test
 using GeometryBasics
 using CombinatorialSpaces
@@ -69,8 +71,7 @@ end
 end
 
 @testset "Rectangular Prism with Halo" begin
-    # Using a different constructor signature
-    s = UniformCubicalComplex3D(2, 5, 6, 10.0, 40.0, 50.0; halo_x = 1, halo_y = 1, halo_z = 1)
+        s = UniformCubicalComplex3D(2, 5, 6, 10.0, 40.0, 50.0; halo_x = 1, halo_y = 1, halo_z = 1)
 
     # Halo tests
     @test halo_west(s) == 1 && halo_south(s) == 1 && halo_down(s) == 1
@@ -109,7 +110,7 @@ end
 @testset "Reverse Coordinate Mappings" begin
     s = UniformCubicalComplex3D(3, 4, 5, 10.0, 10.0, 10.0)
 
-    # --- Vertices ---
+    # Vertices
     # First vertex
     @test vert_to_coord(s, 1) == (1, 1, 1)
     # Last vertex: nx*ny*nz = 3*4*5 = 60
@@ -117,14 +118,14 @@ end
     # Intermediate vertex: z=2 (adds 12), y=2 (adds 3), x=2 => 1 + 12 + 3 + 1 = 17
     @test vert_to_coord(s, 17) == (2, 2, 2)
 
-    # --- Boids ---
+    # Boids
     # Boid dimensions: nxb=2, nyb=3, nzb=4. Total = 24
     @test boid_to_coord(s, 1) == (1, 1, 1)
     @test boid_to_coord(s, nboids(s)) == (2, 3, 4)
     # Intermediate boid: z=2 (adds 6), y=2 (adds 2), x=1 => 1 + 6 + 2 + 0 = 9
     @test boid_to_coord(s, 9) == (1, 2, 2)
 
-    # --- Edges ---
+    # Edges
     # X-aligned limits: nxe=2, ny=4, nz=5. Total X-edges = 40
     @test edge_to_coord(s, 1) == (1, 1, 1, X_ALIGN)
     @test edge_to_coord(s, 40) == (2, 4, 5, X_ALIGN)
@@ -135,7 +136,7 @@ end
     @test edge_to_coord(s, 86) == (1, 1, 1, Z_ALIGN)
     @test edge_to_coord(s, ne(s)) == (3, 4, 4, Z_ALIGN)
 
-    # --- Quads ---
+    # Quads
     # Z-aligned limits: nxb=2, nyb=3, nz=5. Total Z-quads = 30
     @test quad_to_coord(s, 1) == (1, 1, 1, Z_ALIGN)
     @test quad_to_coord(s, 30) == (2, 3, 5, Z_ALIGN)
@@ -148,14 +149,10 @@ end
 end
 
 @testset "Reverse Coordinate Mappings with Halo" begin
-    # Construct a mesh with a 1-cell halo padding in all three dimensions
-    # Real sizes: nxr=2, nyr=5, nzr=6
-    # Halo padding adds +2 to each dimension:
-    # Total sizes: nx=4, ny=7, nz=8
-    # Boid dimensions: nxb=3, nyb=6, nzb=7
+    # 1-cell halo in all dimensions: real (2,5,6) -> total (4,7,8), boids (3,6,7)
     s = UniformCubicalComplex3D(2, 5, 6, 10.0, 40.0, 50.0; halo_x = 1, halo_y = 1, halo_z = 1)
 
-    # --- Vertices (Total: 4 * 7 * 8 = 224) ---
+    # Vertices (total 4*7*8 = 224)
     @test vert_to_coord(s, 1) == (1, 1, 1)
     @test vert_to_coord(s, nv(s)) == (4, 7, 8)
 
@@ -163,7 +160,7 @@ end
     # index = (4 - 1) * (4 * 7) + (3 - 1) * 4 + 2 = 84 + 8 + 2 = 94
     @test vert_to_coord(s, 94) == (2, 3, 4)
 
-    # --- Boids (Total: 3 * 6 * 7 = 126) ---
+    # Boids (total 3*6*7 = 126)
     @test boid_to_coord(s, 1) == (1, 1, 1)
     @test boid_to_coord(s, nboids(s)) == (3, 6, 7)
 
@@ -171,7 +168,7 @@ end
     # index = (4 - 1) * (3 * 6) + (3 - 1) * 3 + 2 = 54 + 6 + 2 = 62
     @test boid_to_coord(s, 62) == (2, 3, 4)
 
-    # --- Edges (Total: 168 X-edges, 192 Y-edges, 196 Z-edges = 556) ---
+    # Edges (168 X + 192 Y + 196 Z = 556)
     # 1. X-aligned (Grid: nxe=3, ny=7, nz=8. Total: 168)
     @test edge_to_coord(s, 1) == (1, 1, 1, X_ALIGN)
     # Intermediate index for (2, 3, 4): (4-1)*(3*7) + (3-1)*3 + 2 = 63 + 6 + 2 = 71
@@ -190,7 +187,7 @@ end
     @test edge_to_coord(s, 454) == (2, 3, 4, Z_ALIGN)
     @test edge_to_coord(s, ne(s)) == (4, 7, 7, Z_ALIGN)
 
-    # --- Quads (Total: 144 Z-quads, 147 Y-quads, 168 X-quads = 459) ---
+    # Quads (144 Z + 147 Y + 168 X = 459)
     # 1. Z-aligned (Grid: nxb=3, nyb=6, nz=8. Total: 144)
     @test quad_to_coord(s, 1) == (1, 1, 1, Z_ALIGN)
     # Intermediate index for (2, 3, 4): (4-1)*(3*6) + (3-1)*3 + 2 = 54 + 6 + 2 = 62
@@ -210,9 +207,9 @@ end
     @test quad_to_coord(s, nquads(s)) == (4, 6, 7, X_ALIGN)
 end
 
-@testset "coord_to_quad Round-Trip and Stride Correctness" begin
+@testset "Quad Coordinate Round-Trip and Stride" begin
 
-    # --- Cubic grid (existing coverage, baseline) ---
+    # cubic grid (baseline)
     s = UniformCubicalComplex3D(3, 3, 3, 1.0, 1.0, 1.0)
 
     # Z_ALIGN: stride is nxb(s)=2, nxyb(s)=4
@@ -281,7 +278,7 @@ end
         @test quad_to_coord(s2, idx) == (x, y, z, Y_ALIGN)
     end
 
-    # --- Halo mesh: ensures strides hold with halo padding ---
+    # halo mesh: strides still hold
     s3 = UniformCubicalComplex3D(3, 4, 5, 1.0, 1.0, 1.0; halo_x = 1, halo_y = 1, halo_z = 1)
 
     for z in 1:nzb(s3), y in 1:nyb(s3), x in 1:nx(s3)
@@ -389,7 +386,7 @@ end
     # dz = 90.0 / 3 = 30.0
     s = UniformCubicalComplex3D(4, 4, 4, 30.0, 60.0, 90.0)
 
-    # --- Z-Aligned Quads (Normal to Z-axis) ---
+    # Z-aligned quads (normal to Z)
     # Boundary lengths should be dz / 2 = 15.0
     @test dual_edge_len(s, 2, 2, 1, Z_ALIGN) == 15.0
     @test dual_edge_len(s, 2, 2, 4, Z_ALIGN) == 15.0
@@ -397,7 +394,7 @@ end
     @test dual_edge_len(s, 2, 2, 2, Z_ALIGN) == 30.0
     @test dual_edge_len(s, 2, 2, 3, Z_ALIGN) == 30.0
 
-    # --- Y-Aligned Quads (Normal to Y-axis) ---
+    # Y-aligned quads (normal to Y)
     # Boundary lengths should be dy / 2 = 10.0
     @test dual_edge_len(s, 2, 1, 2, Y_ALIGN) == 10.0
     @test dual_edge_len(s, 2, 4, 2, Y_ALIGN) == 10.0
@@ -405,7 +402,7 @@ end
     @test dual_edge_len(s, 2, 2, 2, Y_ALIGN) == 20.0
     @test dual_edge_len(s, 2, 3, 2, Y_ALIGN) == 20.0
 
-    # --- X-Aligned Quads (Normal to X-axis) ---
+    # X-aligned quads (normal to X)
     # Boundary lengths should be dx / 2 = 5.0
     @test dual_edge_len(s, 1, 2, 2, X_ALIGN) == 5.0
     @test dual_edge_len(s, 4, 2, 2, X_ALIGN) == 5.0
@@ -421,7 +418,7 @@ end
     # Full volume = 6000.0
     s = UniformCubicalComplex3D(4, 4, 4, 30.0, 60.0, 90.0)
 
-    # --- Dual Boid Volumes ---
+    # Dual boid volumes
     # 1. Interior vertex (no boundaries): 10 * 20 * 30
     @test dual_boid_volume(s, 2, 2, 2) == 6000.0
     # 2. Face boundary vertex (X boundary): 5 * 20 * 30
@@ -432,7 +429,7 @@ end
     @test dual_boid_volume(s, 1, 1, 1) == 750.0
     @test dual_boid_volume(s, nx(s), ny(s), nz(s)) == 750.0
 
-    # --- Dual Quad Areas ---
+    # Dual quad areas
 
     # X-Aligned Edge (Dual quad in YZ plane, Full area = 20 * 30 = 600)
     # Note: Edge's 'x' coordinate doesn't affect YZ area
@@ -458,7 +455,7 @@ end
     # 3x3x3 vertices -> 2x2x2 boids (Total boids = 8)
     s = UniformCubicalComplex3D(3, 3, 3, 10.0, 10.0, 10.0)
 
-    # --- Z-Aligned (XY) Quads ---
+    # Z-aligned (XY) quads
     # Interior: z=2 (Lower boid index 1, Higher boid index 5)
     @test quad_boids(s, 1, 1, 2, Z_ALIGN) == ((1, 5), (true, true))
 
@@ -468,7 +465,7 @@ end
     # Boundary (top): z=3 (No higher boid)
     @test quad_boids(s, 1, 1, 3, Z_ALIGN) == ((5, 0), (true, false))
 
-    # --- Y-Aligned (XZ) Quads ---
+    # Y-aligned (XZ) quads
     # Interior: y=2 (Higher boid index 3, Lower boid index 1)
     @test quad_boids(s, 1, 2, 1, Y_ALIGN) == ((1, 3), (true, true))
 
@@ -478,7 +475,7 @@ end
     # Boundary (front): y=3 (No higher boid)
     @test quad_boids(s, 1, 3, 1, Y_ALIGN) == ((3, 0), (true, false))
 
-    # --- X-Aligned (YZ) Quads ---
+    # X-aligned (YZ) quads
     # Interior: x=2 (Higher boid index 2, Lower boid index 1)
     @test quad_boids(s, 2, 1, 1, X_ALIGN) == ((1, 2), (true, true))
 
@@ -502,8 +499,7 @@ end
 end
 
 @testset "Edge to Incident Boids" begin
-    # Small mesh for index testing
-    s = UniformCubicalComplex3D(3, 3, 3, 1.0, 1.0, 1.0)
+        s = UniformCubicalComplex3D(3, 3, 3, 1.0, 1.0, 1.0)
 
     idx, valid = edge_boids(s, 2, 2, 2, Z_ALIGN)
     @test valid == (true, true, true, true)
@@ -533,10 +529,93 @@ end
     @test vertex_edges(s, 2, 2, 2) == ((41, 50, 26, 29, 9, 10), (true, true, true, true, true, true))
 end
 
+# TODO: Verify these expectations are correct. Each selector is checked against
+# a brute-force scan of every edge/quad in the mesh, so the index arithmetic is
+# independently verified, but which face each name refers to (and that "tangent"
+# means "lying in the face") was inferred from the implementation and comments.
+@testset "Boundary Tangent Edges" begin
+    # Ground truth: every edge with the given alignment whose fixed coordinate
+    # sits on the face. axis 1/2/3 selects x/y/z from edge_to_coord.
+    edge_truth(s, axis, val, align) =
+        [e for e in edges(s) if (c = edge_to_coord(s, e); c[4] == align && c[axis] == val)]
+
+    for s in (UniformCubicalComplex3D(3, 4, 5, 1.0, 1.0, 1.0),
+              UniformCubicalComplex3D(3, 4, 5, 1.0, 1.0, 1.0; halo_x = 1, halo_y = 1, halo_z = 1))
+
+        # Each face fixes one coordinate and admits only the two alignments
+        # that lie within it; the third alignment is normal to the face.
+        for (got, want) in (
+            (down_tangent_edges(s, Val(X_ALIGN)),  edge_truth(s, 3, 1,     X_ALIGN)),
+            (down_tangent_edges(s, Val(Y_ALIGN)),  edge_truth(s, 3, 1,     Y_ALIGN)),
+            (up_tangent_edges(s, Val(X_ALIGN)),    edge_truth(s, 3, nz(s), X_ALIGN)),
+            (up_tangent_edges(s, Val(Y_ALIGN)),    edge_truth(s, 3, nz(s), Y_ALIGN)),
+            (south_tangent_edges(s, Val(X_ALIGN)), edge_truth(s, 2, 1,     X_ALIGN)),
+            (south_tangent_edges(s, Val(Z_ALIGN)), edge_truth(s, 2, 1,     Z_ALIGN)),
+            (north_tangent_edges(s, Val(X_ALIGN)), edge_truth(s, 2, ny(s), X_ALIGN)),
+            (north_tangent_edges(s, Val(Z_ALIGN)), edge_truth(s, 2, ny(s), Z_ALIGN)),
+            (west_tangent_edges(s, Val(Y_ALIGN)),  edge_truth(s, 1, 1,     Y_ALIGN)),
+            (west_tangent_edges(s, Val(Z_ALIGN)),  edge_truth(s, 1, 1,     Z_ALIGN)),
+            (east_tangent_edges(s, Val(Y_ALIGN)),  edge_truth(s, 1, nx(s), Y_ALIGN)),
+            (east_tangent_edges(s, Val(Z_ALIGN)),  edge_truth(s, 1, nx(s), Z_ALIGN)),
+        )
+            @test !isempty(want)
+            @test sort(got) == want
+            @test allunique(got)
+        end
+
+        # A face's tangent edges never include the alignment normal to it.
+        @test !any(e -> is_edge_Z_aligned(e, s), down_tangent_edges(s))
+        @test !any(e -> is_edge_Z_aligned(e, s), up_tangent_edges(s))
+        @test !any(e -> is_edge_Y_aligned(e, s), south_tangent_edges(s))
+        @test !any(e -> is_edge_Y_aligned(e, s), north_tangent_edges(s))
+        @test !any(e -> is_edge_X_aligned(e, s), west_tangent_edges(s))
+        @test !any(e -> is_edge_X_aligned(e, s), east_tangent_edges(s))
+
+        # Per-face and all-face collections are the concatenations of their parts.
+        @test down_tangent_edges(s) ==
+            vcat(down_tangent_edges(s, Val(X_ALIGN)), down_tangent_edges(s, Val(Y_ALIGN)))
+        @test west_tangent_edges(s) ==
+            vcat(west_tangent_edges(s, Val(Y_ALIGN)), west_tangent_edges(s, Val(Z_ALIGN)))
+        @test boundary_tangent_edges(s) ==
+            vcat(down_tangent_edges(s), up_tangent_edges(s),
+                 south_tangent_edges(s), north_tangent_edges(s),
+                 west_tangent_edges(s), east_tangent_edges(s))
+    end
+end
+
+# TODO: Verify these expectations are correct. See the note above; the same
+# brute-force cross-check is used for the boundary quads.
+@testset "Boundary Quads" begin
+    quad_truth(s, axis, val, align) =
+        [q for q in quads(s) if (c = quad_to_coord(s, q); c[4] == align && c[axis] == val)]
+
+    for s in (UniformCubicalComplex3D(3, 4, 5, 1.0, 1.0, 1.0),
+              UniformCubicalComplex3D(3, 4, 5, 1.0, 1.0, 1.0; halo_x = 1, halo_y = 1, halo_z = 1))
+
+        # Each face carries the quads whose normal is the face's own axis.
+        for (got, want) in (
+            (down_quads(s),  quad_truth(s, 3, 1,     Z_ALIGN)),
+            (up_quads(s),    quad_truth(s, 3, nz(s), Z_ALIGN)),
+            (south_quads(s), quad_truth(s, 2, 1,     Y_ALIGN)),
+            (north_quads(s), quad_truth(s, 2, ny(s), Y_ALIGN)),
+            (west_quads(s),  quad_truth(s, 1, 1,     X_ALIGN)),
+            (east_quads(s),  quad_truth(s, 1, nx(s), X_ALIGN)),
+        )
+            @test !isempty(want)
+            @test sort(got) == want
+            @test allunique(got)
+        end
+
+        @test boundary_quads(s) ==
+            vcat(down_quads(s), up_quads(s), south_quads(s),
+                 north_quads(s), west_quads(s), east_quads(s))
+    end
+end
+
 @testset "Primal Boundary Extraction" begin
     s = UniformCubicalComplex3D(2, 2, 2, 1.0, 1.0, 1.0)
 
-    # --- Expected Vertices ---
+    # Expected vertices
     west_v_expected = [1, 3, 5, 7]
     east_v_expected = [2, 4, 6, 8]
     south_v_expected = [1, 2, 5, 6]
@@ -556,7 +635,7 @@ end
     @test sort(down_v) == sort(down_v_expected)
     @test sort(up_v) == sort(up_v_expected)
 
-    # --- Expected Quads ---
+    # Expected quads
     west_q_expected = [5]
     east_q_expected = [6]
     south_q_expected = [3]
@@ -576,7 +655,7 @@ end
     @test down_q == down_q_expected
     @test up_q == up_q_expected
 
-    # --- Expected Boids ---
+    # Expected boids
     boid_expected = [1]
 
     west_b, east_b = primal_boundary_boids(s, EASTWEST)
@@ -592,7 +671,7 @@ end
     @test up_b == boid_expected
 end
 
-@testset "interior" begin
+@testset "Interior" begin
     nx_r, ny_r, nz_r = 3, 3, 3
     h = 1
     s = UniformCubicalComplex3D(nx_r, ny_r, nz_r, 1.0, 1.0, 1.0; halo_x = h, halo_y = h, halo_z = h)
@@ -627,164 +706,76 @@ end
         end
     end
 
-    # TODO: First implement and then check these tests
-    # @testset "Val(2) quads" begin
-    #     # Expected real counts per family:
-    #     #   XY (z-aligned): nxq * nyq * nzr = 2 * 2 * 3 = 12
-    #     #   XZ (y-aligned): nxq * nyr * nzq = 2 * 3 * 2 = 12
-    #     #   YZ (x-aligned): nxr * nyq * nzq = 3 * 2 * 2 = 12
-    #     #   Total: 36
+    @testset "Val(2) Quads" begin
+        # Expected real counts per family:
+        #   XY (z-aligned): nxq * nyq * nzr = 2 * 2 * 3 = 12
+        #   XZ (y-aligned): nxq * nyr * nzq = 2 * 3 * 2 = 12
+        #   YZ (x-aligned): nxr * nyq * nzq = 3 * 2 * 2 = 12
+        #   Total: 36
 
-    #     # Halo exclusion: real quads = 1, halo = 0
-    #     q = zeros(Float64, nquads(s))
-    #     for rz in 1:nzbr(s)+1, ry in 1:nybr(s), rx in 1:nxbr(s)  # XY family
-    #         q[coord_to_quad(s, rx + halo_west(s), ry + halo_south(s), rz + halo_down(s), Z_ALIGN)] = 1.0
-    #     end
-    #     for rz in 1:nzbr(s), ry in 1:nybr(s)+1, rx in 1:nxbr(s)  # XZ family
-    #         q[coord_to_quad(s, rx + halo_west(s), ry + halo_south(s), rz + halo_down(s), Y_ALIGN)] = 1.0
-    #     end
-    #     for rz in 1:nzbr(s), ry in 1:nybr(s), rx in 1:nxbr(s)+1  # YZ family
-    #         q[coord_to_quad(s, rx + halo_west(s), ry + halo_south(s), rz + halo_down(s), X_ALIGN)] = 1.0
-    #     end
-    #     result = interior(Val(2), q, s)
+        # Halo exclusion: real quads = 1, halo = 0
+        q = zeros(Float64, nquads(s))
+        for rz in 1:nzbr(s)+1, ry in 1:nybr(s), rx in 1:nxbr(s)  # XY family
+            q[coord_to_quad(s, rx + halo_west(s), ry + halo_south(s), rz + halo_down(s), Z_ALIGN)] = 1.0
+        end
+        for rz in 1:nzbr(s), ry in 1:nybr(s)+1, rx in 1:nxbr(s)  # XZ family
+            q[coord_to_quad(s, rx + halo_west(s), ry + halo_south(s), rz + halo_down(s), Y_ALIGN)] = 1.0
+        end
+        for rz in 1:nzbr(s), ry in 1:nybr(s), rx in 1:nxbr(s)+1  # YZ family
+            q[coord_to_quad(s, rx + halo_west(s), ry + halo_south(s), rz + halo_down(s), X_ALIGN)] = 1.0
+        end
+        result = interior(Val(2), q, s)
 
-    #     @test length(result) == 36
-    #     @test all(result .== 1.0)
-    #     @test !any(result .== 0.0)
+        @test length(result) == 36
+        @test all(result .== 1.0)
+        @test !any(result .== 0.0)
 
-    #     # Axis ordering per family — encode with rx + 100*ry + 10000*rz
-    #     q_ord = zeros(Float64, nquads(s))
-    #     for rz in 1:nzbr(s)+1, ry in 1:nybr(s), rx in 1:nxbr(s)
-    #         q_ord[coord_to_quad(s, rx + halo_west(s), ry + halo_south(s), rz + halo_down(s), Z_ALIGN)] =
-    #             rx + 100*ry + 10000*rz
-    #     end
-    #     for rz in 1:nzbr(s), ry in 1:nybr(s)+1, rx in 1:nxbr(s)
-    #         q_ord[coord_to_quad(s, rx + halo_west(s), ry + halo_south(s), rz + halo_down(s), Y_ALIGN)] =
-    #             rx + 100*ry + 10000*rz
-    #     end
-    #     for rz in 1:nzbr(s), ry in 1:nybr(s), rx in 1:nxbr(s)+1
-    #         q_ord[coord_to_quad(s, rx + halo_west(s), ry + halo_south(s), rz + halo_down(s), X_ALIGN)] =
-    #             rx + 100*ry + 10000*rz
-    #     end
-    #     result_ord = interior(Val(2), q_ord, s)
+        # Axis ordering per family — encode with rx + 100*ry + 10000*rz
+        q_ord = zeros(Float64, nquads(s))
+        for rz in 1:nzbr(s)+1, ry in 1:nybr(s), rx in 1:nxbr(s)
+            q_ord[coord_to_quad(s, rx + halo_west(s), ry + halo_south(s), rz + halo_down(s), Z_ALIGN)] =
+                rx + 100*ry + 10000*rz
+        end
+        for rz in 1:nzbr(s), ry in 1:nybr(s)+1, rx in 1:nxbr(s)
+            q_ord[coord_to_quad(s, rx + halo_west(s), ry + halo_south(s), rz + halo_down(s), Y_ALIGN)] =
+                rx + 100*ry + 10000*rz
+        end
+        for rz in 1:nzbr(s), ry in 1:nybr(s), rx in 1:nxbr(s)+1
+            q_ord[coord_to_quad(s, rx + halo_west(s), ry + halo_south(s), rz + halo_down(s), X_ALIGN)] =
+                rx + 100*ry + 10000*rz
+        end
+        result_ord = interior(Val(2), q_ord, s)
 
-    #     # XY family: dims (nxbr, nybr, nzbr+1)
-    #     xy = result_ord[1 : nxbr(s)*nybr(s)*(nzbr(s)+1)]
-    #     xy_3d = reshape(xy, nxbr(s), nybr(s), nzbr(s)+1)
-    #     for rz in 1:nzbr(s)+1, ry in 1:nybr(s), rx in 1:nxbr(s)
-    #         @test xy_3d[rx, ry, rz] == rx + 100*ry + 10000*rz
-    #     end
+        # XY family: dims (nxbr, nybr, nzbr+1)
+        xy = result_ord[1 : nxbr(s)*nybr(s)*(nzbr(s)+1)]
+        xy_3d = reshape(xy, nxbr(s), nybr(s), nzbr(s)+1)
+        for rz in 1:nzbr(s)+1, ry in 1:nybr(s), rx in 1:nxbr(s)
+            @test xy_3d[rx, ry, rz] == rx + 100*ry + 10000*rz
+        end
 
-    #     # XZ family: dims (nxbr, nybr+1, nzbr)
-    #     xz_offset = nxbr(s)*nybr(s)*(nzbr(s)+1)
-    #     xz = result_ord[xz_offset+1 : xz_offset + nxbr(s)*(nybr(s)+1)*nzbr(s)]
-    #     xz_3d = reshape(xz, nxbr(s), nybr(s)+1, nzbr(s))
-    #     for rz in 1:nzbr(s), ry in 1:nybr(s)+1, rx in 1:nxbr(s)
-    #         @test xz_3d[rx, ry, rz] == rx + 100*ry + 10000*rz
-    #     end
+        # XZ family: dims (nxbr, nybr+1, nzbr)
+        xz_offset = nxbr(s)*nybr(s)*(nzbr(s)+1)
+        xz = result_ord[xz_offset+1 : xz_offset + nxbr(s)*(nybr(s)+1)*nzbr(s)]
+        xz_3d = reshape(xz, nxbr(s), nybr(s)+1, nzbr(s))
+        for rz in 1:nzbr(s), ry in 1:nybr(s)+1, rx in 1:nxbr(s)
+            @test xz_3d[rx, ry, rz] == rx + 100*ry + 10000*rz
+        end
 
-    #     # YZ family: dims (nxbr+1, nybr, nzbr)
-    #     yz_offset = xz_offset + nxbr(s)*(nybr(s)+1)*nzbr(s)
-    #     yz = result_ord[yz_offset+1 : end]
-    #     yz_3d = reshape(yz, nxbr(s)+1, nybr(s), nzbr(s))
-    #     for rz in 1:nzbr(s), ry in 1:nybr(s), rx in 1:nxbr(s)+1
-    #         @test yz_3d[rx, ry, rz] == rx + 100*ry + 10000*rz
-    #     end
-    # end
-
-    # @testset "Val(1) edges" begin
-    #     # Expected real counts per family:
-    #     #   X-edges: nxe * nyr * nzr = 2 * 3 * 3 = 18
-    #     #   Y-edges: nxr * nye * nzr = 3 * 2 * 3 = 18
-    #     #   Z-edges: nxr * nyr * nze = 3 * 3 * 2 = 18
-    #     #   Total: 54
-
-    #     # Halo exclusion: real edges = 1, halo = 0
-    #     e = zeros(Float64, ne(s))
-    #     for rz in 1:nzbr(s)+1, ry in 1:nybr(s)+1, rx in 1:nxbr(s)  # X-edges
-    #         e[coord_to_edge(s, rx + halo_west(s), ry + halo_south(s), rz + halo_down(s), X_ALIGN)] = 1.0
-    #     end
-    #     for rz in 1:nzbr(s)+1, ry in 1:nybr(s), rx in 1:nxbr(s)+1  # Y-edges
-    #         e[coord_to_edge(s, rx + halo_west(s), ry + halo_south(s), rz + halo_down(s), Y_ALIGN)] = 1.0
-    #     end
-    #     for rz in 1:nzbr(s), ry in 1:nybr(s)+1, rx in 1:nxbr(s)+1  # Z-edges
-    #         e[coord_to_edge(s, rx + halo_west(s), ry + halo_south(s), rz + halo_down(s), Z_ALIGN)] = 1.0
-    #     end
-    #     result = interior(Val(1), e, s)
-
-    #     @test length(result) == 54
-    #     @test all(result .== 1.0)
-    #     @test !any(result .== 0.0)
-
-    #     # Axis ordering per family
-    #     e_ord = zeros(Float64, ne(s))
-    #     for rz in 1:nzbr(s)+1, ry in 1:nybr(s)+1, rx in 1:nxbr(s)
-    #         e_ord[coord_to_edge(s, rx + halo_west(s), ry + halo_south(s), rz + halo_down(s), X_ALIGN)] =
-    #             rx + 100*ry + 10000*rz
-    #     end
-    #     for rz in 1:nzbr(s)+1, ry in 1:nybr(s), rx in 1:nxbr(s)+1
-    #         e_ord[coord_to_edge(s, rx + halo_west(s), ry + halo_south(s), rz + halo_down(s), Y_ALIGN)] =
-    #             rx + 100*ry + 10000*rz
-    #     end
-    #     for rz in 1:nzbr(s), ry in 1:nybr(s)+1, rx in 1:nxbr(s)+1
-    #         e_ord[coord_to_edge(s, rx + halo_west(s), ry + halo_south(s), rz + halo_down(s), Z_ALIGN)] =
-    #             rx + 100*ry + 10000*rz
-    #     end
-    #     result_ord = interior(Val(1), e_ord, s)
-
-    #     x_count = nxbr(s) * (nybr(s)+1) * (nzbr(s)+1)
-    #     y_count = (nxbr(s)+1) * nybr(s) * (nzbr(s)+1)
-    #     z_count = (nxbr(s)+1) * (nybr(s)+1) * nzbr(s)
-
-    #     x_3d = reshape(result_ord[1:x_count], nxbr(s), nybr(s)+1, nzbr(s)+1)
-    #     for rz in 1:nzbr(s)+1, ry in 1:nybr(s)+1, rx in 1:nxbr(s)
-    #         @test x_3d[rx, ry, rz] == rx + 100*ry + 10000*rz
-    #     end
-
-    #     y_3d = reshape(result_ord[x_count+1 : x_count+y_count], nxbr(s)+1, nybr(s), nzbr(s)+1)
-    #     for rz in 1:nzbr(s)+1, ry in 1:nybr(s), rx in 1:nxbr(s)+1
-    #         @test y_3d[rx, ry, rz] == rx + 100*ry + 10000*rz
-    #     end
-
-    #     z_3d = reshape(result_ord[x_count+y_count+1 : end], nxbr(s)+1, nybr(s)+1, nzbr(s))
-    #     for rz in 1:nzbr(s), ry in 1:nybr(s)+1, rx in 1:nxbr(s)+1
-    #         @test z_3d[rx, ry, rz] == rx + 100*ry + 10000*rz
-    #     end
-    # end
-
-    # @testset "Val(0) vertices" begin
-    #     # Expected real count: nxr * nyr * nzr = 3 * 3 * 3 = 27
-
-    #     # Halo exclusion: real vertices = 1, halo = 0
-    #     v = zeros(Float64, nv(s))
-    #     for rz in 1:nzbr(s)+1, ry in 1:nybr(s)+1, rx in 1:nxbr(s)+1
-    #         v[coord_to_vert(s, rx + halo_west(s), ry + halo_south(s), rz + halo_down(s))] = 1.0
-    #     end
-    #     result = interior(Val(0), v, s)
-
-    #     @test size(result) == (nxbr(s)+1, nybr(s)+1, nzbr(s)+1)
-    #     @test all(result .== 1.0)
-    #     @test !any(result .== 0.0)
-
-    #     # Axis ordering
-    #     v_ord = zeros(Float64, nv(s))
-    #     for rz in 1:nzbr(s)+1, ry in 1:nybr(s)+1, rx in 1:nxbr(s)+1
-    #         v_ord[coord_to_vert(s, rx + halo_west(s), ry + halo_south(s), rz + halo_down(s))] =
-    #             rx + 100*ry + 10000*rz
-    #     end
-    #     result_ord = interior(Val(0), v_ord, s)
-
-    #     for rz in 1:nzbr(s)+1, ry in 1:nybr(s)+1, rx in 1:nxbr(s)+1
-    #         @test result_ord[rx, ry, rz] == rx + 100*ry + 10000*rz
-    #     end
-    # end
+        # YZ family: dims (nxbr+1, nybr, nzbr)
+        yz_offset = xz_offset + nxbr(s)*(nybr(s)+1)*nzbr(s)
+        yz = result_ord[yz_offset+1 : end]
+        yz_3d = reshape(yz, nxbr(s)+1, nybr(s), nzbr(s))
+        for rz in 1:nzbr(s), ry in 1:nybr(s), rx in 1:nxbr(s)+1
+            @test yz_3d[rx, ry, rz] == rx + 100*ry + 10000*rz
+        end
+    end
 end
 
-@testset "PseudoCubicalMesh3D Element Counting" begin
+@testset "Pseudo Mesh Element Counting" begin
     s = PseudoCubicalMesh3D(10, 8, 6)
     s_h = PseudoCubicalMesh3D(10, 8, 6; halo_x = 2, halo_y = 3, halo_z = 1)
 
-    # ── Real counts ───────────────────────────────────────────────────────────
+    # Real counts
     @test nxr(s) == 10
     @test nyr(s) == 8
     @test nzr(s) == 6
@@ -792,7 +783,7 @@ end
     @test nyr(s_h) == 8
     @test nzr(s_h) == 6
 
-    # ── Halo accessors ────────────────────────────────────────────────────────
+    # Halo accessors
     @test halo_west(s) == 0
     @test halo_south(s) == 0
     @test halo_down(s) == 0
@@ -800,7 +791,7 @@ end
     @test halo_south(s_h) == 3
     @test halo_down(s_h) == 1
 
-    # ── Total (halo-inclusive) counts ─────────────────────────────────────────
+    # Total (halo-inclusive) counts
     @test nx(s) == 10
     @test ny(s) == 8
     @test nz(s) == 6
@@ -808,13 +799,13 @@ end
     @test ny(s_h) == 14
     @test nz(s_h) == 8
 
-    # ── Vertex counts ─────────────────────────────────────────────────────────
+    # Vertex counts
     @test nv(s) == 10 * 8 * 6
     @test nvr(s) == 10 * 8 * 6
     @test nv(s_h) == 14 * 14 * 8
     @test nvr(s_h) == 10 * 8 * 6
 
-    # ── Edge counts ───────────────────────────────────────────────────────────
+    # Edge counts
     @test nxedges(s) == 9 * 8 * 6
     @test nyedges(s) == 10 * 7 * 6
     @test nzedges(s) == 10 * 8 * 5
@@ -825,7 +816,7 @@ end
     @test nzedges(s_h) == 14 * 14 * 7
     @test ne(s_h) == nxedges(s_h) + nyedges(s_h) + nzedges(s_h)
 
-    # ── Quad counts ───────────────────────────────────────────────────────────
+    # Quad counts
     @test nxyquads(s) == 9 * 7 * 6
     @test nxzquads(s) == 9 * 8 * 5
     @test nyzquads(s) == 10 * 7 * 5
@@ -836,13 +827,13 @@ end
     @test nyzquads(s_h) == 14 * 13 * 7
     @test nquads(s_h) == nxyquads(s_h) + nxzquads(s_h) + nyzquads(s_h)
 
-    # ── Boid counts ───────────────────────────────────────────────────────────
+    # Boid counts
     @test nboids(s) == 9 * 7 * 5
     @test nboidsr(s) == 9 * 7 * 5
     @test nboids(s_h) == 13 * 13 * 7
     @test nboidsr(s_h) == 9 * 7 * 5
 
-    # ── Indexing ──────────────────────────────────────────────────────────────
+    # Indexing
     @test coord_to_vert(s, 1, 1, 1) == 1
     @test coord_to_vert(s, 10, 8, 6) == nv(s)
 
@@ -857,7 +848,7 @@ end
     @test coord_to_quad(s, 1, 1, 1, Y_ALIGN) == nxyquads(s) + 1
     @test coord_to_quad(s, 1, 1, 1, X_ALIGN) == nxyquads(s) + nxzquads(s) + 1
 
-    # ── Halo flags ────────────────────────────────────────────────────────────
+    # Halo flags
     @test valid_boid(s_h, 1, 1, 1) == true
     @test valid_boid(s_h, 13, 13, 7) == true
     @test valid_boid(s_h, 14, 1, 1) == false
@@ -865,9 +856,11 @@ end
     @test valid_boid(s_h, 1, 1, 8) == false
 end
 
-@testset "Base.show" begin
+@testset "Show" begin
     s = UniformCubicalComplex3D(5, 5, 5, 10.0, 10.0, 10.0)
     s_h = UniformCubicalComplex3D(5, 5, 5, 10.0, 10.0, 10.0; halo_x = 1, halo_y = 1, halo_z = 1)
     @test isnothing(show(IOBuffer(), s))
     @test isnothing(show(IOBuffer(), s_h))
+end
+
 end

@@ -1,9 +1,11 @@
+module TestUniformMesh
+
 using Test
 using CombinatorialSpaces
 
-@testset "UniformCubicalComplex2D - No Halo" begin
+@testset "No Halo" begin
 
-    # Create a uniform grid with no halo points, 5x5 points, and a domain of 10x10
+    # 5x5 real points, 10x10 domain, no halo
     s = UniformCubicalComplex2D(6, 6, 10.0, 10.0)
 
     # Test basic properties
@@ -18,7 +20,7 @@ using CombinatorialSpaces
     p = point(s, 6, 6)
     @test p == Point3d(10.0, 10.0, 0.0)
 
-    # Test counts (assuming same as EmbeddedCubicalComplex2D)
+    # Test counts
     @test nv(s) == 36
     @test ne(s) == 60
     @test nquads(s) == 25
@@ -69,12 +71,12 @@ using CombinatorialSpaces
     @test dual_quad_area(s, 2, 2) == dx(s) * dy(s)
 end
 
-@testset "UniformCubicalComplex2D - With Halo" begin
+@testset "With Halo" begin
 
-    # Create a uniform grid with halo points, 5x5 real points, and a domain of 10x10
+    # 5x5 real points, 10x10 domain, halo=1
     s = UniformCubicalComplex2D(6, 6, 10.0, 10.0; halo_x = 1, halo_y = 1)
 
-    # Get the total number of points, which should be (6 + 2) * (6 + 2) = 64
+    # total points = (6+2)*(6+2) = 64
     @test nv(s) == 64
     @test nxr(s) == 6
     @test nyr(s) == 6
@@ -94,13 +96,13 @@ end
     p = point(s, 8, 8)
     @test p == Point3d(12.0, 12.0, 0.0)
 
-    # Test point generation in the interior (should be same as before)
+    # interior points match the no-halo case
     p = point(s, 2, 2)
     @test p == Point3d(0.0, 0.0, 0.0)
     p = point(s, 7, 7)
     @test p == Point3d(10.0, 10.0, 0.0)
 
-    # Test counts (assuming same as EmbeddedCubicalComplex2D)
+    # Test counts
     @test nv(s) == 64
 
     @test nxedges(s) == 56
@@ -136,7 +138,7 @@ end
     dp = dual_point(s, 7, 7)
     @test dp == Point3d(11.0, 11.0, 0.0)
 
-    # Test dual points in the interior (should be same as before)
+    # interior dual points match the no-halo case
     dp = real_dual_point(s, 1, 1)
     @test dp == Point3d(1.0, 1.0, 0.0)
 
@@ -167,35 +169,71 @@ end
     @test is_bottom_edge(s, 1, 2, X_ALIGN) == false
 end
 
-@testset "PseudoCubicalMesh2D Element Counting" begin
+# TODO: Verify these expectations are correct. They pin the offset helpers to
+# src/tgt and quad_edges rather than to hardcoded indices, but the intended
+# meaning of "offset" was inferred from the implementation and its comments.
+@testset "Edge Vertex and Quad Edge Offsets" begin
+    for s in (UniformCubicalComplex2D(4, 5, 1.0, 1.0),
+              UniformCubicalComplex2D(4, 5, 1.0, 1.0; halo_x = 1, halo_y = 1))
+
+        # An edge's two endpoints: offset 0 is the source, offset 1 the target.
+        for e in edges(s)
+            x, y, align = edge_to_coord(s, e)
+            @test edge_vertex_offset(s, x, y, align, 0) == src(s, x, y, align)
+            @test edge_vertex_offset(s, x, y, align, 1) == tgt(s, x, y, align)
+        end
+
+        # quad_edges returns (bottom, right, top, left); offset 0 selects the
+        # bottom/left edge and offset 1 the top/right one.
+        for q in quads(s)
+            x, y = quad_to_coord(s, q)
+            bottom, right, top, left = quad_edges(s, x, y)
+
+            @test quad_edge_offset(s, x, y, X_ALIGN, 0) == bottom
+            @test quad_edge_offset(s, x, y, X_ALIGN, 1) == top
+            @test quad_edge_offset(s, x, y, Y_ALIGN, 0) == left
+            @test quad_edge_offset(s, x, y, Y_ALIGN, 1) == right
+
+            # The offset never changes the alignment of the edge returned.
+            @test is_edge_X_aligned(quad_edge_offset(s, x, y, X_ALIGN, 0), s)
+            @test is_edge_X_aligned(quad_edge_offset(s, x, y, X_ALIGN, 1), s)
+            @test is_edge_Y_aligned(quad_edge_offset(s, x, y, Y_ALIGN, 0), s)
+            @test is_edge_Y_aligned(quad_edge_offset(s, x, y, Y_ALIGN, 1), s)
+        end
+
+        @test_throws ArgumentError quad_edge_offset(s, 1, 1, Z_ALIGN, 0)
+    end
+end
+
+@testset "Pseudo Mesh Element Counting" begin
     s = PseudoCubicalMesh2D(10, 8)
     s_h = PseudoCubicalMesh2D(10, 8; halo_x = 2, halo_y = 3)
 
-    # ── Real counts ───────────────────────────────────────────────────────────
+    # Real counts
     @test nxr(s) == 10
     @test nyr(s) == 8
     @test nxr(s_h) == 10
     @test nyr(s_h) == 8
 
-    # ── Halo accessors ────────────────────────────────────────────────────────
+    # Halo accessors
     @test halo_west(s) == 0
     @test halo_south(s) == 0
     @test halo_west(s_h) == 2
     @test halo_south(s_h) == 3
 
-    # ── Total (halo-inclusive) counts ─────────────────────────────────────────
+    # Total (halo-inclusive) counts
     @test nx(s) == 10
     @test ny(s) == 8
     @test nx(s_h) == 14
     @test ny(s_h) == 14
 
-    # ── Vertex counts ─────────────────────────────────────────────────────────
+    # Vertex counts
     @test nv(s) == 10 * 8
     @test nvr(s) == 10 * 8
     @test nv(s_h) == 14 * 14
     @test nvr(s_h) == 10 * 8
 
-    # ── Edge counts ───────────────────────────────────────────────────────────
+    # Edge counts
     @test nxedges(s) == 9 * 8
     @test nyedges(s) == 10 * 7
     @test ne(s) == nxedges(s) + nyedges(s)
@@ -204,7 +242,7 @@ end
     @test nyedges(s_h) == 14 * 13
     @test ne(s_h) == nxedges(s_h) + nyedges(s_h)
 
-    # ── Quad counts ───────────────────────────────────────────────────────────
+    # Quad counts
     @test nxq(s) == 9
     @test nyq(s) == 7
     @test nquads(s) == 9 * 7
@@ -213,7 +251,7 @@ end
     @test nyq(s_h) == 13
     @test nquads(s_h) == 13 * 13
 
-    # ── Real quad counts ──────────────────────────────────────────────────────
+    # Real quad counts
     @test nxqr(s) == 9
     @test nyqr(s) == 7
     @test nquadsr(s) == 9 * 7
@@ -222,7 +260,7 @@ end
     @test nyqr(s_h) == 7
     @test nquadsr(s_h) == 9 * 7
 
-    # ── Indexing ──────────────────────────────────────────────────────────────
+    # Indexing
     @test coord_to_vert(s, 1, 1) == 1
     @test coord_to_vert(s, 10, 8) == nv(s)
 
@@ -232,16 +270,18 @@ end
     @test coord_to_edge(s, 1, 1, X_ALIGN) == 1
     @test coord_to_edge(s, 1, 1, Y_ALIGN) == nxedges(s) + 1
 
-    # ── Halo flags ────────────────────────────────────────────────────────────
+    # Halo flags
     @test is_halo_vert(s_h, 1, 5) == true
     @test is_halo_vert(s_h, 3, 5) == false
     @test is_halo_quad(s_h, 2, 4) == true
     @test is_halo_quad(s_h, 3, 4) == false
 end
 
-@testset "Base.show" begin
+@testset "Show" begin
     s = UniformCubicalComplex2D(6, 6, 10.0, 10.0)
     s_h = UniformCubicalComplex2D(6, 6, 10.0, 10.0; halo_x = 1, halo_y = 1)
     @test isnothing(show(IOBuffer(), s))
     @test isnothing(show(IOBuffer(), s_h))
+end
+
 end

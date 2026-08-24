@@ -8,9 +8,6 @@ Makie.inline!(true)
 
 s = UniformCubicalComplex2D(6, 6, 10.0, 10.0)
 
-# Test Graphs
-###############
-
 fig, ax, ob = wireframe(s)
 @test fig isa Figure
 p = wireframe!(s)

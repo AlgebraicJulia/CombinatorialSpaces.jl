@@ -4,321 +4,326 @@ using Adapt
 # Exterior derivatives
 
 @kernel function kernel_exterior_derivative_zero!(res, s, @Const(f))
-    idx = @index(Global)
-    x, y, align = edge_to_coord(s, idx)
+  idx = @index(Global)
+  x, y, align = edge_to_coord(s, idx)
 
-    @inbounds res[idx] = f[tgt(s, x, y, align)] - f[src(s, x, y, align)]
+  @inbounds res[idx] = f[tgt(s, x, y, align)] - f[src(s, x, y, align)]
 end
 
 # matrix orientation (+1, +1, -1, -1) = bottom + right - top - left.
 @kernel function kernel_exterior_derivative_one!(res, s, @Const(f))
-    idx = @index(Global)
-    x, y = quad_to_coord(s, idx)
+  idx = @index(Global)
+  x, y = quad_to_coord(s, idx)
 
-    e1, e2, e3, e4 = quad_edges(s, x, y)
-    @inbounds res[idx] = f[e1] + f[e2] - f[e3] - f[e4]
+  e1, e2, e3, e4 = quad_edges(s, x, y)
+  @inbounds res[idx] = f[e1] + f[e2] - f[e3] - f[e4]
 end
 
 function exterior_derivative!(res, ::Val{0}, s::UniformCubicalComplex2D, f)
-    backend = get_backend(res)
-    kernel_exterior_derivative_zero!(backend)(res, s, f; ndrange = size(res))
-    return res
+  backend = get_backend(res)
+  kernel_exterior_derivative_zero!(backend)(res, s, f; ndrange = size(res))
+  return res
 end
 
 function exterior_derivative(::Val{0}, s::UniformCubicalComplex2D, f::AbstractVector{FT}) where FT <: AbstractFloat
-    res = KernelAbstractions.zeros(get_backend(f), FT, ne(s))
-    return exterior_derivative!(res, Val(0), s, f)
+  res = KernelAbstractions.zeros(get_backend(f), FT, ne(s))
+  return exterior_derivative!(res, Val(0), s, f)
 end
 
 function exterior_derivative!(res, ::Val{1}, s::UniformCubicalComplex2D, f)
-    backend = get_backend(res)
-    kernel_exterior_derivative_one!(backend)(res, s, f; ndrange = size(res))
-    return res
+  backend = get_backend(res)
+  kernel_exterior_derivative_one!(backend)(res, s, f; ndrange = size(res))
+  return res
 end
 
 function exterior_derivative(::Val{1}, s::UniformCubicalComplex2D, f::AbstractVector{FT}) where FT <: AbstractFloat
-    res = KernelAbstractions.zeros(get_backend(f), FT, nquads(s))
-    return exterior_derivative!(res, Val(1), s, f)
+  res = KernelAbstractions.zeros(get_backend(f), FT, nquads(s))
+  return exterior_derivative!(res, Val(1), s, f)
 end
 
 # Wedge Products
 
 @kernel function kernel_wedge_product_01(res, s, @Const(f), @Const(a))
-    idx = @index(Global)
-    x, y, align = edge_to_coord(s, idx)
+  idx = @index(Global)
+  x, y, align = edge_to_coord(s, idx)
 
-    v1 = f[src(s, x, y, align)]
-    v2 = f[tgt(s, x, y, align)]
+  FT = eltype(a)
+  v1 = f[src(s, x, y, align)]
+  v2 = f[tgt(s, x, y, align)]
 
-    @inbounds res[idx] = (v1 + v2) * a[idx] / 2
+  @inbounds res[idx] = (v1 + v2) * a[idx] * FT(0.5)
 end
 
 @kernel function kernel_wedge_product_11(res, s, @Const(a), @Const(b))
-    idx = @index(Global)
-    x, y = quad_to_coord(s, idx)
+  idx = @index(Global)
+  x, y = quad_to_coord(s, idx)
 
-    es = quad_edges(s, x, y)
+  es = quad_edges(s, x, y)
 
-    @inbounds res[idx] = 0.25 * (a[es[1]] + a[es[3]]) * (b[es[2]] + b[es[4]]) -
-        0.25 * (a[es[2]] + a[es[4]]) * (b[es[1]] + b[es[3]])
+  FT = eltype(a)
+  @inbounds res[idx] = FT(0.25) * (a[es[1]] + a[es[3]]) * (b[es[2]] + b[es[4]]) -
+    FT(0.25) * (a[es[2]] + a[es[4]]) * (b[es[1]] + b[es[3]])
 end
 
 @kernel function kernel_wedge_product_dual_01(res, s, @Const(f), @Const(a))
-    idx = @index(Global)
-    x, y, align = edge_to_coord(s, idx)
+  idx = @index(Global)
+  x, y, align = edge_to_coord(s, idx)
 
-    dv1, dv2 = edge_quads(s, x, y, align)
+  dv1, dv2 = edge_quads(s, x, y, align)
 
-    ae = a[idx]
+  FT = eltype(a)
+  ae = a[idx]
 
-    if is_left_edge(s, x, y, align)
-        tmp = f[dv2] * ae
-    elseif is_right_edge(s, x, y, align)
-        tmp = f[dv1] * ae
-    elseif is_top_edge(s, x, y, align)
-        tmp = f[dv1] * ae
-    elseif is_bottom_edge(s, x, y, align)
-        tmp = f[dv2] * ae
-    else
-        tmp = 0.5 * (f[dv1] + f[dv2]) * ae
-    end
+  if is_left_edge(s, x, y, align)
+    tmp = f[dv2] * ae
+  elseif is_right_edge(s, x, y, align)
+    tmp = f[dv1] * ae
+  elseif is_top_edge(s, x, y, align)
+    tmp = f[dv1] * ae
+  elseif is_bottom_edge(s, x, y, align)
+    tmp = f[dv2] * ae
+  else
+    tmp = FT(0.5) * (f[dv1] + f[dv2]) * ae
+  end
 
-    @inbounds res[idx] = tmp
+  @inbounds res[idx] = tmp
 end
 
 @kernel function kernel_wedge_product_dd_11(res, s, @Const(a), @Const(b),)
-    v = @index(Global)
-    x, y = vert_to_coord(s, v)
+  v = @index(Global)
+  x, y = vert_to_coord(s, v)
 
-    FT = eltype(a)
-    z = zero(FT)
+  FT = eltype(a)
+  z = zero(FT)
 
-    has_xs = x < nx(s)
-    has_ys = y < ny(s)
-    has_xt = x > 1
-    has_yt = y > 1
+  has_xs = x < nx(s)
+  has_ys = y < ny(s)
+  has_xt = x > 1
+  has_yt = y > 1
 
-    axs = has_xs ? a[coord_to_edge(s, x,     y,     X_ALIGN)] : z
-    ays = has_ys ? a[coord_to_edge(s, x,     y,     Y_ALIGN)] : z
-    axt = has_xt ? a[coord_to_edge(s, x - 1, y,     X_ALIGN)] : z
-    ayt = has_yt ? a[coord_to_edge(s, x,     y - 1, Y_ALIGN)] : z
+  axs = has_xs ? a[coord_to_edge(s, x,     y,     X_ALIGN)] : z
+  ays = has_ys ? a[coord_to_edge(s, x,     y,     Y_ALIGN)] : z
+  axt = has_xt ? a[coord_to_edge(s, x - 1, y,     X_ALIGN)] : z
+  ayt = has_yt ? a[coord_to_edge(s, x,     y - 1, Y_ALIGN)] : z
 
-    bxs = has_xs ? b[coord_to_edge(s, x,     y,     X_ALIGN)] : z
-    bys = has_ys ? b[coord_to_edge(s, x,     y,     Y_ALIGN)] : z
-    bxt = has_xt ? b[coord_to_edge(s, x - 1, y,     X_ALIGN)] : z
-    byt = has_yt ? b[coord_to_edge(s, x,     y - 1, Y_ALIGN)] : z
+  bxs = has_xs ? b[coord_to_edge(s, x,     y,     X_ALIGN)] : z
+  bys = has_ys ? b[coord_to_edge(s, x,     y,     Y_ALIGN)] : z
+  bxt = has_xt ? b[coord_to_edge(s, x - 1, y,     X_ALIGN)] : z
+  byt = has_yt ? b[coord_to_edge(s, x,     y - 1, Y_ALIGN)] : z
 
-    nx_valid = Int(has_xs) + Int(has_xt)
-    ny_valid = Int(has_ys) + Int(has_yt)
-    scale = inv(FT(nx_valid * ny_valid))
+  nx_valid = Int(has_xs) + Int(has_xt)
+  ny_valid = Int(has_ys) + Int(has_yt)
+  scale = inv(FT(nx_valid * ny_valid))
 
-    @inbounds res[v] = scale * (
-        (axs + axt) * (bys + byt) -
-        (ays + ayt) * (bxs + bxt)
-    )
+  @inbounds res[v] = scale * (
+    (axs + axt) * (bys + byt) -
+    (ays + ayt) * (bxs + bxt)
+  )
 end
 
 # Implements Equation 70 of Kraus & Maj (2017).
 @kernel function kernel_wedge_product_pd_11(res, s, @Const(a), @Const(b))
-    idx = @index(Global)
-    x, y = quad_to_coord(s, idx)
-    e1, e2, e3, e4 = quad_edges(s, x, y)
+  idx = @index(Global)
+  x, y = quad_to_coord(s, idx)
+  e1, e2, e3, e4 = quad_edges(s, x, y)
 
-    FT = eltype(a)
-    x1, y1, al1 = edge_to_coord(s, e1)
-    x2, y2, al2 = edge_to_coord(s, e2)
-    x3, y3, al3 = edge_to_coord(s, e3)
-    x4, y4, al4 = edge_to_coord(s, e4)
+  FT = eltype(a)
+  x1, y1, al1 = edge_to_coord(s, e1)
+  x2, y2, al2 = edge_to_coord(s, e2)
+  x3, y3, al3 = edge_to_coord(s, e3)
+  x4, y4, al4 = edge_to_coord(s, e4)
 
-    w1 = is_boundary_edge(s, x1, y1, al1) ? FT(0.5) : one(FT)
-    w2 = is_boundary_edge(s, x2, y2, al2) ? FT(0.5) : one(FT)
-    w3 = is_boundary_edge(s, x3, y3, al3) ? FT(0.5) : one(FT)
-    w4 = is_boundary_edge(s, x4, y4, al4) ? FT(0.5) : one(FT)
+  w1 = is_boundary_edge(s, x1, y1, al1) ? FT(0.5) : one(FT)
+  w2 = is_boundary_edge(s, x2, y2, al2) ? FT(0.5) : one(FT)
+  w3 = is_boundary_edge(s, x3, y3, al3) ? FT(0.5) : one(FT)
+  w4 = is_boundary_edge(s, x4, y4, al4) ? FT(0.5) : one(FT)
 
-    @inbounds res[idx] = FT(0.5) * (w1 * a[e1] * b[e1] +
-                                    w3 * a[e3] * b[e3] -
-                                    w2 * a[e2] * b[e2] -
-                                    w4 * a[e4] * b[e4])
+  @inbounds res[idx] = FT(0.5) * (w1 * a[e1] * b[e1] +
+                  w3 * a[e3] * b[e3] -
+                  w2 * a[e2] * b[e2] -
+                  w4 * a[e4] * b[e4])
 end
 
 function wedge_product!(res, ::Val{0}, ::Val{1}, s::UniformCubicalComplex2D, f, a)
-    backend = get_backend(res)
-    kernel_wedge_product_01(backend)(res, s, f, a; ndrange = size(res))
-    return res
+  backend = get_backend(res)
+  kernel_wedge_product_01(backend)(res, s, f, a; ndrange = size(res))
+  return res
 end
 
 function wedge_product(::Val{0}, ::Val{1}, s::UniformCubicalComplex2D, f::AbstractVector{FT}, a::AbstractVector{FT}) where FT <: AbstractFloat
-    res = KernelAbstractions.zeros(get_backend(f), FT, ne(s))
-    return wedge_product!(res, Val(0), Val(1), s, f, a)
+  res = KernelAbstractions.zeros(get_backend(f), FT, ne(s))
+  return wedge_product!(res, Val(0), Val(1), s, f, a)
 end
 
 wedge_product!(res, ::Val{1}, ::Val{0}, s::UniformCubicalComplex2D, a, f) =
-    wedge_product!(res, Val(0), Val(1), s, f, a)
+  wedge_product!(res, Val(0), Val(1), s, f, a)
 
 wedge_product(::Val{1}, ::Val{0}, s::UniformCubicalComplex2D, a::AbstractVector{FT}, f::AbstractVector{FT}) where FT <: AbstractFloat =
-    wedge_product(Val(0), Val(1), s, f, a)
+  wedge_product(Val(0), Val(1), s, f, a)
 
 function wedge_product!(res, ::Val{1}, ::Val{1}, s::UniformCubicalComplex2D, a, b)
-    backend = get_backend(res)
-    kernel_wedge_product_11(backend)(res, s, a, b; ndrange = size(res))
-    return res
+  backend = get_backend(res)
+  kernel_wedge_product_11(backend)(res, s, a, b; ndrange = size(res))
+  return res
 end
 
 function wedge_product(::Val{1}, ::Val{1}, s::UniformCubicalComplex2D, a::AbstractVector{FT}, b::AbstractVector{FT}) where FT <: AbstractFloat
-    res = KernelAbstractions.zeros(get_backend(a), FT, nquads(s))
-    return wedge_product!(res, Val(1), Val(1), s, a, b)
+  res = KernelAbstractions.zeros(get_backend(a), FT, nquads(s))
+  return wedge_product!(res, Val(1), Val(1), s, a, b)
 end
 
 function wedge_product_dd!(res, ::Val{0}, ::Val{1}, s::UniformCubicalComplex2D, f, a)
-    backend = get_backend(res)
-    kernel_wedge_product_dual_01(backend)(res, s, f, a; ndrange = size(res))
-    return res
+  backend = get_backend(res)
+  kernel_wedge_product_dual_01(backend)(res, s, f, a; ndrange = size(res))
+  return res
 end
 
 function wedge_product_dd(::Val{0}, ::Val{1}, s::UniformCubicalComplex2D, f::AbstractVector{FT}, a::AbstractVector{FT}) where FT <: AbstractFloat
-    res = KernelAbstractions.zeros(get_backend(f), FT, ne(s))
-    return wedge_product_dd!(res, Val(0), Val(1), s, f, a)
+  res = KernelAbstractions.zeros(get_backend(f), FT, ne(s))
+  return wedge_product_dd!(res, Val(0), Val(1), s, f, a)
 end
 
 wedge_product_dd!(res, ::Val{1}, ::Val{0}, s::UniformCubicalComplex2D, a, f) =
-    wedge_product_dd!(res, Val(0), Val(1), s, f, a)
+  wedge_product_dd!(res, Val(0), Val(1), s, f, a)
 
 wedge_product_dd(::Val{1}, ::Val{0}, s::UniformCubicalComplex2D, a::AbstractVector{FT}, f::AbstractVector{FT}) where FT <: AbstractFloat =
-    wedge_product_dd(Val(0), Val(1), s, f, a)
+  wedge_product_dd(Val(0), Val(1), s, f, a)
 
 function wedge_product_dd!(res, ::Val{1}, ::Val{1}, s::UniformCubicalComplex2D, a, b)
-    backend = get_backend(res)
-    kernel_wedge_product_dd_11(backend)(res, s, a, b; ndrange = size(res))
-    return res
+  backend = get_backend(res)
+  kernel_wedge_product_dd_11(backend)(res, s, a, b; ndrange = size(res))
+  return res
 end
 
 function wedge_product_dd(::Val{1}, ::Val{1}, s::UniformCubicalComplex2D, a::AbstractVector{FT}, b::AbstractVector{FT}) where FT <: AbstractFloat
-    res = KernelAbstractions.zeros(get_backend(a), FT, nv(s))
-    return wedge_product_dd!(res, Val(1), Val(1), s, a, b)
+  res = KernelAbstractions.zeros(get_backend(a), FT, nv(s))
+  return wedge_product_dd!(res, Val(1), Val(1), s, a, b)
 end
 
 function wedge_product_pd!(res, ::Val{1}, ::Val{1}, s::UniformCubicalComplex2D, a, b)
-    backend = get_backend(res)
-    kernel_wedge_product_pd_11(backend)(res, s, a, b; ndrange = size(res))
-    return res
+  backend = get_backend(res)
+  kernel_wedge_product_pd_11(backend)(res, s, a, b; ndrange = size(res))
+  return res
 end
 
 function wedge_product_pd(::Val{1}, ::Val{1}, s::UniformCubicalComplex2D, a::AbstractVector{FT}, b::AbstractVector{FT}) where FT <: AbstractFloat
-    res = KernelAbstractions.zeros(get_backend(a), FT, nquads(s))
-    return wedge_product_pd!(res, Val(1), Val(1), s, a, b)
+  res = KernelAbstractions.zeros(get_backend(a), FT, nquads(s))
+  return wedge_product_pd!(res, Val(1), Val(1), s, a, b)
 end
 
 # Convert a dual 1-form to a vector field on the dual points
 @kernel function kernel_sharp_dd(X, Y, s, @Const(a))
-    idx = @index(Global)
-    x, y = quad_to_coord(s, idx)
-    e1, e2, e3, e4 = quad_edges(s, x, y) # Order is (x-, y-, x+, y+)
+  idx = @index(Global)
+  x, y = quad_to_coord(s, idx)
+  e1, e2, e3, e4 = quad_edges(s, x, y) # Order is (x-, y-, x+, y+)
 
-    le1 = dual_edge_len(s, e1)
-    le2 = dual_edge_len(s, e2)
-    le3 = dual_edge_len(s, e3)
-    le4 = dual_edge_len(s, e4)
+  le1 = dual_edge_len(s, e1)
+  le2 = dual_edge_len(s, e2)
+  le3 = dual_edge_len(s, e3)
+  le4 = dual_edge_len(s, e4)
 
-    # Remember that for an X-aligned primal edge, we have a Y-aligned dual edge
-    X[idx] = -(a[e2]/le2 + a[e4]/le4) / 2
-    Y[idx] = (a[e1]/le1 + a[e3]/le3) / 2
+  FT = eltype(a)
+  # Remember that for an X-aligned primal edge, we have a Y-aligned dual edge
+  X[idx] = -(a[e2]/le2 + a[e4]/le4) * FT(0.5)
+  Y[idx] = (a[e1]/le1 + a[e3]/le3) * FT(0.5)
 end
 
 function sharp_dd!(X, Y, s::UniformCubicalComplex2D, a)
-    backend = get_backend(X)
-    kernel_sharp_dd(backend)(X, Y, s, a; ndrange = size(X))
-    return X, Y
+  backend = get_backend(X)
+  kernel_sharp_dd(backend)(X, Y, s, a; ndrange = size(X))
+  return X, Y
 end
 
 function sharp_dd(s::UniformCubicalComplex2D, a::AbstractVector{FT}) where FT <: AbstractFloat
-    backend = get_backend(a)
-    X = KernelAbstractions.zeros(backend, FT, nquads(s))
-    Y = KernelAbstractions.zeros(backend, FT, nquads(s))
-    return sharp_dd!(X, Y, s, a)
+  backend = get_backend(a)
+  X = KernelAbstractions.zeros(backend, FT, nquads(s))
+  Y = KernelAbstractions.zeros(backend, FT, nquads(s))
+  return sharp_dd!(X, Y, s, a)
 end
 
 # Convert dual vector field to primal 1-form
 @kernel function kernel_flat_dp(res, s, @Const(X), @Const(Y))
-    idx = @index(Global)
-    x, y, align = edge_to_coord(s, idx)
-    if align == X_ALIGN
-        if y == 1
-        res[idx] = X[coord_to_quad(s,x,y)] * edge_len(s, X_ALIGN)
-        elseif y == ny(s)
-        res[idx] = X[coord_to_quad(s,x,y-1)] * edge_len(s, X_ALIGN)
-        else
-        res[idx] = 0.5 * (X[coord_to_quad(s,x,y)] + X[coord_to_quad(s,x,y-1)]) * edge_len(s, X_ALIGN)
-        end
+  idx = @index(Global)
+  x, y, align = edge_to_coord(s, idx)
+  FT = eltype(X)
+  if align == X_ALIGN
+    if y == 1
+    res[idx] = X[coord_to_quad(s,x,y)] * edge_len(s, X_ALIGN)
+    elseif y == ny(s)
+    res[idx] = X[coord_to_quad(s,x,y-1)] * edge_len(s, X_ALIGN)
     else
-        if x == 1
-        res[idx] = Y[coord_to_quad(s,x,y)] * edge_len(s, Y_ALIGN)
-        elseif x == nx(s)
-        res[idx] = Y[coord_to_quad(s,x-1,y)] * edge_len(s, Y_ALIGN)
-        else
-        res[idx] = 0.5 * (Y[coord_to_quad(s,x,y)] + Y[coord_to_quad(s,x-1,y)]) * edge_len(s, Y_ALIGN)
-        end
+    res[idx] = FT(0.5) * (X[coord_to_quad(s,x,y)] + X[coord_to_quad(s,x,y-1)]) * edge_len(s, X_ALIGN)
     end
+  else
+    if x == 1
+    res[idx] = Y[coord_to_quad(s,x,y)] * edge_len(s, Y_ALIGN)
+    elseif x == nx(s)
+    res[idx] = Y[coord_to_quad(s,x-1,y)] * edge_len(s, Y_ALIGN)
+    else
+    res[idx] = FT(0.5) * (Y[coord_to_quad(s,x,y)] + Y[coord_to_quad(s,x-1,y)]) * edge_len(s, Y_ALIGN)
+    end
+  end
 end
 
 function flat_dp!(res, s::UniformCubicalComplex2D, X, Y)
-    backend = get_backend(res)
-    kernel_flat_dp(backend)(res, s, X, Y; ndrange = size(res))
-    return res
+  backend = get_backend(res)
+  kernel_flat_dp(backend)(res, s, X, Y; ndrange = size(res))
+  return res
 end
 
 function flat_dp(s::UniformCubicalComplex2D, X::AbstractVector{FT}, Y::AbstractVector{FT}) where FT <: AbstractFloat
-    res = KernelAbstractions.zeros(get_backend(X), FT, ne(s))
-    return flat_dp!(res, s, X, Y)
+  res = KernelAbstractions.zeros(get_backend(X), FT, ne(s))
+  return flat_dp!(res, s, X, Y)
 end
 
 # Convert dual vector field to dual 1-form
 @kernel function kernel_flat_dd(res, s, @Const(X), @Const(Y))
-    idx = @index(Global)
-    x, y, align = edge_to_coord(s, idx)
+  idx = @index(Global)
+  x, y, align = edge_to_coord(s, idx)
+  FT = eltype(X)
 
-    if align == X_ALIGN
-        if y == 1
-        res[idx] = Y[coord_to_quad(s, x, y)] * dual_edge_len(s, idx)
-        elseif y == ny(s)
-        res[idx] = Y[coord_to_quad(s, x, y - 1)] * dual_edge_len(s, idx)
-        else
-        res[idx] = 0.5 * (Y[coord_to_quad(s, x, y)] + Y[coord_to_quad(s, x, y - 1)]) * dual_edge_len(s, idx)
-        end
+  if align == X_ALIGN
+    if y == 1
+    res[idx] = Y[coord_to_quad(s, x, y)] * dual_edge_len(s, idx)
+    elseif y == ny(s)
+    res[idx] = Y[coord_to_quad(s, x, y - 1)] * dual_edge_len(s, idx)
     else
-        if x == 1
-        res[idx] = -X[coord_to_quad(s, x, y)] * dual_edge_len(s, idx)
-        elseif x == nx(s)
-        res[idx] = -X[coord_to_quad(s, x - 1, y)] * dual_edge_len(s, idx)
-        else
-        res[idx] = -0.5 * (X[coord_to_quad(s, x, y)] + X[coord_to_quad(s, x - 1, y)]) * dual_edge_len(s, idx)
-        end
+    res[idx] = FT(0.5) * (Y[coord_to_quad(s, x, y)] + Y[coord_to_quad(s, x, y - 1)]) * dual_edge_len(s, idx)
     end
+  else
+    if x == 1
+    res[idx] = -X[coord_to_quad(s, x, y)] * dual_edge_len(s, idx)
+    elseif x == nx(s)
+    res[idx] = -X[coord_to_quad(s, x - 1, y)] * dual_edge_len(s, idx)
+    else
+    res[idx] = -FT(0.5) * (X[coord_to_quad(s, x, y)] + X[coord_to_quad(s, x - 1, y)]) * dual_edge_len(s, idx)
+    end
+  end
 end
 
 function flat_dd!(res, s::UniformCubicalComplex2D, X, Y)
-    backend = get_backend(res)
-    kernel_flat_dd(backend)(res, s, X, Y; ndrange = size(res))
-    return res
+  backend = get_backend(res)
+  kernel_flat_dd(backend)(res, s, X, Y; ndrange = size(res))
+  return res
 end
 
 function flat_dd(s::UniformCubicalComplex2D, X::AbstractVector{FT}, Y::AbstractVector{FT}) where FT <: AbstractFloat
-    res = KernelAbstractions.zeros(get_backend(X), FT, ne(s))
-    return flat_dd!(res, s, X, Y)
+  res = KernelAbstractions.zeros(get_backend(X), FT, ne(s))
+  return flat_dd!(res, s, X, Y)
 end
 
 function interpolate_dp!(res, ::Val{1}, s::UniformCubicalComplex2D, a)
-    backend = get_backend(res)
-    X = KernelAbstractions.zeros(backend, eltype(res), nquads(s))
-    Y = KernelAbstractions.zeros(backend, eltype(res), nquads(s))
-    sharp_dd!(X, Y, s, a)
-    KernelAbstractions.synchronize(backend)
-    flat_dp!(res, s, X, Y)
-    return res
+  backend = get_backend(res)
+  X = KernelAbstractions.zeros(backend, eltype(res), nquads(s))
+  Y = KernelAbstractions.zeros(backend, eltype(res), nquads(s))
+  sharp_dd!(X, Y, s, a)
+  flat_dp!(res, s, X, Y)
+  return res
 end
 
 function interpolate_dp(::Val{1}, s::UniformCubicalComplex2D, a::AbstractVector{FT}) where FT <: AbstractFloat
-    res = KernelAbstractions.zeros(get_backend(a), FT, ne(s))
-    return interpolate_dp!(res, Val(1), s, a)
+  res = KernelAbstractions.zeros(get_backend(a), FT, ne(s))
+  return interpolate_dp!(res, Val(1), s, a)
 end
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -336,7 +341,7 @@ end
 # Memory note: Int32 indices halve the bandwidth cost of the look-up arrays
 # on both CPU and GPU relative to the default Int64.
 
-struct UniformDECCache{ST <: AbstractFloat, IT <: AbstractVector{Int32}, FT <: AbstractVector{ST}, MT <: AbstractVector{Int8}}
+struct UniformDECCache{ST <: AbstractFloat, IT <: AbstractVector{Int32}, VT <: AbstractVector{ST}, MT <: AbstractVector{Int8}}
   # ── Mesh dimensions (for allocation inside interface functions) ──────────
   nv_      :: Int
   ne_      :: Int
@@ -356,10 +361,10 @@ struct UniformDECCache{ST <: AbstractFloat, IT <: AbstractVector{Int32}, FT <: A
   q_e4 :: IT
 
   # ── sharp_dd: 1/dual_edge_len for each quad's 4 edges (length nquads) ───
-  inv_de1 :: FT
-  inv_de2 :: FT
-  inv_de3 :: FT
-  inv_de4 :: FT
+  inv_de1 :: VT
+  inv_de2 :: VT
+  inv_de3 :: VT
+  inv_de4 :: VT
 
   # ── wedge_dd_01: two adjacent quads per edge (length ne) ────────────────
   # Boundary edges have e_q1[e] == e_q2[e] (the single valid adjacent quad
@@ -388,11 +393,11 @@ struct UniformDECCache{ST <: AbstractFloat, IT <: AbstractVector{Int32}, FT <: A
   # = half, q1 == q2, so the doubled sum is compensated by the halved scale).
   fd_xq1    :: IT   # length nxedges
   fd_xq2    :: IT
-  fd_xscale :: FT
+  fd_xscale :: VT
   # Y-aligned edges → use X component with negative sign (baked into scale).
   fd_yq1    :: IT   # length nyedges
   fd_yq2    :: IT
-  fd_yscale :: FT   # negative values
+  fd_yscale :: VT   # negative values
 
   # ── hodge_star / inv_hodge_star: per-element scale vectors ──────────────
   # hs0_scale[v]  = dual_quad_area(v)          (interior: dx*dy, boundary: half/quarter)
@@ -401,12 +406,12 @@ struct UniformDECCache{ST <: AbstractFloat, IT <: AbstractVector{Int32}, FT <: A
   # ihs0_scale[v] = 1/dual_quad_area(v)
   # ihs1_scale[e] = -edge_len(e)/dual_edge_len(e)  (negative: matches matrix convention)
   # ihs2_val      = dx*dy                      (uniform scalar)
-  hs0_scale  :: FT   # length nv
-  hs1_scale  :: FT   # length ne
+  hs0_scale  :: VT   # length nv
+  hs1_scale  :: VT   # length ne
   hs2_val    :: ST
-  ihs0_scale :: FT   # length nv
-  ihs1_scale     :: FT   # length ne  — values are negative
-  ihs1_hs2_scale :: FT   # length ne  — ihs1_scale[e] * hs2_val (precomputed product)
+  ihs0_scale :: VT   # length nv
+  ihs1_scale     :: VT   # length ne  — values are negative
+  ihs1_hs2_scale :: VT   # length ne  — ihs1_scale[e] * hs2_val (precomputed product)
   ihs2_val       :: ST
 
   # ── dd0 = d1^T: for each edge e, res[e] = f[q_pos] - f[q_neg] ───────────
@@ -434,7 +439,7 @@ struct UniformDECCache{ST <: AbstractFloat, IT <: AbstractVector{Int32}, FT <: A
   # ── wedge_product_pd: boundary-aware per-edge weight ────────────────────
   # Interior edges (dd0_emask == 3): weight = 0.5
   # Boundary edges (dd0_emask != 3): weight = 1.0 (truncated dual edge)
-  wedge_pd_scale :: FT   # length ne
+  wedge_pd_scale :: VT   # length ne
 end
 
 Adapt.@adapt_structure UniformDECCache
@@ -580,18 +585,19 @@ function UniformDECCache(s::UniformCubicalComplex2D{FT}) where {FT <: AbstractFl
   dd0_qp    = Vector{Int32}(undef, ne_)
   dd0_qn    = Vector{Int32}(undef, ne_)
   dd0_emask = Vector{Int8}(undef, ne_)
+  DUMMY_QUAD = Int32(1)
   for e in 1:ne_
     x, y, align = edge_to_coord(s, e)
     if align == X_ALIGN
       has_pos = (y <= ny_ - 1)
       has_neg = (y >= 2)
-      dd0_qp[e] = has_pos ? coord_to_quad(s, x, y)     : Int32(1)
-      dd0_qn[e] = has_neg ? coord_to_quad(s, x, y - 1) : Int32(1)
+      dd0_qp[e] = has_pos ? coord_to_quad(s, x, y)     : DUMMY_QUAD
+      dd0_qn[e] = has_neg ? coord_to_quad(s, x, y - 1) : DUMMY_QUAD
     else  # Y_ALIGN
       has_pos = (x >= 2)
       has_neg = (x <= nx_ - 1)
-      dd0_qp[e] = has_pos ? coord_to_quad(s, x - 1, y) : Int32(1)
-      dd0_qn[e] = has_neg ? coord_to_quad(s, x, y)     : Int32(1)
+      dd0_qp[e] = has_pos ? coord_to_quad(s, x - 1, y) : DUMMY_QUAD
+      dd0_qn[e] = has_neg ? coord_to_quad(s, x, y)     : DUMMY_QUAD
     end
     dd0_emask[e] = Int8(has_pos) | (Int8(has_neg) << 1)
   end
@@ -657,7 +663,7 @@ end
 
 @kernel function kernel_wedge_01_cached!(res, @Const(src_v), @Const(tgt_v), @Const(f), @Const(a))
   e = @index(Global)
-  @inbounds res[e] = (f[src_v[e]] + f[tgt_v[e]]) * a[e] * 0.5
+  @inbounds res[e] = (f[src_v[e]] + f[tgt_v[e]]) * a[e] * eltype(a)(0.5)
 end
 
 @kernel function kernel_wedge_11_cached!(res, @Const(q_e1), @Const(q_e2), @Const(q_e3), @Const(q_e4), @Const(a), @Const(b))
@@ -665,70 +671,71 @@ end
   @inbounds begin
     ae1 = a[q_e1[q]];  ae2 = a[q_e2[q]];  ae3 = a[q_e3[q]];  ae4 = a[q_e4[q]]
     be1 = b[q_e1[q]];  be2 = b[q_e2[q]];  be3 = b[q_e3[q]];  be4 = b[q_e4[q]]
-    res[q] = ((ae1 + ae3) * (be2 + be4) - (ae2 + ae4) * (be1 + be3)) * 0.25
+    res[q] = ((ae1 + ae3) * (be2 + be4) - (ae2 + ae4) * (be1 + be3)) * eltype(a)(0.25)
   end
 end
 
 @kernel function kernel_wedge_dd_01_cached!(res, @Const(e_q1), @Const(e_q2), @Const(f), @Const(a))
   e = @index(Global)
-  @inbounds res[e] = (f[e_q1[e]] + f[e_q2[e]]) * a[e] * 0.5
+  @inbounds res[e] = (f[e_q1[e]] + f[e_q2[e]]) * a[e] * eltype(a)(0.5)
 end
 
 @kernel function kernel_wedge_dd_11_cached!( res, @Const(dd1_vxs), @Const(dd1_vys), @Const(dd1_vxt), @Const(dd1_vyt), @Const(dd1_vmask), @Const(a), @Const(b))
-    v = @index(Global)
+  v = @index(Global)
 
-    @inbounds begin
-        mask = dd1_vmask[v]
-        z = zero(eltype(a))
+  @inbounds begin
+    mask = dd1_vmask[v]
+    z = zero(eltype(a))
 
-        has_xs = mask & Int8(1)
-        has_ys = (mask >> Int8(1)) & Int8(1)
-        has_xt = (mask >> Int8(2)) & Int8(1)
-        has_yt = (mask >> Int8(3)) & Int8(1)
+    has_xs = mask & Int8(1)
+    has_ys = (mask >> Int8(1)) & Int8(1)
+    has_xt = (mask >> Int8(2)) & Int8(1)
+    has_yt = (mask >> Int8(3)) & Int8(1)
 
-        axs = ifelse(Bool(has_xs), a[dd1_vxs[v]], z)
-        ays = ifelse(Bool(has_ys), a[dd1_vys[v]], z)
-        axt = ifelse(Bool(has_xt), a[dd1_vxt[v]], z)
-        ayt = ifelse(Bool(has_yt), a[dd1_vyt[v]], z)
+    axs = ifelse(Bool(has_xs), a[dd1_vxs[v]], z)
+    ays = ifelse(Bool(has_ys), a[dd1_vys[v]], z)
+    axt = ifelse(Bool(has_xt), a[dd1_vxt[v]], z)
+    ayt = ifelse(Bool(has_yt), a[dd1_vyt[v]], z)
 
-        bxs = ifelse(Bool(has_xs), b[dd1_vxs[v]], z)
-        bys = ifelse(Bool(has_ys), b[dd1_vys[v]], z)
-        bxt = ifelse(Bool(has_xt), b[dd1_vxt[v]], z)
-        byt = ifelse(Bool(has_yt), b[dd1_vyt[v]], z)
+    bxs = ifelse(Bool(has_xs), b[dd1_vxs[v]], z)
+    bys = ifelse(Bool(has_ys), b[dd1_vys[v]], z)
+    bxt = ifelse(Bool(has_xt), b[dd1_vxt[v]], z)
+    byt = ifelse(Bool(has_yt), b[dd1_vyt[v]], z)
 
-        nx = has_xs + has_xt
-        ny = has_ys + has_yt
-        scale = inv(eltype(a)(nx * ny))
+    nx_valid = has_xs + has_xt
+    ny_valid = has_ys + has_yt
+    scale = inv(eltype(a)(nx_valid * ny_valid))
 
-        res[v] = scale * (
-            (axs + axt) * (bys + byt) -
-            (ays + ayt) * (bxs + bxt)
-        )
-    end
+    res[v] = scale * (
+      (axs + axt) * (bys + byt) -
+      (ays + ayt) * (bxs + bxt)
+    )
+  end
 end
 
 @kernel function kernel_sharp_dd_cached!(X, Y, @Const(q_e1), @Const(q_e2), @Const(q_e3), @Const(q_e4),
                                          @Const(inv_de1), @Const(inv_de2), @Const(inv_de3), @Const(inv_de4), @Const(a))
   q = @index(Global)
   @inbounds begin
-    X[q] = -(a[q_e2[q]] * inv_de2[q] + a[q_e4[q]] * inv_de4[q]) * 0.5
-    Y[q] =  (a[q_e1[q]] * inv_de1[q] + a[q_e3[q]] * inv_de3[q]) * 0.5
+    FT = eltype(a)
+    X[q] = -(a[q_e2[q]] * inv_de2[q] + a[q_e4[q]] * inv_de4[q]) * FT(0.5)
+    Y[q] =  (a[q_e1[q]] * inv_de1[q] + a[q_e3[q]] * inv_de3[q]) * FT(0.5)
   end
 end
 
 @kernel function kernel_wedge_pd_11_cached!(res,
-        @Const(q_e1), @Const(q_e2), @Const(q_e3), @Const(q_e4),
-        @Const(wedge_pd_scale),
-        @Const(a), @Const(b))
-    q = @index(Global)
-    @inbounds begin
-        e1 = q_e1[q]; e2 = q_e2[q]; e3 = q_e3[q]; e4 = q_e4[q]
-        FT = eltype(a)
-        res[q] = FT(0.5) * (wedge_pd_scale[e1] * a[e1] * b[e1] +
-                             wedge_pd_scale[e3] * a[e3] * b[e3] -
-                             wedge_pd_scale[e2] * a[e2] * b[e2] -
-                             wedge_pd_scale[e4] * a[e4] * b[e4])
-    end
+    @Const(q_e1), @Const(q_e2), @Const(q_e3), @Const(q_e4),
+    @Const(wedge_pd_scale),
+    @Const(a), @Const(b))
+  q = @index(Global)
+  @inbounds begin
+    e1 = q_e1[q]; e2 = q_e2[q]; e3 = q_e3[q]; e4 = q_e4[q]
+    FT = eltype(a)
+    res[q] = FT(0.5) * (wedge_pd_scale[e1] * a[e1] * b[e1] +
+              wedge_pd_scale[e3] * a[e3] * b[e3] -
+              wedge_pd_scale[e2] * a[e2] * b[e2] -
+              wedge_pd_scale[e4] * a[e4] * b[e4])
+  end
 end
 
 @kernel function kernel_flat_dp_x_cached!(res, @Const(fp_xq1), @Const(fp_xq2), @Const(X), dx_half)
@@ -856,7 +863,7 @@ end
     xt = ifelse(Bool((mask >> Int8(2)) & Int8(1)), st * V[e_xtgt], z)
     yt = ifelse(Bool((mask >> Int8(3)) & Int8(1)), su * V[e_ytgt], z)
 
-    res[v] = (xs + ys + xt + yt) * 0.5
+    res[v] = (xs + ys + xt + yt) * eltype(V)(0.5)
   end
 end
 
@@ -906,9 +913,7 @@ function wedge_product(::Val{0}, ::Val{1}, cache::UniformDECCache,
                        f::AbstractVector{FT}, a::AbstractVector{FT}) where FT <: AbstractFloat
   backend = get_backend(f)
   res = KernelAbstractions.zeros(backend, FT, cache.ne_)
-  kernel_wedge_01_cached!(backend)(res, cache.src_v, cache.tgt_v, f, a;
-                                   ndrange = cache.ne_)
-  return res
+  return wedge_product!(res, Val(0), Val(1), cache, f, a)
 end
 
 wedge_product(::Val{1}, ::Val{0}, cache::UniformDECCache, a::AbstractVector{FT}, f::AbstractVector{FT}) where FT <: AbstractFloat =
@@ -918,9 +923,7 @@ function wedge_product(::Val{1}, ::Val{1}, cache::UniformDECCache,
                        f1::AbstractVector{FT}, f2::AbstractVector{FT}) where FT <: AbstractFloat
   backend = get_backend(f1)
   res = KernelAbstractions.zeros(backend, FT, cache.nquads_)
-  kernel_wedge_11_cached!(backend)(res, cache.q_e1, cache.q_e2, cache.q_e3, cache.q_e4,
-                                   f1, f2; ndrange = cache.nquads_)
-  return res
+  return wedge_product!(res, Val(1), Val(1), cache, f1, f2)
 end
 
 function wedge_product_dd!(res::AbstractVector{FT}, ::Val{0}, ::Val{1}, cache::UniformDECCache, f::AbstractVector{FT}, a::AbstractVector{FT}) where FT <: AbstractFloat
@@ -934,48 +937,46 @@ function wedge_product_dd(::Val{0}, ::Val{1}, cache::UniformDECCache,
                           f::AbstractVector{FT}, a::AbstractVector{FT}) where FT <: AbstractFloat
   backend = get_backend(f)
   res = KernelAbstractions.zeros(backend, FT, cache.ne_)
-  kernel_wedge_dd_01_cached!(backend)(res, cache.e_q1, cache.e_q2, f, a;
-                                      ndrange = cache.ne_)
-  return res
+  return wedge_product_dd!(res, Val(0), Val(1), cache, f, a)
 end
 
 wedge_product_dd(::Val{1}, ::Val{0}, cache::UniformDECCache, a::AbstractVector{FT}, f::AbstractVector{FT}) where FT <: AbstractFloat =
   wedge_product_dd(Val(0), Val(1), cache, f, a)
 
 function wedge_product_dd!(res::AbstractVector{FT}, ::Val{1}, ::Val{1}, cache::UniformDECCache, a::AbstractVector{FT}, b::AbstractVector{FT}) where {FT <: AbstractFloat}
-    backend = get_backend(res)
-    kernel_wedge_dd_11_cached!(backend)(res,
-        cache.dd1_vxs, cache.dd1_vys,
-        cache.dd1_vxt, cache.dd1_vyt,
-        cache.dd1_vmask,
-        a, b; ndrange = cache.nv_)
-    return res
+  backend = get_backend(res)
+  kernel_wedge_dd_11_cached!(backend)(res,
+    cache.dd1_vxs, cache.dd1_vys,
+    cache.dd1_vxt, cache.dd1_vyt,
+    cache.dd1_vmask,
+    a, b; ndrange = cache.nv_)
+  return res
 end
 
 function wedge_product_dd(::Val{1}, ::Val{1}, cache::UniformDECCache, a::AbstractVector{FT}, b::AbstractVector{FT}) where {FT <: AbstractFloat}
-    backend = get_backend(a)
-    res = KernelAbstractions.zeros(backend, FT, cache.nv_)
-    return wedge_product_dd!(res, Val(1), Val(1), cache, a, b)
+  backend = get_backend(a)
+  res = KernelAbstractions.zeros(backend, FT, cache.nv_)
+  return wedge_product_dd!(res, Val(1), Val(1), cache, a, b)
 end
 
 function wedge_product_pd!(res::AbstractVector{FT}, ::Val{1}, ::Val{1},
-                           cache::UniformDECCache,
-                           a::AbstractVector{FT},
-                           b::AbstractVector{FT}) where {FT <: AbstractFloat}
-    backend = get_backend(res)
-    kernel_wedge_pd_11_cached!(backend)(res,
-        cache.q_e1, cache.q_e2, cache.q_e3, cache.q_e4,
-        cache.wedge_pd_scale,
-        a, b; ndrange = cache.nquads_)
-    return res
+             cache::UniformDECCache,
+             a::AbstractVector{FT},
+             b::AbstractVector{FT}) where {FT <: AbstractFloat}
+  backend = get_backend(res)
+  kernel_wedge_pd_11_cached!(backend)(res,
+    cache.q_e1, cache.q_e2, cache.q_e3, cache.q_e4,
+    cache.wedge_pd_scale,
+    a, b; ndrange = cache.nquads_)
+  return res
 end
 
 function wedge_product_pd(::Val{1}, ::Val{1}, cache::UniformDECCache,
-                          a::AbstractVector{FT},
-                          b::AbstractVector{FT}) where {FT <: AbstractFloat}
-    backend = get_backend(a)
-    res = KernelAbstractions.zeros(backend, FT, cache.nquads_)
-    return wedge_product_pd!(res, Val(1), Val(1), cache, a, b)
+             a::AbstractVector{FT},
+             b::AbstractVector{FT}) where {FT <: AbstractFloat}
+  backend = get_backend(a)
+  res = KernelAbstractions.zeros(backend, FT, cache.nquads_)
+  return wedge_product_pd!(res, Val(1), Val(1), cache, a, b)
 end
 
 function sharp_dd(cache::UniformDECCache, a::AbstractVector{FT}) where FT <: AbstractFloat

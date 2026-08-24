@@ -1,10 +1,12 @@
+module TestUniformKernel
+
 using Test
 using SparseArrays
 using Random
 using CombinatorialSpaces
 using LinearAlgebra
 
-@testset "UniformMatrixDEC" begin
+@testset "Matrix DEC Operators" begin
 
   s = UniformCubicalComplex2D(5, 5, 1.0, 1.0)
 
@@ -76,7 +78,7 @@ using LinearAlgebra
   out = wedge_product(Val(1), Val(1), s, ones(ne(s)), ones(ne(s)))
   @test all(out .== 0.0)
 
-  # Test that wedge of dx and dy is constant 2-form
+  # wedge of dx and dy is a constant 2-form
   V = ones(ne(s))
   V[1:nxedges(s)] .= 0 # No horizontal motion on the vertical edges
 
@@ -90,7 +92,6 @@ using LinearAlgebra
   out = wedge_product(Val(1), Val(1), s, V, W)
   @test all(out .== -1.0)
 
-  # Test that sharp works
   u = ones(ne(s))
   X, Y = sharp_dd(s, u)
 
@@ -100,7 +101,6 @@ using LinearAlgebra
   @test Y[coord_to_quad(s, 2, 2)] == 4.0
   @test Y[coord_to_quad(s, 2, 3)] == 4.0
 
-  # Test that flat works
   X = 4 * ones(nquads(s))
   Y = 4 * ones(nquads(s))
   u = flat_dp(s, X, Y)
@@ -152,7 +152,7 @@ using LinearAlgebra
   @test yedges(s, res)[end] == 4.0
 end
 
-@testset "UniformMatrixDEC with Halo" begin
+@testset "Matrix DEC Operators with Halo" begin
   s = UniformCubicalComplex2D(5, 5, 1.0, 1.0; halo_x = 1, halo_y = 1)
 
   d0 = exterior_derivative(Val(0), s)
@@ -215,7 +215,7 @@ end
   @test all(abs.(L0 * ones(nv(s))) .< 1e-12)
 end
 
-@testset "UniformKernelDEC" begin
+@testset "Kernel DEC Operators" begin
   s = UniformCubicalComplex2D(5, 5, 1.0, 1.0)
 
   dx_form = vcat(ones(nxedges(s)), zeros(nyedges(s)))  # 1 on x-edges, 0 on y-edges
@@ -227,7 +227,7 @@ end
   res_ne = zeros(ne(s))
   res_nq = zeros(nquads(s))
 
-  # ── d0: exterior derivative of 0-forms ───────────────────────────────────
+  # d0
 
   # derivative of constant is exactly zero
   exterior_derivative!(res_ne, Val(0), s, ones(nv(s)))
@@ -238,7 +238,7 @@ end
   exterior_derivative!(res_ne, Val(0), s, f0)
   @test res_ne ≈ d0_mat * f0
 
-  # ── d1: exterior derivative of 1-forms ───────────────────────────────────
+  # d1
 
   # derivative of constant is exactly zero
   exterior_derivative!(res_nq, Val(1), s, ones(ne(s)))
@@ -254,7 +254,7 @@ end
   exterior_derivative!(res_nq, Val(1), s, res_ne)
   @test all(res_nq .== 0)
 
-  # ── wedge_product 1 ∧ 1 ───────────────────────────────────────────────────
+  # wedge_product 1∧1
 
   # self-wedge is exactly zero (same expression subtracted from itself)
   @test all(wedge_product(Val(1), Val(1), s, f1, f1) .== 0)
@@ -268,7 +268,7 @@ end
   @test all(wedge_product(Val(1), Val(1), s, dy_form, dx_form) .== -1.0)
   @test all(wedge_product(Val(1), Val(1), s, ones(ne(s)), ones(ne(s))) .== 0.0)
 
-  # ── wedge_product 0 ∧ 1 ───────────────────────────────────────────────────
+  # wedge_product 0∧1
 
   # constant 0-form c: (c + c)/2 * a = c * a exactly
   @test wedge_product(Val(0), Val(1), s, 3.0 * ones(nv(s)), f1) ≈ 3.0 * f1
@@ -279,7 +279,7 @@ end
   # zero 0-form gives zero result
   @test all(wedge_product(Val(0), Val(1), s, zeros(nv(s)), f1) .== 0)
 
-  # ── wedge_product_dd 0 ∧ 1 (dual) ────────────────────────────────────────
+  # wedge_product_dd 0∧1
 
   u  = ones(Float64, ne(s))
   f2 = ones(Float64, nquads(s))
@@ -298,7 +298,7 @@ end
   @test yedges(s, res_dd)[1]   == 1.0
   @test yedges(s, res_dd)[end] == 4.0
 
-  # ── sharp_dd ─────────────────────────────────────────────────────────────
+  # sharp_dd
 
   # known values from uniform field
   u_ones = ones(ne(s))
@@ -316,7 +316,7 @@ end
   X2, Y2 = sharp_dd(s, 2.0 * u_ones)
   @test X2 ≈ 2.0 * X && Y2 ≈ 2.0 * Y
 
-  # ── flat_dp ──────────────────────────────────────────────────────────────
+  # flat_dp
 
   # uniform dual vector field (4, 4): flat_dp should recover all-ones 1-form
   Xc = 4.0 * ones(nquads(s)); Yc = 4.0 * ones(nquads(s))
@@ -329,7 +329,7 @@ end
   Xr = rand(nquads(s)); Yr = rand(nquads(s))
   @test flat_dp(s, 3.0 * Xr, 3.0 * Yr) ≈ 3.0 * flat_dp(s, Xr, Yr)
 
-  # ── flat_dd ──────────────────────────────────────────────────────────────
+  # flat_dd
 
   # flat_dd of zero is zero
   @test all(flat_dd(s, zeros(nquads(s)), zeros(nquads(s))) .== 0)
@@ -350,7 +350,7 @@ end
   @test u_dd2[coord_to_edge(s, 1, 2, X_ALIGN)] ≈ 0.0    # interior x-edge: uses Y = 0
 end
 
-@testset "UniformDECCache" begin
+@testset "Cached DEC Operators" begin
   s = UniformCubicalComplex2D(5, 5, 1.0, 1.0)
   cache = UniformDECCache(s)
 
@@ -362,7 +362,7 @@ end
   res_ne_k = zeros(ne(s));     res_ne_c = zeros(ne(s))
   res_nq_k = zeros(nquads(s)); res_nq_c = zeros(nquads(s))
 
-  # ── d0 matches uncached kernel ────────────────────────────────────────────
+  # d0
   exterior_derivative!(res_ne_k, Val(0), s,     f0)
   exterior_derivative!(res_ne_c, Val(0), cache, f0)
   @test res_ne_c ≈ res_ne_k
@@ -371,7 +371,7 @@ end
   exterior_derivative!(res_ne_c, Val(0), cache, ones(nv(s)))
   @test all(res_ne_c .== 0)
 
-  # ── d1 matches uncached kernel ────────────────────────────────────────────
+  # d1
   exterior_derivative!(res_nq_k, Val(1), s,     f1)
   exterior_derivative!(res_nq_c, Val(1), cache, f1)
   @test res_nq_c ≈ res_nq_k
@@ -385,14 +385,14 @@ end
   exterior_derivative!(res_nq_c, Val(1), cache, res_ne_c)
   @test all(res_nq_c .== 0)
 
-  # ── wedge 0 ∧ 1 matches uncached ─────────────────────────────────────────
+  # wedge 0∧1
   @test wedge_product(Val(0), Val(1), cache, f0, f1) ≈
         wedge_product(Val(0), Val(1), s,     f0, f1)
 
   # constant 0-form via cache: (c + c)/2 * a = c * a
   @test wedge_product(Val(0), Val(1), cache, 3.0 * ones(nv(s)), f1) ≈ 3.0 * f1
 
-  # ── wedge 1 ∧ 1 matches uncached ─────────────────────────────────────────
+  # wedge 1∧1
   @test wedge_product(Val(1), Val(1), cache, f1, f1b) ≈
         wedge_product(Val(1), Val(1), s,     f1, f1b)
 
@@ -403,26 +403,26 @@ end
   # self-wedge is zero via cache
   @test all(wedge_product(Val(1), Val(1), cache, f1, f1) .== 0)
 
-  # ── wedge_dd 0 ∧ 1 matches uncached ──────────────────────────────────────
+  # wedge_dd 0∧1
   @test wedge_product_dd(Val(0), Val(1), cache, f2, f1) ≈
         wedge_product_dd(Val(0), Val(1), s,     f2, f1)
 
-  # ── sharp_dd matches uncached ─────────────────────────────────────────────
+  # sharp_dd
   X_k, Y_k = sharp_dd(s,     f1)
   X_c, Y_c = sharp_dd(cache, f1)
   @test X_c ≈ X_k && Y_c ≈ Y_k
 
-  # ── flat_dp matches uncached ──────────────────────────────────────────────
+  # flat_dp
   @test flat_dp(cache, X_k, Y_k) ≈ flat_dp(s, X_k, Y_k)
 
   # uniform field round-trip via cache: flat_dp(4, 4) = 1
   Xc = 4.0 * ones(nquads(s)); Yc = 4.0 * ones(nquads(s))
   @test all(flat_dp(cache, Xc, Yc) .== 1.0)
 
-  # ── flat_dd matches uncached ──────────────────────────────────────────────
+  # flat_dd
   @test flat_dd(cache, X_k, Y_k) ≈ flat_dd(s, X_k, Y_k)
 
-  # ── interpolate_dp (fused flat_dp ∘ sharp_dd) ─────────────────────────────
+  # interpolate_dp (fused flat_dp ∘ sharp_dd)
   # Matches the two-step unfused path
   ref_interp = flat_dp(s, sharp_dd(s, f1)...)
   @test interpolate_dp(Val(1), cache, f1) ≈ ref_interp
@@ -447,7 +447,7 @@ end
   ref_interp_rand = interpolate_dp(Val(1), s, f1)
   @test interpolate_dp(Val(1), cache, f1) ≈ ref_interp_rand
 
-  # ── cache on mesh with halo: operators still match uncached ──────────────
+  # mesh with halo
   sh = UniformCubicalComplex2D(5, 5, 1.0, 1.0; halo_x = 1, halo_y = 1)
   ch = UniformDECCache(sh)
 
@@ -473,7 +473,7 @@ end
   @test flat_dp(ch, Xkh, Ykh) ≈ flat_dp(sh, Xkh, Ykh)
   @test flat_dd(ch, Xkh, Ykh) ≈ flat_dd(sh, Xkh, Ykh)
 
-  # ── hodge_star (cached) matches matrix ────────────────────────────────────
+  # hodge_star
   hs0_mat = hodge_star(Val(0), s) * f0
   hs1_mat = hodge_star(Val(1), s) * f1
   hs2_mat = hodge_star(Val(2), s) * f2
@@ -488,7 +488,7 @@ end
   hodge_star!(res_ne_c, Val(1), cache, f1);  @test res_ne_c ≈ hs1_mat
   hodge_star!(res_nq_c, Val(2), cache, f2);  @test res_nq_c ≈ hs2_mat
 
-  # ── inv_hodge_star (cached) matches matrix ────────────────────────────────
+  # inv_hodge_star
   ihs0_mat = inv_hodge_star(Val(0), s) * f0
   ihs1_mat = inv_hodge_star(Val(1), s) * f1
   ihs2_mat = inv_hodge_star(Val(2), s) * f2
@@ -504,7 +504,7 @@ end
 
   # linearity: hodge_star(Val(1), cache, 2f) == 2 * hodge_star(Val(1), cache, f)
   @test hodge_star(Val(1), cache, 2.0 .* f1) ≈ 2.0 .* hodge_star(Val(1), cache, f1)
-  # ── dual_derivative (cached) matches matrix ───────────────────────────────
+  # dual_derivative
   # dd0 = d1^T: nquads → ne
   dd0_mat = dual_derivative(Val(0), s) * f2
   dd1_mat = dual_derivative(Val(1), s) * f1
@@ -531,7 +531,7 @@ end
   @test dual_derivative(Val(0), cache, 3.0 .* f2) ≈ 3.0 .* dual_derivative(Val(0), cache, f2)
   @test dual_derivative(Val(1), cache, 3.0 .* f1) ≈ 3.0 .* dual_derivative(Val(1), cache, f1)
 
-  # ── codifferential (fused cached) matches matrix ──────────────────────────
+  # codifferential
   # codifferential(1): primal 1-form (ne) → primal 0-form (nv)
   cd1_mat  = codifferential(Val(1), s) * f1
   cd2_mat  = codifferential(Val(2), s) * f2
@@ -566,7 +566,7 @@ end
   @test all(dual_codifferential(Val(1), cache, zeros(ne(s))) .== 0)
   @test all(dual_codifferential(Val(2), cache, zeros(nv(s))) .== 0)
 
-  # ── primal Laplacian (fused cached) matches matrix ────────────────────────
+  # laplacian
   L0_mat = laplacian(Val(0), s) * f0
   L1_mat = laplacian(Val(1), s) * f1
   L2_mat = laplacian(Val(2), s) * f2
@@ -602,7 +602,7 @@ end
   # A constant function is in ker(d0).
   @test all(isapprox.(laplacian(Val(0), cache, ones(nv(s))), 0.0; atol = 1e-12))
 
-  # ── dual Laplacian (fused cached) matches matrix ──────────────────────────
+  # dual_laplacian
   DL0_mat = dual_laplacian(Val(0), s) * f2
   DL1_mat = dual_laplacian(Val(1), s) * f1
   DL2_mat = dual_laplacian(Val(2), s) * f0
@@ -634,15 +634,15 @@ end
   @test all(dual_laplacian(Val(2), cache, zeros(nv(s))) .== 0)
 end
 
-@testset "d_beta_mul cached" begin
-  # Build the reference d_beta matrix.
+@testset "Cached d_beta Multiplication" begin
+  # reference d_beta matrix
   s      = UniformCubicalComplex2D(5, 5, 1.0, 1.0)
   cache  = UniformDECCache(s)
   dd0    = dual_derivative(Val(0), s)
   dd1    = dual_derivative(Val(1), s)
   db = d_beta(Val(1), s)   # = 0.5 * abs.(dd1) * diag(dd0 * ones(nquads))
 
-  # ── random input: kernel matches matrix ──────────────────────────────────
+  # random input
   V_rand = rand(ne(s))
   ref    = db * V_rand
   @test d_beta_mul(cache, V_rand) ≈ ref
@@ -652,13 +652,13 @@ end
   d_beta_mul!(res_nv, cache, V_rand)
   @test res_nv ≈ ref
 
-  # ── zero input → zero output ──────────────────────────────────────────────
+  # zero input
   @test all(d_beta_mul(cache, zeros(ne(s))) .== 0)
 
-  # ── linearity: d_beta_mul(3V) == 3 * d_beta_mul(V) ───────────────────────
+  # linearity
   @test d_beta_mul(cache, 3.0 .* V_rand) ≈ 3.0 .* ref
 
-  # ── only boundary edges contribute ──────────────────────────────────────
+  # only boundary edges contribute
   # Setting all interior edges to zero should not change the result.
   V_bdy = copy(V_rand)
   boundary_idxs = findall(!=(0), dd0 * ones(nquads(s)))
@@ -671,7 +671,7 @@ end
   V_int[boundary_idxs] .= 0.0
   @test all(d_beta_mul(cache, V_int) .== 0)
 
-  # ── specific corner/boundary vertex values (from existing UniformDEC test) ─
+  # specific corner/boundary vertex values
   # Vertex 1 is a corner; with a unit edge on the two adjacent boundary edges
   # the original test used dd1*u + d_beta*v.  Here we verify d_beta*v alone.
   V_pt = zeros(ne(s))
@@ -680,7 +680,7 @@ end
   ref_pt = db * V_pt
   @test d_beta_mul(cache, V_pt) ≈ ref_pt
 
-  # ── mesh with halo: kernel still matches matrix ───────────────────────────
+  # mesh with halo
   sh       = UniformCubicalComplex2D(5, 5, 1.0, 1.0; halo_x = 1, halo_y = 1)
   ch       = UniformDECCache(sh)
   d_beta_h = d_beta(Val(1), sh)
@@ -688,7 +688,7 @@ end
   @test d_beta_mul(ch, V_h) ≈ d_beta_h * V_h
 end
 
-@testset "Wedge_product_dd_11" begin
+@testset "Dual-Dual Wedge Product 1-1" begin
     FT = Float64
     s = UniformCubicalComplex2D(7, 6, FT(3), FT(2))
     cache = UniformDECCache(s)
@@ -720,7 +720,7 @@ end
     atol = 100eps(FT)
     rtol = 100eps(FT)
 
-    @testset "basis forms and dual-cell area" begin
+    @testset "Basis Forms and Dual-Cell Area" begin
         @test wedge_u(dx̃, dỹ) ≈ expected_area atol=atol rtol=rtol
         @test wedge_u(dỹ, dx̃) ≈ -expected_area atol=atol rtol=rtol
 
@@ -735,7 +735,7 @@ end
     α = FT(1.7)
     β = FT(-0.4)
 
-    @testset "antisymmetry" begin
+    @testset "Antisymmetry" begin
         @test wedge_u(a, b) ≈ -wedge_u(b, a) atol=atol rtol=rtol
         @test wedge_c(a, b) ≈ -wedge_c(b, a) atol=atol rtol=rtol
 
@@ -743,7 +743,7 @@ end
         @test wedge_c(a, a) ≈ zeros(FT, nv(s)) atol=atol
     end
 
-    @testset "bilinearity" begin
+    @testset "Bilinearity" begin
         @test wedge_u(α .* a .+ β .* b, c) ≈
               α .* wedge_u(a, c) .+ β .* wedge_u(b, c) atol=atol rtol=rtol
 
@@ -757,14 +757,14 @@ end
               α .* wedge_c(c, a) .+ β .* wedge_c(c, b) atol=atol rtol=rtol
     end
 
-    @testset "cached versus uncached" begin
+    @testset "Cached vs Uncached" begin
         @test wedge_c(a, b) ≈ wedge_u(a, b) atol=atol rtol=rtol
         @test wedge_c(dx̃, dỹ) ≈ wedge_u(dx̃, dỹ) atol=atol rtol=rtol
     end
 end
 
-@testset "Wedge_product_pd_11" begin
-    # ── Single-quad mesh: all four edges are boundary edges, weight = 1 ──────
+@testset "Primal-Dual Wedge Product 1-1" begin
+    # single-quad mesh: all edges are boundary, weight 1
     s1 = UniformCubicalComplex(2, 2, 1.0, 1.0)
     ne1 = ne(s1)
 
@@ -789,7 +789,7 @@ end
         @test r[1] ≈ expected
     end
 
-    # ── Multi-quad mesh: interior edges weight = 0.5, boundary = 1 ───────────
+    # multi-quad mesh: interior edges weight 0.5, boundary 1
     s2 = UniformCubicalComplex(3, 3, 1.0, 1.0)
     ne2 = ne(s2)
 
@@ -864,17 +864,17 @@ end
     a   = rand(FT, ne_)
     b   = rand(FT, ne_)
 
-    # ── interface function agreement ──────────────────────────────────────────
+    # interface function agreement
     res_ref = wedge_product_pd(Val(1), Val(1), s, a, b)
     res_iface = wedge_product_pd(Val(1), Val(1), cache, a, b)
     @test res_iface ≈ res_ref  atol=1e-14
 
-    # ── zero inputs ───────────────────────────────────────────────────────────
+    # zero inputs
     z = zeros(FT, ne_)
     @test all(iszero, wedge_product_pd(Val(1), Val(1), cache, z, b))
     @test all(iszero, wedge_product_pd(Val(1), Val(1), cache, a, z))
 
-    # ── boundary weight check: boundary quads should differ from interior ─────
+    # boundary weight check
     interior_q = coord_to_quad(s, 2, 2)   # surrounded by interior edges
     boundary_q = coord_to_quad(s, 1, 1)   # lower-left corner, all boundary edges
 
@@ -884,7 +884,7 @@ end
     @test cache.wedge_pd_scale[e1_int] == FT(1.0)   # interior edge → weight 1
     @test cache.wedge_pd_scale[e1_bnd] == FT(0.5)   # boundary edge → weight 0.5
 
-    # ── larger mesh: stress-test with 17×17 ──────────────────────────────────
+    # larger mesh
     s2     = UniformCubicalComplex(17, 17, 2.0, 2.0)
     cache2 = UniformDECCache(s2)
     a2 = rand(FT, ne(s2))
@@ -893,4 +893,6 @@ end
     res_ref2 = wedge_product_pd(Val(1), Val(1), s2, a2, b2)
     res_cached2 = wedge_product_pd(Val(1), Val(1), cache2, a2, b2)
     @test res_cached2 ≈ res_ref2  atol=1e-13
+end
+
 end
