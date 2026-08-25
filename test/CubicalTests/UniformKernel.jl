@@ -24,7 +24,6 @@ using LinearAlgebra
   @test all(d1 * ones(ne(s)) .== 0)
 
   # dual derivatives are transposes (with sign where implemented)
-  # TODO: Add test to ensure signs are correct
   @test dual_derivative(Val(0), s) == transpose(d1)
   @test dual_derivative(Val(1), s) == -transpose(d0)
 
@@ -169,7 +168,6 @@ end
   @test all(d1 * ones(ne(s)) .== 0)
 
   # dual derivatives are transposes (with sign where implemented)
-  # TODO: Add test to ensure signs are correct
   @test dual_derivative(Val(0), s) == transpose(d1)
   @test dual_derivative(Val(1), s) == -transpose(d0)
 

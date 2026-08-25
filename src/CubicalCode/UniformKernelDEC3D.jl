@@ -1548,3 +1548,44 @@ wedge_product_dd(
   f::AbstractVector{FT},
 ) where {FT <: AbstractFloat} =
   wedge_product_dd(Val(0), Val(1), cache, f, a)
+
+
+# These operators exist for UniformCubicalComplex2D / UniformDECCache but have
+# no 3D counterpart yet. The stubs below intercept the natural 3D call and
+# give a clear error instead of a raw MethodError.
+
+_not_implemented_3d(name) = error("$name is not yet implemented for UniformCubicalComplex3D")
+
+codifferential(::Val, s::UniformCubicalComplex3D) = _not_implemented_3d("codifferential")
+codifferential(::Val, cache::UniformDECCache3D, f::AbstractVector) = _not_implemented_3d("codifferential")
+codifferential!(res, ::Val, cache::UniformDECCache3D, f::AbstractVector) = _not_implemented_3d("codifferential!")
+
+dual_codifferential(::Val, s::UniformCubicalComplex3D) = _not_implemented_3d("dual_codifferential")
+dual_codifferential(::Val, cache::UniformDECCache3D, f::AbstractVector) = _not_implemented_3d("dual_codifferential")
+dual_codifferential!(res, ::Val, cache::UniformDECCache3D, f::AbstractVector) = _not_implemented_3d("dual_codifferential!")
+
+laplacian(::Val, s::UniformCubicalComplex3D) = _not_implemented_3d("laplacian")
+laplacian(::Val, cache::UniformDECCache3D, f::AbstractVector) = _not_implemented_3d("laplacian")
+laplacian!(res, ::Val, cache::UniformDECCache3D, f::AbstractVector) = _not_implemented_3d("laplacian!")
+
+dual_laplacian(::Val, s::UniformCubicalComplex3D) = _not_implemented_3d("dual_laplacian")
+dual_laplacian(::Val, cache::UniformDECCache3D, f::AbstractVector) = _not_implemented_3d("dual_laplacian")
+dual_laplacian!(res, ::Val, cache::UniformDECCache3D, f::AbstractVector) = _not_implemented_3d("dual_laplacian!")
+
+d_beta(::Val, s::UniformCubicalComplex3D) = _not_implemented_3d("d_beta")
+d_beta_mul(cache::UniformDECCache3D, V::AbstractVector) = _not_implemented_3d("d_beta_mul")
+d_beta_mul!(res, cache::UniformDECCache3D, V::AbstractVector) = _not_implemented_3d("d_beta_mul!")
+
+wedge_product_pd(::Val, ::Val, s::UniformCubicalComplex3D, a::AbstractVector, b::AbstractVector) = _not_implemented_3d("wedge_product_pd")
+wedge_product_pd(::Val, ::Val, cache::UniformDECCache3D, a::AbstractVector, b::AbstractVector) = _not_implemented_3d("wedge_product_pd")
+wedge_product_pd!(res, ::Val, ::Val, s::UniformCubicalComplex3D, a::AbstractVector, b::AbstractVector) = _not_implemented_3d("wedge_product_pd!")
+wedge_product_pd!(res, ::Val, ::Val, cache::UniformDECCache3D, a::AbstractVector, b::AbstractVector) = _not_implemented_3d("wedge_product_pd!")
+
+flat_dd(s::UniformCubicalComplex3D, X::AbstractVector, Y::AbstractVector, Z::AbstractVector) = _not_implemented_3d("flat_dd")
+flat_dd(cache::UniformDECCache3D, X::AbstractVector, Y::AbstractVector, Z::AbstractVector) = _not_implemented_3d("flat_dd")
+flat_dd!(res, s::UniformCubicalComplex3D, X::AbstractVector, Y::AbstractVector, Z::AbstractVector) = _not_implemented_3d("flat_dd!")
+flat_dd!(res, cache::UniformDECCache3D, X::AbstractVector, Y::AbstractVector, Z::AbstractVector) = _not_implemented_3d("flat_dd!")
+
+no_flux_dual_derivative(::Val, s::UniformCubicalComplex3D) = _not_implemented_3d("no_flux_dual_derivative")
+no_flux_dual_derivative(::Val, cache::UniformDECCache3D, f::AbstractVector) = _not_implemented_3d("no_flux_dual_derivative")
+no_flux_dual_derivative!(res, ::Val, cache::UniformDECCache3D, f::AbstractVector) = _not_implemented_3d("no_flux_dual_derivative!")

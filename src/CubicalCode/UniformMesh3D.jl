@@ -907,21 +907,19 @@ function quad_boids(s::UniformCubicalComplex3D, x::Int, y::Int, z::Int, align::A
   return ((b_lower, b_higher), (b_lower_valid, b_higher_valid))
 end
 
-# TODO: Check this code to make sure it is working as intended
 """
     edge_quads(s::UniformCubicalComplex3D, x::Int, y::Int, z::Int, align::Align)
 
 Return the indices of the four primal quads incident to the specified primal edge.
 Assumes all coordinates fall within the valid interior of the mesh (no boundary checks).
 
-Note that the ordering rules take a given start quad and then works around the edge in the
-counterclockwise direction. This direction is defined as following the edge and using the
-righthand rule.
+The four quads are visited going around the edge counterclockwise, following the
+right-hand rule with the thumb pointing along the edge (from its lower to its higher
+coordinate):
 
-Ordering rules:
 - X-Aligned edge: Z-quad at lower y, Y-quad at lower z, Z-quad at higher y, Y-quad at higher z.
-- Y-Aligned edge: Z-quad at higher x, X-quad at lower z, Z-quad at lower x, X-quad at higher z.
-- Z-Aligned edge: X-quad at lower y, Y-quad at lower x, X-quad at higher y, Y-quad at higher x.
+- Y-Aligned edge: X-quad at lower z, Z-quad at lower x, X-quad at higher z, Z-quad at higher x.
+- Z-Aligned edge: Y-quad at lower x, X-quad at lower y, Y-quad at higher x, X-quad at higher y.
 """
 function edge_quads(s::UniformCubicalComplex3D, x::Int, y::Int, z::Int, align::Align)
   if align == X_ALIGN
@@ -1158,27 +1156,29 @@ function interior(::Val{3}, f::AbstractVector, s::AbstractCubicalComplex3D)
   return f[indices]
 end
 
+# Given a quad, gives the edge offset by the given amount along the quad's other
+# in-plane axis. An offset of zero gives the low edge of the parallel pair.
 function quad_edge_offset_3D(s::AbstractCubicalComplex3D,
                               x::Int, y::Int, z::Int,
                               quad_align::Align, edge_align::Align,
                               offset::Int)
-  if quad_align == Z_ALIGN
+  if quad_align == Z_ALIGN # plane = XY
     if edge_align == X_ALIGN
-      return coord_to_edge(s, x + offset, y, z, X_ALIGN)
+      return coord_to_edge(s, x, y + offset, z, X_ALIGN)
     else # Y_ALIGN
-      return coord_to_edge(s, x, y + offset, z, Y_ALIGN)
+      return coord_to_edge(s, x + offset, y, z, Y_ALIGN)
     end
-  elseif quad_align == Y_ALIGN
+  elseif quad_align == Y_ALIGN # plane = XZ
     if edge_align == X_ALIGN
-      return coord_to_edge(s, x + offset, y, z, X_ALIGN)
+      return coord_to_edge(s, x, y, z + offset, X_ALIGN)
     else # Z_ALIGN
-      return coord_to_edge(s, x, y, z + offset, Z_ALIGN)
+      return coord_to_edge(s, x + offset, y, z, Z_ALIGN)
     end
-  else # X_ALIGN
+  else # X_ALIGN, plane = YZ
     if edge_align == Y_ALIGN
-      return coord_to_edge(s, x, y + offset, z, Y_ALIGN)
+      return coord_to_edge(s, x, y, z + offset, Y_ALIGN)
     else # Z_ALIGN
-      return coord_to_edge(s, x, y, z + offset, Z_ALIGN)
+      return coord_to_edge(s, x, y + offset, z, Z_ALIGN)
     end
   end
 end

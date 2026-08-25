@@ -74,20 +74,20 @@ end
 @testset "Hodge Star Operators" begin
     s = UniformCubicalComplex3D(3, 4, 5, 10.0, 20.0, 30.0)
     FT = Float64
-    
+
     @testset "Hodge and Hodge Inverse" begin
         f0 = rand(FT, nv(s))
         f0_rec = inv_hodge_star(Val(0), s, hodge_star(Val(0), s, f0))
         @test f0 ≈ f0_rec
-        
+
         f1 = rand(FT, ne(s))
         f1_rec = inv_hodge_star(Val(1), s, hodge_star(Val(1), s, f1))
         @test f1 ≈ f1_rec
-        
+
         f2 = rand(FT, nquads(s))
         f2_rec = inv_hodge_star(Val(2), s, hodge_star(Val(2), s, f2))
         @test f2 ≈ f2_rec
-        
+
         f3 = rand(FT, nboids(s))
         f3_rec = inv_hodge_star(Val(3), s, hodge_star(Val(3), s, f3))
         @test f3 ≈ f3_rec
@@ -175,7 +175,7 @@ end
         f1_dual_xz = zeros(FT, nquads(s))
         f1_dual_xz[15] = 1.0; f1_dual_xz[[16, 21]] .= 2.0; f1_dual_xz[22] = 3.0
         f2_dual_xz = dual_derivative(Val(1), s, f1_dual_xz)
-        
+
         @test f2_dual_xz[9] == -1.0
         @test f2_dual_xz[10] == -1.0
 
@@ -186,7 +186,7 @@ end
         f1_dual_yz = zeros(FT, nquads(s))
         f1_dual_yz[26] = 1.0; f1_dual_yz[[29, 32]] .= 2.0; f1_dual_yz[35] = 3.0
         f2_dual_yz = dual_derivative(Val(1), s, f1_dual_yz)
-        
+
         @test f2_dual_yz[26] == 1.0
         @test f2_dual_yz[29] == 1.0
 
@@ -199,10 +199,10 @@ end
         e_high = coord_to_edge(s, 2, 2, 2, X_ALIGN)
         f[e_low]  = FT(3.0)
         f[e_high] = FT(5.0)
-    
+
         result = dual_derivative(Val(2), s, f)
         v_int  = coord_to_vert(s, 2, 2, 2)
-    
+
         @test result[v_int] ≈ -2.0
 
         f = zeros(FT, ne(s))
@@ -211,10 +211,10 @@ end
         e_high = coord_to_edge(s, 2, 2, 2, Y_ALIGN)
         f[e_low]  = FT(2.0)
         f[e_high] = FT(7.0)
-    
+
         result = dual_derivative(Val(2), s, f)
         v_int  = coord_to_vert(s, 2, 2, 2)
-    
+
         @test result[v_int] ≈ -5.0
 
         f = zeros(FT, ne(s))
@@ -223,25 +223,24 @@ end
         e_high = coord_to_edge(s, 2, 2, 2, Z_ALIGN)
         f[e_low]  = FT(4.0)
         f[e_high] = FT(9.0)
-    
+
         result = dual_derivative(Val(2), s, f)
         v_int  = coord_to_vert(s, 2, 2, 2)
-    
+
         @test result[v_int] ≈ -5.0
 
-        # TODO: Check if this result is right
         f = zeros(FT, ne(s))
-    
+
         f[coord_to_edge(s, 1, 2, 2, X_ALIGN)] = FT(1.0)
         f[coord_to_edge(s, 2, 2, 2, X_ALIGN)] = FT(2.0)
         f[coord_to_edge(s, 2, 1, 2, Y_ALIGN)] = FT(3.0)
         f[coord_to_edge(s, 2, 2, 2, Y_ALIGN)] = FT(4.0)
         f[coord_to_edge(s, 2, 2, 1, Z_ALIGN)] = FT(5.0)
         f[coord_to_edge(s, 2, 2, 2, Z_ALIGN)] = FT(6.0)
-    
+
         result = dual_derivative(Val(2), s, f)
         v_int  = coord_to_vert(s, 2, 2, 2)
-    
+
         @test result[v_int] ≈ -3.0
     end
 
@@ -249,12 +248,27 @@ end
         f0_dual = rand(FT, nboids(s))
         f1_dual = dual_derivative(Val(0), s, f0_dual)
         f2_dual = dual_derivative(Val(1), s, f1_dual)
-        @test all(isapprox.(f2_dual[[9, 10, 25, 28, 39, 48]], 0, atol=1e-12))
+        @test all(isapprox.(f2_dual, 0, atol=1e-12))
 
         f1_dual = rand(FT, nquads(s))
         f2_dual = dual_derivative(Val(1), s, f1_dual)
         f3_dual = dual_derivative(Val(2), s, f2_dual)
-        @test all(isapprox.(f3_dual, 0, atol=1e-12))        
+        @test all(isapprox.(f3_dual, 0, atol=1e-12))
+
+        # Exactness on asymmetric and halo-padded meshes, to catch axis-specific
+        # ordering bugs (e.g. in edge_quads) that a cubic no-halo mesh could hide.
+        for s2 in (UniformCubicalComplex3D(4, 5, 6, 1.0, 2.0, 3.0),
+                   UniformCubicalComplex3D(3, 4, 5, 1.0, 1.0, 1.0; halo_x = 1, halo_y = 1, halo_z = 1))
+            g0 = rand(FT, nboids(s2))
+            g1 = dual_derivative(Val(0), s2, g0)
+            g2 = dual_derivative(Val(1), s2, g1)
+            @test all(isapprox.(g2, 0, atol=1e-12))
+
+            h1 = rand(FT, nquads(s2))
+            h2 = dual_derivative(Val(1), s2, h1)
+            h3 = dual_derivative(Val(2), s2, h2)
+            @test all(isapprox.(h3, 0, atol=1e-12))
+        end
     end
 end
 
@@ -340,12 +354,12 @@ end
 @testset "Dual Wedge Product Kernels" begin
     s = UniformCubicalComplex3D(3, 3, 3, 1.0, 1.0, 1.0)
     FT = Float64
-    
+
     @testset "Wedge DD 0-1" begin
         f = ones(FT, nboids(s)) .* 2.0
         a = ones(FT, nquads(s)) .* 3.0
         w01 = wedge_product_dd(Val(0), Val(1), s, f, a)
-        
+
         # boundary (1 valid boid) or interior (avg of identical values): 2.0 * 3.0 = 6.0
         @test all(w01 .≈ 6.0)
 
@@ -353,7 +367,7 @@ end
         f_grad = FT.(1:nboids(s))
         a_ones = ones(FT, nquads(s))
         w01_grad = wedge_product_dd(Val(0), Val(1), s, f_grad, a_ones)
-        
+
         q_idx = coord_to_quad(s, 1, 1, 1, Z_ALIGN)
         b_indices, b_valid = quad_boids(s, 1, 1, 1, Z_ALIGN)
         @test b_valid == (false, true)
@@ -377,17 +391,17 @@ end
         FT = Float64
 
         f = zeros(FT, nquads(s))
-        
+
         # Interior boid (2,2,2)
         boid_idx = coord_to_boid(s, 2, 2, 2)
         q_z1, q_z2, q_y1, q_y2, q_x1, q_x2 = boid_quads(s, 2, 2, 2)
-        
+
         f[q_x1] = 1.0; f[q_x2] = 3.0
         f[q_y1] = 5.0; f[q_y2] = 5.0
         f[q_z1] = 8.0; f[q_z2] = 6.0
 
         X, Y, Z = sharp_dd(s, f)
-        
+
         @test X[boid_idx] ≈ 2.0 / dx(s)
         @test Y[boid_idx] ≈ 5.0 / dy(s)
         @test Z[boid_idx] ≈ 7.0 / dz(s)
@@ -400,13 +414,13 @@ end
         f[q_x1] = 1.0; f[q_x2] = 3.0
         f[q_y1] = 2.0; f[q_y2] = 4.0
         f[q_z1] = 5.0; f[q_z2] = 6.0
-        
+
         X_c, Y_c, Z_c = sharp_dd(s, f)
-        
+
         @test X_c[boid_idx_corner] ≈ 2.5 / dx(s)
         @test Y_c[boid_idx_corner] ≈ 4.0 / dy(s)
         @test Z_c[boid_idx_corner] ≈ 8.0 / dz(s)
-        
+
         # Boid on edge (1, 2, nzb(s))
         f .= 0.0
         boid_idx_edge = coord_to_boid(s, 1, 2, nzb(s))
@@ -415,9 +429,9 @@ end
         f[q_x1] = 1.0; f[q_x2] = 3.0 # West Boundary
         f[q_y1] = 2.0; f[q_y2] = 4.0 # Interior
         f[q_z1] = 5.0; f[q_z2] = 6.0 # Up Boundary
-        
+
         X_e, Y_e, Z_e = sharp_dd(s, f)
-        
+
         @test X_e[boid_idx_edge] ≈ 2.5 / dx(s)
         @test Y_e[boid_idx_edge] ≈ 3.0 / dy(s)
         @test Z_e[boid_idx_edge] ≈ 8.5 / dz(s)
@@ -459,7 +473,7 @@ end
         edge_idx = coord_to_edge(s, 2, 2, 2, X_ALIGN)
         b_indices, b_valid = edge_boids(s, 2, 2, 2, X_ALIGN)
         @test all(b_valid)
-        
+
         avg_X = (X[b_indices[1]] + X[b_indices[2]] + X[b_indices[3]] + X[b_indices[4]]) / 4.0
         @test f[edge_idx] ≈ avg_X * dx(s)
 
@@ -467,15 +481,15 @@ end
         edge_idx = coord_to_edge(s, 2, 3, 2, Z_ALIGN) # y=3 is boundary for edge
         b_indices, b_valid = edge_boids(s, 2, 3, 2, Z_ALIGN)
         @test count(b_valid) == 2
-        
+
         avg_Z = (Z[b_indices[1]] + Z[b_indices[2]]) / 2.0
         @test f[edge_idx] ≈ avg_Z * dz(s)
-        
+
         # Boundary edge (on a corner)
         edge_idx = coord_to_edge(s, 1, 1, 1, Y_ALIGN)
         b_indices, b_valid = edge_boids(s, 1, 1, 1, Y_ALIGN)
         @test count(b_valid) == 1
-        
+
         avg_Y = Y[b_indices[4]] / 1.0
         @test f[edge_idx] ≈ avg_Y * dy(s)
     end

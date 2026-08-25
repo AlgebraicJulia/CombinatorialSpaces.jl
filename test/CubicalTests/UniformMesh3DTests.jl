@@ -486,13 +486,26 @@ end
     @test quad_boids(s, 3, 1, 1, X_ALIGN) == ((2, 0), (true, false))
 end
 
-# TODO: Check this code to make sure it is working as intended
 @testset "Edge to Incident Quads" begin
+    # Ground truth, independent of edge_quads' own ordering: every quad whose
+    # own edge list (quad_edges) contains the edge in question.
+    quads_touching_edge(s, e) = sort([
+        q for q in quads(s) if e in quad_edges(s, quad_to_coord(s, q)...)
+    ])
+
+    for s in (UniformCubicalComplex3D(3, 4, 5, 1.0, 1.0, 1.0),
+              UniformCubicalComplex3D(3, 4, 5, 1.0, 1.0, 1.0; halo_x = 1, halo_y = 1, halo_z = 1))
+        for e in edges(s)
+            x, y, z, align = edge_to_coord(s, e)
+            (q_idx, q_valid) = edge_quads(s, x, y, z, align)
+            got = sort([q_idx[i] for i in 1:4 if q_valid[i]])
+            @test got == quads_touching_edge(s, e)
+        end
+    end
+
+    # A concrete worked example, independently confirmed by the loop above.
     s = UniformCubicalComplex3D(3, 3, 3, 10.0, 10.0, 10.0)
-
-    # Base coordinate for our interior edges
     x, y, z = 2, 2, 2
-
     @test edge_quads(s, x, y, z, X_ALIGN) == ((6, 16, 8, 22), (true, true, true, true))
     @test edge_quads(s, x, y, z, Y_ALIGN) == ((29, 7, 35, 8), (true, true, true, true))
     @test edge_quads(s, x, y, z, Z_ALIGN) == ((21, 32, 22, 35), (true, true, true, true))
@@ -527,6 +540,49 @@ end
 @testset "Vertex to Incident Edges (Explicit Indices)" begin
     s = UniformCubicalComplex3D(3, 3, 3, 10.0, 10.0, 10.0)
     @test vertex_edges(s, 2, 2, 2) == ((41, 50, 26, 29, 9, 10), (true, true, true, true, true, true))
+end
+
+@testset "Quad Edge and Boid Quad Offsets" begin
+    for s in (UniformCubicalComplex3D(3, 4, 5, 1.0, 1.0, 1.0),
+              UniformCubicalComplex3D(3, 4, 5, 1.0, 1.0, 1.0; halo_x = 1, halo_y = 1, halo_z = 1))
+
+        # An offset moves along the quad's other in-plane axis, so offset 0/1 pick
+        # out the low/high edge of the parallel pair returned by quad_edges.
+        for q in quads(s)
+            x, y, z, align = quad_to_coord(s, q)
+            e1, e2, e3, e4 = quad_edges(s, x, y, z, align)
+
+            if align == Z_ALIGN
+                @test quad_edge_offset_3D(s, x, y, z, Z_ALIGN, X_ALIGN, 0) == e1
+                @test quad_edge_offset_3D(s, x, y, z, Z_ALIGN, X_ALIGN, 1) == e3
+                @test quad_edge_offset_3D(s, x, y, z, Z_ALIGN, Y_ALIGN, 0) == e4
+                @test quad_edge_offset_3D(s, x, y, z, Z_ALIGN, Y_ALIGN, 1) == e2
+            elseif align == Y_ALIGN
+                @test quad_edge_offset_3D(s, x, y, z, Y_ALIGN, X_ALIGN, 0) == e4
+                @test quad_edge_offset_3D(s, x, y, z, Y_ALIGN, X_ALIGN, 1) == e2
+                @test quad_edge_offset_3D(s, x, y, z, Y_ALIGN, Z_ALIGN, 0) == e1
+                @test quad_edge_offset_3D(s, x, y, z, Y_ALIGN, Z_ALIGN, 1) == e3
+            else # X_ALIGN
+                @test quad_edge_offset_3D(s, x, y, z, X_ALIGN, Y_ALIGN, 0) == e1
+                @test quad_edge_offset_3D(s, x, y, z, X_ALIGN, Y_ALIGN, 1) == e3
+                @test quad_edge_offset_3D(s, x, y, z, X_ALIGN, Z_ALIGN, 0) == e4
+                @test quad_edge_offset_3D(s, x, y, z, X_ALIGN, Z_ALIGN, 1) == e2
+            end
+        end
+
+        # Offset 0/1 pick out the low/high face on each axis of a boid.
+        for b in boids(s)
+            x, y, z = boid_to_coord(s, b)
+            zf1, zf2, yf1, yf2, xf1, xf2 = boid_quads(s, x, y, z)
+
+            @test boid_quad_offset(s, x, y, z, Z_ALIGN, 0) == zf1
+            @test boid_quad_offset(s, x, y, z, Z_ALIGN, 1) == zf2
+            @test boid_quad_offset(s, x, y, z, Y_ALIGN, 0) == yf1
+            @test boid_quad_offset(s, x, y, z, Y_ALIGN, 1) == yf2
+            @test boid_quad_offset(s, x, y, z, X_ALIGN, 0) == xf1
+            @test boid_quad_offset(s, x, y, z, X_ALIGN, 1) == xf2
+        end
+    end
 end
 
 # TODO: Verify these expectations are correct. Each selector is checked against
