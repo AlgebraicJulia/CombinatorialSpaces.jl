@@ -127,7 +127,7 @@ function coord_to_edge(s::AbstractCubicalComplex2D, x::Int, y::Int, align::Align
   elseif align == Y_ALIGN
     return x + (y - 1) * nx(s) + nxedges(s)
   else
-    throw(ArgumentError("Z_ALIGN is not valid for a 2D mesh (coord_to_edge called with align=$align)"))
+    throw(ArgumentError("Z_ALIGN is not valid for a 2D mesh (coord_to_edge)"))
   end
 end
 coord_to_quad(s::AbstractCubicalComplex2D, x::Int, y::Int) = (y - 1) * nxq(s) + x
@@ -294,7 +294,7 @@ function tgt(s::AbstractCubicalComplex2D, x::Int, y::Int, align::Align)
   elseif align == Y_ALIGN
     return coord_to_vert(s, x, y + 1)
   else
-    throw(ArgumentError("Z_ALIGN is not valid for a 2D mesh (tgt called with align=$align)"))
+    throw(ArgumentError("Z_ALIGN is not valid for a 2D mesh (tgt)"))
   end
 end
 tgt(s::AbstractCubicalComplex2D, e::Int) = tgt(s, edge_to_coord(s, e)...)
@@ -305,7 +305,7 @@ function edge_len(s::UniformCubicalComplex2D{FT}, align::Align) where {FT <: Abs
   elseif align == Y_ALIGN
     return dy(s)
   else
-    throw(ArgumentError("Z_ALIGN is not valid for a 2D mesh (edge_len called with align=$align)"))
+    throw(ArgumentError("Z_ALIGN is not valid for a 2D mesh (edge_len)"))
   end
 end
 
@@ -353,7 +353,7 @@ function quad_edge_offset(s::AbstractCubicalComplex2D, x::Int, y::Int, align::Al
     return coord_to_edge(s, x + offset, y, Y_ALIGN)
   else
     throw(ArgumentError(
-      "Z_ALIGN is not valid for a 2D mesh (quad_edge_offset called with align=$align)"))
+      "Z_ALIGN is not valid for a 2D mesh (quad_edge_offset)"))
   end
 end
 quad_area(s::UniformCubicalComplex2D) = dx(s) * dy(s)
@@ -374,7 +374,7 @@ function dual_edge(s::AbstractCubicalComplex2D, x::Int, y::Int, align::Align)
   elseif align == Y_ALIGN
     return coord_to_edge(s, x, y, X_ALIGN)
   else
-    throw(ArgumentError("Z_ALIGN is not valid for a 2D mesh (dual_edge called with align=$align)"))
+    throw(ArgumentError("Z_ALIGN is not valid for a 2D mesh (dual_edge)"))
   end
 end
 
@@ -385,7 +385,7 @@ function dual_edge_len(s::UniformCubicalComplex2D{FT}, x::Int, y::Int,
   elseif align == Y_ALIGN
     return x == 1 || x == nx(s) ? FT(0.5) * dx(s) : dx(s)
   else
-    throw(ArgumentError("Z_ALIGN is not valid for a 2D mesh (dual_edge_len called with align=$align)"))
+    throw(ArgumentError("Z_ALIGN is not valid for a 2D mesh (dual_edge_len)"))
   end
 end
 
@@ -440,7 +440,7 @@ function edge_quads(s::AbstractCubicalComplex2D, x::Int, y::Int, align::Align)
     q2 = x <= nxq(s)    ? coord_to_quad(s, x, y)     : 0
     return q1, q2
   else
-    throw(ArgumentError("Z_ALIGN is not valid for a 2D mesh (edge_quads called with align=$align)"))
+    throw(ArgumentError("Z_ALIGN is not valid for a 2D mesh (edge_quads)"))
   end
 end
 

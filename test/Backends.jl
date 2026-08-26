@@ -1,5 +1,6 @@
 module TestOperatorsCUDA
 
+using Adapt
 using Catlab
 using CombinatorialSpaces
 using CombinatorialSpaces.DiscreteExteriorCalculus: DiscreteHodge
@@ -260,11 +261,93 @@ if Sys.isapple()
       end
     end
 
+    # Cubical complex kernels on Metal. These are KernelAbstractions kernels, so
+    # the point of these tests is that they compile for the GPU at all (a call
+    # reaching a non-static error path fails with InvalidIRError) and that the
+    # GPU result matches the CPU result.
+    function test_cubical_metal()
+      FT = Float32
+      s2 = UniformCubicalComplex2D(6, 5, FT(1), FT(2))
+      s3 = UniformCubicalComplex3D(3, 4, 5, FT(1), FT(2), FT(3))
+      c2, c3 = UniformDECCache(s2), UniformDECCache3D(s3)
+      gc2, gc3 = Adapt.adapt(MtlArray, c2), Adapt.adapt(MtlArray, c3)
+
+      # Compare against the CPU result, elementwise for tuple-valued operators.
+      agree(cpu::Tuple, gpu::Tuple) =
+        all(isapprox(cpu[i], Array(gpu[i]); atol = 1f-3, rtol = 1f-3) for i in eachindex(cpu))
+      agree(cpu, gpu) = isapprox(cpu, Array(gpu); atol = 1f-3, rtol = 1f-3)
+
+      f0, f1, f2 = rand(FT, nv(s2)), rand(FT, ne(s2)), rand(FT, nquads(s2))
+      g0, g1, g2, g3 = rand(FT, nv(s3)), rand(FT, ne(s3)), rand(FT, nquads(s3)), rand(FT, nboids(s3))
+      m = MtlArray
+
+      @testset "2D mesh operators" begin
+        @test agree(exterior_derivative(Val(0), s2, f0), exterior_derivative(Val(0), s2, m(f0)))
+        @test agree(exterior_derivative(Val(1), s2, f1), exterior_derivative(Val(1), s2, m(f1)))
+        @test agree(wedge_product(Val(0), Val(1), s2, f0, f1), wedge_product(Val(0), Val(1), s2, m(f0), m(f1)))
+        @test agree(wedge_product(Val(1), Val(1), s2, f1, f1), wedge_product(Val(1), Val(1), s2, m(f1), m(f1)))
+        @test agree(wedge_product_dd(Val(0), Val(1), s2, f2, f1), wedge_product_dd(Val(0), Val(1), s2, m(f2), m(f1)))
+        @test agree(wedge_product_dd(Val(1), Val(1), s2, f1, f1), wedge_product_dd(Val(1), Val(1), s2, m(f1), m(f1)))
+        @test agree(wedge_product_pd(Val(1), Val(1), s2, f1, f1), wedge_product_pd(Val(1), Val(1), s2, m(f1), m(f1)))
+        @test agree(sharp_dd(s2, f1), sharp_dd(s2, m(f1)))
+        @test agree(flat_dp(s2, f2, f2), flat_dp(s2, m(f2), m(f2)))
+        @test agree(flat_dd(s2, f2, f2), flat_dd(s2, m(f2), m(f2)))
+      end
+
+      # 2D hodge_star / dual_derivative on a mesh are sparse-matrix operators;
+      # the kernel forms live on the cache.
+      @testset "2D cached operators" begin
+        @test agree(exterior_derivative(Val(0), c2, f0), exterior_derivative(Val(0), gc2, m(f0)))
+        @test agree(exterior_derivative(Val(1), c2, f1), exterior_derivative(Val(1), gc2, m(f1)))
+        @test agree(hodge_star(Val(0), c2, f0), hodge_star(Val(0), gc2, m(f0)))
+        @test agree(hodge_star(Val(1), c2, f1), hodge_star(Val(1), gc2, m(f1)))
+        @test agree(hodge_star(Val(2), c2, f2), hodge_star(Val(2), gc2, m(f2)))
+        @test agree(inv_hodge_star(Val(1), c2, f1), inv_hodge_star(Val(1), gc2, m(f1)))
+        @test agree(dual_derivative(Val(0), c2, f2), dual_derivative(Val(0), gc2, m(f2)))
+        @test agree(dual_derivative(Val(1), c2, f1), dual_derivative(Val(1), gc2, m(f1)))
+        @test agree(wedge_product(Val(1), Val(1), c2, f1, f1), wedge_product(Val(1), Val(1), gc2, m(f1), m(f1)))
+        @test agree(sharp_dd(c2, f1), sharp_dd(gc2, m(f1)))
+        @test agree(flat_dd(c2, f2, f2), flat_dd(gc2, m(f2), m(f2)))
+        @test agree(interpolate_dp(Val(1), c2, f1), interpolate_dp(Val(1), gc2, m(f1)))
+        @test agree(codifferential(Val(1), c2, f1), codifferential(Val(1), gc2, m(f1)))
+        @test agree(laplacian(Val(0), c2, f0), laplacian(Val(0), gc2, m(f0)))
+        @test agree(d_beta_mul(c2, f1), d_beta_mul(gc2, m(f1)))
+        @test agree(no_flux_dual_derivative(Val(0), c2, f2), no_flux_dual_derivative(Val(0), gc2, m(f2)))
+      end
+
+      @testset "3D mesh operators" begin
+        @test agree(exterior_derivative(Val(0), s3, g0), exterior_derivative(Val(0), s3, m(g0)))
+        @test agree(exterior_derivative(Val(1), s3, g1), exterior_derivative(Val(1), s3, m(g1)))
+        @test agree(exterior_derivative(Val(2), s3, g2), exterior_derivative(Val(2), s3, m(g2)))
+        for (k, fk) in enumerate((g0, g1, g2, g3))
+          @test agree(hodge_star(Val(k - 1), s3, fk), hodge_star(Val(k - 1), s3, m(fk)))
+          @test agree(inv_hodge_star(Val(k - 1), s3, fk), inv_hodge_star(Val(k - 1), s3, m(fk)))
+        end
+        @test agree(dual_derivative(Val(0), s3, g3), dual_derivative(Val(0), s3, m(g3)))
+        @test agree(dual_derivative(Val(1), s3, g2), dual_derivative(Val(1), s3, m(g2)))
+        @test agree(dual_derivative(Val(2), s3, g1), dual_derivative(Val(2), s3, m(g1)))
+        @test agree(wedge_product(Val(1), Val(1), s3, g1, g1), wedge_product(Val(1), Val(1), s3, m(g1), m(g1)))
+        @test agree(wedge_product(Val(1), Val(2), s3, g1, g2), wedge_product(Val(1), Val(2), s3, m(g1), m(g2)))
+        @test agree(wedge_product_dd(Val(0), Val(1), s3, g3, g2), wedge_product_dd(Val(0), Val(1), s3, m(g3), m(g2)))
+        @test agree(sharp_dd(s3, g2), sharp_dd(s3, m(g2)))
+        @test agree(flat_dp(s3, g3, g3, g3), flat_dp(s3, m(g3), m(g3), m(g3)))
+      end
+
+      @testset "3D cached operators" begin
+        @test agree(exterior_derivative(Val(0), c3, g0), exterior_derivative(Val(0), gc3, m(g0)))
+        @test agree(exterior_derivative(Val(1), c3, g1), exterior_derivative(Val(1), gc3, m(g1)))
+        @test agree(hodge_star(Val(2), c3, g2), hodge_star(Val(2), gc3, m(g2)))
+        @test agree(inv_hodge_star(Val(2), c3, g2), inv_hodge_star(Val(2), gc3, m(g2)))
+        @test agree(dual_derivative(Val(1), c3, g2), dual_derivative(Val(1), gc3, m(g2)))
+        @test agree(wedge_product(Val(1), Val(1), c3, g1, g1), wedge_product(Val(1), Val(1), gc3, m(g1), m(g1)))
+      end
+    end
     @testset "Metal" begin
       test_unary_operators(Val(:Metal), dual_meshes_1D_f32, dual_meshes_2D_bary_f32, dual_meshes_2D_circum_f32)
       test_hodge_solver_metal()
       test_binary_operators(Float32, Val(:Metal), MtlArray, 0.5e-6)
       test_binary_operators(Float16, Val(:Metal), MtlArray, 0.5e-3)
+      test_cubical_metal()
     end
   else
     @info "Metal tests were not run, since the current device does not support Apple7 and Metal3."
@@ -274,4 +357,3 @@ else
 end
 
 end
-
