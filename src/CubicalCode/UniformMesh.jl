@@ -200,7 +200,7 @@ point(s::UniformCubicalComplex2D, v::Int) = point(s, vert_to_coord(s, v)...)
 
 real_point(s::UniformCubicalComplex2D, x::Int, y::Int) = point(s, x + halo_west(s), y + halo_south(s))
 
-points(s::UniformCubicalComplex2D) = (point(s, v) for v in vertices(s))
+points(s::UniformCubicalComplex2D) = map(v -> point(s, v), vertices(s))
 
 spacing(len::FT, np::Int) where {FT <: AbstractFloat} = len / FT(np - 1)
 

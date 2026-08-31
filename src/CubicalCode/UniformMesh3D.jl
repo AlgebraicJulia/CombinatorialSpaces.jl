@@ -597,7 +597,7 @@ function real_point(s::UniformCubicalComplex3D, x::Int, y::Int, z::Int)
   return point(s, x + halo_west(s), y + halo_south(s), z + halo_down(s))
 end
 
-points(s::AbstractCubicalComplex3D) = (point(s, v) for v in vertices(s))
+points(s::AbstractCubicalComplex3D) = map(v -> point(s, v), vertices(s))
 
 # Edge methods
 
