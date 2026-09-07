@@ -348,10 +348,12 @@ end
     ay = FT(0.25) * (a[e5] + a[e6] + a[e7] + a[e8])
     az = FT(0.25) * (a[e9] + a[e10] + a[e11] + a[e12])
 
+    # bx, by, bz are the dydz, dzdx, dxdy components respectively, so each
+    # wedges with its matching edge component to give +dxdydz.
     bz = FT(0.5) * (b[q1] + b[q2])
     by = FT(0.5) * (b[q3] + b[q4])
     bx = FT(0.5) * (b[q5] + b[q6])
-    res[idx] = ax * bx - ay * by + az * bz
+    res[idx] = ax * bx + ay * by + az * bz
   end
 end
 
@@ -1403,7 +1405,7 @@ end
     by = FT(0.5) * (b[w12_q3[idx]] + b[w12_q4[idx]])
     bx = FT(0.5) * (b[w12_q5[idx]] + b[w12_q6[idx]])
 
-    res[idx] = ax * bx - ay * by + az * bz
+    res[idx] = ax * bx + ay * by + az * bz
   end
 end
 

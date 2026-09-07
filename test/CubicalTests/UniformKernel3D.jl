@@ -2,6 +2,7 @@ module TestUniformKernel3D
 
 using Test
 using KernelAbstractions
+using LinearAlgebra
 using Random
 using CombinatorialSpaces
 
@@ -329,26 +330,101 @@ end
     end
 
     @testset "Wedge 1-2" begin
-        # volume of boid: 6.0 = 2.0 * 3.0
+        # Each edge component pairs with the quad family holding its complement:
+        # dx∧dydz, dy∧dzdx, dz∧dxdy all give +dxdydz, so every term adds.
+        # 2 * 3 * 3 = 18
         f1 = ones(FT, ne(s)) .* 2.0
         g2 = ones(FT, nquads(s)) .* 3.0
         w12 = wedge_product(Val(1), Val(2), s, f1, g2)
-        @test all(isapprox.(w12, 6.0, atol=1e-12))
+        @test all(isapprox.(w12, 18.0, atol=1e-12))
 
-        # 2 * 3 - 4 * 5 + 6 * 7 = 6 - 20 + 42 = 28
+        # 2 * 3 + 4 * 5 + 6 * 7 = 6 + 20 + 42 = 68
         f1 = zeros(FT, ne(s))
         xedges(s, f1) .= 2.0
         yedges(s, f1) .= 4.0
         zedges(s, f1) .= 6.0
 
         g2 = zeros(FT, nquads(s))
-        xyquads(s, g2) .= 7.0
-        xzquads(s, g2) .= 5.0
-        yzquads(s, g2) .= 3.0
+        xyquads(s, g2) .= 7.0   # Z_ALIGN, holds the dxdy component
+        xzquads(s, g2) .= 5.0   # Y_ALIGN, holds the dzdx component
+        yzquads(s, g2) .= 3.0   # X_ALIGN, holds the dydz component
 
         w12 = wedge_product(Val(1), Val(2), s, f1, g2)
-        @test all(isapprox.(w12, 28.0, atol=1e-12))
+        @test all(isapprox.(w12, 68.0, atol=1e-12))
     end
+
+    @testset "Wedge 1-1 and 1-2 share the dxdy/dzdx/dydz basis" begin
+        # Wedge 1-1 writes the XZ-quad (Y_ALIGN) component as dz∧dx, so wedge
+        # 1-2 must read it back as dz∧dx too. Chaining them gives the triple
+        # product: a ∧ (b ∧ c) = det[a b c]. A dxdz/dzdx mismatch in either
+        # kernel flips the sign of the middle column's cofactor and breaks this.
+        oneform(v) = (f = zeros(FT, ne(s));
+                      xedges(s, f) .= v[1];
+                      yedges(s, f) .= v[2];
+                      zedges(s, f) .= v[3];
+                      f)
+        triple(a, b, c) = wedge_product(Val(1), Val(2), s, oneform(a),
+                                        wedge_product(Val(1), Val(1), s, oneform(b), oneform(c)))
+
+        # Right-handed basis: x ∧ (y ∧ z) = +1
+        @test all(isapprox.(triple([1,0,0], [0,1,0], [0,0,1]), 1.0, atol=1e-12))
+        # Each cyclic rotation is also +1, the swap is -1
+        @test all(isapprox.(triple([0,1,0], [0,0,1], [1,0,0]), 1.0, atol=1e-12))
+        @test all(isapprox.(triple([0,0,1], [1,0,0], [0,1,0]), 1.0, atol=1e-12))
+        @test all(isapprox.(triple([0,1,0], [1,0,0], [0,0,1]), -1.0, atol=1e-12))
+
+        # Generic vectors, against the determinant
+        rng = MersenneTwister(0xDEC3D)
+        for _ in 1:5
+            a, b, c = randn(rng, 3), randn(rng, 3), randn(rng, 3)
+            @test all(isapprox.(triple(a, b, c), det(hcat(a, b, c)), atol=1e-12))
+        end
+    end
+end
+
+@testset "Dual 0-form advection" begin
+    # Advecting a dual 0-form by the Lie derivative routes through wedge 1-2:
+    #
+    #   L_v ρ = ⋆₃ ( v ∧ ⋆₂⁻¹ d̃₀ ρ )
+    #
+    # For constant v and linear ρ this is exactly v · ∇ρ, with no discretization
+    # error, so a sign flip on any component shows up as an exact negation.
+    s = UniformCubicalComplex3D(6, 6, 6, 1.0, 1.0, 1.0)
+    FT = Float64
+
+    lie_dual0(v, ρ) =
+        hodge_star(Val(3), s,
+            wedge_product(Val(1), Val(2), s, v,
+                inv_hodge_star(Val(2), s,
+                    dual_derivative(Val(0), s, ρ))))
+
+    # Constant vector field as a primal 1-form: its integral along each edge.
+    function const_velocity(vx, vy, vz)
+        v = zeros(FT, ne(s))
+        for e in 1:ne(s)
+            _, _, _, align = edge_to_coord(s, e)
+            c = align == X_ALIGN ? vx : align == Y_ALIGN ? vy : vz
+            v[e] = c * edge_len(s, align)
+        end
+        v
+    end
+
+    # Boids whose stencil stays clear of the mesh boundary, where the dual
+    # derivative loses a neighbour and the dual edge length is halved.
+    interior = [coord_to_boid(s, x, y, z)
+                for x in 2:(nxb(s) - 1), y in 2:(nyb(s) - 1), z in 2:(nzb(s) - 1)][:]
+
+    grad = [0.7, -1.3, 0.45]
+    ρ = [sum(grad .* dual_point(s, boid_to_coord(s, b)...)) for b in 1:nboids(s)]
+
+    for v in ([1, 0, 0], [0, 1, 0], [0, 0, 1], [1, 1, 1], [0.4, -2.0, 1.5])
+        @test all(isapprox.(lie_dual0(const_velocity(v...), ρ)[interior],
+                            sum(v .* grad), atol=1e-10))
+    end
+
+    # A constant field has nothing to advect.
+    @test all(isapprox.(lie_dual0(const_velocity(1.0, 1.0, 1.0), ones(FT, nboids(s)))[interior],
+                        0.0, atol=1e-12))
 end
 
 @testset "Dual Wedge Product Kernels" begin
