@@ -40,6 +40,56 @@ test_expected_parts(s, unary_subdivision, unary_nv_ne_ntriangles)
 test_expected_parts(s, binary_subdivision, binary_nv_ne_ntriangles)
 test_expected_parts(s, cubic_subdivision, cubic_nv_ne_ntriangles)
 
+# 3D binary subdivision
+#----------------------
+
+binary_3d_counts(s) =
+  (nv(s) + ne(s),
+   2*ne(s) + 3*ntriangles(s) + ntetrahedra(s),
+   4*ntriangles(s) + 8*ntetrahedra(s),
+   8*ntetrahedra(s))
+
+function test_expected_parts_3d(s, levels)
+  for _ in 1:levels
+    sd = binary_subdivision(s)
+    @test (nv(sd), ne(sd), ntriangles(sd), ntetrahedra(sd)) == binary_3d_counts(s)
+    @test orient!(sd)
+    s = sd
+  end
+end
+
+# Single tetrahedron
+s3 = EmbeddedDeltaSet3D{Bool,Point3d}()
+add_vertices!(s3, 4, point=[Point3d(1,1,1), Point3d(1,-1,-1),
+  Point3d(-1,1,-1), Point3d(-1,-1,1)])
+glue_sorted_tetrahedron!(s3, 1, 2, 3, 4)
+s3[:edge_orientation] = true
+s3[:tri_orientation] = true
+s3[:tet_orientation] = true
+
+test_expected_parts_3d(s3, 3)
+
+# Two tetrahedra sharing a face
+s3 = EmbeddedDeltaSet3D{Bool,Point3d}()
+add_vertices!(s3, 5, point=[Point3d(0,0,0), Point3d(1,0,0),
+  Point3d(0,1,0), Point3d(0,0,1), Point3d(1,1,1)])
+glue_sorted_tetrahedron!(s3, 1, 2, 3, 4)
+glue_sorted_tetrahedron!(s3, 2, 3, 4, 5)
+s3[:edge_orientation] = true
+s3[:tri_orientation] = true
+s3[:tet_orientation] = true
+
+test_expected_parts_3d(s3, 2)
+
+# Munkres pp. 5: "Invariance under subdivisions"
+# Subdivision preserves volume (and the subdivided Omega has consistent orientation).
+s3_dual = EmbeddedDeltaDualComplex3D{Bool,Float64,Point3d}(s3)
+subdivide_duals!(s3_dual, Barycenter())
+s3_div = binary_subdivision(s3)
+s3_div_dual = EmbeddedDeltaDualComplex3D{Bool,Float64,Point3d}(s3)
+subdivide_duals!(s3_div_dual, Barycenter())
+@test isapprox(sum(s3_dual[:vol]), sum(s3_div_dual[:vol]))
+
 # Subdivision integration
 #------------------------
 
