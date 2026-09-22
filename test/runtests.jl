@@ -22,10 +22,6 @@ end
   include("MeshGraphics.jl")
 end
 
-@testset "Alternate Backends" begin
-  include("Backends.jl")
-end
-
 @testset "Restrictions" begin
   include("Restrictions.jl")
 end
@@ -40,6 +36,14 @@ end
 
 @testset "Combinatorial Maps" begin
   include("CombinatorialMaps.jl")
+end
+
+@testset "Cubical Complexes" begin
+    include("CubicalTests/UniformTest.jl")
+end
+
+@testset "Alternate Backends" begin
+  include("Backends.jl")
 end
 
 end

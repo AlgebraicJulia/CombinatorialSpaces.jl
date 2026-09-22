@@ -19,6 +19,7 @@ include("Restrictions.jl")
 include("Multigrid.jl")
 include("FastDEC.jl")
 include("MeshOptimization.jl")
+include("CubicalCode/UniformDEC.jl")
 
 @reexport using .SimplicialSets
 @reexport using .DiscreteExteriorCalculus
@@ -27,5 +28,6 @@ include("MeshOptimization.jl")
 @reexport using .Multigrid
 @reexport using .FastDEC
 @reexport using .MeshOptimization
+@reexport using .UniformDEC
 
 end
