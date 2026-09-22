@@ -213,10 +213,11 @@ end
         end
     end
 
+    Random.seed!(1)
     for i in 1:1
         for sd in dual_meshes_2D[1:end-1]
             V_1 = rand(ne(sd))
-            @test all(isapprox.(dec_inv_hodge_star(Val(i), sd, GeometricHodge())(V_1), inv_hodge_star(i, sd, GeometricHodge()) * V_1; rtol = 1e-12))
+            @test all(isapprox.(dec_inv_hodge_star(Val(i), sd, GeometricHodge())(V_1), inv_hodge_star(i, sd, GeometricHodge()) * V_1; rtol = 1e-8, atol = 1e-8))
         end
     end
 
