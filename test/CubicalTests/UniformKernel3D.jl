@@ -6,6 +6,8 @@ using LinearAlgebra
 using Random
 using CombinatorialSpaces
 
+Random.seed!(1234)
+
 @testset "Exterior Derivative Kernels" begin
     s = UniformCubicalComplex3D(2, 2, 2, 1.0, 1.0, 1.0)
     FT = Float64

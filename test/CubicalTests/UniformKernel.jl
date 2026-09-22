@@ -6,6 +6,8 @@ using Random
 using CombinatorialSpaces
 using LinearAlgebra
 
+Random.seed!(1234)
+
 @testset "Matrix DEC Operators" begin
 
   s = UniformCubicalComplex2D(5, 5, 1.0, 1.0)
