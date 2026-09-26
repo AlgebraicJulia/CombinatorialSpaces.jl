@@ -17,6 +17,18 @@ include("UniformMatrixDEC.jl")
 include("UniformKernelDEC.jl")
 include("UniformKernelDEC3D.jl")
 
+# Operators whose only kernel implementations are cached, fused ones. No cache
+# ships here (the cached backends are developed downstream, in DECSims), so
+# these are declared for backends to extend; the matrix forms of the
+# out-of-place codifferentials and Laplacians are in UniformMatrixDEC.jl.
+function codifferential! end
+function dual_codifferential! end
+function laplacian! end
+function dual_laplacian! end
+function no_flux_dual_derivative! end
+function d_beta_mul end
+function d_beta_mul! end
+
 export
   # ── Alignment types (UniformMesh.jl) ──────────────────────────────────────
   Align,
@@ -195,8 +207,5 @@ export
   flat_dp!,
 
   flat_dd,
-  flat_dd!,
-
-  UniformDECCache,
-  UniformDECCache3D
+  flat_dd!
 end
