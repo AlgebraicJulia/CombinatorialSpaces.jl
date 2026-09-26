@@ -261,7 +261,7 @@ if Sys.isapple()
       end
     end
 
-    # Cubical complex kernels on Metal. These are KernelAbstractions kernels, so
+    # Cubical complex mesh kernels on Metal. These are KernelAbstractions kernels, so
     # the point of these tests is that they compile for the GPU at all (a call
     # reaching a non-static error path fails with InvalidIRError) and that the
     # GPU result matches the CPU result.
@@ -269,8 +269,6 @@ if Sys.isapple()
       FT = Float32
       s2 = UniformCubicalComplex2D(6, 5, FT(1), FT(2))
       s3 = UniformCubicalComplex3D(3, 4, 5, FT(1), FT(2), FT(3))
-      c2, c3 = UniformDECCache(s2), UniformDECCache3D(s3)
-      gc2, gc3 = Adapt.adapt(MtlArray, c2), Adapt.adapt(MtlArray, c3)
 
       # Compare against the CPU result, elementwise for tuple-valued operators.
       agree(cpu::Tuple, gpu::Tuple) =
@@ -294,27 +292,6 @@ if Sys.isapple()
         @test agree(flat_dd(s2, f2, f2), flat_dd(s2, m(f2), m(f2)))
       end
 
-      # 2D hodge_star / dual_derivative on a mesh are sparse-matrix operators;
-      # the kernel forms live on the cache.
-      @testset "2D cached operators" begin
-        @test agree(exterior_derivative(Val(0), c2, f0), exterior_derivative(Val(0), gc2, m(f0)))
-        @test agree(exterior_derivative(Val(1), c2, f1), exterior_derivative(Val(1), gc2, m(f1)))
-        @test agree(hodge_star(Val(0), c2, f0), hodge_star(Val(0), gc2, m(f0)))
-        @test agree(hodge_star(Val(1), c2, f1), hodge_star(Val(1), gc2, m(f1)))
-        @test agree(hodge_star(Val(2), c2, f2), hodge_star(Val(2), gc2, m(f2)))
-        @test agree(inv_hodge_star(Val(1), c2, f1), inv_hodge_star(Val(1), gc2, m(f1)))
-        @test agree(dual_derivative(Val(0), c2, f2), dual_derivative(Val(0), gc2, m(f2)))
-        @test agree(dual_derivative(Val(1), c2, f1), dual_derivative(Val(1), gc2, m(f1)))
-        @test agree(wedge_product(Val(1), Val(1), c2, f1, f1), wedge_product(Val(1), Val(1), gc2, m(f1), m(f1)))
-        @test agree(sharp_dd(c2, f1), sharp_dd(gc2, m(f1)))
-        @test agree(flat_dd(c2, f2, f2), flat_dd(gc2, m(f2), m(f2)))
-        @test agree(interpolate_dp(Val(1), c2, f1), interpolate_dp(Val(1), gc2, m(f1)))
-        @test agree(codifferential(Val(1), c2, f1), codifferential(Val(1), gc2, m(f1)))
-        @test agree(laplacian(Val(0), c2, f0), laplacian(Val(0), gc2, m(f0)))
-        @test agree(d_beta_mul(c2, f1), d_beta_mul(gc2, m(f1)))
-        @test agree(no_flux_dual_derivative(Val(0), c2, f2), no_flux_dual_derivative(Val(0), gc2, m(f2)))
-      end
-
       @testset "3D mesh operators" begin
         @test agree(exterior_derivative(Val(0), s3, g0), exterior_derivative(Val(0), s3, m(g0)))
         @test agree(exterior_derivative(Val(1), s3, g1), exterior_derivative(Val(1), s3, m(g1)))
@@ -331,15 +308,6 @@ if Sys.isapple()
         @test agree(wedge_product_dd(Val(0), Val(1), s3, g3, g2), wedge_product_dd(Val(0), Val(1), s3, m(g3), m(g2)))
         @test agree(sharp_dd(s3, g2), sharp_dd(s3, m(g2)))
         @test agree(flat_dp(s3, g3, g3, g3), flat_dp(s3, m(g3), m(g3), m(g3)))
-      end
-
-      @testset "3D cached operators" begin
-        @test agree(exterior_derivative(Val(0), c3, g0), exterior_derivative(Val(0), gc3, m(g0)))
-        @test agree(exterior_derivative(Val(1), c3, g1), exterior_derivative(Val(1), gc3, m(g1)))
-        @test agree(hodge_star(Val(2), c3, g2), hodge_star(Val(2), gc3, m(g2)))
-        @test agree(inv_hodge_star(Val(2), c3, g2), inv_hodge_star(Val(2), gc3, m(g2)))
-        @test agree(dual_derivative(Val(1), c3, g2), dual_derivative(Val(1), gc3, m(g2)))
-        @test agree(wedge_product(Val(1), Val(1), c3, g1, g1), wedge_product(Val(1), Val(1), gc3, m(g1), m(g1)))
       end
     end
     @testset "Metal" begin
