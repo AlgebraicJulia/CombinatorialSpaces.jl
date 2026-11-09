@@ -89,6 +89,45 @@ test_residuals(s, UnarySubdivision())
 test_residuals(s, BinarySubdivision())
 test_residuals(s, CubicSubdivision())
 
+# Primal meshes in series
+#-------------------------
+s = triangulated_grid(1,1,1,1,Point3d,false)
+levels = 4
+series = PrimalGeometricMapSeries(s, BinarySubdivision(), levels);
+pm = primal_meshes(series)
+manual_primals = repeated_subdivisions(levels, s, BinarySubdivision())
+mesh_sizes = s -> (nv(s), ne(s), ntriangles(s))
+@test length(pm) == levels + 1 == length(meshes(series))
+@test last(pm) === s # coarsest primal mesh is the provided mesh
+@test mesh_sizes.(pm[1:end-1]) == mesh_sizes.(reverse(manual_primals)) # finest-first order
+@test first(pm) isa EmbeddedDeltaSet2D # stored primal meshes are primal complexes
+@test first(meshes(series)) isa EmbeddedDeltaDualComplex2D # `meshes` still returns dual complexes
+
+# Legacy two-argument construction (dual meshes + matrices) still works and
+# carries no primal meshes; the accessor raises an explicit error there.
+dm, mats = meshes(series), matrices(series)
+legacy = PrimalGeometricMapSeries(dm, mats)
+legacy_explicit = PrimalGeometricMapSeries{typeof(first(dm)), typeof(first(mats))}(dm, mats)
+@test meshes(legacy) == dm
+@test matrices(legacy) == mats
+@test meshes(legacy_explicit) == dm
+@test_throws "without primal meshes" primal_meshes(legacy)
+@test_throws "without primal meshes" primal_meshes(legacy_explicit)
+# Primal and dual series correspond level by level. A comprehension, not
+# broadcast: `Circumcenter()` is not broadcastable.
+@test mesh_sizes.([dualize(p, Circumcenter()) for p in pm]) == mesh_sizes.(meshes(series))
+# Inconsistent direct construction is rejected in both three-argument forms.
+@test_throws ArgumentError PrimalGeometricMapSeries(dm[1:end-1], pm, mats)
+@test_throws ArgumentError PrimalGeometricMapSeries{typeof(first(dm)), typeof(first(mats))}(dm[1:end-1], pm, mats)
+# Explicitly passing `nothing` for the primal meshes matches the legacy path.
+legacy_nothing = PrimalGeometricMapSeries(dm, nothing, mats)
+@test_throws "without primal meshes" primal_meshes(legacy_nothing)
+@test meshes(legacy_nothing) == dm
+# The original two-type-parameter form still works in method signatures.
+accepts_series(::PrimalGeometricMapSeries{D,M}) where {D,M} = true
+@test accepts_series(series)
+@test accepts_series(legacy)
+
 # Equivalence between constructors
 #---------------------------------
 s = triangulated_grid(1, 1, 1/4, sqrt(3)/2 * 1/4, Point3d, false)

@@ -151,4 +151,4 @@ function wireframe_series(s::PrimalGeometricMapSeries)
 end
 wireframe_series(series)
 ```
-The `PrimalGeometricMapSeries` type actually contains dual complexes. But it is defined by subdividing the primal mesh.
+The `PrimalGeometricMapSeries` type actually contains dual complexes. But it is defined by subdividing the primal mesh. The series of primal meshes, finest first, is also available via `primal_meshes(series)`; it raises an error for a series constructed directly from dual meshes and matrices, which carries no primal meshes.
