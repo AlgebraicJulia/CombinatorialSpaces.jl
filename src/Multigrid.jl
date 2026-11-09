@@ -10,7 +10,7 @@ export multigrid_vcycles, multigrid_wcycles, full_multigrid,
   repeated_subdivisions, repeated_subdivision_maps,
   binary_subdivision, binary_subdivision_map, dom, codom,
   as_matrix, MultigridData, MGData, AbstractGeometricMapSeries,
-  PrimalGeometricMapSeries, finest_mesh, meshes, matrices, cubic_subdivision,
+  PrimalGeometricMapSeries, finest_mesh, meshes, primal_meshes, matrices, cubic_subdivision,
   cubic_subdivision_map, AbstractSubdivisionScheme, BinarySubdivision,
   CubicSubdivision, MeshTopology, subdivision, subdivision_map, subdivision_matrix,
   refine, propagate_points,
@@ -512,10 +512,57 @@ abstract type AbstractGeometricMapSeries end
 
 struct PrimalGeometricMapSeries{D<:HasDeltaSet, M<:AbstractMatrix} <: AbstractGeometricMapSeries
   meshes::AbstractVector{D}
+  primal_meshes::Union{Nothing, AbstractVector{<:HasDeltaSet}}
   matrices::AbstractVector{M}
+
+  function PrimalGeometricMapSeries{D,M}(meshes::AbstractVector{D},
+                                         primal_meshes::Union{Nothing, AbstractVector{<:HasDeltaSet}},
+                                         matrices::AbstractVector{M}) where {D<:HasDeltaSet, M<:AbstractMatrix}
+    # The length check is the only validation: whether supplied primal meshes
+    # actually correspond to the dual meshes is not cheaply decidable (duals
+    # do not determine the primal), so the three-argument form is a
+    # trusted-caller contract, as the `matrices` argument has always been.
+    if !isnothing(primal_meshes) && length(primal_meshes) != length(meshes)
+      throw(ArgumentError("primal_meshes and meshes must have the same length"))
+    end
+    new{D,M}(meshes, primal_meshes, matrices)
+  end
 end
 
+# Legacy two-argument construction (dual meshes + matrices only) carries no
+# primal meshes; `primal_meshes` raises an explicit error for such series.
+# Both call forms are registered: Julia dispatches `Foo(args)` and
+# `Foo{T...}(args)` through separate constructor tables.
+PrimalGeometricMapSeries(meshes::AbstractVector{D}, matrices::AbstractVector{M}) where {D<:HasDeltaSet, M<:AbstractMatrix} =
+  PrimalGeometricMapSeries{D,M}(meshes, nothing, matrices)
+# The custom inner constructor above only covers the explicit-parameter form;
+# this outer restores the type-inferred three-argument form through it.
+PrimalGeometricMapSeries(meshes::AbstractVector{D}, primal_meshes::Union{Nothing, AbstractVector{<:HasDeltaSet}}, matrices::AbstractVector{M}) where {D<:HasDeltaSet, M<:AbstractMatrix} =
+  PrimalGeometricMapSeries{D,M}(meshes, primal_meshes, matrices)
+PrimalGeometricMapSeries{D,M}(meshes::AbstractVector{D}, matrices::AbstractVector{M}) where {D<:HasDeltaSet, M<:AbstractMatrix} =
+  PrimalGeometricMapSeries{D,M}(meshes, nothing, matrices)
+
 meshes(series::PrimalGeometricMapSeries) = series.meshes
+
+"""
+    primal_meshes(series::PrimalGeometricMapSeries)
+
+The primal meshes in the series, finest first, ending with the mesh that was
+subdivided to construct the series.
+
+The last element is the very mesh passed to the constructor, stored by
+reference, not copied: mutating that mesh after construction desynchronizes
+it from the stored dual meshes and matrices.
+
+Raises an error if the series was constructed directly from dual meshes and
+matrices (the legacy two-argument constructor), which does not carry primal
+meshes.
+"""
+function primal_meshes(series::PrimalGeometricMapSeries)
+  isnothing(series.primal_meshes) &&
+    error("this PrimalGeometricMapSeries was constructed without primal meshes (legacy two-argument constructor); primal meshes are available when the series is constructed from a mesh, a subdivision scheme and a number of levels")
+  series.primal_meshes
+end
 matrices(series::PrimalGeometricMapSeries) = series.matrices
 finest_mesh(series::PrimalGeometricMapSeries) = first(series.meshes)
 
@@ -529,7 +576,7 @@ function PrimalGeometricMapSeries(s::HasDeltaSet, subdivider::Function, levels::
   meshes = [dom.(subdivs)..., s]
   dual_meshes = map(s -> dualize(s, alg), meshes)
   matrices = as_matrix.(subdivs)
-  PrimalGeometricMapSeries{typeof(first(dual_meshes)), typeof(first(matrices))}(dual_meshes, matrices)
+  PrimalGeometricMapSeries{typeof(first(dual_meshes)), typeof(first(matrices))}(dual_meshes, meshes, matrices)
 end
 
 # MultigridData
